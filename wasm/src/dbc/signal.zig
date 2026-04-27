@@ -2,7 +2,6 @@ const std = @import("std");
 const values = @import("values.zig");
 
 pub const DbcEndian = enum { intel, motorola };
-pub const ValueType = enum { integer, float32, float64 };
 
 const SignalDecodePlan = struct {
     bit_offset: usize,
@@ -23,8 +22,8 @@ pub const Signal = struct {
     maximum: ?f64,
     unit: []const u8,
     receivers: [][]const u8,
-    value_descriptions: ?values.ValueDescriptionRef,
-    value_type: ValueType,
+    value_descriptions: ?[]values.ValueDescription,
+    value_type: values.ValueType,
     unsupported_mux: bool,
 
     // pub fn planDecode(self: Signal, msg_size_bytes: u8) SignalDecodePlan {
@@ -164,18 +163,8 @@ pub const Signal = struct {
         };
     }
 
-    pub fn getValueDescriptions(
-        self: Signal,
-        value_tables: *const std.StringHashMap(values.ValueTable),
-    ) ?[]const values.ValueDescription {
-        const value_descriptions = self.value_descriptions orelse return null;
-        return switch (value_descriptions) {
-            .inline_values => |items| items,
-            .table_name => |name| {
-                const table = value_tables.get(name) orelse return null;
-                return table.values;
-            },
-        };
+    pub fn getValueDescriptions(self: Signal) ?[]const values.ValueDescription {
+        return self.value_descriptions;
     }
 };
 

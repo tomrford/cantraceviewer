@@ -1,5 +1,7 @@
 const std = @import("std");
 
+pub const ValueType = enum { integer, float32, float64 };
+
 pub const ValueDescription = struct { raw_value: i64, label: []const u8 };
 
 pub const ValueDescriptionRef = union(enum) {
@@ -59,6 +61,43 @@ pub const ValueTable = struct {
         return .{
             .name = name,
             .values = try parseValueDescriptionPairs(allocator, cursor),
+        };
+    }
+};
+
+pub const SignalValueType = struct {
+    message_id: u32,
+    signal_name: []const u8,
+    value_type: ValueType,
+
+    pub fn fromString(line: []const u8) !SignalValueType {
+        var cursor = std.mem.trim(u8, line, " \t\r");
+        if (!std.mem.startsWith(u8, cursor, "SIG_VALTYPE_ ")) return error.InvalidSignalValueTypeLine;
+        cursor = std.mem.trimLeft(u8, cursor["SIG_VALTYPE_ ".len..], " \t");
+
+        const message_id_end = std.mem.indexOfAny(u8, cursor, " \t") orelse return error.InvalidSignalValueTypeLine;
+        const message_id = try std.fmt.parseInt(u32, cursor[0..message_id_end], 10);
+        cursor = std.mem.trimLeft(u8, cursor[message_id_end..], " \t");
+
+        const signal_name_end = std.mem.indexOfAny(u8, cursor, " \t:") orelse return error.InvalidSignalValueTypeLine;
+        const signal_name = cursor[0..signal_name_end];
+        cursor = std.mem.trimLeft(u8, cursor[signal_name_end..], " \t");
+        if (std.mem.startsWith(u8, cursor, ":")) {
+            cursor = std.mem.trimLeft(u8, cursor[1..], " \t");
+        }
+        if (std.mem.endsWith(u8, cursor, ";")) {
+            cursor = std.mem.trimRight(u8, cursor[0 .. cursor.len - 1], " \t\r");
+        }
+
+        return .{
+            .message_id = message_id,
+            .signal_name = signal_name,
+            .value_type = switch (try std.fmt.parseInt(u8, cursor, 10)) {
+                0 => .integer,
+                1 => .float32,
+                2 => .float64,
+                else => return error.InvalidSignalValueTypeLine,
+            },
         };
     }
 };
@@ -177,4 +216,22 @@ test "reject VAL_TABLE line without table name" {
 test "reject VAL_TABLE line with unterminated label" {
     const allocator = std.testing.allocator;
     try std.testing.expectError(error.InvalidValueDescriptionLine, ValueTable.fromString(allocator, "VAL_TABLE_ State 0 \"Off;"));
+}
+
+test "parse SIG_VALTYPE line with colon" {
+    const value_type = try SignalValueType.fromString("SIG_VALTYPE_ 100 Temperature : 1;");
+
+    try std.testing.expectEqual(@as(u32, 100), value_type.message_id);
+    try std.testing.expectEqualStrings("Temperature", value_type.signal_name);
+    try std.testing.expectEqual(ValueType.float32, value_type.value_type);
+}
+
+test "parse SIG_VALTYPE line without colon" {
+    const value_type = try SignalValueType.fromString("SIG_VALTYPE_ 100 Temperature 2;");
+
+    try std.testing.expectEqual(ValueType.float64, value_type.value_type);
+}
+
+test "reject SIG_VALTYPE line with unsupported type" {
+    try std.testing.expectError(error.InvalidSignalValueTypeLine, SignalValueType.fromString("SIG_VALTYPE_ 100 Temperature : 3;"));
 }
