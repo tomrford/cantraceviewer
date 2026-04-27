@@ -1,0 +1,57 @@
+VERSION "1.0"
+
+NS_ :
+    NS_DESC_
+    CM_
+    BA_DEF_
+    BA_
+    VAL_
+    CAT_DEF_
+    CAT_
+    FILTER
+    BA_DEF_DEF_
+    EV_DATA_
+    ENVVAR_DATA_
+    SGTYPE_
+    SGTYPE_VAL_
+    BA_DEF_SGTYPE_
+    BA_SGTYPE_
+    SIG_TYPE_REF_
+    VAL_TABLE_
+    SIG_GROUP_
+    SIG_VALTYPE_
+    SIGTYPE_VALTYPE_
+    BO_TX_BU_
+    BA_DEF_REL_
+    BA_REL_
+    BA_DEF_DEF_REL_
+    BU_SG_REL_
+    BU_EV_REL_
+    BU_BO_REL_
+
+BS_:
+
+BU_: ECU DASH
+
+BO_ 100 Example: 8 ECU
+    SG_ State : 0|8@1+ (1,0) [0|255] "" DASH
+
+CM_ BO_ 100 "Example message";
+CM_ SG_ 100 State "State comment";
+
+BA_DEF_ "DBName" STRING;
+BA_DEF_ "BusType" STRING;
+BA_DEF_ BO_ "FrameOwner" STRING;
+BA_DEF_ SG_ "SigKind" ENUM "A", "B";
+
+BA_DEF_DEF_ "DBName" "";
+BA_DEF_DEF_ "BusType" "CAN";
+BA_DEF_DEF_ "FrameOwner" "";
+BA_DEF_DEF_ "SigKind" "A";
+
+BA_ "DBName" "ExampleDb";
+BA_ "BusType" "CAN";
+BA_ "FrameOwner" BO_ 100 "Body";
+BA_ "SigKind" SG_ 100 State 1;
+
+VAL_ 100 State 0 "Off" 1 "On";

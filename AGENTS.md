@@ -18,3 +18,7 @@ cd wasm && zig build test
 ```
 
 `bun run check` includes Wrangler type generation and may require Cloudflare worker types to be generated first.
+
+### Zig
+
+We are using Zig 0.16.0 for the WASM parts of the project. Docs can be found at https://ziglang.org/documentation/0.16.0/.
