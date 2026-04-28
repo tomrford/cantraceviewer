@@ -17,19 +17,19 @@ pub const SignalValueDescriptions = struct {
     pub fn fromString(allocator: std.mem.Allocator, line: []const u8) !SignalValueDescriptions {
         var cursor = std.mem.trim(u8, line, " \t\r");
         if (!std.mem.startsWith(u8, cursor, "VAL_ ")) return error.InvalidValueDescriptionLine;
-        cursor = std.mem.trimLeft(u8, cursor["VAL_ ".len..], " \t");
+        cursor = std.mem.trim(u8, cursor["VAL_ ".len..], " \t");
 
         const message_id_end = std.mem.indexOfAny(u8, cursor, " \t") orelse return error.InvalidValueDescriptionLine;
         const message_id = try std.fmt.parseInt(u32, cursor[0..message_id_end], 10);
-        cursor = std.mem.trimLeft(u8, cursor[message_id_end..], " \t");
+        cursor = std.mem.trim(u8, cursor[message_id_end..], " \t");
 
         const signal_name_end = std.mem.indexOfAny(u8, cursor, " \t") orelse return error.InvalidValueDescriptionLine;
         const signal_name = cursor[0..signal_name_end];
-        cursor = std.mem.trimLeft(u8, cursor[signal_name_end..], " \t");
+        cursor = std.mem.trim(u8, cursor[signal_name_end..], " \t");
 
         if (cursor.len == 0) return error.InvalidValueDescriptionLine;
         if (std.mem.endsWith(u8, cursor, ";")) {
-            cursor = std.mem.trimRight(u8, cursor[0 .. cursor.len - 1], " \t\r");
+            cursor = std.mem.trim(u8, cursor[0 .. cursor.len - 1], " \t\r");
         }
         if (cursor.len == 0) return error.InvalidValueDescriptionLine;
 
@@ -52,11 +52,11 @@ pub const ValueTable = struct {
     pub fn fromString(allocator: std.mem.Allocator, line: []const u8) !ValueTable {
         var cursor = std.mem.trim(u8, line, " \t\r");
         if (!std.mem.startsWith(u8, cursor, "VAL_TABLE_ ")) return error.InvalidValueTableLine;
-        cursor = std.mem.trimLeft(u8, cursor["VAL_TABLE_ ".len..], " \t");
+        cursor = std.mem.trim(u8, cursor["VAL_TABLE_ ".len..], " \t");
 
         const name_end = std.mem.indexOfAny(u8, cursor, " \t") orelse return error.InvalidValueTableLine;
         const name = cursor[0..name_end];
-        cursor = std.mem.trimLeft(u8, cursor[name_end..], " \t");
+        cursor = std.mem.trim(u8, cursor[name_end..], " \t");
 
         return .{
             .name = name,
@@ -73,20 +73,20 @@ pub const SignalValueType = struct {
     pub fn fromString(line: []const u8) !SignalValueType {
         var cursor = std.mem.trim(u8, line, " \t\r");
         if (!std.mem.startsWith(u8, cursor, "SIG_VALTYPE_ ")) return error.InvalidSignalValueTypeLine;
-        cursor = std.mem.trimLeft(u8, cursor["SIG_VALTYPE_ ".len..], " \t");
+        cursor = std.mem.trim(u8, cursor["SIG_VALTYPE_ ".len..], " \t");
 
         const message_id_end = std.mem.indexOfAny(u8, cursor, " \t") orelse return error.InvalidSignalValueTypeLine;
         const message_id = try std.fmt.parseInt(u32, cursor[0..message_id_end], 10);
-        cursor = std.mem.trimLeft(u8, cursor[message_id_end..], " \t");
+        cursor = std.mem.trim(u8, cursor[message_id_end..], " \t");
 
         const signal_name_end = std.mem.indexOfAny(u8, cursor, " \t:") orelse return error.InvalidSignalValueTypeLine;
         const signal_name = cursor[0..signal_name_end];
-        cursor = std.mem.trimLeft(u8, cursor[signal_name_end..], " \t");
+        cursor = std.mem.trim(u8, cursor[signal_name_end..], " \t");
         if (std.mem.startsWith(u8, cursor, ":")) {
-            cursor = std.mem.trimLeft(u8, cursor[1..], " \t");
+            cursor = std.mem.trim(u8, cursor[1..], " \t");
         }
         if (std.mem.endsWith(u8, cursor, ";")) {
-            cursor = std.mem.trimRight(u8, cursor[0 .. cursor.len - 1], " \t\r");
+            cursor = std.mem.trim(u8, cursor[0 .. cursor.len - 1], " \t\r");
         }
 
         return .{
@@ -105,7 +105,7 @@ pub const SignalValueType = struct {
 fn parseValueDescriptionPairs(allocator: std.mem.Allocator, text: []const u8) ![]ValueDescription {
     var cursor = std.mem.trim(u8, text, " \t\r");
     if (std.mem.endsWith(u8, cursor, ";")) {
-        cursor = std.mem.trimRight(u8, cursor[0 .. cursor.len - 1], " \t\r");
+        cursor = std.mem.trim(u8, cursor[0 .. cursor.len - 1], " \t\r");
     }
 
     var descriptions: std.ArrayList(ValueDescription) = .empty;
@@ -114,7 +114,7 @@ fn parseValueDescriptionPairs(allocator: std.mem.Allocator, text: []const u8) ![
     while (cursor.len > 0) {
         const raw_end = std.mem.indexOfAny(u8, cursor, " \t") orelse return error.InvalidValueDescriptionLine;
         const raw_value = try std.fmt.parseInt(i64, cursor[0..raw_end], 10);
-        cursor = std.mem.trimLeft(u8, cursor[raw_end..], " \t");
+        cursor = std.mem.trim(u8, cursor[raw_end..], " \t");
 
         if (!std.mem.startsWith(u8, cursor, "\"")) return error.InvalidValueDescriptionLine;
         cursor = cursor[1..];
@@ -124,7 +124,7 @@ fn parseValueDescriptionPairs(allocator: std.mem.Allocator, text: []const u8) ![
             .raw_value = raw_value,
             .label = cursor[0..label_end],
         });
-        cursor = std.mem.trimLeft(u8, cursor[label_end + 1 ..], " \t");
+        cursor = std.mem.trim(u8, cursor[label_end + 1 ..], " \t");
     }
 
     return descriptions.toOwnedSlice(allocator);

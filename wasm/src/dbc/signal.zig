@@ -78,20 +78,20 @@ pub const Signal = struct {
     pub fn fromString(allocator: std.mem.Allocator, line: []const u8) !Signal {
         var cursor = std.mem.trim(u8, line, " \t\r");
         if (!std.mem.startsWith(u8, cursor, "SG_ ")) return error.InvalidSignalLine;
-        cursor = std.mem.trimLeft(u8, cursor["SG_ ".len..], " \t");
+        cursor = std.mem.trim(u8, cursor["SG_ ".len..], " \t");
 
         const name_end = std.mem.indexOfAny(u8, cursor, " \t") orelse return error.InvalidSignalLine;
         const name = cursor[0..name_end];
-        cursor = std.mem.trimLeft(u8, cursor[name_end..], " \t");
+        cursor = std.mem.trim(u8, cursor[name_end..], " \t");
 
         var unsupported_mux = false;
         if (!std.mem.startsWith(u8, cursor, ":")) {
             const marker_end = std.mem.indexOfAny(u8, cursor, " \t") orelse return error.InvalidSignalLine;
             unsupported_mux = true;
-            cursor = std.mem.trimLeft(u8, cursor[marker_end..], " \t");
+            cursor = std.mem.trim(u8, cursor[marker_end..], " \t");
         }
         if (!std.mem.startsWith(u8, cursor, ":")) return error.InvalidSignalLine;
-        cursor = std.mem.trimLeft(u8, cursor[1..], " \t");
+        cursor = std.mem.trim(u8, cursor[1..], " \t");
 
         const start_sep = std.mem.indexOfScalar(u8, cursor, '|') orelse return error.InvalidSignalLine;
         const start_bit = try std.fmt.parseInt(u16, cursor[0..start_sep], 10);
@@ -112,7 +112,7 @@ pub const Signal = struct {
             '-' => .signed,
             else => return error.InvalidSignalLine,
         };
-        cursor = std.mem.trimLeft(u8, cursor[2..], " \t");
+        cursor = std.mem.trim(u8, cursor[2..], " \t");
 
         if (!std.mem.startsWith(u8, cursor, "(")) return error.InvalidSignalLine;
         cursor = cursor[1..];
@@ -121,7 +121,7 @@ pub const Signal = struct {
         cursor = cursor[factor_sep + 1 ..];
         const offset_sep = std.mem.indexOfScalar(u8, cursor, ')') orelse return error.InvalidSignalLine;
         const offset = try std.fmt.parseFloat(f64, cursor[0..offset_sep]);
-        cursor = std.mem.trimLeft(u8, cursor[offset_sep + 1 ..], " \t");
+        cursor = std.mem.trim(u8, cursor[offset_sep + 1 ..], " \t");
 
         if (!std.mem.startsWith(u8, cursor, "[")) return error.InvalidSignalLine;
         cursor = cursor[1..];
@@ -130,7 +130,7 @@ pub const Signal = struct {
         cursor = cursor[min_sep + 1 ..];
         const max_sep = std.mem.indexOfScalar(u8, cursor, ']') orelse return error.InvalidSignalLine;
         const maximum = try std.fmt.parseFloat(f64, cursor[0..max_sep]);
-        cursor = std.mem.trimLeft(u8, cursor[max_sep + 1 ..], " \t");
+        cursor = std.mem.trim(u8, cursor[max_sep + 1 ..], " \t");
 
         if (!std.mem.startsWith(u8, cursor, "\"")) return error.InvalidSignalLine;
         cursor = cursor[1..];

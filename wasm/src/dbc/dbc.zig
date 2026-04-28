@@ -170,7 +170,21 @@ fn freePendingValueDescription(allocator: std.mem.Allocator, value_descriptions:
 
 test "parse fixture DBC messages and signals" {
     const allocator = std.testing.allocator;
-    const text = @embedFile("../../test/fixtures/agentic-demo.dbc");
+    const text =
+        \\VERSION ""
+        \\BO_ 256 Heartbeat: 2 Agent
+        \\ SG_ counter : 0|8@1+ (1,0) [0|255] "" Dashboard
+        \\ SG_ mode : 8|8@1+ (1,0) [0|4] "" Dashboard
+        \\BO_ 288 PowertrainStatus: 8 Agent
+        \\ SG_ vehicle_speed : 0|16@1+ (0.1,0) [0|250] "km/h" Dashboard
+        \\ SG_ engine_rpm : 16|16@1+ (1,0) [0|8000] "rpm" Dashboard
+        \\ SG_ throttle : 32|8@1+ (0.5,0) [0|100] "%" Dashboard
+        \\ SG_ coolant_temp : 40|8@1+ (1,-40) [-40|215] "degC" Dashboard
+        \\BO_ 304 BodyStatus: 3 Agent
+        \\ SG_ left_signal : 0|8@1+ (1,0) [0|1] "" Dashboard
+        \\ SG_ right_signal : 8|8@1+ (1,0) [0|1] "" Dashboard
+        \\ SG_ battery_voltage : 16|8@1+ (0.1,0) [0|25.5] "V" Dashboard
+    ;
     var dbc = try Dbc.fromString(allocator, text);
     defer dbc.deinit(allocator);
 
@@ -185,7 +199,22 @@ test "parse fixture DBC messages and signals" {
 
 test "parse fixture DBC with extended multiplexed signals" {
     const allocator = std.testing.allocator;
-    const text = @embedFile("../../test/fixtures/extended-multiplex.dbc");
+    const text =
+        \\VERSION ""
+        \\BO_ 2147483650 ext_MUX_multiplexors: 7 Vector__XXX
+        \\ SG_ muxed_D_1 m1 : 48|8@1- (1,0) [0|0] "" Vector__XXX
+        \\ SG_ muxed_D_0 m0 : 48|8@1- (1,0) [0|0] "" Vector__XXX
+        \\ SG_ muxed_C_1_MUX_D m1M : 40|8@1- (1,0) [0|0] "" Vector__XXX
+        \\ SG_ muxed_C_0 m0 : 40|16@1- (1,0) [0|0] "" Vector__XXX
+        \\ SG_ MUX_C M : 32|8@1- (1,0) [0|0] "" Vector__XXX
+        \\ SG_ muxed_B_5 m5 : 24|8@1- (1,0) [0|0] "" Vector__XXX
+        \\ SG_ muxed_B_1 m1 : 24|8@1- (1,0) [0|0] "" Vector__XXX
+        \\ SG_ muxed_B_2 m2 : 24|8@1- (1,0) [0|0] "" Vector__XXX
+        \\ SG_ MUX_B M : 16|8@1- (1,0) [0|0] "" Vector__XXX
+        \\ SG_ muxed_A_0 m0 : 8|8@1- (1,0) [0|0] "" Vector__XXX
+        \\ SG_ muxed_A_1 m1 : 8|8@1- (1,0) [0|0] "" Vector__XXX
+        \\ SG_ MUX_A M : 0|8@1- (1,0) [0|0] "" Vector__XXX
+    ;
     var dbc = try Dbc.fromString(allocator, text);
     defer dbc.deinit(allocator);
 
@@ -200,7 +229,12 @@ test "parse fixture DBC with extended multiplexed signals" {
 
 test "parse fixture DBC with inline value descriptions" {
     const allocator = std.testing.allocator;
-    const text = @embedFile("../../test/fixtures/value-descriptions.dbc");
+    const text =
+        \\VERSION "1.0"
+        \\BO_ 100 Example: 8 ECU
+        \\    SG_ State : 0|8@1+ (1,0) [0|255] "" DASH
+        \\VAL_ 100 State 0 "Off" 1 "On";
+    ;
     var dbc = try Dbc.fromString(allocator, text);
     defer dbc.deinit(allocator);
 
