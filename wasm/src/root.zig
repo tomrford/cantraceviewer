@@ -119,6 +119,7 @@ fn writeMessageJson(writer: *std.json.Stringify, msg: message.Message) !void {
     try writer.objectField("signals");
     try writer.beginArray();
     for (msg.signals) |sig| {
+        if (sig.unsupported_mux) continue;
         try writeSignalJson(writer, sig);
     }
     try writer.endArray();
@@ -186,4 +187,25 @@ test "serializes parsed DBC to JSON" {
 
 test "serializing failed parse handle returns null" {
     try std.testing.expectEqual(@as(?*OwnedBytes, null), dbc_to_json(0));
+}
+
+test "omits unsupported multiplexed signals from JSON" {
+    const allocator = std.testing.allocator;
+    const text =
+        \\BO_ 100 Example: 8 ECU
+        \\ SG_ Visible : 0|8@1+ (1,0) [0|255] "" DASH
+        \\ SG_ Hidden m1 : 8|8@1+ (1,0) [0|255] "" DASH
+    ;
+    var parsed = try dbc.Dbc.fromString(allocator, text);
+    defer parsed.deinit(allocator);
+
+    try std.testing.expectEqual(@as(usize, 2), parsed.messages[0].signals.len);
+    try std.testing.expect(parsed.messages[0].signals[1].unsupported_mux);
+
+    const json = try dbcToJson(allocator, parsed);
+    defer allocator.free(json);
+
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"Visible\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"Hidden\"") == null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"unsupportedMux\":false") != null);
 }

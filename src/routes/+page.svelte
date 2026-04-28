@@ -1,7 +1,16 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import * as Table from '$lib/components/ui/table';
-	import { parseDbcText, type ParsedDbc } from '$lib/dbc-wasm';
+	import * as Tabs from '$lib/components/ui/tabs';
+	import { parseDbcText, type DbcSignal, type ParsedDbc } from '$lib/dbc-wasm';
+
+	type SignalRow = {
+		key: string;
+		messageName: string;
+		dbcId: number;
+		canId: number;
+		signal: DbcSignal;
+	};
 
 	let fileInput: HTMLInputElement;
 	let fileName = $state('');
@@ -11,6 +20,17 @@
 
 	let signalCount = $derived(
 		dbc?.messages.reduce((total, message) => total + message.signals.length, 0) ?? 0
+	);
+	let signalRows = $derived(
+		dbc?.messages.flatMap((message) =>
+			message.signals.map((signal) => ({
+				key: `${message.dbcId}:${signal.name}`,
+				messageName: message.name,
+				dbcId: message.dbcId,
+				canId: message.canId,
+				signal
+			}))
+		) satisfies SignalRow[] | undefined
 	);
 
 	async function openFile(event: Event) {
@@ -85,36 +105,84 @@
 				</div>
 			</div>
 
-			<Table.Root class="text-sm">
-				<Table.Header>
-					<Table.Row>
-						<Table.Head>Name</Table.Head>
-						<Table.Head>DBC ID</Table.Head>
-						<Table.Head>CAN ID</Table.Head>
-						<Table.Head>Bytes</Table.Head>
-						<Table.Head>Transmitter</Table.Head>
-						<Table.Head>Signals</Table.Head>
-					</Table.Row>
-				</Table.Header>
-				<Table.Body>
-					{#each dbc.messages as message (message.dbcId)}
-						<Table.Row>
-							<Table.Cell class="font-medium">{message.name}</Table.Cell>
-							<Table.Cell>{message.dbcId}</Table.Cell>
-							<Table.Cell>{message.canId}</Table.Cell>
-							<Table.Cell>{message.sizeBytes}</Table.Cell>
-							<Table.Cell>{message.transmitter}</Table.Cell>
-							<Table.Cell>
-								<div class="flex max-w-xl flex-wrap gap-1">
-									{#each message.signals as signal (signal.name)}
-										<span class="border bg-muted px-1.5 py-0.5 text-xs">{signal.name}</span>
-									{/each}
-								</div>
-							</Table.Cell>
-						</Table.Row>
-					{/each}
-				</Table.Body>
-			</Table.Root>
+			<Tabs.Root value="messages">
+				<Tabs.List>
+					<Tabs.Trigger value="messages">Messages</Tabs.Trigger>
+					<Tabs.Trigger value="signals">Signals</Tabs.Trigger>
+				</Tabs.List>
+
+				<Tabs.Content value="messages" class="border">
+					<Table.Root class="text-sm">
+						<Table.Header>
+							<Table.Row>
+								<Table.Head>Name</Table.Head>
+								<Table.Head>DBC ID</Table.Head>
+								<Table.Head>CAN ID</Table.Head>
+								<Table.Head>Format</Table.Head>
+								<Table.Head>Bytes</Table.Head>
+								<Table.Head>Transmitter</Table.Head>
+								<Table.Head>Signals</Table.Head>
+							</Table.Row>
+						</Table.Header>
+						<Table.Body>
+							{#each dbc.messages as message (message.dbcId)}
+								<Table.Row>
+									<Table.Cell class="font-medium">{message.name}</Table.Cell>
+									<Table.Cell>{message.dbcId}</Table.Cell>
+									<Table.Cell>{message.canId}</Table.Cell>
+									<Table.Cell>
+										{message.isExtended ? 'extended' : 'standard'}{message.isFd ? ' FD' : ''}
+									</Table.Cell>
+									<Table.Cell>{message.sizeBytes}</Table.Cell>
+									<Table.Cell>{message.transmitter}</Table.Cell>
+									<Table.Cell>{message.signals.length}</Table.Cell>
+								</Table.Row>
+							{/each}
+						</Table.Body>
+					</Table.Root>
+				</Tabs.Content>
+
+				<Tabs.Content value="signals" class="border">
+					<Table.Root class="text-sm">
+						<Table.Header>
+							<Table.Row>
+								<Table.Head>Signal</Table.Head>
+								<Table.Head>Message</Table.Head>
+								<Table.Head>CAN ID</Table.Head>
+								<Table.Head>Bits</Table.Head>
+								<Table.Head>Type</Table.Head>
+								<Table.Head>Scale</Table.Head>
+								<Table.Head>Range</Table.Head>
+								<Table.Head>Unit</Table.Head>
+								<Table.Head>Receivers</Table.Head>
+								<Table.Head>Values</Table.Head>
+							</Table.Row>
+						</Table.Header>
+						<Table.Body>
+							{#each signalRows ?? [] as row (row.key)}
+								<Table.Row>
+									<Table.Cell class="font-medium">{row.signal.name}</Table.Cell>
+									<Table.Cell>{row.messageName}</Table.Cell>
+									<Table.Cell>{row.canId}</Table.Cell>
+									<Table.Cell>{row.signal.startBit}|{row.signal.bitLength}</Table.Cell>
+									<Table.Cell>{row.signal.endianness} {row.signal.signedness}</Table.Cell>
+									<Table.Cell>{row.signal.factor}, {row.signal.offset}</Table.Cell>
+									<Table.Cell>{row.signal.minimum}..{row.signal.maximum}</Table.Cell>
+									<Table.Cell>{row.signal.unit || '-'}</Table.Cell>
+									<Table.Cell>{row.signal.receivers.join(', ') || '-'}</Table.Cell>
+									<Table.Cell>
+										{#if row.signal.valueDescriptions.length}
+											{row.signal.valueDescriptions.length}
+										{:else}
+											-
+										{/if}
+									</Table.Cell>
+								</Table.Row>
+							{/each}
+						</Table.Body>
+					</Table.Root>
+				</Tabs.Content>
+			</Tabs.Root>
 		{:else if !loading}
 			<div
 				class="flex min-h-72 items-center justify-center border border-dashed text-sm text-muted-foreground"

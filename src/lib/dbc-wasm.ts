@@ -1,41 +1,47 @@
 import wasmUrl from '../../wasm/zig-out/bin/can_log_viewer.wasm?url';
+import { z } from 'zod';
 
-export type DbcValueDescription = {
-	rawValue: number;
-	label: string;
-};
+const DbcValueDescriptionSchema = z.object({
+	rawValue: z.number(),
+	label: z.string()
+});
 
-export type DbcSignal = {
-	name: string;
-	startBit: number;
-	bitLength: number;
-	endianness: string;
-	signedness: string;
-	factor: number;
-	offset: number;
-	minimum: number;
-	maximum: number;
-	unit: string;
-	valueType: string;
-	unsupportedMux: boolean;
-	receivers: string[];
-	valueDescriptions: DbcValueDescription[];
-};
+const DbcSignalSchema = z.object({
+	name: z.string(),
+	startBit: z.number(),
+	bitLength: z.number(),
+	endianness: z.string(),
+	signedness: z.string(),
+	factor: z.number(),
+	offset: z.number(),
+	minimum: z.number(),
+	maximum: z.number(),
+	unit: z.string(),
+	valueType: z.string(),
+	unsupportedMux: z.boolean(),
+	receivers: z.array(z.string()),
+	valueDescriptions: z.array(DbcValueDescriptionSchema)
+});
 
-export type DbcMessage = {
-	name: string;
-	dbcId: number;
-	canId: number;
-	isExtended: boolean;
-	isFd: boolean;
-	sizeBytes: number;
-	transmitter: string;
-	signals: DbcSignal[];
-};
+const DbcMessageSchema = z.object({
+	name: z.string(),
+	dbcId: z.number(),
+	canId: z.number(),
+	isExtended: z.boolean(),
+	isFd: z.boolean(),
+	sizeBytes: z.number(),
+	transmitter: z.string(),
+	signals: z.array(DbcSignalSchema)
+});
 
-export type ParsedDbc = {
-	messages: DbcMessage[];
-};
+const ParsedDbcSchema = z.object({
+	messages: z.array(DbcMessageSchema)
+});
+
+export type DbcValueDescription = z.infer<typeof DbcValueDescriptionSchema>;
+export type DbcSignal = z.infer<typeof DbcSignalSchema>;
+export type DbcMessage = z.infer<typeof DbcMessageSchema>;
+export type ParsedDbc = z.infer<typeof ParsedDbcSchema>;
 
 type DbcWasmExports = {
 	memory: WebAssembly.Memory;
@@ -90,7 +96,7 @@ export async function parseDbcText(text: string): Promise<ParsedDbc> {
 			const bytes = new Uint8Array(wasm.memory.buffer, ptr, len).slice();
 			const json = new TextDecoder().decode(bytes);
 
-			return JSON.parse(json) as ParsedDbc;
+			return ParsedDbcSchema.parse(JSON.parse(json));
 		} finally {
 			wasm.owned_bytes_free(jsonBytes);
 		}
