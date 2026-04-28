@@ -1,4 +1,5 @@
 const std = @import("std");
+const dbc_string = @import("string.zig");
 const values = @import("values.zig");
 
 pub const DbcEndian = enum { intel, motorola };
@@ -117,26 +118,28 @@ pub const Signal = struct {
         if (!std.mem.startsWith(u8, cursor, "(")) return error.InvalidSignalLine;
         cursor = cursor[1..];
         const factor_sep = std.mem.indexOfScalar(u8, cursor, ',') orelse return error.InvalidSignalLine;
-        const factor = try std.fmt.parseFloat(f64, cursor[0..factor_sep]);
+        const factor = try parseFiniteFloat(cursor[0..factor_sep]);
         cursor = cursor[factor_sep + 1 ..];
         const offset_sep = std.mem.indexOfScalar(u8, cursor, ')') orelse return error.InvalidSignalLine;
-        const offset = try std.fmt.parseFloat(f64, cursor[0..offset_sep]);
+        const offset = try parseFiniteFloat(cursor[0..offset_sep]);
         cursor = std.mem.trim(u8, cursor[offset_sep + 1 ..], " \t");
 
         if (!std.mem.startsWith(u8, cursor, "[")) return error.InvalidSignalLine;
         cursor = cursor[1..];
         const min_sep = std.mem.indexOfScalar(u8, cursor, '|') orelse return error.InvalidSignalLine;
-        const minimum = try std.fmt.parseFloat(f64, cursor[0..min_sep]);
+        const minimum = try parseFiniteFloat(cursor[0..min_sep]);
         cursor = cursor[min_sep + 1 ..];
         const max_sep = std.mem.indexOfScalar(u8, cursor, ']') orelse return error.InvalidSignalLine;
-        const maximum = try std.fmt.parseFloat(f64, cursor[0..max_sep]);
+        const maximum = try parseFiniteFloat(cursor[0..max_sep]);
         cursor = std.mem.trim(u8, cursor[max_sep + 1 ..], " \t");
 
-        if (!std.mem.startsWith(u8, cursor, "\"")) return error.InvalidSignalLine;
-        cursor = cursor[1..];
-        const unit_end = std.mem.indexOfScalar(u8, cursor, '"') orelse return error.InvalidSignalLine;
-        const unit = cursor[0..unit_end];
-        cursor = std.mem.trim(u8, cursor[unit_end + 1 ..], " \t\r");
+        const unit = dbc_string.parseQuoted(allocator, &cursor) catch |err| switch (err) {
+            error.OutOfMemory => return err,
+            else => return error.InvalidSignalLine,
+        };
+        var unit_owned = true;
+        errdefer if (unit_owned) allocator.free(unit);
+        cursor = std.mem.trim(u8, cursor, " \t\r");
 
         var receivers: std.ArrayList([]const u8) = .empty;
         errdefer receivers.deinit(allocator);
@@ -144,6 +147,9 @@ pub const Signal = struct {
         while (receiver_tokens.next()) |receiver| {
             try receivers.append(allocator, std.mem.trim(u8, receiver, " \t\r"));
         }
+
+        const receiver_slice = try receivers.toOwnedSlice(allocator);
+        unit_owned = false;
 
         return .{
             .name = name,
@@ -156,7 +162,7 @@ pub const Signal = struct {
             .minimum = minimum,
             .maximum = maximum,
             .unit = unit,
-            .receivers = try receivers.toOwnedSlice(allocator),
+            .receivers = receiver_slice,
             .value_descriptions = null,
             .value_type = .integer,
             .unsupported_mux = unsupported_mux,
@@ -168,10 +174,17 @@ pub const Signal = struct {
     }
 };
 
+fn parseFiniteFloat(text: []const u8) !f64 {
+    const value = try std.fmt.parseFloat(f64, text);
+    if (!std.math.isFinite(value)) return error.NonFiniteSignalNumber;
+    return value;
+}
+
 test "parse fixture signal line" {
     const allocator = std.testing.allocator;
     const sig = try Signal.fromString(allocator, " SG_ vehicle_speed : 0|16@1+ (0.1,0) [0|250] \"km/h\" Dashboard");
     defer allocator.free(sig.receivers);
+    defer allocator.free(sig.unit);
 
     try std.testing.expectEqualStrings("vehicle_speed", sig.name);
     try std.testing.expectEqual(@as(u16, 0), sig.start_bit);
@@ -192,6 +205,7 @@ test "parse fixture signal line with negative offset" {
     const allocator = std.testing.allocator;
     const sig = try Signal.fromString(allocator, " SG_ coolant_temp : 40|8@1+ (1,-40) [-40|215] \"degC\" Dashboard");
     defer allocator.free(sig.receivers);
+    defer allocator.free(sig.unit);
 
     try std.testing.expectEqualStrings("coolant_temp", sig.name);
     try std.testing.expectEqual(@as(u16, 40), sig.start_bit);
@@ -206,6 +220,7 @@ test "parse fixture multiplexed signal as unsupported" {
     const allocator = std.testing.allocator;
     const sig = try Signal.fromString(allocator, " SG_ muxed_D_1 m1 : 48|8@1- (1,0) [0|0] \"\" Vector__XXX");
     defer allocator.free(sig.receivers);
+    defer allocator.free(sig.unit);
 
     try std.testing.expectEqualStrings("muxed_D_1", sig.name);
     try std.testing.expectEqual(std.builtin.Signedness.signed, sig.signedness);
@@ -230,4 +245,24 @@ test "reject signal line with missing unit quotes" {
 test "reject signal line with non-numeric factor" {
     const allocator = std.testing.allocator;
     try std.testing.expectError(error.InvalidCharacter, Signal.fromString(allocator, " SG_ vehicle_speed : 0|16@1+ (fast,0) [0|250] \"km/h\" Dashboard"));
+}
+
+test "reject signal line with non-finite factor" {
+    const allocator = std.testing.allocator;
+    try std.testing.expectError(error.NonFiniteSignalNumber, Signal.fromString(allocator, " SG_ vehicle_speed : 0|16@1+ (nan,0) [0|250] \"km/h\" Dashboard"));
+}
+
+test "reject signal line with overflowing maximum" {
+    const allocator = std.testing.allocator;
+    try std.testing.expectError(error.NonFiniteSignalNumber, Signal.fromString(allocator, " SG_ vehicle_speed : 0|16@1+ (1,0) [0|1e9999] \"km/h\" Dashboard"));
+}
+
+test "parse signal line with escaped unit" {
+    const allocator = std.testing.allocator;
+    const sig = try Signal.fromString(allocator, " SG_ status : 0|8@1+ (1,0) [0|1] \"State \\\"On\\\"\" Dashboard");
+    defer allocator.free(sig.receivers);
+    defer allocator.free(sig.unit);
+
+    try std.testing.expectEqualStrings("State \"On\"", sig.unit);
+    try std.testing.expectEqualStrings("Dashboard", sig.receivers[0]);
 }

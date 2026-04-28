@@ -2,7 +2,8 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 pub const dbc = @import("dbc/dbc.zig");
-const values = @import("dbc/values.zig");
+const message = @import("dbc/message.zig");
+const signal = @import("dbc/signal.zig");
 
 const root_allocator = if (builtin.target.cpu.arch.isWasm()) std.heap.wasm_allocator else std.heap.page_allocator;
 
@@ -48,11 +49,17 @@ export fn dbc_parse(ptr: [*]const u8, len: usize) usize {
 }
 
 export fn dbc_to_json(handle_value: usize) ?*OwnedBytes {
+    if (handle_value == 0) return null;
+
     const handle: *DbcHandle = @ptrFromInt(handle_value);
-    const json = dbcToJson(root_allocator, handle.dbc) catch return null;
+    return dbcToOwnedBytes(handle.dbc) catch null;
+}
+
+fn dbcToOwnedBytes(parsed: dbc.Dbc) !*OwnedBytes {
+    const json = try dbcToJson(root_allocator, parsed);
     errdefer root_allocator.free(json);
 
-    const owned = root_allocator.create(OwnedBytes) catch return null;
+    const owned = try root_allocator.create(OwnedBytes);
     owned.* = .{
         .ptr = @intFromPtr(json.ptr),
         .len = json.len,
@@ -83,166 +90,80 @@ export fn owned_bytes_free(bytes: *OwnedBytes) void {
 }
 
 fn dbcToJson(allocator: std.mem.Allocator, parsed: dbc.Dbc) ![]u8 {
-    var out: std.ArrayList(u8) = .empty;
-    errdefer out.deinit(allocator);
+    var out: std.Io.Writer.Allocating = .init(allocator);
+    errdefer out.deinit();
 
-    try out.appendSlice(allocator, "{\"messages\":[");
-    for (parsed.messages, 0..) |msg, msg_index| {
-        if (msg_index != 0) try out.append(allocator, ',');
-        try out.append(allocator, '{');
-        try appendJsonFieldString(allocator, &out, "name", msg.name, false);
-        try appendJsonFieldInt(allocator, &out, "dbcId", msg.dbc_id);
-        try appendJsonFieldInt(allocator, &out, "canId", msg.can_id);
-        try appendJsonFieldBool(allocator, &out, "isExtended", msg.is_extended);
-        try appendJsonFieldBool(allocator, &out, "isFd", msg.is_fd);
-        try appendJsonFieldInt(allocator, &out, "sizeBytes", msg.size_bytes);
-        try appendJsonFieldString(allocator, &out, "transmitter", msg.transmitter, true);
-
-        try out.appendSlice(allocator, ",\"signals\":[");
-        for (msg.signals, 0..) |sig, sig_index| {
-            if (sig_index != 0) try out.append(allocator, ',');
-            try out.append(allocator, '{');
-            try appendJsonFieldString(allocator, &out, "name", sig.name, false);
-            try appendJsonFieldInt(allocator, &out, "startBit", sig.start_bit);
-            try appendJsonFieldInt(allocator, &out, "bitLength", sig.bit_length);
-            try appendJsonFieldString(allocator, &out, "endianness", switch (sig.endianness) {
-                .intel => "intel",
-                .motorola => "motorola",
-            }, true);
-            try appendJsonFieldString(allocator, &out, "signedness", switch (sig.signedness) {
-                .signed => "signed",
-                .unsigned => "unsigned",
-            }, true);
-            try appendJsonFieldFloat(allocator, &out, "factor", sig.factor);
-            try appendJsonFieldFloat(allocator, &out, "offset", sig.offset);
-            try appendJsonOptionalFloat(allocator, &out, "minimum", sig.minimum);
-            try appendJsonOptionalFloat(allocator, &out, "maximum", sig.maximum);
-            try appendJsonFieldString(allocator, &out, "unit", sig.unit, true);
-            try appendJsonFieldString(allocator, &out, "valueType", valueTypeName(sig.value_type), true);
-            try appendJsonFieldBool(allocator, &out, "unsupportedMux", sig.unsupported_mux);
-
-            try out.appendSlice(allocator, ",\"receivers\":[");
-            for (sig.receivers, 0..) |receiver, receiver_index| {
-                if (receiver_index != 0) try out.append(allocator, ',');
-                try appendJsonString(allocator, &out, receiver);
-            }
-            try out.append(allocator, ']');
-
-            try out.appendSlice(allocator, ",\"valueDescriptions\":[");
-            if (sig.value_descriptions) |descriptions| {
-                for (descriptions, 0..) |description, description_index| {
-                    if (description_index != 0) try out.append(allocator, ',');
-                    try out.append(allocator, '{');
-                    try appendJsonString(allocator, &out, "rawValue");
-                    try out.print(allocator, ":{d}", .{description.raw_value});
-                    try appendJsonFieldString(allocator, &out, "label", description.label, true);
-                    try out.append(allocator, '}');
-                }
-            }
-            try out.append(allocator, ']');
-
-            try out.append(allocator, '}');
-        }
-        try out.appendSlice(allocator, "]}");
+    var writer: std.json.Stringify = .{ .writer = &out.writer };
+    try writer.beginObject();
+    try writer.objectField("messages");
+    try writer.beginArray();
+    for (parsed.messages) |msg| {
+        try writeMessageJson(&writer, msg);
     }
-    try out.appendSlice(allocator, "]}");
+    try writer.endArray();
+    try writer.endObject();
 
-    return out.toOwnedSlice(allocator);
+    return out.toOwnedSlice();
 }
 
-fn appendJsonFieldString(
-    allocator: std.mem.Allocator,
-    out: *std.ArrayList(u8),
-    field: []const u8,
-    value: []const u8,
-    comma: bool,
-) !void {
-    if (comma) try out.append(allocator, ',');
-    try appendJsonString(allocator, out, field);
-    try out.append(allocator, ':');
-    try appendJsonString(allocator, out, value);
-}
+fn writeMessageJson(writer: *std.json.Stringify, msg: message.Message) !void {
+    try writer.beginObject();
+    try writeJsonField(writer, "name", msg.name);
+    try writeJsonField(writer, "dbcId", msg.dbc_id);
+    try writeJsonField(writer, "canId", msg.can_id);
+    try writeJsonField(writer, "isExtended", msg.is_extended);
+    try writeJsonField(writer, "isFd", msg.is_fd);
+    try writeJsonField(writer, "sizeBytes", msg.size_bytes);
+    try writeJsonField(writer, "transmitter", msg.transmitter);
 
-fn appendJsonFieldInt(
-    allocator: std.mem.Allocator,
-    out: *std.ArrayList(u8),
-    field: []const u8,
-    value: anytype,
-) !void {
-    try out.append(allocator, ',');
-    try appendJsonString(allocator, out, field);
-    try out.print(allocator, ":{d}", .{value});
-}
-
-fn appendJsonFieldBool(
-    allocator: std.mem.Allocator,
-    out: *std.ArrayList(u8),
-    field: []const u8,
-    value: bool,
-) !void {
-    try out.append(allocator, ',');
-    try appendJsonString(allocator, out, field);
-    try out.append(allocator, ':');
-    try out.appendSlice(allocator, if (value) "true" else "false");
-}
-
-fn appendJsonFieldFloat(
-    allocator: std.mem.Allocator,
-    out: *std.ArrayList(u8),
-    field: []const u8,
-    value: f64,
-) !void {
-    try out.append(allocator, ',');
-    try appendJsonString(allocator, out, field);
-    try out.print(allocator, ":{d}", .{value});
-}
-
-fn appendJsonOptionalFloat(
-    allocator: std.mem.Allocator,
-    out: *std.ArrayList(u8),
-    field: []const u8,
-    value: ?f64,
-) !void {
-    try out.append(allocator, ',');
-    try appendJsonString(allocator, out, field);
-    try out.append(allocator, ':');
-    if (value) |number| {
-        try out.print(allocator, "{d}", .{number});
-    } else {
-        try out.appendSlice(allocator, "null");
+    try writer.objectField("signals");
+    try writer.beginArray();
+    for (msg.signals) |sig| {
+        try writeSignalJson(writer, sig);
     }
+    try writer.endArray();
+    try writer.endObject();
 }
 
-fn appendJsonString(allocator: std.mem.Allocator, out: *std.ArrayList(u8), value: []const u8) !void {
-    try out.append(allocator, '"');
-    for (value) |byte| {
-        switch (byte) {
-            '"' => try out.appendSlice(allocator, "\\\""),
-            '\\' => try out.appendSlice(allocator, "\\\\"),
-            else => {
-                if (byte == '\n') {
-                    try out.appendSlice(allocator, "\\n");
-                } else if (byte == '\r') {
-                    try out.appendSlice(allocator, "\\r");
-                } else if (byte == '\t') {
-                    try out.appendSlice(allocator, "\\t");
-                } else if (byte < 0x20) {
-                    try out.print(allocator, "\\u{x:0>4}", .{byte});
-                } else {
-                    try out.append(allocator, byte);
-                }
-            },
+fn writeSignalJson(writer: *std.json.Stringify, sig: signal.Signal) !void {
+    try writer.beginObject();
+    try writeJsonField(writer, "name", sig.name);
+    try writeJsonField(writer, "startBit", sig.start_bit);
+    try writeJsonField(writer, "bitLength", sig.bit_length);
+    try writeJsonField(writer, "endianness", @tagName(sig.endianness));
+    try writeJsonField(writer, "signedness", @tagName(sig.signedness));
+    try writeJsonField(writer, "factor", sig.factor);
+    try writeJsonField(writer, "offset", sig.offset);
+    try writeJsonField(writer, "minimum", sig.minimum);
+    try writeJsonField(writer, "maximum", sig.maximum);
+    try writeJsonField(writer, "unit", sig.unit);
+    try writeJsonField(writer, "valueType", @tagName(sig.value_type));
+    try writeJsonField(writer, "unsupportedMux", sig.unsupported_mux);
+
+    try writer.objectField("receivers");
+    try writer.beginArray();
+    for (sig.receivers) |receiver| {
+        try writer.write(receiver);
+    }
+    try writer.endArray();
+
+    try writer.objectField("valueDescriptions");
+    try writer.beginArray();
+    if (sig.value_descriptions) |descriptions| {
+        for (descriptions) |description| {
+            try writer.beginObject();
+            try writeJsonField(writer, "rawValue", description.raw_value);
+            try writeJsonField(writer, "label", description.label);
+            try writer.endObject();
         }
     }
-    try out.append(allocator, '"');
+    try writer.endArray();
+    try writer.endObject();
 }
 
-fn valueTypeName(value_type: values.ValueType) []const u8 {
-    return switch (value_type) {
-        .integer => "integer",
-        .float32 => "float32",
-        .float64 => "float64",
-    };
+fn writeJsonField(writer: *std.json.Stringify, field: []const u8, value: anytype) !void {
+    try writer.objectField(field);
+    try writer.write(value);
 }
 
 test "serializes parsed DBC to JSON" {
@@ -261,4 +182,8 @@ test "serializes parsed DBC to JSON" {
     try std.testing.expect(std.mem.indexOf(u8, json, "\"messages\"") != null);
     try std.testing.expect(std.mem.indexOf(u8, json, "\"valueDescriptions\"") != null);
     try std.testing.expect(std.mem.indexOf(u8, json, "\"Off\"") != null);
+}
+
+test "serializing failed parse handle returns null" {
+    try std.testing.expectEqual(@as(?*OwnedBytes, null), dbc_to_json(0));
 }

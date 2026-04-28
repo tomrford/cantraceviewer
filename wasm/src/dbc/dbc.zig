@@ -75,10 +75,17 @@ pub const Dbc = struct {
         }
 
         const message_slice = try messages.toOwnedSlice(allocator);
-        for (pending_values.items) |pending| {
-            if (!try attachValueDescriptions(allocator, message_slice, &value_tables, pending)) {
+        var message_slice_owned = true;
+        errdefer if (message_slice_owned) {
+            freeMessages(allocator, message_slice);
+            allocator.free(message_slice);
+        };
+
+        for (pending_values.items) |*pending| {
+            if (!try attachValueDescriptions(allocator, message_slice, &value_tables, pending.*)) {
                 freePendingValueDescription(allocator, pending.value_descriptions);
             }
+            pending.value_descriptions = .{ .table_name = "" };
         }
         for (pending_value_types.items) |pending| {
             attachValueType(message_slice, pending);
@@ -86,9 +93,8 @@ pub const Dbc = struct {
 
         freeValueTables(allocator, &value_tables);
 
-        return .{
-            .messages = message_slice,
-        };
+        message_slice_owned = false;
+        return .{ .messages = message_slice };
     }
 
     pub fn deinit(self: *Dbc, allocator: std.mem.Allocator) void {
@@ -111,7 +117,7 @@ fn attachValueDescriptions(
                 .inline_values => |items| items,
                 .table_name => |name| table: {
                     const table = value_tables.get(name) orelse return false;
-                    break :table try allocator.dupe(values.ValueDescription, table.values);
+                    break :table try values.dupeValueDescriptions(allocator, table.values);
                 },
             };
             return true;
@@ -140,9 +146,10 @@ fn freeMessages(allocator: std.mem.Allocator, messages: []message.Message) void 
 
 fn freeSignals(allocator: std.mem.Allocator, signals: []signal.Signal) void {
     for (signals) |sig| {
+        allocator.free(sig.unit);
         allocator.free(sig.receivers);
         if (sig.value_descriptions) |value_descriptions| {
-            allocator.free(value_descriptions);
+            values.freeValueDescriptions(allocator, value_descriptions);
         }
     }
 }
@@ -150,7 +157,7 @@ fn freeSignals(allocator: std.mem.Allocator, signals: []signal.Signal) void {
 fn freeValueTables(allocator: std.mem.Allocator, value_tables: *std.StringHashMap(values.ValueTable)) void {
     var iterator = value_tables.iterator();
     while (iterator.next()) |entry| {
-        allocator.free(entry.value_ptr.values);
+        values.freeValueDescriptions(allocator, entry.value_ptr.values);
     }
     value_tables.deinit();
 }
@@ -163,7 +170,7 @@ fn freePendingInlineValues(allocator: std.mem.Allocator, pending_values: []value
 
 fn freePendingValueDescription(allocator: std.mem.Allocator, value_descriptions: values.ValueDescriptionRef) void {
     switch (value_descriptions) {
-        .inline_values => |items| allocator.free(items),
+        .inline_values => |items| values.freeValueDescriptions(allocator, items),
         .table_name => {},
     }
 }

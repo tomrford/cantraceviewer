@@ -1,8 +1,44 @@
 const std = @import("std");
+const dbc_string = @import("string.zig");
+
+const JS_SAFE_INTEGER_MAX: i64 = 9_007_199_254_740_991;
 
 pub const ValueType = enum { integer, float32, float64 };
 
 pub const ValueDescription = struct { raw_value: i64, label: []const u8 };
+
+pub fn dupeValueDescriptions(allocator: std.mem.Allocator, descriptions: []const ValueDescription) ![]ValueDescription {
+    const copy = try allocator.alloc(ValueDescription, descriptions.len);
+    errdefer allocator.free(copy);
+
+    var copied_labels: usize = 0;
+    errdefer {
+        for (copy[0..copied_labels]) |description| {
+            allocator.free(description.label);
+        }
+    }
+
+    for (descriptions, copy) |description, *target| {
+        target.* = .{
+            .raw_value = description.raw_value,
+            .label = try allocator.dupe(u8, description.label),
+        };
+        copied_labels += 1;
+    }
+
+    return copy;
+}
+
+pub fn freeValueDescriptionLabels(allocator: std.mem.Allocator, descriptions: []const ValueDescription) void {
+    for (descriptions) |description| {
+        allocator.free(description.label);
+    }
+}
+
+pub fn freeValueDescriptions(allocator: std.mem.Allocator, descriptions: []const ValueDescription) void {
+    freeValueDescriptionLabels(allocator, descriptions);
+    allocator.free(descriptions);
+}
 
 pub const ValueDescriptionRef = union(enum) {
     table_name: []const u8,
@@ -109,37 +145,38 @@ fn parseValueDescriptionPairs(allocator: std.mem.Allocator, text: []const u8) ![
     }
 
     var descriptions: std.ArrayList(ValueDescription) = .empty;
-    errdefer descriptions.deinit(allocator);
+    errdefer {
+        freeValueDescriptionLabels(allocator, descriptions.items);
+        descriptions.deinit(allocator);
+    }
 
     while (cursor.len > 0) {
         const raw_end = std.mem.indexOfAny(u8, cursor, " \t") orelse return error.InvalidValueDescriptionLine;
         const raw_value = try std.fmt.parseInt(i64, cursor[0..raw_end], 10);
+        try ensureJsSafeInteger(raw_value);
         cursor = std.mem.trim(u8, cursor[raw_end..], " \t");
 
-        if (!std.mem.startsWith(u8, cursor, "\"")) return error.InvalidValueDescriptionLine;
-        cursor = cursor[1..];
-
-        const label_end = findClosingQuote(cursor) orelse return error.InvalidValueDescriptionLine;
-        try descriptions.append(allocator, .{
+        const label = dbc_string.parseQuoted(allocator, &cursor) catch |err| switch (err) {
+            error.OutOfMemory => return err,
+            else => return error.InvalidValueDescriptionLine,
+        };
+        descriptions.append(allocator, .{
             .raw_value = raw_value,
-            .label = cursor[0..label_end],
-        });
-        cursor = std.mem.trim(u8, cursor[label_end + 1 ..], " \t");
+            .label = label,
+        }) catch |err| {
+            allocator.free(label);
+            return err;
+        };
+        cursor = std.mem.trim(u8, cursor, " \t");
     }
 
     return descriptions.toOwnedSlice(allocator);
 }
 
-fn findClosingQuote(text: []const u8) ?usize {
-    var index: usize = 0;
-    while (index < text.len) : (index += 1) {
-        if (text[index] == '\\') {
-            index += 1;
-            continue;
-        }
-        if (text[index] == '"') return index;
+fn ensureJsSafeInteger(value: i64) !void {
+    if (value < -JS_SAFE_INTEGER_MAX or value > JS_SAFE_INTEGER_MAX) {
+        return error.RawValueOutsideJsSafeIntegerRange;
     }
-    return null;
 }
 
 test "parse fixture VAL line" {
@@ -149,7 +186,7 @@ test "parse fixture VAL line" {
         .inline_values => |items| items,
         .table_name => unreachable,
     };
-    defer allocator.free(descriptions);
+    defer freeValueDescriptions(allocator, descriptions);
 
     try std.testing.expectEqual(@as(u32, 100), signal_values.message_id);
     try std.testing.expectEqualStrings("State", signal_values.signal_name);
@@ -176,7 +213,7 @@ test "parse VAL line referencing table" {
 test "parse VAL_TABLE line" {
     const allocator = std.testing.allocator;
     const table = try ValueTable.fromString(allocator, "VAL_TABLE_ GearStates 0 \"Park\" 1 \"Drive\" 2 \"Reverse\";");
-    defer allocator.free(table.values);
+    defer freeValueDescriptions(allocator, table.values);
 
     try std.testing.expectEqualStrings("GearStates", table.name);
     try std.testing.expectEqual(@as(usize, 3), table.values.len);
@@ -187,7 +224,7 @@ test "parse VAL_TABLE line" {
 test "parse signed value descriptions" {
     const allocator = std.testing.allocator;
     const table = try ValueTable.fromString(allocator, "VAL_TABLE_ SignedStates -1 \"Unknown\" 0 \"Off\";");
-    defer allocator.free(table.values);
+    defer freeValueDescriptions(allocator, table.values);
 
     try std.testing.expectEqual(@as(i64, -1), table.values[0].raw_value);
     try std.testing.expectEqualStrings("Unknown", table.values[0].label);
@@ -206,6 +243,23 @@ test "reject VAL line with missing label quote" {
 test "reject VAL line with non-numeric raw value" {
     const allocator = std.testing.allocator;
     try std.testing.expectError(error.InvalidCharacter, SignalValueDescriptions.fromString(allocator, "VAL_ 100 State 0x1 \"Off\";"));
+}
+
+test "reject VAL line with unsafe raw value" {
+    const allocator = std.testing.allocator;
+    try std.testing.expectError(error.RawValueOutsideJsSafeIntegerRange, SignalValueDescriptions.fromString(allocator, "VAL_ 100 State 9007199254740992 \"Too Big\";"));
+}
+
+test "parse VAL line with escaped label" {
+    const allocator = std.testing.allocator;
+    const signal_values = try SignalValueDescriptions.fromString(allocator, "VAL_ 100 State 1 \"State \\\"On\\\"\";");
+    const descriptions = switch (signal_values.value_descriptions) {
+        .inline_values => |items| items,
+        .table_name => unreachable,
+    };
+    defer freeValueDescriptions(allocator, descriptions);
+
+    try std.testing.expectEqualStrings("State \"On\"", descriptions[0].label);
 }
 
 test "reject VAL_TABLE line without table name" {
