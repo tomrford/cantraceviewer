@@ -27,7 +27,6 @@ Use a compact `TraceEvent` shape for payload-bearing trace frames:
 - frame kind: data, remote, error, or unknown
 - raw DLC and resolved payload length
 - payload bytes, up to 64 bytes
-- raw source line for unsupported or unneeded records
 
 Keep timestamps and counters as integers in Zig. Across WASM, expose nanosecond timestamps as strings or split integers unless the value is known to fit safely in a JavaScript number. Do not store ASC event time as floating-point internally; parse decimal seconds text into integer nanoseconds.
 
@@ -47,16 +46,16 @@ Supported first:
 - classic CAN remote frames: `<Time> <Channel> <ID>[x] <Dir> r [DLC]`
 - classic CAN error frames as raw non-data events: `<Time> <Channel> ErrorFrame ...`
 - CAN FD frames: `<Time> CANFD <Channel> <Dir> <ID> <SymbolicName> <BRS> <ESI> <DLC> <DataLength> ...`
-- comment and global-marker lines as raw unknown events only when preserving their source line is useful
+- timestamped comment and global-marker lines as empty `unknown` events for relative timestamp accounting
 
 Parser behavior:
 
-- Parse one line at a time and preserve unrecognized lines as `unknown` events when they have a timestamp.
+- Parse one line at a time and preserve timestamped unrecognized lines as empty `unknown` events so relative timestamp accounting stays correct.
 - Respect `base hex` and `base dec` for IDs and bytes.
 - Treat `timestamps absolute` as offsets from measurement start, and `timestamps relative` as deltas from the preceding event.
 - Keep the original channel numbering instead of normalizing to zero-based channels.
-- Store the raw line on every event for debugging and later export.
-- Do not parse direction, CAN FD timing, CRC, BRS, ESI, comments, or marker details unless a plot or signal decode path needs them.
+- Do not retain raw source lines after parsing.
+- Do not parse direction, CAN FD timing, CRC, BRS, ESI, comments, markers, or export-only details unless a plot or signal decode path needs them.
 
 The public ASC evidence is better than BLF but still not ideal. Vector publishes a current logging-format overview listing `.asc` as an ASCII frame logging file for CANoe/CANalyzer. A public mirror of Vector's `CAN_LOG_TRIGGER_ASC_Format.doc` describes the ASC grammar, including header lines, classic CAN, CAN FD, comments, and markers. `python-can` documents that no official open ASC specification is generally available through its docs and that its reader/writer is reverse-engineered from existing logs.
 
