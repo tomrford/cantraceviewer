@@ -2,6 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 pub const dbc = @import("dbc/dbc.zig");
+pub const asc = @import("asc/asc.zig");
 const message = @import("dbc/message.zig");
 const signal = @import("dbc/signal.zig");
 
