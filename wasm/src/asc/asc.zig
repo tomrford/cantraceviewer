@@ -3,11 +3,13 @@ pub const frame = @import("frame.zig");
 
 pub const Base = frame.Base;
 
+/// Timestamping modes used by the .asc format.
 pub const TimestampMode = enum {
     absolute,
     relative,
 };
 
+/// Metadata from the .asc file header.
 pub const Metadata = struct {
     /// Raw `date ...` line payload. Keep this as display/source metadata until
     /// we decide how much Vector date parsing we need in Zig.
@@ -227,7 +229,7 @@ test "normalizes relative timestamps across unknown events" {
     try std.testing.expectEqual(@as(frame.Kind, .unknown), parsed.frames[1].kind);
 }
 
-test "channel labels borrow from owned asc source" {
+test "channel tokens borrow from owned asc source" {
     const allocator = std.testing.allocator;
     const text =
         \\base hex timestamps absolute
@@ -238,15 +240,11 @@ test "channel labels borrow from owned asc source" {
     defer parsed.deinit(allocator);
 
     const channel = parsed.frames[0].channel orelse return error.ExpectedChannel;
-    const label = switch (channel) {
-        .label => |value| value,
-        .numeric => return error.ExpectedLabelChannel,
-    };
-    try std.testing.expectEqualStrings("CAN_A", label);
+    try std.testing.expectEqualStrings("CAN_A", channel);
 
     const source_start = @intFromPtr(parsed.source.ptr);
     const source_end = source_start + parsed.source.len;
-    const label_start = @intFromPtr(label.ptr);
-    try std.testing.expect(label_start >= source_start);
-    try std.testing.expect(label_start + label.len <= source_end);
+    const channel_start = @intFromPtr(channel.ptr);
+    try std.testing.expect(channel_start >= source_start);
+    try std.testing.expect(channel_start + channel.len <= source_end);
 }

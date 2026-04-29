@@ -1,5 +1,6 @@
 const std = @import("std");
 
+/// Handles quoted strings correctly in lines of the DBC file.
 pub fn parseQuoted(allocator: std.mem.Allocator, cursor: *[]const u8) ![]const u8 {
     if (!std.mem.startsWith(u8, cursor.*, "\"")) return error.InvalidQuotedString;
     cursor.* = cursor.*[1..];
