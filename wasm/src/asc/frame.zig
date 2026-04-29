@@ -59,8 +59,6 @@ pub const Frame = struct {
     /// relative ASC timestamps after parsing each line.
     timestamp_ns: u64,
 
-    channel: ?[]const u8 = null,
-
     kind: Kind,
 
     id: ?Id = null,
@@ -87,33 +85,27 @@ pub const Frame = struct {
             return try parseCanFd(base, timestamp_ns, &tokens);
         }
 
-        const channel = first;
         const id_or_kind = tokens.next() orelse return .{
             .timestamp_ns = timestamp_ns,
-            .channel = channel,
             .kind = .unknown,
         };
         if (std.mem.eql(u8, id_or_kind, "ErrorFrame")) {
             return .{
                 .timestamp_ns = timestamp_ns,
-                .channel = channel,
                 .kind = .error_frame,
             };
         }
 
         const id = parseId(base, id_or_kind) catch return .{
             .timestamp_ns = timestamp_ns,
-            .channel = channel,
             .kind = .unknown,
         };
         _ = tokens.next() orelse return .{
             .timestamp_ns = timestamp_ns,
-            .channel = channel,
             .kind = .unknown,
         };
         const frame_kind = tokens.next() orelse return .{
             .timestamp_ns = timestamp_ns,
-            .channel = channel,
             .kind = .unknown,
         };
         if (std.mem.eql(u8, frame_kind, "d")) {
@@ -129,7 +121,6 @@ pub const Frame = struct {
             }
             var frame: Frame = .{
                 .timestamp_ns = timestamp_ns,
-                .channel = channel,
                 .kind = .data,
                 .id = id,
                 .dlc = dlc,
@@ -143,7 +134,6 @@ pub const Frame = struct {
             const dlc = if (tokens.next()) |dlc_text| try parseDlc(dlc_text) else 0;
             return .{
                 .timestamp_ns = timestamp_ns,
-                .channel = channel,
                 .kind = .remote,
                 .id = id,
                 .dlc = dlc,
@@ -152,7 +142,6 @@ pub const Frame = struct {
 
         return .{
             .timestamp_ns = timestamp_ns,
-            .channel = channel,
             .kind = .unknown,
         };
     }
@@ -161,8 +150,7 @@ pub const Frame = struct {
 const LineTokenIterator = std.mem.TokenIterator(u8, .any);
 
 fn parseCanFd(base: Base, timestamp_ns: u64, tokens: *LineTokenIterator) !?Frame {
-    const channel_text = tokens.next() orelse return error.InvalidFrameLine;
-    const channel = channel_text;
+    _ = tokens.next() orelse return error.InvalidFrameLine;
     _ = tokens.next() orelse return error.InvalidFrameLine;
     const id = try parseId(base, tokens.next() orelse return error.InvalidFrameLine);
     _ = tokens.next() orelse return error.InvalidFrameLine;
@@ -180,7 +168,6 @@ fn parseCanFd(base: Base, timestamp_ns: u64, tokens: *LineTokenIterator) !?Frame
     }
     var frame: Frame = .{
         .timestamp_ns = timestamp_ns,
-        .channel = channel,
         .kind = .data,
         .id = id,
         .is_fd = true,
@@ -264,7 +251,6 @@ pub fn fdPayloadLengthFromDlc(dlc: u8) !u8 {
 test "classic and fd frames share the same storage shape" {
     var classic: Frame = .{
         .timestamp_ns = 1_000_000,
-        .channel = "1",
         .kind = .data,
         .id = Id.standard(0x123),
         .dlc = 2,
@@ -277,7 +263,6 @@ test "classic and fd frames share the same storage shape" {
 
     var fd: Frame = .{
         .timestamp_ns = 2_000_000,
-        .channel = "1",
         .kind = .data,
         .id = Id.extended(0x18fee900),
         .is_fd = true,
@@ -294,7 +279,6 @@ test "parses classic data frame" {
     const parsed = (try Frame.fromString(Base.hex, "0.003040 1 123 Rx d 2 AA bb")) orelse return error.ExpectedFrame;
     try std.testing.expectEqual(@as(u64, 3_040_000), parsed.timestamp_ns);
     try std.testing.expectEqual(@as(Kind, .data), parsed.kind);
-    try expectChannel("1", parsed.channel);
     try std.testing.expectEqual(@as(u32, 0x123), parsed.id.?.value);
     try std.testing.expect(!parsed.id.?.is_extended);
     try std.testing.expectEqual(@as(u8, 2), parsed.dlc);
@@ -305,7 +289,6 @@ test "parses classic data frame" {
 
 test "parses extended classic data frame" {
     const parsed = (try Frame.fromString(Base.hex, "1.0 CAN_A 18fee900x Tx d 1 55")) orelse return error.ExpectedFrame;
-    try expectChannel("CAN_A", parsed.channel);
     try std.testing.expectEqual(@as(u32, 0x18fee900), parsed.id.?.value);
     try std.testing.expect(parsed.id.?.is_extended);
 }
@@ -321,7 +304,6 @@ test "parses classic remote frame" {
 test "parses classic error frame" {
     const parsed = (try Frame.fromString(Base.hex, "3.0 2 ErrorFrame flags")) orelse return error.ExpectedFrame;
     try std.testing.expectEqual(@as(Kind, .error_frame), parsed.kind);
-    try expectChannel("2", parsed.channel);
     try std.testing.expectEqual(@as(?Id, null), parsed.id);
 }
 
@@ -346,7 +328,6 @@ test "keeps timestamped unrecognized lines as unknown frames" {
     const parsed = (try Frame.fromString(Base.hex, "6.25 CANFD_STATISTIC whatever else")) orelse return error.ExpectedFrame;
     try std.testing.expectEqual(@as(u64, 6_250_000_000), parsed.timestamp_ns);
     try std.testing.expectEqual(@as(Kind, .unknown), parsed.kind);
-    try expectChannel("CANFD_STATISTIC", parsed.channel);
     try std.testing.expectEqual(@as(?Id, null), parsed.id);
 }
 
@@ -354,7 +335,6 @@ test "keeps timestamp-only lines as unknown frames" {
     const parsed = (try Frame.fromString(Base.hex, "6.5")) orelse return error.ExpectedFrame;
     try std.testing.expectEqual(@as(u64, 6_500_000_000), parsed.timestamp_ns);
     try std.testing.expectEqual(@as(Kind, .unknown), parsed.kind);
-    try std.testing.expectEqual(@as(?[]const u8, null), parsed.channel);
 }
 
 test "returns null for empty line" {
@@ -363,9 +343,4 @@ test "returns null for empty line" {
 
 test "returns null for non-frame header line" {
     try std.testing.expectEqual(@as(?Frame, null), try Frame.fromString(Base.hex, "date Tue Apr 28 10:00:00.000 2026"));
-}
-
-fn expectChannel(expected: []const u8, actual: ?[]const u8) !void {
-    const channel = actual orelse return error.ExpectedChannel;
-    try std.testing.expectEqualStrings(expected, channel);
 }

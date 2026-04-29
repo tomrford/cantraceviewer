@@ -9,21 +9,6 @@ pub const TimestampMode = enum {
     relative,
 };
 
-/// Metadata from the .asc file header.
-pub const Metadata = struct {
-    /// Raw `date ...` line payload. Keep this as display/source metadata until
-    /// we decide how much Vector date parsing we need in Zig.
-    date: ?[]const u8 = null,
-
-    /// Raw `Begin Triggerblock ...` payload. This often matches `date`, but it
-    /// is a separate source field and should not be deduped during parse.
-    triggerblock_start: ?[]const u8 = null,
-    triggerblock_end: ?[]const u8 = null,
-
-    version: ?[]const u8 = null,
-    internal_events_logged: ?bool = null,
-};
-
 pub const FrameIndexEntry = struct {
     key: frame.FrameKey,
 
@@ -34,15 +19,11 @@ pub const FrameIndexEntry = struct {
 };
 
 pub const Asc = struct {
-    source: []const u8,
-    metadata: Metadata = .{},
-
     base: Base = .hex,
     timestamp_mode: TimestampMode = .absolute,
 
-    /// Measurement-start wall clock in JavaScript-safe millisecond precision,
-    /// if we choose to parse it. Relative nanoseconds stay separate so long
-    /// traces preserve ordering and sub-millisecond detail.
+    /// Measurement-start wall clock parsed from `Begin Triggerblock ...`, or
+    /// from `date ...` when no triggerblock start has been seen.
     measurement_start_ms: ?i64 = null,
 
     frames: []const frame.Frame = &.{},
@@ -52,15 +33,12 @@ pub const Asc = struct {
     by_id: []const FrameIndexEntry = &.{},
 
     pub fn fromString(allocator: std.mem.Allocator, text: []const u8) !Asc {
-        const source = try allocator.dupe(u8, text);
-        errdefer allocator.free(source);
-
-        var parsed: Asc = .{ .source = source };
+        var parsed: Asc = .{};
         var frames: std.ArrayList(frame.Frame) = .empty;
         errdefer frames.deinit(allocator);
 
         var relative_timestamp_ns: u64 = 0;
-        var lines = std.mem.splitScalar(u8, source, '\n');
+        var lines = std.mem.splitScalar(u8, text, '\n');
         while (lines.next()) |raw_line| {
             const line = std.mem.trim(u8, raw_line, " \t\r");
             if (line.len == 0) continue;
@@ -82,40 +60,36 @@ pub const Asc = struct {
     }
 
     pub fn deinit(self: *Asc, allocator: std.mem.Allocator) void {
-        allocator.free(self.source);
         allocator.free(self.frames);
         for (self.by_id) |entry| {
             allocator.free(entry.frame_indices);
         }
         allocator.free(self.by_id);
-        self.* = .{ .source = &.{} };
+        self.* = .{};
     }
 };
 
 fn parseHeaderLine(parsed: *Asc, line: []const u8) !bool {
-    if (std.mem.eql(u8, line, "no internal events logged")) {
-        parsed.metadata.internal_events_logged = false;
-        return true;
-    }
-    if (std.mem.eql(u8, line, "internal events logged")) {
-        parsed.metadata.internal_events_logged = true;
+    if (std.mem.eql(u8, line, "no internal events logged") or
+        std.mem.eql(u8, line, "internal events logged"))
+    {
         return true;
     }
 
     if (stripPrefix(line, "date ")) |date| {
-        parsed.metadata.date = date;
+        if (parsed.measurement_start_ms == null) {
+            parsed.measurement_start_ms = parseVectorDateToUnixMs(date) catch null;
+        }
         return true;
     }
     if (stripPrefix(line, "Begin Triggerblock ")) |triggerblock| {
-        parsed.metadata.triggerblock_start = triggerblock;
+        parsed.measurement_start_ms = parseVectorDateToUnixMs(triggerblock) catch null;
         return true;
     }
-    if (stripPrefix(line, "End TriggerBlock")) |triggerblock| {
-        parsed.metadata.triggerblock_end = std.mem.trim(u8, triggerblock, " \t\r");
+    if (std.mem.startsWith(u8, line, "End TriggerBlock")) {
         return true;
     }
-    if (stripPrefix(line, "// version ")) |version| {
-        parsed.metadata.version = version;
+    if (std.mem.startsWith(u8, line, "// version ")) {
         return true;
     }
 
@@ -158,6 +132,74 @@ fn stripPrefix(text: []const u8, prefix: []const u8) ?[]const u8 {
     return text[prefix.len..];
 }
 
+fn parseVectorDateToUnixMs(text: []const u8) !i64 {
+    // ASC date strings do not carry a timezone; use UTC for deterministic display.
+    var tokens = std.mem.tokenizeAny(u8, text, " \t\r");
+    _ = tokens.next() orelse return error.InvalidVectorDate;
+    const month_text = tokens.next() orelse return error.InvalidVectorDate;
+    const day = try std.fmt.parseInt(u8, tokens.next() orelse return error.InvalidVectorDate, 10);
+    const time_text = tokens.next() orelse return error.InvalidVectorDate;
+    const year = try std.fmt.parseInt(i32, tokens.next() orelse return error.InvalidVectorDate, 10);
+
+    const month = parseMonth(month_text) orelse return error.InvalidVectorDate;
+    const time = try parseTimeOfDay(time_text);
+    const days = daysFromCivil(year, month, day);
+    const seconds = try std.math.add(i64, try std.math.mul(i64, days, std.time.s_per_day), time.seconds);
+    return try std.math.add(i64, try std.math.mul(i64, seconds, std.time.ms_per_s), time.milliseconds);
+}
+
+fn parseMonth(text: []const u8) ?u8 {
+    const months = [_][]const u8{
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    };
+    for (months, 1..) |month, index| {
+        if (std.mem.eql(u8, text, month)) return @intCast(index);
+    }
+    return null;
+}
+
+fn parseTimeOfDay(text: []const u8) !struct { seconds: i64, milliseconds: i64 } {
+    var parts = std.mem.splitScalar(u8, text, ':');
+    const hour = try std.fmt.parseInt(u8, parts.next() orelse return error.InvalidVectorDate, 10);
+    const minute = try std.fmt.parseInt(u8, parts.next() orelse return error.InvalidVectorDate, 10);
+    const second_text = parts.next() orelse return error.InvalidVectorDate;
+    if (parts.next() != null) return error.InvalidVectorDate;
+
+    var seconds_parts = std.mem.splitScalar(u8, second_text, '.');
+    const second = try std.fmt.parseInt(u8, seconds_parts.next() orelse return error.InvalidVectorDate, 10);
+    const fraction = seconds_parts.next();
+    if (seconds_parts.next() != null) return error.InvalidVectorDate;
+
+    if (hour > 23 or minute > 59 or second > 59) return error.InvalidVectorDate;
+
+    var milliseconds: i64 = 0;
+    if (fraction) |digits| {
+        if (digits.len > 3) return error.InvalidVectorDate;
+        const fraction_value = try std.fmt.parseInt(i64, digits, 10);
+        milliseconds = fraction_value * std.math.pow(i64, 10, 3 - digits.len);
+    }
+
+    const seconds = @as(i64, hour) * std.time.s_per_hour +
+        @as(i64, minute) * std.time.s_per_min +
+        @as(i64, second);
+    return .{ .seconds = seconds, .milliseconds = milliseconds };
+}
+
+fn daysFromCivil(year_value: i32, month_value: u8, day_value: u8) i64 {
+    var year = @as(i64, year_value);
+    const month = @as(i64, month_value);
+    const day = @as(i64, day_value);
+
+    year -= if (month <= 2) 1 else 0;
+    const era = @divFloor(year, 400);
+    const year_of_era = year - era * 400;
+    const month_prime = month + if (month > 2) -3 else 9;
+    const day_of_year = @divFloor(153 * month_prime + 2, 5) + day - 1;
+    const day_of_era = year_of_era * 365 + @divFloor(year_of_era, 4) - @divFloor(year_of_era, 100) + day_of_year;
+    return era * 146097 + day_of_era - 719468;
+}
+
 pub const parseDecimalSecondsToNs = frame.parseDecimalSecondsToNs;
 pub const fdPayloadLengthFromDlc = frame.fdPayloadLengthFromDlc;
 
@@ -183,10 +225,10 @@ test "frame parser accepts asc base enum" {
     try std.testing.expectEqual(@as(u8, 0xaa), parsed.payload[0]);
 }
 
-test "parses asc source with header metadata and decimal base" {
+test "parses asc source with measurement start and decimal base" {
     const allocator = std.testing.allocator;
     const text =
-        \\date Tue Apr 28 10:00:00.000 2026
+        \\date Tue Apr 28 09:00:00.000 2026
         \\base dec timestamps absolute
         \\internal events logged
         \\Begin Triggerblock Tue Apr 28 10:00:00.000 2026
@@ -199,9 +241,7 @@ test "parses asc source with header metadata and decimal base" {
 
     try std.testing.expectEqual(@as(Base, .dec), parsed.base);
     try std.testing.expectEqual(@as(TimestampMode, .absolute), parsed.timestamp_mode);
-    try std.testing.expectEqualStrings("Tue Apr 28 10:00:00.000 2026", parsed.metadata.date.?);
-    try std.testing.expectEqual(true, parsed.metadata.internal_events_logged.?);
-    try std.testing.expectEqualStrings("Tue Apr 28 10:00:00.000 2026", parsed.metadata.triggerblock_start.?);
+    try std.testing.expectEqual(@as(i64, 1_777_372_400_000), parsed.measurement_start_ms.?);
     try std.testing.expectEqual(@as(usize, 1), parsed.frames.len);
     try std.testing.expectEqual(@as(u64, 1_000_000), parsed.frames[0].timestamp_ns);
     try std.testing.expectEqual(@as(u32, 291), parsed.frames[0].id.?.value);
@@ -229,22 +269,9 @@ test "normalizes relative timestamps across unknown events" {
     try std.testing.expectEqual(@as(frame.Kind, .unknown), parsed.frames[1].kind);
 }
 
-test "channel tokens borrow from owned asc source" {
-    const allocator = std.testing.allocator;
-    const text =
-        \\base hex timestamps absolute
-        \\0.001 CAN_A 123 Rx d 1 aa
-    ;
-
-    var parsed = try Asc.fromString(allocator, text);
-    defer parsed.deinit(allocator);
-
-    const channel = parsed.frames[0].channel orelse return error.ExpectedChannel;
-    try std.testing.expectEqualStrings("CAN_A", channel);
-
-    const source_start = @intFromPtr(parsed.source.ptr);
-    const source_end = source_start + parsed.source.len;
-    const channel_start = @intFromPtr(channel.ptr);
-    try std.testing.expect(channel_start >= source_start);
-    try std.testing.expect(channel_start + channel.len <= source_end);
+test "parses vector date to unix milliseconds" {
+    try std.testing.expectEqual(
+        @as(i64, 1_777_372_400_123),
+        try parseVectorDateToUnixMs("Tue Apr 28 10:00:00.123 2026"),
+    );
 }
