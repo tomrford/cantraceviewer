@@ -1,11 +1,23 @@
+//! DBC file parser orchestration.
+//!
+//! This module walks the input line by line, delegates line-level parsing to
+//! domain modules, and attaches value metadata after all messages and signals
+//! have been collected.
+
 const std = @import("std");
 const signal = @import("signal.zig");
 const message = @import("message.zig");
 const values = @import("values.zig");
 
+/// Parsed subset of a DBC file used by the viewer.
 pub const Dbc = struct {
+    /// Messages in source order, each with its attached signals.
     messages: []message.Message,
 
+    /// Parses DBC text into owned arrays while borrowing names from `text`.
+    ///
+    /// The caller must keep `text` alive for the returned `Dbc`, or parse from
+    /// an arena-owned source through `dbc/handle.zig`.
     pub fn fromString(allocator: std.mem.Allocator, text: []const u8) !Dbc {
         var messages: std.ArrayList(message.Message) = .empty;
         errdefer {
@@ -97,6 +109,7 @@ pub const Dbc = struct {
         return .{ .messages = message_slice };
     }
 
+    /// Releases arrays allocated by `fromString`.
     pub fn deinit(self: *Dbc, allocator: std.mem.Allocator) void {
         freeMessages(allocator, self.messages);
         allocator.free(self.messages);
@@ -126,6 +139,7 @@ fn attachValueDescriptions(
     return false;
 }
 
+/// Applies parsed `SIG_VALTYPE_` metadata to its matching signal, when present.
 fn attachValueType(messages: []message.Message, pending: values.SignalValueType) void {
     for (messages) |*msg| {
         if (msg.dbc_id != pending.message_id) continue;

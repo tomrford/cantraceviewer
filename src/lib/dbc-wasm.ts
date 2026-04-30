@@ -45,9 +45,8 @@ export type ParsedDbc = z.infer<typeof ParsedDbcSchema>;
 
 type DbcWasmExports = {
 	memory: WebAssembly.Memory;
-	alloc(len: number): number;
-	free(ptr: number, len: number): void;
-	dbc_parse(ptr: number, len: number): number;
+	owned_bytes_alloc(len: number): number;
+	dbc_parse(input: number): number;
 	dbc_to_json(handle: number): number;
 	dbc_free(handle: number): void;
 	owned_bytes_ptr(bytes: number): number;
@@ -68,16 +67,21 @@ async function loadWasm() {
 export async function parseDbcText(text: string): Promise<ParsedDbc> {
 	const wasm = await loadWasm();
 	const input = new TextEncoder().encode(text);
-	const inputPtr = wasm.alloc(input.byteLength);
+	const inputBytes = wasm.owned_bytes_alloc(input.byteLength);
 
-	if (inputPtr === 0) {
+	if (inputBytes === 0) {
 		throw new Error('WASM allocation failed');
 	}
 
-	new Uint8Array(wasm.memory.buffer, inputPtr, input.byteLength).set(input);
+	let handle = 0;
+	try {
+		const inputPtr = wasm.owned_bytes_ptr(inputBytes);
+		new Uint8Array(wasm.memory.buffer, inputPtr, input.byteLength).set(input);
 
-	const handle = wasm.dbc_parse(inputPtr, input.byteLength);
-	wasm.free(inputPtr, input.byteLength);
+		handle = wasm.dbc_parse(inputBytes);
+	} finally {
+		wasm.owned_bytes_free(inputBytes);
+	}
 
 	if (handle === 0) {
 		throw new Error('DBC parse failed');

@@ -1,7 +1,13 @@
+//! DBC signal line parsing.
+//!
+//! Handles `SG_` records and stores enough metadata for the browser catalog
+//! and later raw-payload signal decoding.
+
 const std = @import("std");
-const dbc_string = @import("string.zig");
+const quotes = @import("quotes.zig");
 const values = @import("values.zig");
 
+/// DBC bit numbering mode for a signal payload.
 pub const DbcEndian = enum { intel, motorola };
 
 const SignalDecodePlan = struct {
@@ -11,9 +17,13 @@ const SignalDecodePlan = struct {
     signedness: std.builtin.Signedness,
 };
 
+/// Parsed `SG_` signal definition.
 pub const Signal = struct {
     name: []const u8,
+
+    /// Start bit in DBC numbering.
     start_bit: u16,
+
     bit_length: u16,
     endianness: DbcEndian,
     signedness: std.builtin.Signedness,
@@ -25,6 +35,8 @@ pub const Signal = struct {
     receivers: [][]const u8,
     value_descriptions: ?[]values.ValueDescription,
     value_type: values.ValueType,
+
+    /// True when the signal uses multiplexing that this viewer does not decode.
     unsupported_mux: bool,
 
     // pub fn planDecode(self: Signal, msg_size_bytes: u8) SignalDecodePlan {
@@ -76,6 +88,10 @@ pub const Signal = struct {
     //     const raw = std.mem.readVarPackedInt(u64, payload, signal.offset, self.bit_length, signal.endian, .unsigned);
     // }
 
+    /// Parses one `SG_` signal line.
+    ///
+    /// The unit string and receiver list are allocated. Other text fields
+    /// borrow from the source line.
     pub fn fromString(allocator: std.mem.Allocator, line: []const u8) !Signal {
         var cursor = std.mem.trim(u8, line, " \t\r");
         if (!std.mem.startsWith(u8, cursor, "SG_ ")) return error.InvalidSignalLine;
@@ -133,7 +149,7 @@ pub const Signal = struct {
         const maximum = try parseFiniteFloat(cursor[0..max_sep]);
         cursor = std.mem.trim(u8, cursor[max_sep + 1 ..], " \t");
 
-        const unit = dbc_string.parseQuoted(allocator, &cursor) catch |err| switch (err) {
+        const unit = quotes.parseQuoted(allocator, &cursor) catch |err| switch (err) {
             error.OutOfMemory => return err,
             else => return error.InvalidSignalLine,
         };
@@ -169,11 +185,13 @@ pub const Signal = struct {
         };
     }
 
+    /// Returns attached `VAL_` or `VAL_TABLE_` descriptions, if any.
     pub fn getValueDescriptions(self: Signal) ?[]const values.ValueDescription {
         return self.value_descriptions;
     }
 };
 
+/// Parses a DBC floating-point field and rejects non-finite values.
 fn parseFiniteFloat(text: []const u8) !f64 {
     const value = try std.fmt.parseFloat(f64, text);
     if (!std.math.isFinite(value)) return error.NonFiniteSignalNumber;

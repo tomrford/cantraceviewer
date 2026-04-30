@@ -1,6 +1,11 @@
+//! Quoted-string parsing for DBC records.
+//!
+//! DBC uses quoted fields for units and value-description labels. This module
+//! consumes one quoted field and leaves the caller's cursor at the next byte.
+
 const std = @import("std");
 
-/// Handles quoted strings correctly in lines of the DBC file.
+/// Parses one quoted string, including escaped bytes, and advances `cursor`.
 pub fn parseQuoted(allocator: std.mem.Allocator, cursor: *[]const u8) ![]const u8 {
     if (!std.mem.startsWith(u8, cursor.*, "\"")) return error.InvalidQuotedString;
     cursor.* = cursor.*[1..];

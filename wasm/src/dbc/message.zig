@@ -1,12 +1,25 @@
+//! DBC message line parsing.
+//!
+//! Handles `BO_` records and derives the CAN identifier fields used for trace
+//! matching.
+
 const std = @import("std");
 const signal = @import("signal.zig");
 
+/// DBC encodes extended CAN IDs by setting bit 31 in the message ID.
 const EXTENDED_FLAG: u32 = 0x8000_0000;
+
+/// CAN 2.0B extended identifiers use the low 29 bits.
 const EXTENDED_MASK: u32 = 0x1FFF_FFFF;
 
+/// Parsed `BO_` message definition.
 pub const Message = struct {
+    /// Raw DBC message ID as written in the file.
     dbc_id: u32,
+
+    /// CAN arbitration ID with the DBC extended-frame flag removed.
     can_id: u32,
+
     is_extended: bool,
     is_fd: bool,
     name: []const u8,
@@ -14,6 +27,7 @@ pub const Message = struct {
     transmitter: []const u8,
     signals: []signal.Signal,
 
+    /// Parses one `BO_ <id> <name>: <size> <transmitter>` line.
     pub fn fromString(line: []const u8) !Message {
         var tokens = std.mem.tokenizeScalar(u8, std.mem.trim(u8, line, " \t\r"), ' ');
 

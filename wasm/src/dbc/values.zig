@@ -1,12 +1,21 @@
-const std = @import("std");
-const dbc_string = @import("string.zig");
+//! DBC value metadata parsing.
+//!
+//! Handles `VAL_`, `VAL_TABLE_`, and `SIG_VALTYPE_` records that decorate
+//! signals after message parsing.
 
+const std = @import("std");
+const quotes = @import("quotes.zig");
+
+/// Largest exact integer representable by JavaScript `number`.
 const JS_SAFE_INTEGER_MAX: i64 = 9_007_199_254_740_991;
 
+/// Numeric representation requested by `SIG_VALTYPE_`.
 pub const ValueType = enum { integer, float32, float64 };
 
+/// One raw numeric value and its display label.
 pub const ValueDescription = struct { raw_value: i64, label: []const u8 };
 
+/// Duplicates value descriptions so a signal can own a copy of a named table.
 pub fn dupeValueDescriptions(allocator: std.mem.Allocator, descriptions: []const ValueDescription) ![]ValueDescription {
     const copy = try allocator.alloc(ValueDescription, descriptions.len);
     errdefer allocator.free(copy);
@@ -29,27 +38,32 @@ pub fn dupeValueDescriptions(allocator: std.mem.Allocator, descriptions: []const
     return copy;
 }
 
+/// Releases only labels inside a value-description slice.
 pub fn freeValueDescriptionLabels(allocator: std.mem.Allocator, descriptions: []const ValueDescription) void {
     for (descriptions) |description| {
         allocator.free(description.label);
     }
 }
 
+/// Releases labels and the slice allocated for value descriptions.
 pub fn freeValueDescriptions(allocator: std.mem.Allocator, descriptions: []const ValueDescription) void {
     freeValueDescriptionLabels(allocator, descriptions);
     allocator.free(descriptions);
 }
 
+/// Parsed `VAL_` payload before it is attached to a signal.
 pub const ValueDescriptionRef = union(enum) {
     table_name: []const u8,
     inline_values: []ValueDescription,
 };
 
+/// Signal-specific value descriptions from a `VAL_` record.
 pub const SignalValueDescriptions = struct {
     message_id: u32,
     signal_name: []const u8,
     value_descriptions: ValueDescriptionRef,
 
+    /// Parses either inline value descriptions or a named value-table reference.
     pub fn fromString(allocator: std.mem.Allocator, line: []const u8) !SignalValueDescriptions {
         var cursor = std.mem.trim(u8, line, " \t\r");
         if (!std.mem.startsWith(u8, cursor, "VAL_ ")) return error.InvalidValueDescriptionLine;
@@ -81,10 +95,12 @@ pub const SignalValueDescriptions = struct {
     }
 };
 
+/// Named set of value descriptions from a `VAL_TABLE_` record.
 pub const ValueTable = struct {
     name: []const u8,
     values: []ValueDescription,
 
+    /// Parses a named table and its raw-value/label pairs.
     pub fn fromString(allocator: std.mem.Allocator, line: []const u8) !ValueTable {
         var cursor = std.mem.trim(u8, line, " \t\r");
         if (!std.mem.startsWith(u8, cursor, "VAL_TABLE_ ")) return error.InvalidValueTableLine;
@@ -101,11 +117,13 @@ pub const ValueTable = struct {
     }
 };
 
+/// Signal numeric type metadata from a `SIG_VALTYPE_` record.
 pub const SignalValueType = struct {
     message_id: u32,
     signal_name: []const u8,
     value_type: ValueType,
 
+    /// Parses the integer type code used by DBC value-type metadata.
     pub fn fromString(line: []const u8) !SignalValueType {
         var cursor = std.mem.trim(u8, line, " \t\r");
         if (!std.mem.startsWith(u8, cursor, "SIG_VALTYPE_ ")) return error.InvalidSignalValueTypeLine;
@@ -138,6 +156,7 @@ pub const SignalValueType = struct {
     }
 };
 
+/// Parses repeated `<raw> "<label>"` pairs.
 fn parseValueDescriptionPairs(allocator: std.mem.Allocator, text: []const u8) ![]ValueDescription {
     var cursor = std.mem.trim(u8, text, " \t\r");
     if (std.mem.endsWith(u8, cursor, ";")) {
@@ -156,7 +175,7 @@ fn parseValueDescriptionPairs(allocator: std.mem.Allocator, text: []const u8) ![
         try ensureJsSafeInteger(raw_value);
         cursor = std.mem.trim(u8, cursor[raw_end..], " \t");
 
-        const label = dbc_string.parseQuoted(allocator, &cursor) catch |err| switch (err) {
+        const label = quotes.parseQuoted(allocator, &cursor) catch |err| switch (err) {
             error.OutOfMemory => return err,
             else => return error.InvalidValueDescriptionLine,
         };
@@ -173,6 +192,7 @@ fn parseValueDescriptionPairs(allocator: std.mem.Allocator, text: []const u8) ![
     return descriptions.toOwnedSlice(allocator);
 }
 
+/// Keeps JSON-facing raw values exact when they reach TypeScript.
 fn ensureJsSafeInteger(value: i64) !void {
     if (value < -JS_SAFE_INTEGER_MAX or value > JS_SAFE_INTEGER_MAX) {
         return error.RawValueOutsideJsSafeIntegerRange;
