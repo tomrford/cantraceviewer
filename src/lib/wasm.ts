@@ -1,4 +1,4 @@
-import wasmUrl from '../../wasm/zig-out/bin/can_log_viewer.wasm?url';
+import wasmUrl from '$lib/assets/can_log_viewer.wasm?url';
 import { z } from 'zod';
 
 const MIB = 1024 * 1024;
