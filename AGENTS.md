@@ -8,6 +8,8 @@ Keep TypeScript as the glue between the Svelte UI and WASM workers. Do not make 
 
 Do not add persistence by default. Loaded files and derived state live in memory for the current browser session.
 
+Enforce browser file-size caps in TypeScript before reading file contents: DBC files are capped at 1 MiB per file, and ASC trace files are capped at 100 MiB per file.
+
 Use repo-native commands via `nix develop`:
 
 ```sh
@@ -18,6 +20,8 @@ cd wasm && zig build test
 ```
 
 `bun run check` includes Wrangler type generation and may require Cloudflare worker types to be generated first.
+
+Open work: add a WASM benchmark harness that builds `Debug`, `ReleaseSafe`, `ReleaseFast`, and `ReleaseSmall`, records raw/gzip sizes, and separately times instantiate, DBC parse/JSON export, ASC parse, and signal-series extraction against fixed fixtures.
 
 ### Zig
 

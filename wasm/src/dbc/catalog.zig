@@ -91,14 +91,16 @@ fn writeJsonField(writer: *std.json.Stringify, field: []const u8, value: anytype
 }
 
 test "serializes parsed DBC catalog to JSON" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const parse_allocator = arena.allocator();
     const allocator = std.testing.allocator;
     const text =
         \\BO_ 100 Example: 8 ECU
         \\ SG_ State : 0|8@1+ (1,0) [0|255] "" DASH
         \\VAL_ 100 State 0 "Off" 1 "On";
     ;
-    var parsed = try dbc.Dbc.fromString(allocator, text);
-    defer parsed.deinit(allocator);
+    const parsed = try dbc.Dbc.fromString(parse_allocator, text);
 
     const json = try toJson(allocator, parsed);
     defer allocator.free(json);
@@ -109,14 +111,16 @@ test "serializes parsed DBC catalog to JSON" {
 }
 
 test "omits unsupported multiplexed signals from catalog JSON" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const parse_allocator = arena.allocator();
     const allocator = std.testing.allocator;
     const text =
         \\BO_ 100 Example: 8 ECU
         \\ SG_ Visible : 0|8@1+ (1,0) [0|255] "" DASH
         \\ SG_ Hidden m1 : 8|8@1+ (1,0) [0|255] "" DASH
     ;
-    var parsed = try dbc.Dbc.fromString(allocator, text);
-    defer parsed.deinit(allocator);
+    const parsed = try dbc.Dbc.fromString(parse_allocator, text);
 
     try std.testing.expectEqual(@as(usize, 2), parsed.messages[0].signals.len);
     try std.testing.expect(parsed.messages[0].signals[1].unsupported_mux);

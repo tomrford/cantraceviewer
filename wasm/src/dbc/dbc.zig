@@ -2,7 +2,8 @@
 //!
 //! This module walks the input line by line, delegates line-level parsing to
 //! domain modules, and attaches value metadata after all messages and signals
-//! have been collected.
+//! have been collected. Parsed DBC data is arena-scoped: callers provide an
+//! arena allocator and release the returned model by releasing that arena.
 
 const std = @import("std");
 const signal = @import("signal.zig");
@@ -22,32 +23,29 @@ pub const Dbc = struct {
     /// Messages in source order, each with its attached signals.
     messages: []message.Message,
 
-    /// Parses DBC text into owned arrays while borrowing names from `text`.
+    /// Value tables in source order.
     ///
-    /// The caller must keep `text` alive for the returned `Dbc`, or parse from
-    /// an arena-owned source through `dbc/handle.zig`.
+    /// Signals that use a named `VAL_TABLE_` borrow their descriptions from
+    /// this slice.
+    value_tables: []values.ValueTable,
+
+    /// Parses DBC text into arena-owned arrays while borrowing names from `text`.
+    ///
+    /// Use an arena allocator for `allocator`; release the returned `Dbc` by
+    /// releasing that arena. The caller must keep `text` alive for the returned
+    /// `Dbc`, or parse from an arena-owned source through `dbc/handle.zig`.
     pub fn fromString(allocator: std.mem.Allocator, text: []const u8) !Dbc {
         var messages: std.ArrayList(message.Message) = .empty;
-        errdefer {
-            freeMessages(allocator, messages.items);
-            messages.deinit(allocator);
-        }
 
-        var value_tables = std.StringHashMap(values.ValueTable).init(allocator);
-        errdefer freeValueTables(allocator, &value_tables);
+        var value_tables: std.ArrayList(values.ValueTable) = .empty;
 
         var pending_values: std.ArrayList(values.SignalValueDescriptions) = .empty;
         defer pending_values.deinit(allocator);
-        errdefer freePendingInlineValues(allocator, pending_values.items);
 
         var pending_value_types: std.ArrayList(values.SignalValueType) = .empty;
         defer pending_value_types.deinit(allocator);
 
         var current_signals: std.ArrayList(signal.Signal) = .empty;
-        errdefer {
-            freeSignals(allocator, current_signals.items);
-            current_signals.deinit(allocator);
-        }
 
         var current_message: ?message.Message = null;
         var lines = std.mem.splitScalar(u8, text, '\n');
@@ -66,8 +64,7 @@ pub const Dbc = struct {
             }
 
             if (std.mem.startsWith(u8, line, "VAL_TABLE_ ")) {
-                const table = try values.ValueTable.fromString(allocator, line);
-                try value_tables.put(table.name, table);
+                try value_tables.append(allocator, try values.ValueTable.fromString(allocator, line));
                 continue;
             }
 
@@ -95,41 +92,27 @@ pub const Dbc = struct {
         }
 
         const message_slice = try messages.toOwnedSlice(allocator);
-        var message_slice_owned = true;
-        errdefer if (message_slice_owned) {
-            freeMessages(allocator, message_slice);
-            allocator.free(message_slice);
-        };
+        const value_table_slice = try value_tables.toOwnedSlice(allocator);
 
-        for (pending_values.items) |*pending| {
-            if (!try attachValueDescriptions(allocator, message_slice, &value_tables, pending.*)) {
-                freePendingValueDescription(allocator, pending.value_descriptions);
-            }
-            pending.value_descriptions = .{ .table_name = "" };
+        for (pending_values.items) |pending| {
+            attachValueDescriptions(message_slice, value_table_slice, pending);
         }
         for (pending_value_types.items) |pending| {
             attachValueType(message_slice, pending);
         }
 
-        freeValueTables(allocator, &value_tables);
-
-        message_slice_owned = false;
-        return .{ .messages = message_slice };
-    }
-
-    /// Releases arrays allocated by `fromString`.
-    pub fn deinit(self: *Dbc, allocator: std.mem.Allocator) void {
-        freeMessages(allocator, self.messages);
-        allocator.free(self.messages);
+        return .{
+            .messages = message_slice,
+            .value_tables = value_table_slice,
+        };
     }
 };
 
 fn attachValueDescriptions(
-    allocator: std.mem.Allocator,
     messages: []message.Message,
-    value_tables: *const std.StringHashMap(values.ValueTable),
+    value_tables: []const values.ValueTable,
     pending: values.SignalValueDescriptions,
-) !bool {
+) void {
     for (messages) |*msg| {
         if (msg.dbc_id != pending.message_id) continue;
         for (msg.signals) |*sig| {
@@ -137,14 +120,20 @@ fn attachValueDescriptions(
             sig.value_descriptions = switch (pending.value_descriptions) {
                 .inline_values => |items| items,
                 .table_name => |name| table: {
-                    const table = value_tables.get(name) orelse return false;
-                    break :table try values.dupeValueDescriptions(allocator, table.values);
+                    const table = findValueTable(value_tables, name) orelse return;
+                    break :table table.values;
                 },
             };
-            return true;
+            return;
         }
     }
-    return false;
+}
+
+fn findValueTable(value_tables: []const values.ValueTable, name: []const u8) ?values.ValueTable {
+    for (value_tables) |table| {
+        if (std.mem.eql(u8, table.name, name)) return table;
+    }
+    return null;
 }
 
 /// Applies parsed `SIG_VALTYPE_` metadata to its matching signal, when present.
@@ -159,46 +148,10 @@ fn attachValueType(messages: []message.Message, pending: values.SignalValueType)
     }
 }
 
-fn freeMessages(allocator: std.mem.Allocator, messages: []message.Message) void {
-    for (messages) |msg| {
-        freeSignals(allocator, msg.signals);
-        allocator.free(msg.signals);
-    }
-}
-
-fn freeSignals(allocator: std.mem.Allocator, signals: []signal.Signal) void {
-    for (signals) |sig| {
-        allocator.free(sig.unit);
-        allocator.free(sig.receivers);
-        if (sig.value_descriptions) |value_descriptions| {
-            values.freeValueDescriptions(allocator, value_descriptions);
-        }
-    }
-}
-
-fn freeValueTables(allocator: std.mem.Allocator, value_tables: *std.StringHashMap(values.ValueTable)) void {
-    var iterator = value_tables.iterator();
-    while (iterator.next()) |entry| {
-        values.freeValueDescriptions(allocator, entry.value_ptr.values);
-    }
-    value_tables.deinit();
-}
-
-fn freePendingInlineValues(allocator: std.mem.Allocator, pending_values: []values.SignalValueDescriptions) void {
-    for (pending_values) |pending| {
-        freePendingValueDescription(allocator, pending.value_descriptions);
-    }
-}
-
-fn freePendingValueDescription(allocator: std.mem.Allocator, value_descriptions: values.ValueDescriptionRef) void {
-    switch (value_descriptions) {
-        .inline_values => |items| values.freeValueDescriptions(allocator, items),
-        .table_name => {},
-    }
-}
-
 test "parse fixture DBC messages and signals" {
-    const allocator = std.testing.allocator;
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
     const text =
         \\VERSION ""
         \\BO_ 256 Heartbeat: 2 Agent
@@ -214,8 +167,7 @@ test "parse fixture DBC messages and signals" {
         \\ SG_ right_signal : 8|8@1+ (1,0) [0|1] "" Dashboard
         \\ SG_ battery_voltage : 16|8@1+ (0.1,0) [0|25.5] "V" Dashboard
     ;
-    var dbc = try Dbc.fromString(allocator, text);
-    defer dbc.deinit(allocator);
+    const dbc = try Dbc.fromString(allocator, text);
 
     try std.testing.expectEqual(@as(usize, 3), dbc.messages.len);
     try std.testing.expectEqualStrings("Heartbeat", dbc.messages[0].name);
@@ -227,11 +179,12 @@ test "parse fixture DBC messages and signals" {
 }
 
 test "parse DBC message and signal records separated by tabs" {
-    const allocator = std.testing.allocator;
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
     const text = "BO_\t288\tPowertrainStatus:\t8\tAgent\n" ++
         "\tSG_\tvehicle_speed\t:\t0|16@1+\t(0.1,0)\t[0|250]\t\"km/h\"\tDashboard";
-    var dbc = try Dbc.fromString(allocator, text);
-    defer dbc.deinit(allocator);
+    const dbc = try Dbc.fromString(allocator, text);
 
     try std.testing.expectEqual(@as(usize, 1), dbc.messages.len);
     try std.testing.expectEqualStrings("PowertrainStatus", dbc.messages[0].name);
@@ -240,7 +193,9 @@ test "parse DBC message and signal records separated by tabs" {
 }
 
 test "parse fixture DBC with extended multiplexed signals" {
-    const allocator = std.testing.allocator;
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
     const text =
         \\VERSION ""
         \\BO_ 2147483650 ext_MUX_multiplexors: 7 Vector__XXX
@@ -257,8 +212,7 @@ test "parse fixture DBC with extended multiplexed signals" {
         \\ SG_ muxed_A_1 m1 : 8|8@1- (1,0) [0|0] "" Vector__XXX
         \\ SG_ MUX_A M : 0|8@1- (1,0) [0|0] "" Vector__XXX
     ;
-    var dbc = try Dbc.fromString(allocator, text);
-    defer dbc.deinit(allocator);
+    const dbc = try Dbc.fromString(allocator, text);
 
     try std.testing.expectEqual(@as(usize, 1), dbc.messages.len);
     try std.testing.expectEqual(@as(u32, 2147483650), dbc.messages[0].dbc_id);
@@ -270,15 +224,16 @@ test "parse fixture DBC with extended multiplexed signals" {
 }
 
 test "parse fixture DBC with inline value descriptions" {
-    const allocator = std.testing.allocator;
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
     const text =
         \\VERSION "1.0"
         \\BO_ 100 Example: 8 ECU
         \\    SG_ State : 0|8@1+ (1,0) [0|255] "" DASH
         \\VAL_ 100 State 0 "Off" 1 "On";
     ;
-    var dbc = try Dbc.fromString(allocator, text);
-    defer dbc.deinit(allocator);
+    const dbc = try Dbc.fromString(allocator, text);
 
     try std.testing.expectEqual(@as(usize, 1), dbc.messages.len);
     const state = dbc.messages[0].signals[0];
@@ -292,32 +247,41 @@ test "parse fixture DBC with inline value descriptions" {
 }
 
 test "parse DBC with named value table reference" {
-    const allocator = std.testing.allocator;
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
     const text =
         \\VAL_TABLE_ GearStates 0 "Park" 1 "Drive";
         \\BO_ 100 Example: 8 ECU
         \\ SG_ Gear : 0|8@1+ (1,0) [0|255] "" DASH
+        \\ SG_ RequestedGear : 8|8@1+ (1,0) [0|255] "" DASH
         \\VAL_ 100 Gear GearStates;
+        \\VAL_ 100 RequestedGear GearStates;
     ;
-    var dbc = try Dbc.fromString(allocator, text);
-    defer dbc.deinit(allocator);
+    const dbc = try Dbc.fromString(allocator, text);
 
     const gear = dbc.messages[0].signals[0];
-    const descriptions = gear.getValueDescriptions() orelse return error.TestExpectedValueDescriptions;
+    const requested_gear = dbc.messages[0].signals[1];
+    const gear_descriptions = gear.getValueDescriptions() orelse return error.TestExpectedValueDescriptions;
+    const requested_descriptions = requested_gear.getValueDescriptions() orelse return error.TestExpectedValueDescriptions;
 
-    try std.testing.expectEqual(@as(usize, 2), descriptions.len);
-    try std.testing.expectEqualStrings("Drive", descriptions[1].label);
+    try std.testing.expectEqual(@as(usize, 1), dbc.value_tables.len);
+    try std.testing.expectEqual(@intFromPtr(dbc.value_tables[0].values.ptr), @intFromPtr(gear_descriptions.ptr));
+    try std.testing.expectEqual(@intFromPtr(gear_descriptions.ptr), @intFromPtr(requested_descriptions.ptr));
+    try std.testing.expectEqual(@as(usize, 2), gear_descriptions.len);
+    try std.testing.expectEqualStrings("Drive", gear_descriptions[1].label);
 }
 
 test "parse DBC with signal value type" {
-    const allocator = std.testing.allocator;
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
     const text =
         \\BO_ 100 Example: 8 ECU
         \\ SG_ Temperature : 0|32@1+ (1,0) [0|0] "" DASH
         \\SIG_VALTYPE_ 100 Temperature : 1;
     ;
-    var dbc = try Dbc.fromString(allocator, text);
-    defer dbc.deinit(allocator);
+    const dbc = try Dbc.fromString(allocator, text);
 
     try std.testing.expectEqual(values.ValueType.float32, dbc.messages[0].signals[0].value_type);
 }

@@ -3,6 +3,8 @@
 	import * as Table from '$lib/components/ui/table';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import {
+		DBC_MAX_FILE_BYTES,
+		assertFileSizeWithinLimit,
 		closeDbc,
 		getDbcCatalog,
 		openDbc,
@@ -53,6 +55,8 @@
 		dbc = null;
 
 		try {
+			assertFileSizeWithinLimit(file, DBC_MAX_FILE_BYTES, 'DBC');
+
 			if (dbcHandle) {
 				await closeDbc(dbcHandle);
 				dbcHandle = null;

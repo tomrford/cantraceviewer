@@ -6,6 +6,8 @@ The first milestone is a DBC viewer: load a DBC in the browser, decode it throug
 
 Data stays in the current browser session. Refreshing the page clears loaded files and derived state.
 
+Browser file inputs enforce per-file size caps before reading contents: DBC files are capped at 1 MiB, and ASC trace files are capped at 100 MiB.
+
 ## Development
 
 ```sh

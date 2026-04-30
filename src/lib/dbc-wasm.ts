@@ -1,6 +1,11 @@
 import wasmUrl from '../../wasm/zig-out/bin/can_log_viewer.wasm?url';
 import { z } from 'zod';
 
+const MIB = 1024 * 1024;
+
+export const DBC_MAX_FILE_BYTES = 1 * MIB;
+export const ASC_MAX_FILE_BYTES = 100 * MIB;
+
 const DbcValueDescriptionSchema = z.object({
 	rawValue: z.number(),
 	label: z.string()
@@ -89,6 +94,20 @@ async function loadWasm() {
 	});
 
 	return wasmPromise;
+}
+
+function formatBytes(bytes: number): string {
+	if (bytes >= MIB && bytes % MIB === 0) {
+		return `${bytes / MIB} MiB`;
+	}
+
+	return `${bytes.toLocaleString()} bytes`;
+}
+
+export function assertFileSizeWithinLimit(file: File, maxBytes: number, label: string): void {
+	if (file.size <= maxBytes) return;
+
+	throw new Error(`${label} file exceeds the ${formatBytes(maxBytes)} limit`);
 }
 
 function copyTextToWasm(wasm: CanLogViewerWasmExports, text: string): number {

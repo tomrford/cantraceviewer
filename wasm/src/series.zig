@@ -27,7 +27,7 @@ pub fn selectedSignalValues(
 
     for (asc.asc.frames) |trace_frame| {
         if (!matchesMessage(trace_frame, selection.message)) continue;
-        if (trace_frame.payload_len != selection.message.size_bytes) return error.InvalidPayloadLength;
+        if (trace_frame.payload_len != selection.message.size_bytes) continue;
 
         const payload = trace_frame.payload[0..selection.message.size_bytes];
         const value = try plan.decode(payload);
@@ -150,7 +150,7 @@ test "extracts selected motorola float signal values as timestamp/value samples"
     try std.testing.expectEqual(@as(f64, 1.5), @as(f64, @bitCast(std.mem.readInt(u64, bytes[8..16], .little))));
 }
 
-test "rejects matching frames with unexpected payload length" {
+test "skips matching frames with unexpected payload length" {
     const allocator = std.testing.allocator;
     const dbc_text =
         \\BO_ 291 Example: 2 ECU
@@ -159,6 +159,7 @@ test "rejects matching frames with unexpected payload length" {
     const asc_text =
         \\base hex timestamps absolute
         \\0.001 1 123 Rx d 1 10
+        \\0.002 1 123 Rx d 2 34 12
     ;
 
     const dbc = try dbc_handle.Handle.parse(allocator, dbc_text);
@@ -166,8 +167,10 @@ test "rejects matching frames with unexpected payload length" {
     const asc = try asc_handle.Handle.parse(allocator, asc_text);
     defer asc.deinit(allocator);
 
-    try std.testing.expectError(
-        error.InvalidPayloadLength,
-        selectedSignalValues(allocator, dbc, asc, "Example", "Speed"),
-    );
+    const bytes = try selectedSignalValues(allocator, dbc, asc, "Example", "Speed");
+    defer allocator.free(bytes);
+
+    try std.testing.expectEqual(@as(usize, 16), bytes.len);
+    try std.testing.expectEqual(@as(u64, 2_000_000), std.mem.readInt(u64, bytes[0..8], .little));
+    try std.testing.expectEqual(@as(f64, 4660.0), @as(f64, @bitCast(std.mem.readInt(u64, bytes[8..16], .little))));
 }

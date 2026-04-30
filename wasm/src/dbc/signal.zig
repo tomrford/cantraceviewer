@@ -96,7 +96,7 @@ pub const Signal = struct {
     maximum: ?f64,
     unit: []const u8,
     receivers: [][]const u8,
-    value_descriptions: ?[]values.ValueDescription,
+    value_descriptions: ?[]const values.ValueDescription,
     value_type: values.ValueType,
 
     /// True when the signal uses multiplexing that this viewer does not decode.

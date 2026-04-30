@@ -159,7 +159,7 @@ fn parseCanFd(base: Base, timestamp_ns: u64, tokens: *LineTokenIterator) !?Frame
     const dlc = try parseDlc(tokens.next() orelse return error.InvalidFrameLine);
     const payload_len = try parsePayloadLength(tokens.next() orelse return error.InvalidFrameLine);
     const expected_payload_len = try fdPayloadLengthFromDlc(dlc);
-    if (payload_len > expected_payload_len) return error.InvalidPayloadLength;
+    if (payload_len != expected_payload_len) return error.InvalidPayloadLength;
 
     var payload: [64]u8 = undefined;
     var index: usize = 0;
@@ -323,6 +323,13 @@ test "parses CAN FD data frame payload length from data length field" {
     try std.testing.expectEqual(@as(u8, 12), parsed.payload_len);
     try std.testing.expectEqual(@as(u8, 0x01), parsed.payload[0]);
     try std.testing.expectEqual(@as(u8, 0x0c), parsed.payload[11]);
+}
+
+test "rejects CAN FD data frame when data length does not match DLC" {
+    try std.testing.expectError(
+        error.InvalidPayloadLength,
+        Frame.fromString(Base.hex, "5.0 CANFD 1 Rx 18fee900x - 1 0 9 8 01 02 03 04 05 06 07 08"),
+    );
 }
 
 test "keeps timestamped unrecognized lines as unknown frames" {
