@@ -15,10 +15,10 @@ pub const Base = enum {
     }
 };
 
-/// Kinds of frames. In practice this is treated as a catch all for
-/// 'kinds of lines seen in the file' since we need to track comments
-/// and other non-frame information in order to properly maintain relative
-/// timestamping.
+/// Kinds of timestamped ASC events kept in frame order.
+///
+/// Unknown events preserve timestamped lines the parser does not decode so
+/// relative timestamp normalization still accounts for them.
 pub const Kind = enum {
     data,
     remote,

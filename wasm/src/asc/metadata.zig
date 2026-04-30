@@ -1,4 +1,4 @@
-//! Trace metadata exported for browser axis setup and parse smoke tests.
+//! Trace metadata exported for browser axis setup.
 
 const std = @import("std");
 const asc = @import("asc.zig");

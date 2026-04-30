@@ -11,8 +11,7 @@ const signal = @import("signal.zig");
 /// Serializes the parsed DBC catalog used by the browser signal picker.
 ///
 /// This is intentionally a UI catalog, not a full DBC interchange format.
-/// Unsupported multiplexed signals are omitted because the viewer cannot
-/// decode them yet.
+/// Unsupported multiplexed signals are omitted from the current JSON boundary.
 pub fn toJson(allocator: std.mem.Allocator, parsed: dbc.Dbc) ![]u8 {
     var out: std.Io.Writer.Allocating = .init(allocator);
     errdefer out.deinit();

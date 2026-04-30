@@ -1,7 +1,7 @@
 //! DBC signal line parsing.
 //!
 //! Handles `SG_` records and stores enough metadata for the browser catalog
-//! and later raw-payload signal decoding.
+//! and raw-payload signal decoding.
 
 const std = @import("std");
 const quotes = @import("quotes.zig");
