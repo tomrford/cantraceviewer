@@ -1,24 +1,7 @@
-<script lang="ts" module>
-	const data = {
-		dbcs: [
-			{
-				name: 'powertrain.dbc',
-				signals: ['EngineStatus.rpm', 'EngineStatus.coolant_temp', 'ThrottleCommand.position']
-			},
-			{
-				name: 'body.dbc',
-				signals: ['DoorState.driver_open', 'DoorState.passenger_open', 'CabinClimate.fan_speed']
-			},
-			{
-				name: 'chassis.dbc',
-				signals: ['WheelSpeeds.front_left', 'WheelSpeeds.front_right', 'BrakePressure.master']
-			}
-		]
-	};
-</script>
-
 <script lang="ts">
+	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
+	import { dbcFiles } from '$lib/stores/dbc-files.svelte.js';
 	import SearchForm from './search-form.svelte';
 	import * as Collapsible from '$lib/components/ui/collapsible/index.js';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
@@ -29,12 +12,22 @@
 
 	let { ref = $bindable(null), ...restProps }: ComponentProps<typeof Sidebar.Root> = $props();
 	let traceInput: HTMLInputElement;
+	let dbcInput: HTMLInputElement;
 	let traceFileName = $state('Load trace');
 
 	function selectTrace(event: Event) {
 		const input = event.currentTarget as HTMLInputElement;
 		traceFileName = input.files?.[0]?.name ?? 'Load trace';
 		input.value = '';
+	}
+
+	async function selectDbcs(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		const files = Array.from(input.files ?? []);
+		input.value = '';
+		if (files.length === 0) return;
+
+		await dbcFiles.addFiles(files);
 	}
 </script>
 
@@ -71,7 +64,7 @@
 	<Sidebar.Content>
 		<Sidebar.Group>
 			<Sidebar.Menu>
-				{#each data.dbcs as dbc, index (dbc.name)}
+				{#each dbcFiles.sidebarFiles as dbc, index (dbc.id)}
 					<Collapsible.Root open={index === 0} class="group/collapsible">
 						<Sidebar.MenuItem>
 							<Collapsible.Trigger>
@@ -102,11 +95,40 @@
 			</Sidebar.Menu>
 		</Sidebar.Group>
 		<Sidebar.Group>
-			<Button class="w-full" type="button">
+			<input
+				bind:this={dbcInput}
+				class="hidden"
+				type="file"
+				accept=".dbc,text/plain"
+				multiple
+				onchange={selectDbcs}
+			/>
+			<Button
+				class="w-full"
+				type="button"
+				disabled={dbcFiles.isLoading}
+				onclick={() => dbcInput.click()}
+			>
 				<PlusIcon />
-				Add new
+				{dbcFiles.isLoading ? 'Loading' : 'Add DBC'}
 			</Button>
 		</Sidebar.Group>
 	</Sidebar.Content>
 	<Sidebar.Rail />
 </Sidebar.Root>
+
+<AlertDialog.Root
+	bind:open={() => dbcFiles.error !== null, (open) => !open && dbcFiles.clearError()}
+>
+	{#if dbcFiles.error}
+		<AlertDialog.Content>
+			<AlertDialog.Header>
+				<AlertDialog.Title>DBC upload failed</AlertDialog.Title>
+				<AlertDialog.Description>{dbcFiles.error}</AlertDialog.Description>
+			</AlertDialog.Header>
+			<AlertDialog.Footer>
+				<AlertDialog.Action onclick={() => dbcFiles.clearError()}>OK</AlertDialog.Action>
+			</AlertDialog.Footer>
+		</AlertDialog.Content>
+	{/if}
+</AlertDialog.Root>
