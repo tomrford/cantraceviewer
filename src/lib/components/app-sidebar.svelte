@@ -2,6 +2,7 @@
 	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { dbcFiles } from '$lib/stores/dbc-files.svelte.js';
+	import { plotData } from '$lib/stores/plot-data.svelte.js';
 	import SearchForm from './search-form.svelte';
 	import * as Collapsible from '$lib/components/ui/collapsible/index.js';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
@@ -19,14 +20,15 @@
 	let traceFileName = $state('Load trace');
 	let signalSearch = $state('');
 	let expandedDbcIds = $state<string[] | null>(null);
-	let selectedSignalIds = $state<string[]>([]);
 	let normalizedSignalSearch = $derived(signalSearch.trim().toLowerCase());
 	let isSignalSearchActive = $derived(normalizedSignalSearch.length > 0);
 	let visibleDbcFiles = $derived.by(() =>
 		dbcFiles.sidebarFiles.map((dbc) => ({
 			...dbc,
 			signals: isSignalSearchActive
-				? dbc.signals.filter((signal) => signal.toLowerCase().includes(normalizedSignalSearch))
+				? dbc.signals.filter((signal) =>
+						signal.label.toLowerCase().includes(normalizedSignalSearch)
+					)
 				: dbc.signals
 		}))
 	);
@@ -56,22 +58,10 @@
 		expandedDbcIds = arrayWith(expandedDbcIds ?? initialExpandedDbcIds(), dbcId, open);
 	}
 
-	function toggleSignal(signalId: string): void {
-		selectedSignalIds = arrayWith(
-			selectedSignalIds,
-			signalId,
-			!selectedSignalIds.includes(signalId)
-		);
-	}
-
 	async function removeDbc(dbcId: string): Promise<void> {
 		expandedDbcIds = (expandedDbcIds ?? initialExpandedDbcIds()).filter((id) => id !== dbcId);
-		selectedSignalIds = selectedSignalIds.filter((signalId) => !signalId.startsWith(`${dbcId}:`));
+		plotData.deselectDbcFile(dbcId);
 		await dbcFiles.removeFile(dbcId);
-	}
-
-	function signalId(dbcId: string, signal: string): string {
-		return `${dbcId}:${signal}`;
 	}
 
 	function arrayWith(values: string[], value: string, include: boolean): string[] {
@@ -155,24 +145,23 @@
 							</div>
 							<Collapsible.Content>
 								<Sidebar.MenuSub>
-									{#each dbc.signals as signal (signal)}
+									{#each dbc.signals as signal (signal.key)}
 										<Sidebar.MenuSubItem>
-											{@const id = signalId(dbc.id, signal)}
 											<button
 												type="button"
 												class="flex h-7 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
-												aria-pressed={selectedSignalIds.includes(id)}
-												onclick={() => toggleSignal(id)}
+												aria-pressed={plotData.isSignalSelected(signal.key)}
+												onclick={() => plotData.toggleSignal(signal.key)}
 											>
 												<span
 													class="flex size-4 shrink-0 items-center justify-center rounded border border-sidebar-border bg-sidebar text-sidebar-foreground/45 data-[selected=true]:border-sidebar-foreground/40 data-[selected=true]:bg-sidebar-accent data-[selected=true]:text-sidebar-foreground"
-													data-selected={selectedSignalIds.includes(id)}
+													data-selected={plotData.isSignalSelected(signal.key)}
 												>
-													{#if selectedSignalIds.includes(id)}
+													{#if plotData.isSignalSelected(signal.key)}
 														<CheckIcon class="size-3" />
 													{/if}
 												</span>
-												<span class="truncate">{signal}</span>
+												<span class="truncate">{signal.label}</span>
 											</button>
 										</Sidebar.MenuSubItem>
 									{/each}

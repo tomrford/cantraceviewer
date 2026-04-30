@@ -4,6 +4,8 @@ import {
 	closeDbc,
 	getDbcCatalog,
 	openDbc,
+	type DbcMessage,
+	type DbcSignal,
 	type DbcHandle,
 	type ParsedDbc
 } from '$lib/dbc-wasm.js';
@@ -18,7 +20,14 @@ export type DbcFileEntry = {
 export type SidebarDbcFile = {
 	id: string;
 	name: string;
-	signals: string[];
+	signals: SidebarDbcSignal[];
+};
+
+export type SidebarDbcSignal = {
+	key: string;
+	label: string;
+	messageName: string;
+	signalName: string;
 };
 
 type DbcMessageIdentity = {
@@ -43,7 +52,7 @@ class DbcFilesStore {
 			id: entry.id,
 			name: displayDbcName(entry.file.name),
 			signals: entry.catalog.messages.flatMap((message) =>
-				message.signals.map((signal) => `${message.name}.${signal.name}`)
+				message.signals.map((signal) => sidebarSignal(entry.id, message, signal))
 			)
 		}))
 	);
@@ -153,6 +162,23 @@ function canIdKey(canId: number, isExtended: boolean): string {
 
 function displayDbcName(fileName: string): string {
 	return fileName.replace(/\.dbc$/i, '');
+}
+
+export function signalKey(dbcFileId: string, messageName: string, signalName: string): string {
+	return JSON.stringify([dbcFileId, messageName, signalName]);
+}
+
+function sidebarSignal(
+	dbcFileId: string,
+	message: DbcMessage,
+	signal: DbcSignal
+): SidebarDbcSignal {
+	return {
+		key: signalKey(dbcFileId, message.name, signal.name),
+		label: `${message.name}.${signal.name}`,
+		messageName: message.name,
+		signalName: signal.name
+	};
 }
 
 async function closeEntries(entries: DbcFileEntry[]): Promise<void> {
