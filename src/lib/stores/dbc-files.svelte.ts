@@ -1,6 +1,4 @@
 import {
-	DBC_MAX_FILE_BYTES,
-	assertFileSizeWithinLimit,
 	closeDbc,
 	getDbcCatalog,
 	openDbc,
@@ -9,6 +7,7 @@ import {
 	type DbcHandle,
 	type ParsedDbc
 } from '$lib/wasm.js';
+import { DBC_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '$lib/file-limits.js';
 
 export type DbcFileEntry = {
 	id: string;

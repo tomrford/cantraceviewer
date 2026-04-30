@@ -62,7 +62,9 @@ fn findSignal(
 fn matchesMessage(trace_frame: frame.Frame, msg: message.Message) bool {
     if (trace_frame.kind != .data) return false;
     const id = trace_frame.id orelse return false;
-    return id.value == msg.can_id and id.is_extended == msg.is_extended;
+    return id.value == msg.can_id and
+        id.is_extended == msg.is_extended and
+        trace_frame.is_fd == msg.is_fd;
 }
 
 fn appendSample(allocator: std.mem.Allocator, out: *std.ArrayList(u8), timestamp_ns: u64, value: f64) !void {
@@ -173,4 +175,38 @@ test "skips matching frames with unexpected payload length" {
     try std.testing.expectEqual(@as(usize, 16), bytes.len);
     try std.testing.expectEqual(@as(u64, 2_000_000), std.mem.readInt(u64, bytes[0..8], .little));
     try std.testing.expectEqual(@as(f64, 4660.0), @as(f64, @bitCast(std.mem.readInt(u64, bytes[8..16], .little))));
+}
+
+test "keeps classic and CAN FD frames separate for matching IDs" {
+    const allocator = std.testing.allocator;
+    const dbc_text =
+        \\BO_ 291 ClassicExample: 8 ECU
+        \\ SG_ ClassicSpeed : 0|16@1+ (1,0) [0|65535] "" DASH
+        \\BO_ 291 FdExample: 12 ECU
+        \\ SG_ FdSpeed : 0|16@1+ (1,0) [0|65535] "" DASH
+    ;
+    const asc_text =
+        \\base hex timestamps absolute
+        \\0.001 1 123 Rx d 8 01 00 00 00 00 00 00 00
+        \\0.002 CANFD 1 Rx 123 - 1 0 8 8 02 00 00 00 00 00 00 00
+        \\0.003 CANFD 1 Rx 123 - 1 0 9 12 03 00 00 00 00 00 00 00 00 00 00 00
+    ;
+
+    const dbc = try dbc_handle.Handle.parse(allocator, dbc_text);
+    defer dbc.deinit(allocator);
+    const asc = try asc_handle.Handle.parse(allocator, asc_text);
+    defer asc.deinit(allocator);
+
+    const classic_bytes = try selectedSignalValues(allocator, dbc, asc, "ClassicExample", "ClassicSpeed");
+    defer allocator.free(classic_bytes);
+    const fd_bytes = try selectedSignalValues(allocator, dbc, asc, "FdExample", "FdSpeed");
+    defer allocator.free(fd_bytes);
+
+    try std.testing.expectEqual(@as(usize, 16), classic_bytes.len);
+    try std.testing.expectEqual(@as(u64, 1_000_000), std.mem.readInt(u64, classic_bytes[0..8], .little));
+    try std.testing.expectEqual(@as(f64, 1.0), @as(f64, @bitCast(std.mem.readInt(u64, classic_bytes[8..16], .little))));
+
+    try std.testing.expectEqual(@as(usize, 16), fd_bytes.len);
+    try std.testing.expectEqual(@as(u64, 3_000_000), std.mem.readInt(u64, fd_bytes[0..8], .little));
+    try std.testing.expectEqual(@as(f64, 3.0), @as(f64, @bitCast(std.mem.readInt(u64, fd_bytes[8..16], .little))));
 }

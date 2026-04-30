@@ -1,12 +1,11 @@
 import {
-	ASC_MAX_FILE_BYTES,
-	assertFileSizeWithinLimit,
 	closeAsc,
 	getAscMetadata,
 	openAsc,
 	type AscHandle,
 	type TraceMetadata
 } from '$lib/wasm.js';
+import { ASC_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '$lib/file-limits.js';
 
 export type TraceFileEntry = {
 	file: File;

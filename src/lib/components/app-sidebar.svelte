@@ -94,73 +94,73 @@
 		</div>
 	</Sidebar.Header>
 	<Sidebar.Content>
-			<Sidebar.Group class="px-4">
-				<Sidebar.Menu>
-					{#each visibleDbcFiles as dbc, index (dbc.id)}
-						<Collapsible.Root
-							open={isDbcExpanded(dbc.id, index)}
-							onOpenChange={(open) => setDbcExpanded(dbc.id, open)}
-							class="group/collapsible"
-						>
-							<Sidebar.MenuItem>
-								<div class="group/dbc-row flex items-center gap-1">
-									<Collapsible.Trigger>
-										{#snippet child({ props })}
-											<Sidebar.MenuButton
-												{...props}
-												class="min-w-0 flex-1"
-												aria-label={isDbcExpanded(dbc.id, index)
-													? `Collapse ${dbc.name}`
-													: `Expand ${dbc.name}`}
+		<Sidebar.Group class="px-4">
+			<Sidebar.Menu>
+				{#each visibleDbcFiles as dbc, index (dbc.id)}
+					<Collapsible.Root
+						open={isDbcExpanded(dbc.id, index)}
+						onOpenChange={(open) => setDbcExpanded(dbc.id, open)}
+						class="group/collapsible"
+					>
+						<Sidebar.MenuItem>
+							<div class="group/dbc-row flex items-center gap-1">
+								<Collapsible.Trigger>
+									{#snippet child({ props })}
+										<Sidebar.MenuButton
+											{...props}
+											class="min-w-0 flex-1"
+											aria-label={isDbcExpanded(dbc.id, index)
+												? `Collapse ${dbc.name}`
+												: `Expand ${dbc.name}`}
+										>
+											<ChevronRightIcon
+												class="text-sidebar-foreground/60 group-data-[state=open]/collapsible:hidden"
+											/>
+											<ChevronDownIcon
+												class="text-sidebar-foreground/60 group-data-[state=closed]/collapsible:hidden"
+											/>
+											<span class="truncate">{dbc.name}</span>
+										</Sidebar.MenuButton>
+									{/snippet}
+								</Collapsible.Trigger>
+								<button
+									type="button"
+									class="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/50 opacity-70 hover:bg-sidebar-accent hover:text-destructive hover:opacity-100 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
+									aria-label={`Delete ${dbc.name}`}
+									onclick={() => removeDbc(dbc.id)}
+								>
+									<TrashIcon class="size-4" />
+								</button>
+							</div>
+							<Collapsible.Content>
+								<Sidebar.MenuSub>
+									{#each dbc.signals as signal (signal.key)}
+										<Sidebar.MenuSubItem>
+											<button
+												type="button"
+												class="flex h-7 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
+												aria-pressed={plotData.isSignalSelected(signal.key)}
+												onclick={() => plotData.toggleSignal(signal.key)}
 											>
-												<ChevronRightIcon
-													class="text-sidebar-foreground/60 group-data-[state=open]/collapsible:hidden"
-												/>
-												<ChevronDownIcon
-													class="text-sidebar-foreground/60 group-data-[state=closed]/collapsible:hidden"
-												/>
-												<span class="truncate">{dbc.name}</span>
-											</Sidebar.MenuButton>
-										{/snippet}
-									</Collapsible.Trigger>
-									<button
-										type="button"
-										class="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/50 opacity-70 hover:bg-sidebar-accent hover:text-destructive hover:opacity-100 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
-										aria-label={`Delete ${dbc.name}`}
-										onclick={() => removeDbc(dbc.id)}
-									>
-										<TrashIcon class="size-4" />
-									</button>
-								</div>
-								<Collapsible.Content>
-									<Sidebar.MenuSub>
-										{#each dbc.signals as signal (signal.key)}
-											<Sidebar.MenuSubItem>
-												<button
-													type="button"
-													class="flex h-7 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
-													aria-pressed={plotData.isSignalSelected(signal.key)}
-													onclick={() => plotData.toggleSignal(signal.key)}
+												<span
+													class="flex size-4 shrink-0 items-center justify-center rounded border border-sidebar-border bg-sidebar text-sidebar-foreground/45 data-[selected=true]:border-sidebar-foreground/40 data-[selected=true]:bg-sidebar-accent data-[selected=true]:text-sidebar-foreground"
+													data-selected={plotData.isSignalSelected(signal.key)}
 												>
-													<span
-														class="flex size-4 shrink-0 items-center justify-center rounded border border-sidebar-border bg-sidebar text-sidebar-foreground/45 data-[selected=true]:border-sidebar-foreground/40 data-[selected=true]:bg-sidebar-accent data-[selected=true]:text-sidebar-foreground"
-														data-selected={plotData.isSignalSelected(signal.key)}
-													>
-														{#if plotData.isSignalSelected(signal.key)}
-															<CheckIcon class="size-3" />
-														{/if}
-													</span>
-													<span class="truncate">{signal.label}</span>
-												</button>
-											</Sidebar.MenuSubItem>
-										{/each}
-									</Sidebar.MenuSub>
-								</Collapsible.Content>
-							</Sidebar.MenuItem>
-						</Collapsible.Root>
-					{/each}
-				</Sidebar.Menu>
-			</Sidebar.Group>
+													{#if plotData.isSignalSelected(signal.key)}
+														<CheckIcon class="size-3" />
+													{/if}
+												</span>
+												<span class="truncate">{signal.label}</span>
+											</button>
+										</Sidebar.MenuSubItem>
+									{/each}
+								</Sidebar.MenuSub>
+							</Collapsible.Content>
+						</Sidebar.MenuItem>
+					</Collapsible.Root>
+				{/each}
+			</Sidebar.Menu>
+		</Sidebar.Group>
 	</Sidebar.Content>
 	<Sidebar.Footer class="items-start px-4 pb-4">
 		<a
