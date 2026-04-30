@@ -1,5 +1,5 @@
 import { dbcFiles, signalKey } from '$lib/stores/dbc-files.svelte.js';
-import type { DbcMessage, DbcSignal, DbcValueDescription } from '$lib/dbc-wasm.js';
+import type { DbcMessage, DbcSignal, DbcValueDescription } from '$lib/wasm.js';
 
 export type PlotSignalKey = string;
 

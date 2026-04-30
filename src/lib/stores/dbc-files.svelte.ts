@@ -8,7 +8,7 @@ import {
 	type DbcSignal,
 	type DbcHandle,
 	type ParsedDbc
-} from '$lib/dbc-wasm.js';
+} from '$lib/wasm.js';
 
 export type DbcFileEntry = {
 	id: string;

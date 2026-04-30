@@ -3,6 +3,7 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { dbcFiles } from '$lib/stores/dbc-files.svelte.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
+	import { traceFile } from '$lib/stores/trace-file.svelte.js';
 	import SearchForm from './search-form.svelte';
 	import * as Collapsible from '$lib/components/ui/collapsible/index.js';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
@@ -17,7 +18,6 @@
 	let { ref = $bindable(null), ...restProps }: ComponentProps<typeof Sidebar.Root> = $props();
 	let traceInput: HTMLInputElement;
 	let dbcInput: HTMLInputElement;
-	let traceFileName = $state('Load trace');
 	let signalSearch = $state('');
 	let expandedDbcIds = $state<string[] | null>(null);
 	let normalizedSignalSearch = $derived(signalSearch.trim().toLowerCase());
@@ -33,10 +33,13 @@
 		}))
 	);
 
-	function selectTrace(event: Event) {
+	async function selectTrace(event: Event) {
 		const input = event.currentTarget as HTMLInputElement;
-		traceFileName = input.files?.[0]?.name ?? 'Load trace';
+		const file = input.files?.[0] ?? null;
 		input.value = '';
+
+		if (!file) return;
+		await traceFile.openFile(file);
 	}
 
 	async function selectDbcs(event: Event) {
@@ -82,7 +85,7 @@
 					bind:this={traceInput}
 					class="hidden"
 					type="file"
-					accept=".asc,.blf,.trc,text/plain"
+					accept=".asc"
 					onchange={selectTrace}
 				/>
 				<Sidebar.MenuButton size="lg">
@@ -94,8 +97,8 @@
 								<FileUpIcon class="size-4" />
 							</div>
 							<div class="flex flex-col gap-0.5 leading-none">
-								<span class="font-medium">{traceFileName}</span>
-								<span>Trace file</span>
+								<span class="font-medium">{traceFile.displayName}</span>
+								<span>{traceFile.measurementStartLabel}</span>
 							</div>
 						</button>
 					{/snippet}
@@ -206,6 +209,22 @@
 			</AlertDialog.Header>
 			<AlertDialog.Footer>
 				<AlertDialog.Action onclick={() => dbcFiles.clearError()}>OK</AlertDialog.Action>
+			</AlertDialog.Footer>
+		</AlertDialog.Content>
+	{/if}
+</AlertDialog.Root>
+
+<AlertDialog.Root
+	bind:open={() => traceFile.error !== null, (open) => !open && traceFile.clearError()}
+>
+	{#if traceFile.error}
+		<AlertDialog.Content>
+			<AlertDialog.Header>
+				<AlertDialog.Title>Trace upload failed</AlertDialog.Title>
+				<AlertDialog.Description>{traceFile.error}</AlertDialog.Description>
+			</AlertDialog.Header>
+			<AlertDialog.Footer>
+				<AlertDialog.Action onclick={() => traceFile.clearError()}>OK</AlertDialog.Action>
 			</AlertDialog.Footer>
 		</AlertDialog.Content>
 	{/if}
