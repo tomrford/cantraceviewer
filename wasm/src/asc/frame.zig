@@ -256,7 +256,8 @@ test "classic and fd frames share the same storage shape" {
         .dlc = 2,
         .payload_len = 2,
     };
-    @memcpy(classic.payload[0..classic.payload_len], &.{ 0xaa, 0xbb });
+    const classic_payload = [_]u8{ 0xaa, 0xbb };
+    @memcpy(classic.payload[0..classic.payload_len], classic_payload[0..]);
     try std.testing.expect(!classic.is_fd);
     try std.testing.expectEqual(@as(u8, 2), classic.payload_len);
     try std.testing.expectEqual(@as(u8, 0xaa), classic.payload[0]);

@@ -177,7 +177,8 @@ fn parseTimeOfDay(text: []const u8) !struct { seconds: i64, milliseconds: i64 } 
     if (fraction) |digits| {
         if (digits.len > 3) return error.InvalidVectorDate;
         const fraction_value = try std.fmt.parseInt(i64, digits, 10);
-        milliseconds = fraction_value * std.math.pow(i64, 10, 3 - digits.len);
+        const scale_exponent: i64 = @intCast(3 - digits.len);
+        milliseconds = fraction_value * std.math.pow(i64, 10, scale_exponent);
     }
 
     const seconds = @as(i64, hour) * std.time.s_per_hour +
@@ -194,7 +195,7 @@ fn daysFromCivil(year_value: i32, month_value: u8, day_value: u8) i64 {
     year -= if (month <= 2) 1 else 0;
     const era = @divFloor(year, 400);
     const year_of_era = year - era * 400;
-    const month_prime = month + if (month > 2) -3 else 9;
+    const month_prime = month + if (month > 2) @as(i64, -3) else @as(i64, 9);
     const day_of_year = @divFloor(153 * month_prime + 2, 5) + day - 1;
     const day_of_era = year_of_era * 365 + @divFloor(year_of_era, 4) - @divFloor(year_of_era, 100) + day_of_year;
     return era * 146097 + day_of_era - 719468;
@@ -241,7 +242,7 @@ test "parses asc source with measurement start and decimal base" {
 
     try std.testing.expectEqual(@as(Base, .dec), parsed.base);
     try std.testing.expectEqual(@as(TimestampMode, .absolute), parsed.timestamp_mode);
-    try std.testing.expectEqual(@as(i64, 1_777_372_400_000), parsed.measurement_start_ms.?);
+    try std.testing.expectEqual(@as(i64, 1_777_370_400_000), parsed.measurement_start_ms.?);
     try std.testing.expectEqual(@as(usize, 1), parsed.frames.len);
     try std.testing.expectEqual(@as(u64, 1_000_000), parsed.frames[0].timestamp_ns);
     try std.testing.expectEqual(@as(u32, 291), parsed.frames[0].id.?.value);
@@ -271,7 +272,7 @@ test "normalizes relative timestamps across unknown events" {
 
 test "parses vector date to unix milliseconds" {
     try std.testing.expectEqual(
-        @as(i64, 1_777_372_400_123),
+        @as(i64, 1_777_370_400_123),
         try parseVectorDateToUnixMs("Tue Apr 28 10:00:00.123 2026"),
     );
 }
