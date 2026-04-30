@@ -100,14 +100,13 @@
 			createChart = mod.ChartGPU.create;
 			chart = await createChart(container, chartOptions());
 			chart.onInteractionXChange((x) => {
-				if (x !== null) markerX = x;
+				markerX = x;
 			});
 			chart.on('zoomRangeChange', ({ start, end }) => {
 				zoomStart = start;
 				zoomEnd = end;
 			});
 
-			container.addEventListener('contextmenu', setMarkerFromPointer);
 			resizeObserver = new ResizeObserver(() => chart?.resize());
 			resizeObserver.observe(container);
 		} catch (error) {
@@ -116,7 +115,6 @@
 	});
 
 	onDestroy(() => {
-		container?.removeEventListener('contextmenu', setMarkerFromPointer);
 		resizeObserver?.disconnect();
 		chart?.dispose();
 	});
@@ -163,12 +161,6 @@
 			annotations: markerX === null ? [] : [markerAnnotation(markerX)],
 			series: signalViews.map((view) => lineSeries(view))
 		};
-	}
-
-	function setMarkerFromPointer(event: MouseEvent) {
-		event.preventDefault();
-		const interactionX = chart?.getInteractionX() ?? chart?.hitTest(event).match?.value[0] ?? null;
-		if (interactionX !== null) markerX = interactionX;
 	}
 
 	function zoomBy(factor: number) {

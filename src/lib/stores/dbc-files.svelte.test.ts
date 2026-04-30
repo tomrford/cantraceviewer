@@ -54,6 +54,24 @@ describe('dbcFiles', () => {
 			'duplicate contains messages which overlap with those defined in existing files.'
 		);
 	});
+
+	it('allows classic and CAN FD messages with the same numeric ID', async () => {
+		const handle = { ptr: 301 };
+		openDbcMock.mockResolvedValueOnce(handle);
+		getDbcCatalogMock.mockResolvedValueOnce(
+			catalog(
+				message({ name: 'ClassicMessage', canId: 0x123, isFd: false }),
+				message({ name: 'FdMessage', canId: 0x123, isFd: true })
+			)
+		);
+
+		await dbcFiles.addFiles([file('mixed.dbc', 'mixed')]);
+
+		expect(dbcFiles.files).toHaveLength(1);
+		expect(dbcFiles.files[0]?.handle).toBe(handle);
+		expect(dbcFiles.error).toBeNull();
+		expect(closeDbcMock).not.toHaveBeenCalled();
+	});
 });
 
 function file(name: string, text: string): File {

@@ -33,6 +33,7 @@ type DbcMessageIdentity = {
 	key: string;
 	canId: number;
 	isExtended: boolean;
+	isFd: boolean;
 	fileName: string;
 	messageName: string;
 };
@@ -147,16 +148,17 @@ function assertNoCanIdOverlaps(existingIndex: CanIdIndex, candidates: DbcFileEnt
 
 function messageIdentities(entry: DbcFileEntry): DbcMessageIdentity[] {
 	return entry.catalog.messages.map((message) => ({
-		key: canIdKey(message.canId, message.isExtended),
+		key: canIdKey(message.canId, message.isExtended, message.isFd),
 		canId: message.canId,
 		isExtended: message.isExtended,
+		isFd: message.isFd,
 		fileName: entry.file.name,
 		messageName: message.name
 	}));
 }
 
-function canIdKey(canId: number, isExtended: boolean): string {
-	return `${isExtended ? 'extended' : 'standard'}:${canId}`;
+function canIdKey(canId: number, isExtended: boolean, isFd: boolean): string {
+	return `${isFd ? 'fd' : 'classic'}:${isExtended ? 'extended' : 'standard'}:${canId}`;
 }
 
 function displayDbcName(fileName: string): string {
