@@ -19,7 +19,7 @@ pub fn build(b: *std.Build) void {
     });
 
     const wasm_lib = b.addExecutable(.{
-        .name = "can_log_viewer",
+        .name = "cantraceviewer",
         .root_module = wasm_mod,
     });
     wasm_lib.entry = .disabled;

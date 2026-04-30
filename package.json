@@ -1,5 +1,5 @@
 {
-	"name": "can-log-viewer",
+	"name": "cantraceviewer",
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
@@ -7,7 +7,7 @@
 		"dev": "vite dev",
 		"build": "wrangler types --check && vite build",
 		"wasm:build": "cd wasm && zig build",
-		"wasm:build:release": "cd wasm && zig build -Doptimize=ReleaseSmall && cp zig-out/bin/can_log_viewer.wasm ../src/lib/assets/can_log_viewer.wasm",
+		"wasm:build:release": "cd wasm && zig build -Doptimize=ReleaseSmall && cp zig-out/bin/cantraceviewer.wasm ../src/lib/assets/cantraceviewer.wasm",
 		"preview": "wrangler dev .svelte-kit/cloudflare/_worker.js --port 4173",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "wrangler types --check && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",

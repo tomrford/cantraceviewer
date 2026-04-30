@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "can-log-viewer",
+      "name": "cantraceviewer",
       "dependencies": {
         "chartgpu": "0.3.2",
         "zod": "4.3.6",

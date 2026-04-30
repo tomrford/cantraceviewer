@@ -164,7 +164,7 @@
 	</Sidebar.Content>
 	<Sidebar.Footer class="items-start px-4 pb-4">
 		<a
-			href="https://github.com/tomrford/can-log-viewer"
+			href="https://github.com/tomrford/cantraceviewer"
 			target="_blank"
 			rel="noreferrer"
 			class="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"

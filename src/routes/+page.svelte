@@ -54,7 +54,7 @@
 </script>
 
 <svelte:head>
-	<title>CAN log viewer</title>
+	<title>CAN Trace Viewer</title>
 </svelte:head>
 
 <Sidebar.Provider style="--sidebar-width: 24rem;">

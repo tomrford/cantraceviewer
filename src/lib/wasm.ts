@@ -1,4 +1,4 @@
-import wasmUrl from '$lib/assets/can_log_viewer.wasm?url';
+import wasmUrl from '$lib/assets/cantraceviewer.wasm?url';
 import { z } from 'zod';
 
 export {

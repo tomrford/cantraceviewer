@@ -1,4 +1,4 @@
-# CAN Log Viewer
+# CAN Trace Viewer
 
 Client-side CAN tooling for inspecting DBC files and, later, CAN traces. The app uses SvelteKit for the browser UI and Zig compiled to WebAssembly for decode/parsing work.
 
