@@ -9,6 +9,7 @@ pub const dbc = @import("dbc/dbc.zig");
 pub const asc = @import("asc/asc.zig");
 const asc_handle = @import("asc/handle.zig");
 const dbc_handle = @import("dbc/handle.zig");
+const series = @import("series.zig");
 
 /// Allocates a byte buffer in WASM memory for JavaScript to populate.
 export fn owned_bytes_alloc(len: usize) ?*abi.OwnedBytes {
@@ -71,6 +72,31 @@ export fn asc_free(handle_value: usize) void {
 
     const handle: *asc_handle.Handle = @ptrFromInt(handle_value);
     handle.deinit(abi.allocator);
+}
+
+/// Exports `(timestamp_ns, value_f64)` samples for one DBC signal.
+///
+/// The returned byte stream stores each sample as little-endian `u64`
+/// timestamp followed by little-endian IEEE-754 `f64` value.
+export fn get_signal_values(
+    dbc_handle_value: usize,
+    asc_handle_value: usize,
+    message_name: *const abi.OwnedBytes,
+    signal_name: *const abi.OwnedBytes,
+) ?*abi.OwnedBytes {
+    if (dbc_handle_value == 0 or asc_handle_value == 0) return null;
+
+    const dbc_ptr: *dbc_handle.Handle = @ptrFromInt(dbc_handle_value);
+    const asc_ptr: *asc_handle.Handle = @ptrFromInt(asc_handle_value);
+    const bytes = series.selectedSignalValues(
+        abi.allocator,
+        dbc_ptr,
+        asc_ptr,
+        message_name.slice(),
+        signal_name.slice(),
+    ) catch return null;
+
+    return abi.OwnedBytes.fromOwnedSlice(bytes) catch null;
 }
 
 /// Returns the memory address of an `OwnedBytes` payload.

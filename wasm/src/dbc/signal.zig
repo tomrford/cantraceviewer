@@ -10,11 +10,47 @@ const values = @import("values.zig");
 /// DBC bit numbering mode for a signal payload.
 pub const DbcEndian = enum { intel, motorola };
 
-const SignalDecodePlan = struct {
+/// Prepared raw-payload decoder for repeatedly decoding the same signal.
+pub const DecodePlan = struct {
     bit_offset: usize,
     bit_count: usize,
     endian: std.builtin.Endian,
     signedness: std.builtin.Signedness,
+    required_payload_len: usize,
+    factor: f64,
+    offset: f64,
+
+    /// Decodes one raw CAN payload into the signal's physical value.
+    pub fn decode(self: DecodePlan, payload: []const u8) !f64 {
+        if (payload.len != self.required_payload_len) return error.InvalidPayloadLength;
+
+        const raw = switch (self.signedness) {
+            .signed => raw: {
+                const value = std.mem.readVarPackedInt(
+                    i64,
+                    payload,
+                    self.bit_offset,
+                    self.bit_count,
+                    self.endian,
+                    .signed,
+                );
+                break :raw @as(f64, @floatFromInt(value));
+            },
+            .unsigned => raw: {
+                const value = std.mem.readVarPackedInt(
+                    u64,
+                    payload,
+                    self.bit_offset,
+                    self.bit_count,
+                    self.endian,
+                    .unsigned,
+                );
+                break :raw @as(f64, @floatFromInt(value));
+            },
+        };
+
+        return raw * self.factor + self.offset;
+    }
 };
 
 /// Parsed `SG_` signal definition.
@@ -39,54 +75,42 @@ pub const Signal = struct {
     /// True when the signal uses multiplexing that this viewer does not decode.
     unsupported_mux: bool,
 
-    // pub fn planDecode(self: Signal, msg_size_bytes: u8) SignalDecodePlan {
-    //     const signal = switch (self.endianness) {
-    //         .intel => .{
-    //             .offset = @as(usize, self.start_bit),
-    //             .endian = std.builtin.Endian.little,
-    //         },
-    //         .motorola => blk: {
-    //             const byte = self.start_bit / 8;
-    //             const bit = self.start_bit % 8;
-    //             const msb_offset = byte * 8 + (7 - bit);
-    //             const msg_bits = @as(usize, msg_size_bytes) * 8;
-    //             const zig_offset = msg_bits - msb_offset - self.bit_length;
+    /// Prepares the fixed bit-unpack arguments for repeated payload decoding.
+    ///
+    /// Motorola signals are planned against `msg_size_bytes`; callers must pass
+    /// payload slices of that exact length to `DecodePlan.decode`.
+    pub fn planDecode(self: Signal, msg_size_bytes: u8) !DecodePlan {
+        if (self.unsupported_mux) return error.UnsupportedMultiplexing;
+        if (self.value_type != .integer) return error.UnsupportedSignalValueType;
+        if (self.bit_length == 0 or self.bit_length > 64) return error.InvalidSignalBitLength;
 
-    //             break :blk .{
-    //                 .offset = zig_offset,
-    //                 .endian = std.builtin.Endian.big,
-    //             };
-    //         },
-    //     };
-    //     return .{
-    //         .bit_offset = signal.offset,
-    //         .bit_count = self.bit_length,
-    //         .endian = signal.endian,
-    //         .signedness = self.signedness,
-    //     };
-    // }
+        const msg_bits = @as(usize, msg_size_bytes) * 8;
+        const bit_count = @as(usize, self.bit_length);
+        const bit_offset = switch (self.endianness) {
+            .intel => @as(usize, self.start_bit),
+            .motorola => offset: {
+                const byte = @as(usize, self.start_bit / 8);
+                const bit = @as(usize, self.start_bit % 8);
+                const msb_offset = byte * 8 + (7 - bit);
+                if (msb_offset + bit_count > msg_bits) return error.SignalOutsideMessage;
+                break :offset msg_bits - msb_offset - bit_count;
+            },
+        };
+        if (bit_offset + bit_count > msg_bits) return error.SignalOutsideMessage;
 
-    // pub fn decode(self: Signal, payload: []const u8) !DecodedValue {
-    //     const signal = switch (self.endianness) {
-    //         .intel => .{
-    //             .offset = @as(usize, self.start_bit),
-    //             .endian = std.builtin.Endian.little,
-    //         },
-    //         .motorola => blk: {
-    //             const byte = self.start_bit / 8;
-    //             const bit = self.start_bit % 8;
-    //             const msb_offset = byte * 8 + (7 - bit);
-    //             const zig_offset = (payload.len * 8) - msb_offset - self.bit_length;
-
-    //             break :blk .{
-    //                 .offset = zig_offset,
-    //                 .endian = std.builtin.Endian.big,
-    //             };
-    //         },
-    //     };
-
-    //     const raw = std.mem.readVarPackedInt(u64, payload, signal.offset, self.bit_length, signal.endian, .unsigned);
-    // }
+        return .{
+            .bit_offset = bit_offset,
+            .bit_count = bit_count,
+            .endian = switch (self.endianness) {
+                .intel => .little,
+                .motorola => .big,
+            },
+            .signedness = self.signedness,
+            .required_payload_len = msg_size_bytes,
+            .factor = self.factor,
+            .offset = self.offset,
+        };
+    }
 
     /// Parses one `SG_` signal line.
     ///

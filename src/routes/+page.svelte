@@ -2,7 +2,14 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Table from '$lib/components/ui/table';
 	import * as Tabs from '$lib/components/ui/tabs';
-	import { parseDbcText, type DbcSignal, type ParsedDbc } from '$lib/dbc-wasm';
+	import {
+		closeDbc,
+		getDbcCatalog,
+		openDbc,
+		type DbcHandle,
+		type DbcSignal,
+		type ParsedDbc
+	} from '$lib/dbc-wasm';
 
 	type SignalRow = {
 		key: string;
@@ -14,6 +21,7 @@
 
 	let fileInput: HTMLInputElement;
 	let fileName = $state('');
+	let dbcHandle = $state<DbcHandle | null>(null);
 	let dbc = $state<ParsedDbc | null>(null);
 	let error = $state('');
 	let loading = $state(false);
@@ -45,7 +53,14 @@
 		dbc = null;
 
 		try {
-			dbc = await parseDbcText(await file.text());
+			if (dbcHandle) {
+				await closeDbc(dbcHandle);
+				dbcHandle = null;
+			}
+
+			const handle = await openDbc(await file.text());
+			dbcHandle = handle;
+			dbc = await getDbcCatalog(handle);
 		} catch (cause) {
 			error = cause instanceof Error ? cause.message : 'DBC parse failed';
 		} finally {
@@ -53,6 +68,14 @@
 			input.value = '';
 		}
 	}
+
+	$effect(() => {
+		return () => {
+			if (dbcHandle) {
+				void closeDbc(dbcHandle);
+			}
+		};
+	});
 </script>
 
 <svelte:head>
