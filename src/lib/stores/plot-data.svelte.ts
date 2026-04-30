@@ -105,6 +105,13 @@ class PlotDataStore {
 		this.decodingSignalKeys = this.decodingSignalKeys.filter((key) => !liveKeys.has(key));
 	}
 
+	clearSelectedSignals(): void {
+		this.selectedSignalKeys = [];
+		this.signalSamples = {};
+		this.decodingSignalKeys = [];
+		this.decodeErrors = {};
+	}
+
 	setSignalSamples(key: PlotSignalKey, samples: SignalSample[] | null): void {
 		const next = { ...this.signalSamples };
 		if (samples) {

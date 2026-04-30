@@ -45,7 +45,8 @@ const ParsedDbcSchema = z.object({
 
 const TraceMetadataSchema = z.object({
 	measurementStartMs: z.number().nullable(),
-	frameCount: z.number()
+	validMessageCount: z.number(),
+	durationNs: z.number().nullable()
 });
 
 export type DbcValueDescription = z.infer<typeof DbcValueDescriptionSchema>;

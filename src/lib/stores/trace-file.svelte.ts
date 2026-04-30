@@ -21,7 +21,7 @@ class TraceFileStore {
 
 	displayName = $derived(this.entry ? displayTraceName(this.entry.file.name) : 'Load trace');
 
-	async openFile(file: File): Promise<void> {
+	async openFile(file: File): Promise<boolean> {
 		this.error = null;
 		this.isLoading = true;
 
@@ -50,11 +50,13 @@ class TraceFileStore {
 			if (previous) {
 				await closeAsc(previous.handle);
 			}
+			return true;
 		} catch (error) {
 			if (next) {
 				await closeAsc(next.handle);
 			}
 			this.error = error instanceof Error ? error.message : 'ASC load failed';
+			return false;
 		} finally {
 			this.isLoading = false;
 		}

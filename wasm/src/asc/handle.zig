@@ -46,5 +46,5 @@ test "parses handle and exports metadata" {
     defer allocator.free(json);
 
     try std.testing.expectEqual(@as(usize, 1), handle.asc.frames.len);
-    try std.testing.expect(std.mem.indexOf(u8, json, "\"frameCount\":1") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"validMessageCount\":1") != null);
 }

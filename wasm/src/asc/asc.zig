@@ -50,6 +50,26 @@ pub const Asc = struct {
         allocator.free(self.frames);
         self.* = .{};
     }
+
+    pub fn dataFrameCount(self: Asc) usize {
+        var count: usize = 0;
+        for (self.frames) |line_frame| {
+            if (line_frame.kind == .data and line_frame.id != null) {
+                count += 1;
+            }
+        }
+        return count;
+    }
+
+    pub fn durationNs(self: Asc) ?u64 {
+        var last_timestamp_ns: ?u64 = null;
+        for (self.frames) |line_frame| {
+            if (line_frame.kind == .data and line_frame.id != null) {
+                last_timestamp_ns = line_frame.timestamp_ns;
+            }
+        }
+        return last_timestamp_ns;
+    }
 };
 
 fn parseHeaderLine(parsed: *Asc, line: []const u8) !bool {
@@ -251,6 +271,37 @@ test "normalizes relative timestamps across unknown events" {
     try std.testing.expectEqual(@as(u64, 300_000_000), parsed.frames[1].timestamp_ns);
     try std.testing.expectEqual(@as(u64, 600_000_000), parsed.frames[2].timestamp_ns);
     try std.testing.expectEqual(@as(frame.Kind, .unknown), parsed.frames[1].kind);
+}
+
+test "counts data frames and reports duration from last data frame" {
+    const allocator = std.testing.allocator;
+    const text =
+        \\base hex timestamps absolute
+        \\0.100000 1 123 Rx d 1 aa
+        \\0.200000 CANFD_STATISTIC whatever else
+        \\0.300000 1 123 Rx r 8
+        \\0.400000 1 123 Rx d 1 bb
+    ;
+
+    var parsed = try Asc.fromString(allocator, text);
+    defer parsed.deinit(allocator);
+
+    try std.testing.expectEqual(@as(usize, 2), parsed.dataFrameCount());
+    try std.testing.expectEqual(@as(?u64, 400_000_000), parsed.durationNs());
+}
+
+test "duration is null when no data frames are present" {
+    const allocator = std.testing.allocator;
+    const text =
+        \\base hex timestamps absolute
+        \\0.200000 CANFD_STATISTIC whatever else
+    ;
+
+    var parsed = try Asc.fromString(allocator, text);
+    defer parsed.deinit(allocator);
+
+    try std.testing.expectEqual(@as(usize, 0), parsed.dataFrameCount());
+    try std.testing.expectEqual(@as(?u64, null), parsed.durationNs());
 }
 
 test "parses vector date to unix milliseconds" {

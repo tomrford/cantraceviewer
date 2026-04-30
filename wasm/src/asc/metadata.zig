@@ -11,7 +11,8 @@ pub fn toJson(allocator: std.mem.Allocator, parsed: asc.Asc) ![]u8 {
     var writer: std.json.Stringify = .{ .writer = &out.writer };
     try writer.beginObject();
     try writeJsonField(&writer, "measurementStartMs", parsed.measurement_start_ms);
-    try writeJsonField(&writer, "frameCount", parsed.frames.len);
+    try writeJsonField(&writer, "validMessageCount", parsed.dataFrameCount());
+    try writeJsonField(&writer, "durationNs", parsed.durationNs());
     try writer.endObject();
 
     return out.toOwnedSlice();
@@ -37,5 +38,6 @@ test "serializes trace metadata to JSON" {
     defer allocator.free(json);
 
     try std.testing.expect(std.mem.indexOf(u8, json, "\"measurementStartMs\":1777366800000") != null);
-    try std.testing.expect(std.mem.indexOf(u8, json, "\"frameCount\":2") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"validMessageCount\":1") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"durationNs\":1000000") != null);
 }
