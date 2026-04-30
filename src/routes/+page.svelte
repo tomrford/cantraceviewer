@@ -1,6 +1,7 @@
 <script lang="ts">
 	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 	import AppSidebar from '$lib/components/app-sidebar.svelte';
+	import SignalPlot from '$lib/components/signal-plot.svelte';
 	import { Separator } from '$lib/components/ui/separator/index.js';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
@@ -58,7 +59,7 @@
 
 <Sidebar.Provider style="--sidebar-width: 24rem;">
 	<AppSidebar />
-	<Sidebar.Inset class="min-h-screen bg-background">
+	<Sidebar.Inset class="flex min-h-screen flex-col bg-background">
 		<header class="flex h-16 shrink-0 items-center gap-2 border-b px-4">
 			<Sidebar.Trigger
 				class="-ms-1"
@@ -66,11 +67,10 @@
 				title="Show/hide DBC and signal selector"
 			/>
 			<Separator orientation="vertical" class="me-2 data-[orientation=vertical]:h-4" />
-			{#if traceFile.entry}
-				<span class="min-w-0 truncate text-sm font-medium" title={traceMetadataTitle}
-					>{traceFile.displayName}</span
-				>
-			{:else}
+			<span class="min-w-0 truncate text-sm font-medium" title={traceMetadataTitle}
+				>{traceFile.displayName}</span
+			>
+			{#if !traceFile.entry}
 				<span class="ms-auto text-sm text-muted-foreground">Upload a trace to get started -></span>
 			{/if}
 			<input
@@ -93,6 +93,7 @@
 				<AudioWaveformIcon class="size-4" />
 			</button>
 		</header>
+		<SignalPlot />
 	</Sidebar.Inset>
 </Sidebar.Provider>
 

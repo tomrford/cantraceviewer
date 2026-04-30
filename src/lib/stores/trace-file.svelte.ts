@@ -18,7 +18,7 @@ class TraceFileStore {
 	isLoading = $state(false);
 	error = $state<string | null>(null);
 
-	displayName = $derived(this.entry ? displayTraceName(this.entry.file.name) : 'Load trace');
+	displayName = $derived(this.entry ? displayTraceName(this.entry.file.name) : 'Can Trace Viewer');
 
 	async openFile(file: File): Promise<boolean> {
 		this.error = null;

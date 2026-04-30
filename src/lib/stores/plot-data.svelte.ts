@@ -48,24 +48,19 @@ class PlotDataStore {
 	decodeErrors = $state<Record<PlotSignalKey, string>>({});
 
 	signals = $derived.by<PlotSignal[]>(() => {
-		const selected = new Set(this.selectedSignalKeys);
 		const signals: PlotSignal[] = [];
 
-		for (const file of dbcFiles.files) {
-			for (const message of file.catalog.messages) {
-				for (const signal of message.signals) {
-					const key = signalKey(file.id, message.name, signal.name);
-					if (!selected.has(key)) continue;
+		for (const key of this.selectedSignalKeys) {
+			const target = findSignalTarget(key);
+			if (!target) continue;
 
-					signals.push(
-						plotSignal(file.id, file.file.name, message, signal, {
-							samples: this.signalSamples[key],
-							isDecoding: this.decodingSignalKeys.includes(key),
-							decodeError: this.decodeErrors[key]
-						})
-					);
-				}
-			}
+			signals.push(
+				plotSignal(target.file.id, target.file.file.name, target.message, target.signal, {
+					samples: this.signalSamples[key],
+					isDecoding: this.decodingSignalKeys.includes(key),
+					decodeError: this.decodeErrors[key]
+				})
+			);
 		}
 
 		return signals;

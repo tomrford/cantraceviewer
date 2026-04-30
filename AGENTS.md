@@ -24,6 +24,7 @@ cd wasm && zig build test
 Open work:
 
 - Add a WASM benchmark harness that builds `Debug`, `ReleaseSafe`, `ReleaseFast`, and `ReleaseSmall`, records raw/gzip sizes, and separately times instantiate, DBC parse/JSON export, ASC parse, and signal-series extraction against fixed fixtures.
+- Investigate ChartGPU point-marker support for selected signal traces. The plot uses line series only until ChartGPU can render per-sample markers cleanly during close zoom levels without custom canvas overlays.
 - If selected-signal graphing spends meaningful time rescanning traces, consider a batch decode API or per-message frame index so multiple selected signals can share one pass over matching ASC frames.
 - If parsed ASC frame memory becomes a measured problem, consider compact frame storage with `Asc` owning `frames: []Frame` plus a contiguous `payloads: []u8` side buffer; data frames store payload offset/length, while remote/error/unknown events store no payload bytes.
 
