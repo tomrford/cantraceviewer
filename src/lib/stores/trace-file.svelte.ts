@@ -27,12 +27,6 @@ class TraceFileStore {
 
 		let next: TraceFileEntry | null = null;
 		try {
-			const previous = this.entry;
-			this.entry = null;
-			if (previous) {
-				await closeAsc(previous.handle);
-			}
-
 			assertFileSizeWithinLimit(file, ASC_MAX_FILE_BYTES, 'ASC');
 
 			const text = await file.text();
@@ -49,8 +43,13 @@ class TraceFileStore {
 				throw error;
 			}
 
+			const previous = this.entry;
 			this.entry = next;
 			next = null;
+
+			if (previous) {
+				await closeAsc(previous.handle);
+			}
 		} catch (error) {
 			if (next) {
 				await closeAsc(next.handle);

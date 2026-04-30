@@ -1,12 +1,14 @@
-import { dbcFiles, signalKey } from '$lib/stores/dbc-files.svelte.js';
-import type { DbcMessage, DbcSignal, DbcValueDescription } from '$lib/wasm.js';
+import { dbcFiles, signalKey, type DbcFileEntry } from '$lib/stores/dbc-files.svelte.js';
+import { traceFile } from '$lib/stores/trace-file.svelte.js';
+import {
+	getSignalValues,
+	type DbcMessage,
+	type DbcSignal,
+	type DbcValueDescription,
+	type SignalSample
+} from '$lib/wasm.js';
 
 export type PlotSignalKey = string;
-
-export type DecodedSignalBlob = {
-	bytes: Uint8Array;
-	sampleCount: number;
-};
 
 export type PlotSignal = {
 	key: PlotSignalKey;
@@ -34,12 +36,16 @@ export type PlotSignal = {
 	valueType: string;
 	receivers: string[];
 	valueDescriptions: DbcValueDescription[];
-	decoded: DecodedSignalBlob | null;
+	samples: SignalSample[] | null;
+	isDecoding: boolean;
+	decodeError: string | null;
 };
 
 class PlotDataStore {
 	selectedSignalKeys = $state<PlotSignalKey[]>([]);
-	decodedSignalBlobs = $state<Record<PlotSignalKey, DecodedSignalBlob>>({});
+	signalSamples = $state<Record<PlotSignalKey, SignalSample[]>>({});
+	decodingSignalKeys = $state<PlotSignalKey[]>([]);
+	decodeErrors = $state<Record<PlotSignalKey, string>>({});
 
 	signals = $derived.by<PlotSignal[]>(() => {
 		const selected = new Set(this.selectedSignalKeys);
@@ -52,7 +58,11 @@ class PlotDataStore {
 					if (!selected.has(key)) continue;
 
 					signals.push(
-						plotSignal(file.id, file.file.name, message, signal, this.decodedSignalBlobs[key])
+						plotSignal(file.id, file.file.name, message, signal, {
+							samples: this.signalSamples[key],
+							isDecoding: this.decodingSignalKeys.includes(key),
+							decodeError: this.decodeErrors[key]
+						})
 					);
 				}
 			}
@@ -65,8 +75,17 @@ class PlotDataStore {
 		return this.selectedSignalKeys.includes(key);
 	}
 
-	toggleSignal(key: PlotSignalKey): void {
-		this.selectedSignalKeys = arrayWith(this.selectedSignalKeys, key, !this.isSignalSelected(key));
+	async toggleSignal(key: PlotSignalKey): Promise<void> {
+		if (this.isSignalSelected(key)) {
+			this.selectedSignalKeys = arrayWith(this.selectedSignalKeys, key, false);
+			this.setSignalSamples(key, null);
+			this.setDecodeError(key, null);
+			this.decodingSignalKeys = arrayWith(this.decodingSignalKeys, key, false);
+			return;
+		}
+
+		this.selectedSignalKeys = arrayWith(this.selectedSignalKeys, key, true);
+		await this.decodeSignal(key);
 	}
 
 	deselectDbcFile(dbcFileId: string): void {
@@ -77,28 +96,78 @@ class PlotDataStore {
 		);
 
 		this.selectedSignalKeys = this.selectedSignalKeys.filter((key) => !liveKeys.has(key));
-		this.decodedSignalBlobs = Object.fromEntries(
-			Object.entries(this.decodedSignalBlobs).filter(([key]) => !liveKeys.has(key))
+		this.signalSamples = Object.fromEntries(
+			Object.entries(this.signalSamples).filter(([key]) => !liveKeys.has(key))
 		);
+		this.decodeErrors = Object.fromEntries(
+			Object.entries(this.decodeErrors).filter(([key]) => !liveKeys.has(key))
+		);
+		this.decodingSignalKeys = this.decodingSignalKeys.filter((key) => !liveKeys.has(key));
 	}
 
-	setDecodedSignalBlob(key: PlotSignalKey, decoded: DecodedSignalBlob | null): void {
-		const next = { ...this.decodedSignalBlobs };
-		if (decoded) {
-			next[key] = decoded;
+	setSignalSamples(key: PlotSignalKey, samples: SignalSample[] | null): void {
+		const next = { ...this.signalSamples };
+		if (samples) {
+			next[key] = samples;
 		} else {
 			delete next[key];
 		}
-		this.decodedSignalBlobs = next;
+		this.signalSamples = next;
+	}
+
+	private async decodeSignal(key: PlotSignalKey): Promise<void> {
+		const trace = traceFile.entry;
+		const target = findSignalTarget(key);
+		if (!trace || !target) return;
+
+		this.setDecodeError(key, null);
+		this.decodingSignalKeys = arrayWith(this.decodingSignalKeys, key, true);
+
+		try {
+			const samples = await getSignalValues(
+				target.file.handle,
+				trace.handle,
+				target.message.name,
+				target.signal.name
+			);
+
+			if (!this.isSignalSelected(key) || traceFile.entry !== trace || !findSignalTarget(key)) {
+				return;
+			}
+
+			this.setSignalSamples(key, samples);
+		} catch (error) {
+			if (this.isSignalSelected(key) && traceFile.entry === trace && findSignalTarget(key)) {
+				this.setDecodeError(key, error instanceof Error ? error.message : 'Signal decode failed');
+			}
+		} finally {
+			this.decodingSignalKeys = arrayWith(this.decodingSignalKeys, key, false);
+		}
+	}
+
+	private setDecodeError(key: PlotSignalKey, error: string | null): void {
+		const next = { ...this.decodeErrors };
+		if (error) {
+			next[key] = error;
+		} else {
+			delete next[key];
+		}
+		this.decodeErrors = next;
 	}
 }
+
+type PlotSignalData = {
+	samples: SignalSample[] | undefined;
+	isDecoding: boolean;
+	decodeError: string | undefined;
+};
 
 function plotSignal(
 	dbcFileId: string,
 	sourceFileName: string,
 	message: DbcMessage,
 	signal: DbcSignal,
-	decoded: DecodedSignalBlob | undefined
+	data: PlotSignalData
 ): PlotSignal {
 	return {
 		key: signalKey(dbcFileId, message.name, signal.name),
@@ -126,8 +195,30 @@ function plotSignal(
 		valueType: signal.valueType,
 		receivers: signal.receivers,
 		valueDescriptions: signal.valueDescriptions,
-		decoded: decoded ?? null
+		samples: data.samples ?? null,
+		isDecoding: data.isDecoding,
+		decodeError: data.decodeError ?? null
 	};
+}
+
+type SignalTarget = {
+	file: DbcFileEntry;
+	message: DbcMessage;
+	signal: DbcSignal;
+};
+
+function findSignalTarget(key: PlotSignalKey): SignalTarget | null {
+	for (const file of dbcFiles.files) {
+		for (const message of file.catalog.messages) {
+			for (const signal of message.signals) {
+				if (signalKey(file.id, message.name, signal.name) === key) {
+					return { file, message, signal };
+				}
+			}
+		}
+	}
+
+	return null;
 }
 
 function displayDbcName(fileName: string): string {
