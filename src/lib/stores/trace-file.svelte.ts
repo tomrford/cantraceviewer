@@ -20,9 +20,6 @@ class TraceFileStore {
 	error = $state<string | null>(null);
 
 	displayName = $derived(this.entry ? displayTraceName(this.entry.file.name) : 'Load trace');
-	measurementStartLabel = $derived(
-		this.entry ? formatMeasurementStart(this.entry.metadata.measurementStartMs) : 'Trace file'
-	);
 
 	async openFile(file: File): Promise<void> {
 		this.error = null;
@@ -80,15 +77,6 @@ class TraceFileStore {
 
 function displayTraceName(fileName: string): string {
 	return fileName.replace(/\.asc$/i, '');
-}
-
-function formatMeasurementStart(measurementStartMs: number | null | undefined): string {
-	if (measurementStartMs == null) return 'No measurement start';
-
-	return new Intl.DateTimeFormat(undefined, {
-		dateStyle: 'medium',
-		timeStyle: 'medium'
-	}).format(new Date(measurementStartMs));
 }
 
 export const traceFile = new TraceFileStore();

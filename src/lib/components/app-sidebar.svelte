@@ -3,20 +3,17 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { dbcFiles } from '$lib/stores/dbc-files.svelte.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
-	import { traceFile } from '$lib/stores/trace-file.svelte.js';
 	import SearchForm from './search-form.svelte';
 	import * as Collapsible from '$lib/components/ui/collapsible/index.js';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
-	import FileUpIcon from '@lucide/svelte/icons/file-up';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 	import type { ComponentProps } from 'svelte';
 
 	let { ref = $bindable(null), ...restProps }: ComponentProps<typeof Sidebar.Root> = $props();
-	let traceInput: HTMLInputElement;
 	let dbcInput: HTMLInputElement;
 	let signalSearch = $state('');
 	let expandedDbcIds = $state<string[] | null>(null);
@@ -32,15 +29,6 @@
 				: dbc.signals
 		}))
 	);
-
-	async function selectTrace(event: Event) {
-		const input = event.currentTarget as HTMLInputElement;
-		const file = input.files?.[0] ?? null;
-		input.value = '';
-
-		if (!file) return;
-		await traceFile.openFile(file);
-	}
 
 	async function selectDbcs(event: Event) {
 		const input = event.currentTarget as HTMLInputElement;
@@ -78,33 +66,24 @@
 </script>
 
 <Sidebar.Root bind:ref {...restProps}>
-	<Sidebar.Header>
-		<Sidebar.Menu>
-			<Sidebar.MenuItem>
-				<input
-					bind:this={traceInput}
-					class="hidden"
-					type="file"
-					accept=".asc"
-					onchange={selectTrace}
-				/>
-				<Sidebar.MenuButton size="lg">
-					{#snippet child({ props })}
-						<button type="button" {...props} onclick={() => traceInput.click()}>
-							<div
-								class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground"
-							>
-								<FileUpIcon class="size-4" />
-							</div>
-							<div class="flex flex-col gap-0.5 leading-none">
-								<span class="font-medium">{traceFile.displayName}</span>
-								<span>{traceFile.measurementStartLabel}</span>
-							</div>
-						</button>
-					{/snippet}
-				</Sidebar.MenuButton>
-			</Sidebar.MenuItem>
-		</Sidebar.Menu>
+	<Sidebar.Header class="gap-3 px-4 pt-4">
+		<input
+			bind:this={dbcInput}
+			class="hidden"
+			type="file"
+			accept=".dbc,text/plain"
+			multiple
+			onchange={selectDbcs}
+		/>
+		<Button
+			class="w-full"
+			type="button"
+			disabled={dbcFiles.isLoading}
+			onclick={() => dbcInput.click()}
+		>
+			<PlusIcon />
+			{dbcFiles.isLoading ? 'Loading' : 'Add DBC'}
+		</Button>
 		<SearchForm bind:value={signalSearch} />
 	</Sidebar.Header>
 	<Sidebar.Content>
@@ -175,25 +154,6 @@
 				{/each}
 			</Sidebar.Menu>
 		</Sidebar.Group>
-		<Sidebar.Group class="px-4">
-			<input
-				bind:this={dbcInput}
-				class="hidden"
-				type="file"
-				accept=".dbc,text/plain"
-				multiple
-				onchange={selectDbcs}
-			/>
-			<Button
-				class="w-full"
-				type="button"
-				disabled={dbcFiles.isLoading}
-				onclick={() => dbcInput.click()}
-			>
-				<PlusIcon />
-				{dbcFiles.isLoading ? 'Loading' : 'Add DBC'}
-			</Button>
-		</Sidebar.Group>
 	</Sidebar.Content>
 	<Sidebar.Rail />
 </Sidebar.Root>
@@ -209,22 +169,6 @@
 			</AlertDialog.Header>
 			<AlertDialog.Footer>
 				<AlertDialog.Action onclick={() => dbcFiles.clearError()}>OK</AlertDialog.Action>
-			</AlertDialog.Footer>
-		</AlertDialog.Content>
-	{/if}
-</AlertDialog.Root>
-
-<AlertDialog.Root
-	bind:open={() => traceFile.error !== null, (open) => !open && traceFile.clearError()}
->
-	{#if traceFile.error}
-		<AlertDialog.Content>
-			<AlertDialog.Header>
-				<AlertDialog.Title>Trace upload failed</AlertDialog.Title>
-				<AlertDialog.Description>{traceFile.error}</AlertDialog.Description>
-			</AlertDialog.Header>
-			<AlertDialog.Footer>
-				<AlertDialog.Action onclick={() => traceFile.clearError()}>OK</AlertDialog.Action>
 			</AlertDialog.Footer>
 		</AlertDialog.Content>
 	{/if}
