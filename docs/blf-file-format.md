@@ -35,21 +35,21 @@ flowchart TD
 
 ### Core file and header structures
 
-| Structure | Byte size | Fields | Notes |
-|---|---:|---|---|
-| File header (`LOGG`) | 144 total; 72 explicitly parsed by python-can, then padded to 144 | magic, header length, app/version bytes, file size, uncompressed size, object count, objects read, start `SYSTEMTIME`, stop `SYSTEMTIME` | Wireshark models some bytes differently, including `api_version`, `compression_level`, and `restore_point_offset`; preserve raw bytes since semantics are not perfectly settled |
-| Object header base (`LOBJ`) | 16 | signature, header size, header version, object size, object type | Little-endian |
-| Object header v1 | 16 | object flags, client index, object version, object timestamp | Used for most common CAN records |
-| Object header v2 | 24 | object flags, timestamp status, object version, object timestamp, original timestamp | Adds original timestamp and status bits; type 3 is defined by Wireshark but not commonly documented elsewhere |
-| Log container header | 16 | compression method, uncompressed size | `0 = none`, `2 = zlib` |
-| `CAN_MESSAGE` | 16 body bytes after object header | channel, flags, DLC, ID, 8-byte data slot | Classic CAN |
-| `CAN_MESSAGE2` | base CAN body plus trailer | classic CAN fields plus timing trailer | Many parsers recover payload but ignore the extra trailer |
-| `CAN_ERROR_EXT` | 32 body bytes plus optional data interpretation | channel, length, flags, ECC, position, DLC, frame length, ID, ext error code, 8-byte data slot | |
-| `CAN_FD_MESSAGE` | 84 body bytes | channel, flags, DLC, ID, frame length ns, arbitration bit count, FD flags, valid payload bytes, reserved, 64-byte data slot | Easier CAN FD case |
-| `CAN_FD_MESSAGE_64` | 40-byte fixed body + trailing data | channel, DLC, valid bytes, txCount, ID, frame length ns, 16-bit flag set, bit timing fields, bit count, dir, extDataOffset, CRC, trailing data bytes | Padding/length handling differs from naïve `obj_size % 4` logic; common source of bugs |
-| `APP_TEXT` | variable | source, reserved, text length, text | Source constants include measurement comment, DB channel info, metadata |
-| `GLOBAL_MARKER` | 40 fixed bytes + variable strings | commented event type, colours, relocatable flag, group/marker/description lengths, strings | |
-| `REALTIME_CLOCK` | 48 total when using v1 header + 16-byte body | absolute time in ns since Unix epoch, logging offset | |
+| Structure                   |                                                         Byte size | Fields                                                                                                                                               | Notes                                                                                                                                                                           |
+| --------------------------- | ----------------------------------------------------------------: | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| File header (`LOGG`)        | 144 total; 72 explicitly parsed by python-can, then padded to 144 | magic, header length, app/version bytes, file size, uncompressed size, object count, objects read, start `SYSTEMTIME`, stop `SYSTEMTIME`             | Wireshark models some bytes differently, including `api_version`, `compression_level`, and `restore_point_offset`; preserve raw bytes since semantics are not perfectly settled |
+| Object header base (`LOBJ`) |                                                                16 | signature, header size, header version, object size, object type                                                                                     | Little-endian                                                                                                                                                                   |
+| Object header v1            |                                                                16 | object flags, client index, object version, object timestamp                                                                                         | Used for most common CAN records                                                                                                                                                |
+| Object header v2            |                                                                24 | object flags, timestamp status, object version, object timestamp, original timestamp                                                                 | Adds original timestamp and status bits; type 3 is defined by Wireshark but not commonly documented elsewhere                                                                   |
+| Log container header        |                                                                16 | compression method, uncompressed size                                                                                                                | `0 = none`, `2 = zlib`                                                                                                                                                          |
+| `CAN_MESSAGE`               |                                 16 body bytes after object header | channel, flags, DLC, ID, 8-byte data slot                                                                                                            | Classic CAN                                                                                                                                                                     |
+| `CAN_MESSAGE2`              |                                        base CAN body plus trailer | classic CAN fields plus timing trailer                                                                                                               | Many parsers recover payload but ignore the extra trailer                                                                                                                       |
+| `CAN_ERROR_EXT`             |                   32 body bytes plus optional data interpretation | channel, length, flags, ECC, position, DLC, frame length, ID, ext error code, 8-byte data slot                                                       |                                                                                                                                                                                 |
+| `CAN_FD_MESSAGE`            |                                                     84 body bytes | channel, flags, DLC, ID, frame length ns, arbitration bit count, FD flags, valid payload bytes, reserved, 64-byte data slot                          | Easier CAN FD case                                                                                                                                                              |
+| `CAN_FD_MESSAGE_64`         |                                40-byte fixed body + trailing data | channel, DLC, valid bytes, txCount, ID, frame length ns, 16-bit flag set, bit timing fields, bit count, dir, extDataOffset, CRC, trailing data bytes | Padding/length handling differs from naïve `obj_size % 4` logic; common source of bugs                                                                                          |
+| `APP_TEXT`                  |                                                          variable | source, reserved, text length, text                                                                                                                  | Source constants include measurement comment, DB channel info, metadata                                                                                                         |
+| `GLOBAL_MARKER`             |                                 40 fixed bytes + variable strings | commented event type, colours, relocatable flag, group/marker/description lengths, strings                                                           |                                                                                                                                                                                 |
+| `REALTIME_CLOCK`            |                      48 total when using v1 header + 16-byte body | absolute time in ns since Unix epoch, logging offset                                                                                                 |                                                                                                                                                                                 |
 
 ### Object types relevant to a CAN-only decoder
 
@@ -118,16 +118,16 @@ Public projects have independently converged on the same major building blocks: 
 
 ### Open-source parser comparison
 
-| Tool | Language | Licence | Completeness | CAN FD |
-|---|---|---|---|---|
-| python-can BLFReader/BLFWriter | Python | LGPL-3.0-only | Good for CAN/CAN FD; ignores many other object types | Yes; writes `CAN_FD_MESSAGE`, reads `CAN_FD_MESSAGE_64` |
-| vector_blf | C++ | GPL-3.0-or-later | Most complete public implementation; broad object coverage, tests, Doxygen docs | Yes |
-| ablf | Rust | MIT or Apache-2.0 | Focused clean-room reader; decodes containers, CAN messages, CAN error ext, AppText | Partial |
-| lblf | C++ | MIT | Performance-focused; documented assumptions; narrow scope | Some CAN-focused support |
-| Wireshark BLF wiretap/dissector | C | GPL-2.0-or-later | Broad multi-bus read/write | Yes |
-| BUSMASTER BLF converter/library | C++ | GPL-3.0 / LGPL-3.0 components | Historic converter and library | Historically weak/bug-prone |
-| SavvyCAN BLF handler | C++/Qt | MIT | Application-level loader/saver | Some support |
-| aheit/cantools `libcanblf` | C | GPL-3.0 | Historical CAN-only BLF support | No |
+| Tool                            | Language | Licence                       | Completeness                                                                        | CAN FD                                                  |
+| ------------------------------- | -------- | ----------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| python-can BLFReader/BLFWriter  | Python   | LGPL-3.0-only                 | Good for CAN/CAN FD; ignores many other object types                                | Yes; writes `CAN_FD_MESSAGE`, reads `CAN_FD_MESSAGE_64` |
+| vector_blf                      | C++      | GPL-3.0-or-later              | Most complete public implementation; broad object coverage, tests, Doxygen docs     | Yes                                                     |
+| ablf                            | Rust     | MIT or Apache-2.0             | Focused clean-room reader; decodes containers, CAN messages, CAN error ext, AppText | Partial                                                 |
+| lblf                            | C++      | MIT                           | Performance-focused; documented assumptions; narrow scope                           | Some CAN-focused support                                |
+| Wireshark BLF wiretap/dissector | C        | GPL-2.0-or-later              | Broad multi-bus read/write                                                          | Yes                                                     |
+| BUSMASTER BLF converter/library | C++      | GPL-3.0 / LGPL-3.0 components | Historic converter and library                                                      | Historically weak/bug-prone                             |
+| SavvyCAN BLF handler            | C++/Qt   | MIT                           | Application-level loader/saver                                                      | Some support                                            |
+| aheit/cantools `libcanblf`      | C        | GPL-3.0                       | Historical CAN-only BLF support                                                     | No                                                      |
 
 ## Known edge cases and seams
 

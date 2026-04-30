@@ -9,6 +9,14 @@ const signal = @import("signal.zig");
 const message = @import("message.zig");
 const values = @import("values.zig");
 
+const DBC_WHITESPACE = " \t\r";
+
+fn startsWithRecord(line: []const u8, keyword: []const u8) bool {
+    return std.mem.startsWith(u8, line, keyword) and
+        line.len > keyword.len and
+        std.mem.indexOfScalar(u8, DBC_WHITESPACE, line[keyword.len]) != null;
+}
+
 /// Parsed subset of a DBC file used by the viewer.
 pub const Dbc = struct {
     /// Messages in source order, each with its attached signals.
@@ -44,10 +52,10 @@ pub const Dbc = struct {
         var current_message: ?message.Message = null;
         var lines = std.mem.splitScalar(u8, text, '\n');
         while (lines.next()) |raw_line| {
-            const line = std.mem.trim(u8, raw_line, " \t\r");
+            const line = std.mem.trim(u8, raw_line, DBC_WHITESPACE);
             if (line.len == 0) continue;
 
-            if (std.mem.startsWith(u8, line, "BO_ ")) {
+            if (startsWithRecord(line, "BO_")) {
                 if (current_message) |*msg| {
                     msg.signals = try current_signals.toOwnedSlice(allocator);
                     try messages.append(allocator, msg.*);
@@ -73,7 +81,7 @@ pub const Dbc = struct {
                 continue;
             }
 
-            if (std.mem.startsWith(u8, line, "SG_ ")) {
+            if (startsWithRecord(line, "SG_")) {
                 if (current_message == null) return error.SignalWithoutMessage;
                 try current_signals.append(allocator, try signal.Signal.fromString(allocator, line));
                 continue;
@@ -216,6 +224,19 @@ test "parse fixture DBC messages and signals" {
     try std.testing.expectEqual(@as(f64, 0.1), dbc.messages[1].signals[0].factor);
     try std.testing.expectEqualStrings("BodyStatus", dbc.messages[2].name);
     try std.testing.expectEqualStrings("battery_voltage", dbc.messages[2].signals[2].name);
+}
+
+test "parse DBC message and signal records separated by tabs" {
+    const allocator = std.testing.allocator;
+    const text = "BO_\t288\tPowertrainStatus:\t8\tAgent\n" ++
+        "\tSG_\tvehicle_speed\t:\t0|16@1+\t(0.1,0)\t[0|250]\t\"km/h\"\tDashboard";
+    var dbc = try Dbc.fromString(allocator, text);
+    defer dbc.deinit(allocator);
+
+    try std.testing.expectEqual(@as(usize, 1), dbc.messages.len);
+    try std.testing.expectEqualStrings("PowertrainStatus", dbc.messages[0].name);
+    try std.testing.expectEqual(@as(usize, 1), dbc.messages[0].signals.len);
+    try std.testing.expectEqualStrings("vehicle_speed", dbc.messages[0].signals[0].name);
 }
 
 test "parse fixture DBC with extended multiplexed signals" {

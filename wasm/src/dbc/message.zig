@@ -6,6 +6,8 @@
 const std = @import("std");
 const signal = @import("signal.zig");
 
+const DBC_WHITESPACE = " \t\r";
+
 /// DBC encodes extended CAN IDs by setting bit 31 in the message ID.
 const EXTENDED_FLAG: u32 = 0x8000_0000;
 
@@ -29,7 +31,7 @@ pub const Message = struct {
 
     /// Parses one `BO_ <id> <name>: <size> <transmitter>` line.
     pub fn fromString(line: []const u8) !Message {
-        var tokens = std.mem.tokenizeScalar(u8, std.mem.trim(u8, line, " \t\r"), ' ');
+        var tokens = std.mem.tokenizeAny(u8, std.mem.trim(u8, line, DBC_WHITESPACE), DBC_WHITESPACE);
 
         const prefix = tokens.next() orelse return error.InvalidMessageLine;
         if (!std.mem.eql(u8, prefix, "BO_")) return error.InvalidMessageLine;
@@ -69,6 +71,15 @@ test "parse fixture message line" {
     try std.testing.expectEqual(@as(u8, 8), msg.size_bytes);
     try std.testing.expectEqualStrings("Agent", msg.transmitter);
     try std.testing.expectEqual(@as(usize, 0), msg.signals.len);
+}
+
+test "parse message line separated by tabs" {
+    const msg = try Message.fromString("BO_\t288\tPowertrainStatus:\t8\tAgent");
+
+    try std.testing.expectEqual(@as(u32, 288), msg.dbc_id);
+    try std.testing.expectEqualStrings("PowertrainStatus", msg.name);
+    try std.testing.expectEqual(@as(u8, 8), msg.size_bytes);
+    try std.testing.expectEqualStrings("Agent", msg.transmitter);
 }
 
 test "parse fixture extended message line" {

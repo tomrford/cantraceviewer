@@ -9,15 +9,6 @@ pub const TimestampMode = enum {
     relative,
 };
 
-pub const FrameIndexEntry = struct {
-    key: frame.FrameKey,
-
-    /// Indices into Asc.frames. The first implementation can build these
-    /// arrays after parsing, then signal decode can iterate only matching
-    /// frames instead of scanning the whole trace each time.
-    frame_indices: []const u32,
-};
-
 pub const Asc = struct {
     base: Base = .hex,
     timestamp_mode: TimestampMode = .absolute,
@@ -27,10 +18,6 @@ pub const Asc = struct {
     measurement_start_ms: ?i64 = null,
 
     frames: []const frame.Frame = &.{},
-
-    /// Optional parse-time index for the hot path: decode every occurrence of
-    /// one DBC message ID into a selected signal series.
-    by_id: []const FrameIndexEntry = &.{},
 
     pub fn fromString(allocator: std.mem.Allocator, text: []const u8) !Asc {
         var parsed: Asc = .{};
@@ -61,10 +48,6 @@ pub const Asc = struct {
 
     pub fn deinit(self: *Asc, allocator: std.mem.Allocator) void {
         allocator.free(self.frames);
-        for (self.by_id) |entry| {
-            allocator.free(entry.frame_indices);
-        }
-        allocator.free(self.by_id);
         self.* = .{};
     }
 };

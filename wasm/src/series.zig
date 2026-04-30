@@ -100,6 +100,56 @@ test "extracts selected signal values as timestamp/value samples" {
     try std.testing.expectEqual(@as(f64, 2000.0), @as(f64, @bitCast(std.mem.readInt(u64, bytes[24..32], .little))));
 }
 
+test "extracts selected float signal values as timestamp/value samples" {
+    const allocator = std.testing.allocator;
+    const dbc_text =
+        \\BO_ 291 Example: 4 ECU
+        \\ SG_ Temperature : 0|32@1+ (1,0) [-100|100] "degC" DASH
+        \\SIG_VALTYPE_ 291 Temperature : 1;
+    ;
+    const asc_text =
+        \\base hex timestamps absolute
+        \\0.001 1 123 Rx d 4 00 00 c0 3f
+    ;
+
+    const dbc = try dbc_handle.Handle.parse(allocator, dbc_text);
+    defer dbc.deinit(allocator);
+    const asc = try asc_handle.Handle.parse(allocator, asc_text);
+    defer asc.deinit(allocator);
+
+    const bytes = try selectedSignalValues(allocator, dbc, asc, "Example", "Temperature");
+    defer allocator.free(bytes);
+
+    try std.testing.expectEqual(@as(usize, 16), bytes.len);
+    try std.testing.expectEqual(@as(u64, 1_000_000), std.mem.readInt(u64, bytes[0..8], .little));
+    try std.testing.expectEqual(@as(f64, 1.5), @as(f64, @bitCast(std.mem.readInt(u64, bytes[8..16], .little))));
+}
+
+test "extracts selected motorola float signal values as timestamp/value samples" {
+    const allocator = std.testing.allocator;
+    const dbc_text =
+        \\BO_ 291 Example: 4 ECU
+        \\ SG_ Temperature : 7|32@0+ (1,0) [-100|100] "degC" DASH
+        \\SIG_VALTYPE_ 291 Temperature : 1;
+    ;
+    const asc_text =
+        \\base hex timestamps absolute
+        \\0.001 1 123 Rx d 4 3f c0 00 00
+    ;
+
+    const dbc = try dbc_handle.Handle.parse(allocator, dbc_text);
+    defer dbc.deinit(allocator);
+    const asc = try asc_handle.Handle.parse(allocator, asc_text);
+    defer asc.deinit(allocator);
+
+    const bytes = try selectedSignalValues(allocator, dbc, asc, "Example", "Temperature");
+    defer allocator.free(bytes);
+
+    try std.testing.expectEqual(@as(usize, 16), bytes.len);
+    try std.testing.expectEqual(@as(u64, 1_000_000), std.mem.readInt(u64, bytes[0..8], .little));
+    try std.testing.expectEqual(@as(f64, 1.5), @as(f64, @bitCast(std.mem.readInt(u64, bytes[8..16], .little))));
+}
+
 test "rejects matching frames with unexpected payload length" {
     const allocator = std.testing.allocator;
     const dbc_text =

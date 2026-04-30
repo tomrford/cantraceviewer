@@ -2,10 +2,10 @@
 
 We're intentionally keeping functionality quick and minimal instead of parsing all relevant data. The UX will be something akin to:
 
-0) open a single trace file (.asc, .blf, .trc etc)
-0) open 1+ dbc files
-0) user selects/toggles signals that should appear on the plot
-0) user then zooms around and interacts with the plot
+0. open a single trace file (.asc, .blf, .trc etc)
+1. open 1+ dbc files
+2. user selects/toggles signals that should appear on the plot
+3. user then zooms around and interacts with the plot
 
 To that end we really only need to deliver a handful of things from WASM:
 

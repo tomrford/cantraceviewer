@@ -7,6 +7,8 @@ const std = @import("std");
 const quotes = @import("quotes.zig");
 const values = @import("values.zig");
 
+const DBC_WHITESPACE = " \t\r";
+
 /// DBC bit numbering mode for a signal payload.
 pub const DbcEndian = enum { intel, motorola };
 
@@ -16,6 +18,7 @@ pub const DecodePlan = struct {
     bit_count: usize,
     endian: std.builtin.Endian,
     signedness: std.builtin.Signedness,
+    value_type: values.ValueType,
     required_payload_len: usize,
     factor: f64,
     offset: f64,
@@ -24,20 +27,44 @@ pub const DecodePlan = struct {
     pub fn decode(self: DecodePlan, payload: []const u8) !f64 {
         if (payload.len != self.required_payload_len) return error.InvalidPayloadLength;
 
-        const raw = switch (self.signedness) {
-            .signed => raw: {
-                const value = std.mem.readVarPackedInt(
-                    i64,
+        const raw = switch (self.value_type) {
+            .integer => switch (self.signedness) {
+                .signed => raw: {
+                    const value = std.mem.readVarPackedInt(
+                        i64,
+                        payload,
+                        self.bit_offset,
+                        self.bit_count,
+                        self.endian,
+                        .signed,
+                    );
+                    break :raw @as(f64, @floatFromInt(value));
+                },
+                .unsigned => raw: {
+                    const value = std.mem.readVarPackedInt(
+                        u64,
+                        payload,
+                        self.bit_offset,
+                        self.bit_count,
+                        self.endian,
+                        .unsigned,
+                    );
+                    break :raw @as(f64, @floatFromInt(value));
+                },
+            },
+            .float32 => raw: {
+                const bits = std.mem.readVarPackedInt(
+                    u32,
                     payload,
                     self.bit_offset,
                     self.bit_count,
                     self.endian,
-                    .signed,
+                    .unsigned,
                 );
-                break :raw @as(f64, @floatFromInt(value));
+                break :raw @as(f64, @floatCast(@as(f32, @bitCast(bits))));
             },
-            .unsigned => raw: {
-                const value = std.mem.readVarPackedInt(
+            .float64 => raw: {
+                const bits = std.mem.readVarPackedInt(
                     u64,
                     payload,
                     self.bit_offset,
@@ -45,7 +72,7 @@ pub const DecodePlan = struct {
                     self.endian,
                     .unsigned,
                 );
-                break :raw @as(f64, @floatFromInt(value));
+                break :raw @as(f64, @bitCast(bits));
             },
         };
 
@@ -81,8 +108,11 @@ pub const Signal = struct {
     /// payload slices of that exact length to `DecodePlan.decode`.
     pub fn planDecode(self: Signal, msg_size_bytes: u8) !DecodePlan {
         if (self.unsupported_mux) return error.UnsupportedMultiplexing;
-        if (self.value_type != .integer) return error.UnsupportedSignalValueType;
-        if (self.bit_length == 0 or self.bit_length > 64) return error.InvalidSignalBitLength;
+        switch (self.value_type) {
+            .integer => if (self.bit_length == 0 or self.bit_length > 64) return error.InvalidSignalBitLength,
+            .float32 => if (self.bit_length != 32) return error.InvalidSignalBitLength,
+            .float64 => if (self.bit_length != 64) return error.InvalidSignalBitLength,
+        }
 
         const msg_bits = @as(usize, msg_size_bytes) * 8;
         const bit_count = @as(usize, self.bit_length);
@@ -106,6 +136,7 @@ pub const Signal = struct {
                 .motorola => .big,
             },
             .signedness = self.signedness,
+            .value_type = self.value_type,
             .required_payload_len = msg_size_bytes,
             .factor = self.factor,
             .offset = self.offset,
@@ -117,22 +148,25 @@ pub const Signal = struct {
     /// The unit string and receiver list are allocated. Other text fields
     /// borrow from the source line.
     pub fn fromString(allocator: std.mem.Allocator, line: []const u8) !Signal {
-        var cursor = std.mem.trim(u8, line, " \t\r");
-        if (!std.mem.startsWith(u8, cursor, "SG_ ")) return error.InvalidSignalLine;
-        cursor = std.mem.trim(u8, cursor["SG_ ".len..], " \t");
+        var cursor = std.mem.trim(u8, line, DBC_WHITESPACE);
+        if (!std.mem.startsWith(u8, cursor, "SG_")) return error.InvalidSignalLine;
+        cursor = cursor["SG_".len..];
+        if (cursor.len == 0 or
+            std.mem.indexOfScalar(u8, DBC_WHITESPACE, cursor[0]) == null) return error.InvalidSignalLine;
+        cursor = std.mem.trim(u8, cursor, DBC_WHITESPACE);
 
-        const name_end = std.mem.indexOfAny(u8, cursor, " \t") orelse return error.InvalidSignalLine;
+        const name_end = std.mem.indexOfAny(u8, cursor, DBC_WHITESPACE) orelse return error.InvalidSignalLine;
         const name = cursor[0..name_end];
-        cursor = std.mem.trim(u8, cursor[name_end..], " \t");
+        cursor = std.mem.trim(u8, cursor[name_end..], DBC_WHITESPACE);
 
         var unsupported_mux = false;
         if (!std.mem.startsWith(u8, cursor, ":")) {
-            const marker_end = std.mem.indexOfAny(u8, cursor, " \t") orelse return error.InvalidSignalLine;
+            const marker_end = std.mem.indexOfAny(u8, cursor, DBC_WHITESPACE) orelse return error.InvalidSignalLine;
             unsupported_mux = true;
-            cursor = std.mem.trim(u8, cursor[marker_end..], " \t");
+            cursor = std.mem.trim(u8, cursor[marker_end..], DBC_WHITESPACE);
         }
         if (!std.mem.startsWith(u8, cursor, ":")) return error.InvalidSignalLine;
-        cursor = std.mem.trim(u8, cursor[1..], " \t");
+        cursor = std.mem.trim(u8, cursor[1..], DBC_WHITESPACE);
 
         const start_sep = std.mem.indexOfScalar(u8, cursor, '|') orelse return error.InvalidSignalLine;
         const start_bit = try std.fmt.parseInt(u16, cursor[0..start_sep], 10);
@@ -153,7 +187,7 @@ pub const Signal = struct {
             '-' => .signed,
             else => return error.InvalidSignalLine,
         };
-        cursor = std.mem.trim(u8, cursor[2..], " \t");
+        cursor = std.mem.trim(u8, cursor[2..], DBC_WHITESPACE);
 
         if (!std.mem.startsWith(u8, cursor, "(")) return error.InvalidSignalLine;
         cursor = cursor[1..];
@@ -162,7 +196,7 @@ pub const Signal = struct {
         cursor = cursor[factor_sep + 1 ..];
         const offset_sep = std.mem.indexOfScalar(u8, cursor, ')') orelse return error.InvalidSignalLine;
         const offset = try parseFiniteFloat(cursor[0..offset_sep]);
-        cursor = std.mem.trim(u8, cursor[offset_sep + 1 ..], " \t");
+        cursor = std.mem.trim(u8, cursor[offset_sep + 1 ..], DBC_WHITESPACE);
 
         if (!std.mem.startsWith(u8, cursor, "[")) return error.InvalidSignalLine;
         cursor = cursor[1..];
@@ -171,7 +205,7 @@ pub const Signal = struct {
         cursor = cursor[min_sep + 1 ..];
         const max_sep = std.mem.indexOfScalar(u8, cursor, ']') orelse return error.InvalidSignalLine;
         const maximum = try parseFiniteFloat(cursor[0..max_sep]);
-        cursor = std.mem.trim(u8, cursor[max_sep + 1 ..], " \t");
+        cursor = std.mem.trim(u8, cursor[max_sep + 1 ..], DBC_WHITESPACE);
 
         const unit = quotes.parseQuoted(allocator, &cursor) catch |err| switch (err) {
             error.OutOfMemory => return err,
@@ -307,4 +341,98 @@ test "parse signal line with escaped unit" {
 
     try std.testing.expectEqualStrings("State \"On\"", sig.unit);
     try std.testing.expectEqualStrings("Dashboard", sig.receivers[0]);
+}
+
+test "parse signal line separated by tabs" {
+    const allocator = std.testing.allocator;
+    const sig = try Signal.fromString(allocator, "\tSG_\tvehicle_speed\t:\t0|16@1+\t(0.1,0)\t[0|250]\t\"km/h\"\tDashboard");
+    defer allocator.free(sig.receivers);
+    defer allocator.free(sig.unit);
+
+    try std.testing.expectEqualStrings("vehicle_speed", sig.name);
+    try std.testing.expectEqual(@as(u16, 0), sig.start_bit);
+    try std.testing.expectEqual(@as(u16, 16), sig.bit_length);
+    try std.testing.expectEqualStrings("km/h", sig.unit);
+    try std.testing.expectEqualStrings("Dashboard", sig.receivers[0]);
+}
+
+test "decode float32 signal value" {
+    const allocator = std.testing.allocator;
+    var sig = try Signal.fromString(allocator, " SG_ temperature : 0|32@1+ (1,0) [-100|100] \"degC\" Dashboard");
+    defer allocator.free(sig.receivers);
+    defer allocator.free(sig.unit);
+    sig.value_type = .float32;
+
+    const plan = try sig.planDecode(4);
+    const payload = [_]u8{ 0x00, 0x00, 0xc0, 0x3f };
+
+    try std.testing.expectEqual(@as(f64, 1.5), try plan.decode(&payload));
+}
+
+test "decode motorola float32 signal value" {
+    const allocator = std.testing.allocator;
+    var sig = try Signal.fromString(allocator, " SG_ temperature : 7|32@0+ (1,0) [-100|100] \"degC\" Dashboard");
+    defer allocator.free(sig.receivers);
+    defer allocator.free(sig.unit);
+    sig.value_type = .float32;
+
+    const plan = try sig.planDecode(4);
+    const payload = [_]u8{ 0x3f, 0xc0, 0x00, 0x00 };
+
+    try std.testing.expectEqual(@as(f64, 1.5), try plan.decode(&payload));
+}
+
+test "decode float64 signal value" {
+    const allocator = std.testing.allocator;
+    var sig = try Signal.fromString(allocator, " SG_ temperature : 0|64@1+ (1,0) [-100|100] \"degC\" Dashboard");
+    defer allocator.free(sig.receivers);
+    defer allocator.free(sig.unit);
+    sig.value_type = .float64;
+
+    const plan = try sig.planDecode(8);
+    const payload = [_]u8{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf8, 0x3f };
+
+    try std.testing.expectEqual(@as(f64, 1.5), try plan.decode(&payload));
+}
+
+test "decode motorola float64 signal value" {
+    const allocator = std.testing.allocator;
+    var sig = try Signal.fromString(allocator, " SG_ temperature : 7|64@0+ (1,0) [-100|100] \"degC\" Dashboard");
+    defer allocator.free(sig.receivers);
+    defer allocator.free(sig.unit);
+    sig.value_type = .float64;
+
+    const plan = try sig.planDecode(8);
+    const payload = [_]u8{ 0x3f, 0xf8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+
+    try std.testing.expectEqual(@as(f64, 1.5), try plan.decode(&payload));
+}
+
+test "applies scale and offset to float signal value" {
+    const allocator = std.testing.allocator;
+    var sig = try Signal.fromString(allocator, " SG_ temperature : 0|32@1+ (2,1) [-100|100] \"degC\" Dashboard");
+    defer allocator.free(sig.receivers);
+    defer allocator.free(sig.unit);
+    sig.value_type = .float32;
+
+    const plan = try sig.planDecode(4);
+    const payload = [_]u8{ 0x00, 0x00, 0xc0, 0x3f };
+
+    try std.testing.expectEqual(@as(f64, 4), try plan.decode(&payload));
+}
+
+test "rejects float signals with non-float bit lengths" {
+    const allocator = std.testing.allocator;
+    var float32_sig = try Signal.fromString(allocator, " SG_ temperature : 0|16@1+ (1,0) [-100|100] \"degC\" Dashboard");
+    defer allocator.free(float32_sig.receivers);
+    defer allocator.free(float32_sig.unit);
+    float32_sig.value_type = .float32;
+
+    var float64_sig = try Signal.fromString(allocator, " SG_ precise_temperature : 0|32@1+ (1,0) [-100|100] \"degC\" Dashboard");
+    defer allocator.free(float64_sig.receivers);
+    defer allocator.free(float64_sig.unit);
+    float64_sig.value_type = .float64;
+
+    try std.testing.expectError(error.InvalidSignalBitLength, float32_sig.planDecode(2));
+    try std.testing.expectError(error.InvalidSignalBitLength, float64_sig.planDecode(4));
 }

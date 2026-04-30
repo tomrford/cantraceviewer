@@ -6,11 +6,11 @@ An official PEAK CAN TRC File Format PDF specification exists publicly and cover
 
 ## Format families
 
-| Family | Structural model | Major capabilities |
-|---|---|---|
-| 1.0–1.3 | Fixed positional whitespace columns | CAN, then Rx/Tx split, then bus/J1939 additions |
-| 2.0–2.1 | `$COLUMNS`-driven text schema | CAN FD, typed events, status/error/counter records |
-| 3.0 | Extended `$COLUMNS` schema | CAN XL plus new XL-related columns and record types |
+| Family  | Structural model                    | Major capabilities                                  |
+| ------- | ----------------------------------- | --------------------------------------------------- |
+| 1.0–1.3 | Fixed positional whitespace columns | CAN, then Rx/Tx split, then bus/J1939 additions     |
+| 2.0–2.1 | `$COLUMNS`-driven text schema       | CAN FD, typed events, status/error/counter records  |
+| 3.0     | Extended `$COLUMNS` schema          | CAN XL plus new XL-related columns and record types |
 
 ```mermaid
 flowchart TD
@@ -57,15 +57,15 @@ Not every line in a 2.1/3.0 file is a CAN frame. `EV` is free-form text; `ST`, `
 
 ## Cross-format properties
 
-| Property | `.trc` | `.asc` | `.blf` |
-|---|---|---|---|
-| Format class | Text | Text | Binary |
-| Header model | Semicolon comments + keywords (`$FILEVERSION`, `$STARTTIME`, `$COLUMNS`) | Text header with `date`, `base`, timestamp mode, trigger blocks | Binary file header `LOGG` |
-| Record model | One text line per frame/event | One text line per frame/event | Binary objects inside log containers |
-| Compression | None | None | Optional zlib-compressed log containers |
-| Schema evolution | Strongly versioned: 1.x, 2.x, 3.0 | Tool/version variations; de facto parser behaviour | Object-type based extensibility |
-| CAN FD support | Yes from 2.0 | Yes in modern variants | Yes |
-| CAN XL support | Yes in 3.0 | Not established | Not established in public sources |
+| Property         | `.trc`                                                                   | `.asc`                                                          | `.blf`                                  |
+| ---------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------- | --------------------------------------- |
+| Format class     | Text                                                                     | Text                                                            | Binary                                  |
+| Header model     | Semicolon comments + keywords (`$FILEVERSION`, `$STARTTIME`, `$COLUMNS`) | Text header with `date`, `base`, timestamp mode, trigger blocks | Binary file header `LOGG`               |
+| Record model     | One text line per frame/event                                            | One text line per frame/event                                   | Binary objects inside log containers    |
+| Compression      | None                                                                     | None                                                            | Optional zlib-compressed log containers |
+| Schema evolution | Strongly versioned: 1.x, 2.x, 3.0                                        | Tool/version variations; de facto parser behaviour              | Object-type based extensibility         |
+| CAN FD support   | Yes from 2.0                                                             | Yes in modern variants                                          | Yes                                     |
+| CAN XL support   | Yes in 3.0                                                               | Not established                                                 | Not established in public sources       |
 
 ## Available test sources
 
