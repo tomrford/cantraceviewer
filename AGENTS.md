@@ -15,11 +15,12 @@ Use repo-native commands via `nix develop`:
 ```sh
 bun run dev
 bun run test
-bunx svelte-check --tsconfig ./tsconfig.json
-cd wasm && zig build test
+bun run check
+bun run wasm:build:release
+bun run wasm:test
 ```
 
-`bun run check` runs SvelteKit sync and `svelte-check` against `tsconfig.json`.
+We currently commit the 'released' WASM binary for convenient git-based deployment on cloudflare workers. if you make changes to the zig code, you MUST run the release build script before committing to ensure the bundle is updated.
 
 Open work:
 
@@ -27,7 +28,6 @@ Open work:
 - Investigate ChartGPU point-marker support for selected signal traces. The plot uses line series only until ChartGPU can render per-sample markers cleanly during close zoom levels without custom canvas overlays.
 - Render selected signals with a single decoded sample as one point instead of hiding them from the plot state.
 - If selected-signal graphing spends meaningful time rescanning traces, consider a batch decode API or per-message frame index so multiple selected signals can share one pass over matching ASC frames.
-- If parsed ASC frame memory becomes a measured problem, consider compact frame storage with `Asc` owning `frames: []Frame` plus a contiguous `payloads: []u8` side buffer; data frames store payload offset/length, while remote/error/unknown events store no payload bytes.
 
 ### Zig
 

@@ -18,12 +18,18 @@ pub const Asc = struct {
     measurement_start_ms: ?i64 = null,
 
     frames: []const frame.Frame = &.{},
+    payloads: []const u8 = &.{},
+    data_frame_count: usize = 0,
+    last_data_timestamp_ns: ?u64 = null,
 
     pub fn fromString(allocator: std.mem.Allocator, text: []const u8) !Asc {
         var parsed: Asc = .{};
         var frames: std.ArrayList(frame.Frame) = .empty;
         errdefer frames.deinit(allocator);
+        var payloads: std.ArrayList(u8) = .empty;
+        errdefer payloads.deinit(allocator);
 
+        var payload_buffer: [64]u8 = undefined;
         var relative_timestamp_ns: u64 = 0;
         var lines = std.mem.splitScalar(u8, text, '\n');
         while (lines.next()) |raw_line| {
@@ -32,43 +38,36 @@ pub const Asc = struct {
 
             if (try parseHeaderLine(&parsed, line)) continue;
 
-            if (try frame.Frame.fromString(parsed.base, line)) |line_frame| {
+            if (try frame.parseLine(parsed.base, line, &payload_buffer)) |line_frame| {
                 var normalized = line_frame;
                 if (parsed.timestamp_mode == .relative) {
                     relative_timestamp_ns = try std.math.add(u64, relative_timestamp_ns, normalized.timestamp_ns);
                     normalized.timestamp_ns = relative_timestamp_ns;
+                }
+                const payload_offset: u32 = if (normalized.kind == .data and normalized.id != null) offset: {
+                    const start = payloads.items.len;
+                    try payloads.appendSlice(allocator, payload_buffer[0..normalized.payload_len]);
+                    break :offset @intCast(start);
+                } else 0;
+                normalized.payload_offset = payload_offset;
+
+                if (normalized.kind == .data and normalized.id != null) {
+                    parsed.data_frame_count += 1;
+                    parsed.last_data_timestamp_ns = normalized.timestamp_ns;
                 }
                 try frames.append(allocator, normalized);
             }
         }
 
         parsed.frames = try frames.toOwnedSlice(allocator);
+        parsed.payloads = try payloads.toOwnedSlice(allocator);
         return parsed;
     }
 
     pub fn deinit(self: *Asc, allocator: std.mem.Allocator) void {
         allocator.free(self.frames);
+        allocator.free(self.payloads);
         self.* = .{};
-    }
-
-    pub fn dataFrameCount(self: Asc) usize {
-        var count: usize = 0;
-        for (self.frames) |line_frame| {
-            if (line_frame.kind == .data and line_frame.id != null) {
-                count += 1;
-            }
-        }
-        return count;
-    }
-
-    pub fn durationNs(self: Asc) ?u64 {
-        var last_timestamp_ns: ?u64 = null;
-        for (self.frames) |line_frame| {
-            if (line_frame.kind == .data and line_frame.id != null) {
-                last_timestamp_ns = line_frame.timestamp_ns;
-            }
-        }
-        return last_timestamp_ns;
     }
 };
 
@@ -224,9 +223,10 @@ test "maps CAN FD DLC to payload length" {
 }
 
 test "frame parser accepts asc base enum" {
-    const parsed = (try frame.Frame.fromString(Base.hex, "0.001 1 123 Rx d 1 aa")) orelse return error.ExpectedFrame;
+    var payload: [64]u8 = undefined;
+    const parsed = (try frame.parseLine(Base.hex, "0.001 1 123 Rx d 1 aa", &payload)) orelse return error.ExpectedFrame;
     try std.testing.expectEqual(@as(u32, 0x123), parsed.id.?.value);
-    try std.testing.expectEqual(@as(u8, 0xaa), parsed.payload[0]);
+    try std.testing.expectEqual(@as(u8, 0xaa), payload[0]);
 }
 
 test "parses asc source with measurement start and decimal base" {
@@ -247,10 +247,12 @@ test "parses asc source with measurement start and decimal base" {
     try std.testing.expectEqual(@as(TimestampMode, .absolute), parsed.timestamp_mode);
     try std.testing.expectEqual(@as(i64, 1_777_370_400_000), parsed.measurement_start_ms.?);
     try std.testing.expectEqual(@as(usize, 1), parsed.frames.len);
+    try std.testing.expectEqual(@as(usize, 2), parsed.payloads.len);
     try std.testing.expectEqual(@as(u64, 1_000_000), parsed.frames[0].timestamp_ns);
     try std.testing.expectEqual(@as(u32, 291), parsed.frames[0].id.?.value);
-    try std.testing.expectEqual(@as(u8, 0xaa), parsed.frames[0].payload[0]);
-    try std.testing.expectEqual(@as(u8, 0xbb), parsed.frames[0].payload[1]);
+    try std.testing.expectEqual(@as(u8, 2), parsed.frames[0].payload_len);
+    try std.testing.expectEqual(@as(u8, 0xaa), parsed.payloads[0]);
+    try std.testing.expectEqual(@as(u8, 0xbb), parsed.payloads[1]);
 }
 
 test "normalizes relative timestamps across unknown events" {
@@ -273,6 +275,34 @@ test "normalizes relative timestamps across unknown events" {
     try std.testing.expectEqual(@as(frame.Kind, .unknown), parsed.frames[1].kind);
 }
 
+test "stores data payloads in a compact side buffer" {
+    const allocator = std.testing.allocator;
+    const text =
+        \\base hex timestamps absolute
+        \\0.100000 1 123 Rx d 2 aa bb
+        \\0.200000 CANFD_STATISTIC whatever else
+        \\0.300000 1 123 Rx r 8
+        \\0.400000 CANFD 1 Rx 123 - 1 0 9 12 01 02 03 04 05 06 07 08 09 0a 0b 0c
+    ;
+
+    var parsed = try Asc.fromString(allocator, text);
+    defer parsed.deinit(allocator);
+
+    try std.testing.expectEqual(@as(usize, 4), parsed.frames.len);
+    try std.testing.expectEqual(@as(usize, 14), parsed.payloads.len);
+    try std.testing.expectEqual(@as(u32, 0), parsed.frames[0].payload_offset);
+    try std.testing.expectEqual(@as(u8, 2), parsed.frames[0].payload_len);
+    try std.testing.expectEqual(@as(u32, 0), parsed.frames[1].payload_offset);
+    try std.testing.expectEqual(@as(u8, 0), parsed.frames[1].payload_len);
+    try std.testing.expectEqual(@as(u32, 0), parsed.frames[2].payload_offset);
+    try std.testing.expectEqual(@as(u8, 0), parsed.frames[2].payload_len);
+    try std.testing.expectEqual(@as(u32, 2), parsed.frames[3].payload_offset);
+    try std.testing.expectEqual(@as(u8, 12), parsed.frames[3].payload_len);
+    try std.testing.expectEqual(@as(u8, 0xaa), parsed.payloads[0]);
+    try std.testing.expectEqual(@as(u8, 0x01), parsed.payloads[2]);
+    try std.testing.expectEqual(@as(u8, 0x0c), parsed.payloads[13]);
+}
+
 test "counts data frames and reports duration from last data frame" {
     const allocator = std.testing.allocator;
     const text =
@@ -286,8 +316,8 @@ test "counts data frames and reports duration from last data frame" {
     var parsed = try Asc.fromString(allocator, text);
     defer parsed.deinit(allocator);
 
-    try std.testing.expectEqual(@as(usize, 2), parsed.dataFrameCount());
-    try std.testing.expectEqual(@as(?u64, 400_000_000), parsed.durationNs());
+    try std.testing.expectEqual(@as(usize, 2), parsed.data_frame_count);
+    try std.testing.expectEqual(@as(?u64, 400_000_000), parsed.last_data_timestamp_ns);
 }
 
 test "duration is null when no data frames are present" {
@@ -300,8 +330,8 @@ test "duration is null when no data frames are present" {
     var parsed = try Asc.fromString(allocator, text);
     defer parsed.deinit(allocator);
 
-    try std.testing.expectEqual(@as(usize, 0), parsed.dataFrameCount());
-    try std.testing.expectEqual(@as(?u64, null), parsed.durationNs());
+    try std.testing.expectEqual(@as(usize, 0), parsed.data_frame_count);
+    try std.testing.expectEqual(@as(?u64, null), parsed.last_data_timestamp_ns);
 }
 
 test "parses vector date to unix milliseconds" {

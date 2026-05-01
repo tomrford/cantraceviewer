@@ -69,87 +69,84 @@ pub const Frame = struct {
     /// Raw DLC as written in the trace. For CAN FD, this is not necessarily the
     /// payload length: DLC 9..15 maps to 12,16,20,24,32,48,64 bytes.
     dlc: u8 = 0,
+    payload_offset: u32 = 0,
     payload_len: u8 = 0,
-    payload: [64]u8 = [_]u8{0} ** 64,
-
-    pub fn fromString(base: Base, line: []const u8) !?Frame {
-        var tokens = std.mem.tokenizeAny(u8, line, " \t\r");
-        const timestamp_text = tokens.next() orelse return null;
-        const timestamp_ns = parseDecimalSecondsToNs(timestamp_text) catch |err| switch (err) {
-            error.InvalidCharacter => return null,
-            else => return err,
-        };
-
-        const first = tokens.next() orelse return .{ .timestamp_ns = timestamp_ns, .kind = .unknown };
-        if (std.mem.eql(u8, first, "CANFD")) {
-            return try parseCanFd(base, timestamp_ns, &tokens);
-        }
-
-        const id_or_kind = tokens.next() orelse return .{
-            .timestamp_ns = timestamp_ns,
-            .kind = .unknown,
-        };
-        if (std.mem.eql(u8, id_or_kind, "ErrorFrame")) {
-            return .{
-                .timestamp_ns = timestamp_ns,
-                .kind = .error_frame,
-            };
-        }
-
-        const id = parseId(base, id_or_kind) catch return .{
-            .timestamp_ns = timestamp_ns,
-            .kind = .unknown,
-        };
-        _ = tokens.next() orelse return .{
-            .timestamp_ns = timestamp_ns,
-            .kind = .unknown,
-        };
-        const frame_kind = tokens.next() orelse return .{
-            .timestamp_ns = timestamp_ns,
-            .kind = .unknown,
-        };
-        if (std.mem.eql(u8, frame_kind, "d")) {
-            const dlc_text = tokens.next() orelse return error.InvalidFrameLine;
-            const dlc = try parseDlc(dlc_text);
-            if (dlc > 8) return error.InvalidDlc;
-
-            var payload: [8]u8 = undefined;
-            var payload_len: usize = 0;
-            while (payload_len < dlc) : (payload_len += 1) {
-                const byte_text = tokens.next() orelse return error.InvalidFrameLine;
-                payload[payload_len] = try parseByte(base, byte_text);
-            }
-            var frame: Frame = .{
-                .timestamp_ns = timestamp_ns,
-                .kind = .data,
-                .id = id,
-                .dlc = dlc,
-                .payload_len = @intCast(payload_len),
-            };
-            @memcpy(frame.payload[0..payload_len], payload[0..payload_len]);
-            return frame;
-        }
-
-        if (std.mem.eql(u8, frame_kind, "r")) {
-            const dlc = if (tokens.next()) |dlc_text| try parseDlc(dlc_text) else 0;
-            return .{
-                .timestamp_ns = timestamp_ns,
-                .kind = .remote,
-                .id = id,
-                .dlc = dlc,
-            };
-        }
-
-        return .{
-            .timestamp_ns = timestamp_ns,
-            .kind = .unknown,
-        };
-    }
 };
 
 const LineTokenIterator = std.mem.TokenIterator(u8, .any);
 
-fn parseCanFd(base: Base, timestamp_ns: u64, tokens: *LineTokenIterator) !?Frame {
+pub fn parseLine(base: Base, line: []const u8, payload: *[64]u8) !?Frame {
+    var tokens = std.mem.tokenizeAny(u8, line, " \t\r");
+    const timestamp_text = tokens.next() orelse return null;
+    const timestamp_ns = parseDecimalSecondsToNs(timestamp_text) catch |err| switch (err) {
+        error.InvalidCharacter => return null,
+        else => return err,
+    };
+
+    const first = tokens.next() orelse return .{ .timestamp_ns = timestamp_ns, .kind = .unknown };
+    if (std.mem.eql(u8, first, "CANFD")) {
+        return try parseCanFd(base, timestamp_ns, &tokens, payload);
+    }
+
+    const id_or_kind = tokens.next() orelse return .{
+        .timestamp_ns = timestamp_ns,
+        .kind = .unknown,
+    };
+    if (std.mem.eql(u8, id_or_kind, "ErrorFrame")) {
+        return .{
+            .timestamp_ns = timestamp_ns,
+            .kind = .error_frame,
+        };
+    }
+
+    const id = parseId(base, id_or_kind) catch return .{
+        .timestamp_ns = timestamp_ns,
+        .kind = .unknown,
+    };
+    _ = tokens.next() orelse return .{
+        .timestamp_ns = timestamp_ns,
+        .kind = .unknown,
+    };
+    const frame_kind = tokens.next() orelse return .{
+        .timestamp_ns = timestamp_ns,
+        .kind = .unknown,
+    };
+    if (std.mem.eql(u8, frame_kind, "d")) {
+        const dlc_text = tokens.next() orelse return error.InvalidFrameLine;
+        const dlc = try parseDlc(dlc_text);
+        if (dlc > 8) return error.InvalidDlc;
+
+        var payload_len: usize = 0;
+        while (payload_len < dlc) : (payload_len += 1) {
+            const byte_text = tokens.next() orelse return error.InvalidFrameLine;
+            payload[payload_len] = try parseByte(base, byte_text);
+        }
+        return .{
+            .timestamp_ns = timestamp_ns,
+            .kind = .data,
+            .id = id,
+            .dlc = dlc,
+            .payload_len = @intCast(payload_len),
+        };
+    }
+
+    if (std.mem.eql(u8, frame_kind, "r")) {
+        const dlc = if (tokens.next()) |dlc_text| try parseDlc(dlc_text) else 0;
+        return .{
+            .timestamp_ns = timestamp_ns,
+            .kind = .remote,
+            .id = id,
+            .dlc = dlc,
+        };
+    }
+
+    return .{
+        .timestamp_ns = timestamp_ns,
+        .kind = .unknown,
+    };
+}
+
+fn parseCanFd(base: Base, timestamp_ns: u64, tokens: *LineTokenIterator, payload: *[64]u8) !?Frame {
     _ = tokens.next() orelse return error.InvalidFrameLine;
     _ = tokens.next() orelse return error.InvalidFrameLine;
     const id = try parseId(base, tokens.next() orelse return error.InvalidFrameLine);
@@ -161,12 +158,11 @@ fn parseCanFd(base: Base, timestamp_ns: u64, tokens: *LineTokenIterator) !?Frame
     const expected_payload_len = try fdPayloadLengthFromDlc(dlc);
     if (payload_len != expected_payload_len) return error.InvalidPayloadLength;
 
-    var payload: [64]u8 = undefined;
     var index: usize = 0;
     while (index < payload_len) : (index += 1) {
         payload[index] = try parseByte(base, tokens.next() orelse return error.InvalidFrameLine);
     }
-    var frame: Frame = .{
+    return .{
         .timestamp_ns = timestamp_ns,
         .kind = .data,
         .id = id,
@@ -174,8 +170,6 @@ fn parseCanFd(base: Base, timestamp_ns: u64, tokens: *LineTokenIterator) !?Frame
         .dlc = dlc,
         .payload_len = payload_len,
     };
-    @memcpy(frame.payload[0..payload_len], payload[0..payload_len]);
-    return frame;
 }
 
 fn parseId(base: Base, text: []const u8) !Id {
@@ -248,54 +242,29 @@ pub fn fdPayloadLengthFromDlc(dlc: u8) !u8 {
     };
 }
 
-test "classic and fd frames share the same storage shape" {
-    var classic: Frame = .{
-        .timestamp_ns = 1_000_000,
-        .kind = .data,
-        .id = Id.standard(0x123),
-        .dlc = 2,
-        .payload_len = 2,
-    };
-    const classic_payload = [_]u8{ 0xaa, 0xbb };
-    @memcpy(classic.payload[0..classic.payload_len], classic_payload[0..]);
-    try std.testing.expect(!classic.is_fd);
-    try std.testing.expectEqual(@as(u8, 2), classic.payload_len);
-    try std.testing.expectEqual(@as(u8, 0xaa), classic.payload[0]);
-
-    var fd: Frame = .{
-        .timestamp_ns = 2_000_000,
-        .kind = .data,
-        .id = Id.extended(0x18fee900),
-        .is_fd = true,
-        .dlc = 15,
-        .payload_len = 64,
-    };
-    @memcpy(fd.payload[0..fd.payload_len], &([_]u8{0x55} ** 64));
-    try std.testing.expect(fd.is_fd);
-    try std.testing.expectEqual(@as(u8, 15), fd.dlc);
-    try std.testing.expectEqual(@as(u8, 64), fd.payload_len);
-}
-
 test "parses classic data frame" {
-    const parsed = (try Frame.fromString(Base.hex, "0.003040 1 123 Rx d 2 AA bb")) orelse return error.ExpectedFrame;
+    var payload: [64]u8 = undefined;
+    const parsed = (try parseLine(Base.hex, "0.003040 1 123 Rx d 2 AA bb", &payload)) orelse return error.ExpectedFrame;
     try std.testing.expectEqual(@as(u64, 3_040_000), parsed.timestamp_ns);
     try std.testing.expectEqual(@as(Kind, .data), parsed.kind);
     try std.testing.expectEqual(@as(u32, 0x123), parsed.id.?.value);
     try std.testing.expect(!parsed.id.?.is_extended);
     try std.testing.expectEqual(@as(u8, 2), parsed.dlc);
     try std.testing.expectEqual(@as(u8, 2), parsed.payload_len);
-    try std.testing.expectEqual(@as(u8, 0xaa), parsed.payload[0]);
-    try std.testing.expectEqual(@as(u8, 0xbb), parsed.payload[1]);
+    try std.testing.expectEqual(@as(u8, 0xaa), payload[0]);
+    try std.testing.expectEqual(@as(u8, 0xbb), payload[1]);
 }
 
 test "parses extended classic data frame" {
-    const parsed = (try Frame.fromString(Base.hex, "1.0 CAN_A 18fee900x Tx d 1 55")) orelse return error.ExpectedFrame;
+    var payload: [64]u8 = undefined;
+    const parsed = (try parseLine(Base.hex, "1.0 CAN_A 18fee900x Tx d 1 55", &payload)) orelse return error.ExpectedFrame;
     try std.testing.expectEqual(@as(u32, 0x18fee900), parsed.id.?.value);
     try std.testing.expect(parsed.id.?.is_extended);
 }
 
 test "parses classic remote frame" {
-    const parsed = (try Frame.fromString(Base.hex, "2.5 1 123 Rx r 8")) orelse return error.ExpectedFrame;
+    var payload: [64]u8 = undefined;
+    const parsed = (try parseLine(Base.hex, "2.5 1 123 Rx r 8", &payload)) orelse return error.ExpectedFrame;
     try std.testing.expectEqual(@as(u64, 2_500_000_000), parsed.timestamp_ns);
     try std.testing.expectEqual(@as(Kind, .remote), parsed.kind);
     try std.testing.expectEqual(@as(u8, 8), parsed.dlc);
@@ -303,52 +272,60 @@ test "parses classic remote frame" {
 }
 
 test "parses classic error frame" {
-    const parsed = (try Frame.fromString(Base.hex, "3.0 2 ErrorFrame flags")) orelse return error.ExpectedFrame;
+    var payload: [64]u8 = undefined;
+    const parsed = (try parseLine(Base.hex, "3.0 2 ErrorFrame flags", &payload)) orelse return error.ExpectedFrame;
     try std.testing.expectEqual(@as(Kind, .error_frame), parsed.kind);
     try std.testing.expectEqual(@as(?Id, null), parsed.id);
 }
 
 test "parses decimal base IDs and bytes" {
-    const parsed = (try Frame.fromString(Base.dec, "4.0 1 291 Rx d 2 170 187")) orelse return error.ExpectedFrame;
+    var payload: [64]u8 = undefined;
+    const parsed = (try parseLine(Base.dec, "4.0 1 291 Rx d 2 170 187", &payload)) orelse return error.ExpectedFrame;
     try std.testing.expectEqual(@as(u32, 291), parsed.id.?.value);
-    try std.testing.expectEqual(@as(u8, 0xaa), parsed.payload[0]);
-    try std.testing.expectEqual(@as(u8, 0xbb), parsed.payload[1]);
+    try std.testing.expectEqual(@as(u8, 0xaa), payload[0]);
+    try std.testing.expectEqual(@as(u8, 0xbb), payload[1]);
 }
 
 test "parses CAN FD data frame payload length from data length field" {
-    const parsed = (try Frame.fromString(Base.hex, "5.0 CANFD 1 Rx 18fee900x - 1 0 9 12 01 02 03 04 05 06 07 08 09 0a 0b 0c")) orelse return error.ExpectedFrame;
+    var payload: [64]u8 = undefined;
+    const parsed = (try parseLine(Base.hex, "5.0 CANFD 1 Rx 18fee900x - 1 0 9 12 01 02 03 04 05 06 07 08 09 0a 0b 0c", &payload)) orelse return error.ExpectedFrame;
     try std.testing.expectEqual(@as(Kind, .data), parsed.kind);
     try std.testing.expect(parsed.is_fd);
     try std.testing.expectEqual(@as(u8, 9), parsed.dlc);
     try std.testing.expectEqual(@as(u8, 12), parsed.payload_len);
-    try std.testing.expectEqual(@as(u8, 0x01), parsed.payload[0]);
-    try std.testing.expectEqual(@as(u8, 0x0c), parsed.payload[11]);
+    try std.testing.expectEqual(@as(u8, 0x01), payload[0]);
+    try std.testing.expectEqual(@as(u8, 0x0c), payload[11]);
 }
 
 test "rejects CAN FD data frame when data length does not match DLC" {
+    var payload: [64]u8 = undefined;
     try std.testing.expectError(
         error.InvalidPayloadLength,
-        Frame.fromString(Base.hex, "5.0 CANFD 1 Rx 18fee900x - 1 0 9 8 01 02 03 04 05 06 07 08"),
+        parseLine(Base.hex, "5.0 CANFD 1 Rx 18fee900x - 1 0 9 8 01 02 03 04 05 06 07 08", &payload),
     );
 }
 
 test "keeps timestamped unrecognized lines as unknown frames" {
-    const parsed = (try Frame.fromString(Base.hex, "6.25 CANFD_STATISTIC whatever else")) orelse return error.ExpectedFrame;
+    var payload: [64]u8 = undefined;
+    const parsed = (try parseLine(Base.hex, "6.25 CANFD_STATISTIC whatever else", &payload)) orelse return error.ExpectedFrame;
     try std.testing.expectEqual(@as(u64, 6_250_000_000), parsed.timestamp_ns);
     try std.testing.expectEqual(@as(Kind, .unknown), parsed.kind);
     try std.testing.expectEqual(@as(?Id, null), parsed.id);
 }
 
 test "keeps timestamp-only lines as unknown frames" {
-    const parsed = (try Frame.fromString(Base.hex, "6.5")) orelse return error.ExpectedFrame;
+    var payload: [64]u8 = undefined;
+    const parsed = (try parseLine(Base.hex, "6.5", &payload)) orelse return error.ExpectedFrame;
     try std.testing.expectEqual(@as(u64, 6_500_000_000), parsed.timestamp_ns);
     try std.testing.expectEqual(@as(Kind, .unknown), parsed.kind);
 }
 
 test "returns null for empty line" {
-    try std.testing.expectEqual(@as(?Frame, null), try Frame.fromString(Base.hex, " \t\r"));
+    var payload: [64]u8 = undefined;
+    try std.testing.expectEqual(@as(?Frame, null), try parseLine(Base.hex, " \t\r", &payload));
 }
 
 test "returns null for non-frame header line" {
-    try std.testing.expectEqual(@as(?Frame, null), try Frame.fromString(Base.hex, "date Tue Apr 28 10:00:00.000 2026"));
+    var payload: [64]u8 = undefined;
+    try std.testing.expectEqual(@as(?Frame, null), try parseLine(Base.hex, "date Tue Apr 28 10:00:00.000 2026", &payload));
 }

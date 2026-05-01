@@ -29,7 +29,7 @@ pub fn selectedSignalValues(
         if (!matchesMessage(trace_frame, selection.message)) continue;
         if (trace_frame.payload_len != selection.message.size_bytes) continue;
 
-        const payload = trace_frame.payload[0..selection.message.size_bytes];
+        const payload = payloadForFrame(asc.asc.payloads, trace_frame) orelse continue;
         const value = try plan.decode(payload);
         try appendSample(allocator, &out, trace_frame.timestamp_ns, value);
     }
@@ -65,6 +65,13 @@ fn matchesMessage(trace_frame: frame.Frame, msg: message.Message) bool {
     return id.value == msg.can_id and
         id.is_extended == msg.is_extended and
         trace_frame.is_fd == msg.is_fd;
+}
+
+fn payloadForFrame(payloads: []const u8, trace_frame: frame.Frame) ?[]const u8 {
+    const start: usize = @intCast(trace_frame.payload_offset);
+    const end = start + @as(usize, trace_frame.payload_len);
+    if (end > payloads.len) return null;
+    return payloads[start..end];
 }
 
 fn appendSample(allocator: std.mem.Allocator, out: *std.ArrayList(u8), timestamp_ns: u64, value: f64) !void {

@@ -11,8 +11,8 @@ pub fn toJson(allocator: std.mem.Allocator, parsed: asc.Asc) ![]u8 {
     var writer: std.json.Stringify = .{ .writer = &out.writer };
     try writer.beginObject();
     try writeJsonField(&writer, "measurementStartMs", parsed.measurement_start_ms);
-    try writeJsonField(&writer, "validMessageCount", parsed.dataFrameCount());
-    try writeJsonField(&writer, "durationNs", parsed.durationNs());
+    try writeJsonField(&writer, "validMessageCount", parsed.data_frame_count);
+    try writeJsonField(&writer, "durationNs", parsed.last_data_timestamp_ns);
     try writer.endObject();
 
     return out.toOwnedSlice();
