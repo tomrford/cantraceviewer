@@ -8,7 +8,7 @@ The WASM boundary exposes opaque DBC and ASC handles, JSON exports for DBC catal
 
 Data stays in the current browser session. Refreshing the page clears loaded files and derived state.
 
-Browser file inputs enforce per-file size caps before reading contents: DBC files are capped at 1 MiB, and ASC trace files are capped at 100 MiB.
+Browser file inputs enforce per-file size caps before reading contents: DBC files are capped at 1 MiB, and ASC trace files are capped at 500 MiB.
 
 ## Development
 

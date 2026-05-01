@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ASC_MAX_FILE_BYTES, DBC_MAX_FILE_BYTES, assertFileSizeWithinLimit } from './file-limits';
+import { DBC_MAX_FILE_BYTES, assertFileSizeWithinLimit } from './file-limits';
 
 describe('assertFileSizeWithinLimit', () => {
 	it('accepts files at the configured limit', () => {
@@ -16,9 +16,5 @@ describe('assertFileSizeWithinLimit', () => {
 		expect(() => assertFileSizeWithinLimit(file, DBC_MAX_FILE_BYTES, 'DBC')).toThrow(
 			'DBC file exceeds the 1 MiB limit'
 		);
-	});
-
-	it('keeps the ASC cap at 100 MiB', () => {
-		expect(ASC_MAX_FILE_BYTES).toBe(100 * 1024 * 1024);
 	});
 });

@@ -8,7 +8,7 @@ Keep TypeScript as the glue between the Svelte UI and WASM workers. Do not make 
 
 Do not add persistence by default. Loaded files and derived state live in memory for the current browser session.
 
-Enforce browser file-size caps in TypeScript before reading file contents: DBC files are capped at 1 MiB per file, and ASC trace files are capped at 100 MiB per file.
+Enforce browser file-size caps in TypeScript before reading file contents: DBC files are capped at 1 MiB per file, and ASC trace files are capped at 500 MiB per file.
 
 Use repo-native commands via `nix develop`:
 
