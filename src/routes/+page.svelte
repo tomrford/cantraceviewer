@@ -8,11 +8,28 @@
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
 	import type { TraceMetadata } from '$lib/wasm.js';
 	import AudioWaveformIcon from '@lucide/svelte/icons/audio-waveform';
+	import { onMount } from 'svelte';
 
-	let traceInput: HTMLInputElement;
+	let traceInput = $state<HTMLInputElement>();
+	let supportStatus = $state<'checking' | 'supported' | 'mobile' | 'webgpu'>('checking');
 	let traceMetadataTitle = $derived(
 		traceFile.entry ? formatTraceMetadata(traceFile.entry.metadata) : undefined
 	);
+
+	onMount(() => {
+		const mobileQuery = window.matchMedia('(max-width: 767px), (pointer: coarse)');
+		if (mobileQuery.matches) {
+			supportStatus = 'mobile';
+			return;
+		}
+
+		if (!('gpu' in navigator)) {
+			supportStatus = 'webgpu';
+			return;
+		}
+
+		supportStatus = 'supported';
+	});
 
 	async function selectTrace(event: Event) {
 		const input = event.currentTarget as HTMLInputElement;
@@ -57,58 +74,73 @@
 	<title>CAN Trace Viewer</title>
 </svelte:head>
 
-<Sidebar.Provider style="--sidebar-width: 24rem;">
-	<AppSidebar />
-	<Sidebar.Inset class="flex min-h-screen flex-col bg-background">
-		<header class="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-			<Sidebar.Trigger
-				class="-ms-1"
-				aria-label="Show/hide DBC and signal selector"
-				title="Show/hide DBC and signal selector"
-			/>
-			<Separator orientation="vertical" class="me-2 data-[orientation=vertical]:h-4" />
-			<span class="min-w-0 truncate text-sm font-medium" title={traceMetadataTitle}
-				>{traceFile.displayName}</span
-			>
-			{#if !traceFile.entry}
-				<span class="ms-auto text-sm text-muted-foreground">Upload a trace to get started -></span>
-			{/if}
-			<input
-				bind:this={traceInput}
-				class="hidden"
-				type="file"
-				accept=".asc"
-				onchange={selectTrace}
-			/>
-			<button
-				type="button"
-				class={[
-					'flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden',
-					traceFile.entry ? 'ms-auto' : ''
-				]}
-				aria-label="Load ASC trace"
-				title="Load ASC trace"
-				onclick={() => traceInput.click()}
-			>
-				<AudioWaveformIcon class="size-4" />
-			</button>
-		</header>
-		<SignalPlot />
-	</Sidebar.Inset>
-</Sidebar.Provider>
+{#if supportStatus === 'supported'}
+	<Sidebar.Provider style="--sidebar-width: 24rem;">
+		<AppSidebar />
+		<Sidebar.Inset class="flex min-h-screen flex-col bg-background">
+			<header class="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+				<Sidebar.Trigger
+					class="-ms-1"
+					aria-label="Show/hide DBC and signal selector"
+					title="Show/hide DBC and signal selector"
+				/>
+				<Separator orientation="vertical" class="me-2 data-[orientation=vertical]:h-4" />
+				<span class="min-w-0 truncate text-sm font-medium" title={traceMetadataTitle}
+					>{traceFile.displayName}</span
+				>
+				{#if !traceFile.entry}
+					<span class="ms-auto text-sm text-muted-foreground">Open a trace to get started -></span
+					>
+				{/if}
+				<input
+					bind:this={traceInput}
+					class="hidden"
+					type="file"
+					accept=".asc"
+					onchange={selectTrace}
+				/>
+				<button
+					type="button"
+					class={[
+						'flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden',
+						traceFile.entry ? 'ms-auto' : ''
+					]}
+					aria-label="Load ASC trace"
+					title="Load ASC trace"
+					onclick={() => traceInput?.click()}
+				>
+					<AudioWaveformIcon class="size-4" />
+				</button>
+			</header>
+			<SignalPlot />
+		</Sidebar.Inset>
+	</Sidebar.Provider>
 
-<AlertDialog.Root
-	bind:open={() => traceFile.error !== null, (open) => !open && traceFile.clearError()}
->
-	{#if traceFile.error}
-		<AlertDialog.Content>
-			<AlertDialog.Header>
-				<AlertDialog.Title>Trace upload failed</AlertDialog.Title>
-				<AlertDialog.Description>{traceFile.error}</AlertDialog.Description>
-			</AlertDialog.Header>
-			<AlertDialog.Footer>
-				<AlertDialog.Action onclick={() => traceFile.clearError()}>OK</AlertDialog.Action>
-			</AlertDialog.Footer>
-		</AlertDialog.Content>
-	{/if}
-</AlertDialog.Root>
+	<AlertDialog.Root
+		bind:open={() => traceFile.error !== null, (open) => !open && traceFile.clearError()}
+	>
+		{#if traceFile.error}
+			<AlertDialog.Content>
+				<AlertDialog.Header>
+					<AlertDialog.Title>Trace failed to open</AlertDialog.Title>
+					<AlertDialog.Description>{traceFile.error}</AlertDialog.Description>
+				</AlertDialog.Header>
+				<AlertDialog.Footer>
+					<AlertDialog.Action onclick={() => traceFile.clearError()}>OK</AlertDialog.Action>
+				</AlertDialog.Footer>
+			</AlertDialog.Content>
+		{/if}
+	</AlertDialog.Root>
+{:else if supportStatus === 'mobile'}
+	<main class="flex min-h-screen items-center justify-center bg-background px-6 text-center">
+		<h1 class="text-base font-medium text-foreground">Not supported on mobile</h1>
+	</main>
+{:else if supportStatus === 'webgpu'}
+	<main class="flex min-h-screen items-center justify-center bg-background px-6 text-center">
+		<h1 class="text-base font-medium text-foreground">WebGPU is not supported in this browser</h1>
+	</main>
+{:else}
+	<main class="min-h-screen bg-background" aria-label="Checking browser support">
+		<span class="sr-only">Checking browser support</span>
+	</main>
+{/if}

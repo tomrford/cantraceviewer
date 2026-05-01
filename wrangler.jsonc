@@ -1,13 +1,8 @@
 {
-	"$schema": "./node_modules/wrangler/config-schema.json",
 	"name": "cantraceviewer",
-	"compatibility_date": "2026-04-27",
-	"compatibility_flags": ["nodejs_als"],
-	"main": ".svelte-kit/cloudflare/_worker.js",
+	"compatibility_date": "2026-05-01",
 	"assets": {
-		"binding": "ASSETS",
-		"directory": ".svelte-kit/cloudflare"
-	},
-	"workers_dev": true,
-	"preview_urls": true
+		"directory": "./build",
+		"not_found_handling": "single-page-application"
+	}
 }

@@ -183,7 +183,7 @@
 	{#if dbcFiles.error}
 		<AlertDialog.Content>
 			<AlertDialog.Header>
-				<AlertDialog.Title>DBC upload failed</AlertDialog.Title>
+				<AlertDialog.Title>DBC failed to open</AlertDialog.Title>
 				<AlertDialog.Description>{dbcFiles.error}</AlertDialog.Description>
 			</AlertDialog.Header>
 			<AlertDialog.Footer>
