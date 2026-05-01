@@ -8,6 +8,7 @@
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
+	import CircleHelpIcon from '@lucide/svelte/icons/circle-help';
 	import GithubIcon from '@lucide/svelte/icons/github';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
@@ -16,6 +17,7 @@
 	let { ref = $bindable(null), ...restProps }: ComponentProps<typeof Sidebar.Root> = $props();
 	let dbcInput: HTMLInputElement;
 	let signalSearch = $state('');
+	let helpOpen = $state(false);
 	let expandedDbcIds = $state<string[] | null>(null);
 	let normalizedSignalSearch = $derived(signalSearch.trim().toLowerCase());
 	let isSignalSearchActive = $derived(normalizedSignalSearch.length > 0);
@@ -162,7 +164,16 @@
 			</Sidebar.Menu>
 		</Sidebar.Group>
 	</Sidebar.Content>
-	<Sidebar.Footer class="items-start px-4 pb-4">
+	<Sidebar.Footer class="flex-row items-center gap-1 px-4 pb-4">
+		<button
+			type="button"
+			class="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
+			aria-label="Open help"
+			title="Help"
+			onclick={() => (helpOpen = true)}
+		>
+			<CircleHelpIcon class="size-4" />
+		</button>
 		<a
 			href="https://github.com/tomrford/cantraceviewer"
 			target="_blank"
@@ -176,6 +187,34 @@
 	</Sidebar.Footer>
 	<Sidebar.Rail />
 </Sidebar.Root>
+
+<AlertDialog.Root bind:open={helpOpen}>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>CAN Trace Viewer</AlertDialog.Title>
+			<AlertDialog.Description class="space-y-2 text-left text-pretty">
+				<p>Files stay local in your browser. The app does not upload traces or DBC files.</p>
+				<p>
+					Load one Vector ASCII trace, add one or more DBC files, then select decoded signals from
+					the sidebar.
+				</p>
+				<p>
+					Current support is intentionally narrow: ASC traces, a practical subset of DBC, and
+					shared-axis line plots for selected signals.
+				</p>
+				<p>
+					Source code is available on
+					<a href="https://github.com/tomrford/cantraceviewer" target="_blank" rel="noreferrer">
+						GitHub</a
+					>.
+				</p>
+			</AlertDialog.Description>
+		</AlertDialog.Header>
+		<AlertDialog.Footer>
+			<AlertDialog.Action onclick={() => (helpOpen = false)}>Close</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>
 
 <AlertDialog.Root
 	bind:open={() => dbcFiles.error !== null, (open) => !open && dbcFiles.clearError()}

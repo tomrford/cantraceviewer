@@ -28,8 +28,6 @@ Open work:
 - Render selected signals with a single decoded sample as one point instead of hiding them from the plot state.
 - If selected-signal graphing spends meaningful time rescanning traces, consider a batch decode API or per-message frame index so multiple selected signals can share one pass over matching ASC frames.
 - If parsed ASC frame memory becomes a measured problem, consider compact frame storage with `Asc` owning `frames: []Frame` plus a contiguous `payloads: []u8` side buffer; data frames store payload offset/length, while remote/error/unknown events store no payload bytes.
-- Add a help/readme button that explains how the app works, likely next to the source icon in the sidebar
-- favicon and clearing up all other templatey sveltekit parts
 
 ### Zig
 
