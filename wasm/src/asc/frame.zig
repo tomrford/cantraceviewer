@@ -153,8 +153,11 @@ fn parseCanFd(base: Base, timestamp_ns: u64, tokens: *LineTokenIterator, payload
     _ = tokens.next() orelse return error.InvalidFrameLine;
     _ = tokens.next() orelse return error.InvalidFrameLine;
     const id = try parseId(base, tokens.next() orelse return error.InvalidFrameLine);
-    _ = tokens.next() orelse return error.InvalidFrameLine;
-    _ = tokens.next() orelse return error.InvalidFrameLine;
+    const after_id = tokens.next() orelse return error.InvalidFrameLine;
+    _ = if (isUnsignedDecimal(after_id))
+        after_id
+    else
+        tokens.next() orelse return error.InvalidFrameLine;
     _ = tokens.next() orelse return error.InvalidFrameLine;
     const dlc = try parseDlc(tokens.next() orelse return error.InvalidFrameLine);
     const payload_len = try parsePayloadLength(tokens.next() orelse return error.InvalidFrameLine);
@@ -173,6 +176,14 @@ fn parseCanFd(base: Base, timestamp_ns: u64, tokens: *LineTokenIterator, payload
         .dlc = dlc,
         .payload_len = payload_len,
     };
+}
+
+fn isUnsignedDecimal(text: []const u8) bool {
+    if (text.len == 0) return false;
+    for (text) |char| {
+        if (char < '0' or char > '9') return false;
+    }
+    return true;
 }
 
 fn parseId(base: Base, text: []const u8) !Id {
@@ -298,6 +309,18 @@ test "parses CAN FD data frame payload length from data length field" {
     try std.testing.expectEqual(@as(u8, 12), parsed.payload_len);
     try std.testing.expectEqual(@as(u8, 0x01), payload[0]);
     try std.testing.expectEqual(@as(u8, 0x0c), payload[11]);
+}
+
+test "parses CAN FD data frame without symbolic name placeholder" {
+    var payload: [64]u8 = undefined;
+    const parsed = (try parseLine(Base.hex, "0.007015 CANFD 1 Rx 320 0 0 8 8 00 00 00 00 00 00 00 00 0 0 200000 0 0 0 0 0", &payload)) orelse return error.ExpectedFrame;
+    try std.testing.expectEqual(@as(Kind, .data), parsed.kind);
+    try std.testing.expect(parsed.is_fd);
+    try std.testing.expectEqual(@as(u32, 0x320), parsed.id.?.value);
+    try std.testing.expectEqual(@as(u8, 8), parsed.dlc);
+    try std.testing.expectEqual(@as(u8, 8), parsed.payload_len);
+    try std.testing.expectEqual(@as(u8, 0x00), payload[0]);
+    try std.testing.expectEqual(@as(u8, 0x00), payload[7]);
 }
 
 test "rejects CAN FD data frame when data length does not match DLC" {
