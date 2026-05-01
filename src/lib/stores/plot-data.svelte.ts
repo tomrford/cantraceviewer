@@ -1,3 +1,4 @@
+import { createSignalColorAssigner } from '$lib/plot-colors.js';
 import { dbcFiles, signalKey, type DbcFileEntry } from '$lib/stores/dbc-files.svelte.js';
 import { traceFile } from '$lib/stores/trace-file.svelte.js';
 import {
@@ -12,6 +13,7 @@ export type PlotSignalKey = string;
 
 export type PlotSignal = {
 	key: PlotSignalKey;
+	color: string;
 	dbcFileId: string;
 	dbcName: string;
 	sourceFileName: string;
@@ -46,6 +48,7 @@ class PlotDataStore {
 	signalSamples = $state<Record<PlotSignalKey, SignalSample[]>>({});
 	decodingSignalKeys = $state<PlotSignalKey[]>([]);
 	decodeErrors = $state<Record<PlotSignalKey, string>>({});
+	private signalColors = createSignalColorAssigner();
 
 	signals = $derived.by<PlotSignal[]>(() => {
 		const signals: PlotSignal[] = [];
@@ -56,6 +59,7 @@ class PlotDataStore {
 
 			signals.push(
 				plotSignal(target.file.id, target.file.file.name, target.message, target.signal, {
+					color: this.signalColors.colorFor(key),
 					samples: this.signalSamples[key],
 					isDecoding: this.decodingSignalKeys.includes(key),
 					decodeError: this.decodeErrors[key]
@@ -76,28 +80,33 @@ class PlotDataStore {
 			this.setSignalSamples(key, null);
 			this.setDecodeError(key, null);
 			this.decodingSignalKeys = arrayWith(this.decodingSignalKeys, key, false);
+			this.signalColors.release(key);
 			return;
 		}
 
+		this.signalColors.colorFor(key);
 		this.selectedSignalKeys = arrayWith(this.selectedSignalKeys, key, true);
 		await this.decodeSignal(key);
 	}
 
 	deselectDbcFile(dbcFileId: string): void {
-		const liveKeys = new Set(
+		const dbcSignalKeys = new Set(
 			dbcFiles.sidebarFiles
 				.find((file) => file.id === dbcFileId)
 				?.signals.map((signal) => signal.key) ?? []
 		);
 
-		this.selectedSignalKeys = this.selectedSignalKeys.filter((key) => !liveKeys.has(key));
+		this.selectedSignalKeys = this.selectedSignalKeys.filter((key) => !dbcSignalKeys.has(key));
 		this.signalSamples = Object.fromEntries(
-			Object.entries(this.signalSamples).filter(([key]) => !liveKeys.has(key))
+			Object.entries(this.signalSamples).filter(([key]) => !dbcSignalKeys.has(key))
 		);
 		this.decodeErrors = Object.fromEntries(
-			Object.entries(this.decodeErrors).filter(([key]) => !liveKeys.has(key))
+			Object.entries(this.decodeErrors).filter(([key]) => !dbcSignalKeys.has(key))
 		);
-		this.decodingSignalKeys = this.decodingSignalKeys.filter((key) => !liveKeys.has(key));
+		this.decodingSignalKeys = this.decodingSignalKeys.filter((key) => !dbcSignalKeys.has(key));
+		for (const key of dbcSignalKeys) {
+			this.signalColors.release(key);
+		}
 	}
 
 	clearSelectedSignals(): void {
@@ -105,6 +114,7 @@ class PlotDataStore {
 		this.signalSamples = {};
 		this.decodingSignalKeys = [];
 		this.decodeErrors = {};
+		this.signalColors.clear();
 	}
 
 	setSignalSamples(key: PlotSignalKey, samples: SignalSample[] | null): void {
@@ -159,6 +169,7 @@ class PlotDataStore {
 }
 
 type PlotSignalData = {
+	color: string;
 	samples: SignalSample[] | undefined;
 	isDecoding: boolean;
 	decodeError: string | undefined;
@@ -173,6 +184,7 @@ function plotSignal(
 ): PlotSignal {
 	return {
 		key: signalKey(dbcFileId, message.name, signal.name),
+		color: data.color,
 		dbcFileId,
 		dbcName: displayDbcName(sourceFileName),
 		sourceFileName,

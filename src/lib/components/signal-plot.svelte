@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button/index.js';
+	import { SIGNAL_COLORS } from '$lib/plot-colors.js';
 	import { plotData, type PlotSignal } from '$lib/stores/plot-data.svelte.js';
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
 	import type { SignalSample } from '$lib/wasm.js';
@@ -8,39 +9,6 @@
 	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
 	import { onDestroy, onMount } from 'svelte';
 	import type { AnnotationConfig, ChartGPUInstance, ChartGPUOptions, SeriesConfig } from 'chartgpu';
-
-	const SIGNAL_COLORS = [
-		'#38bdf8',
-		'#fb7185',
-		'#4ade80',
-		'#facc15',
-		'#a78bfa',
-		'#2dd4bf',
-		'#f472b6',
-		'#fb923c',
-		'#60a5fa',
-		'#bef264',
-		'#f87171',
-		'#22d3ee',
-		'#c084fc',
-		'#fde047',
-		'#34d399',
-		'#f9a8d4',
-		'#818cf8',
-		'#fdba74',
-		'#a3e635',
-		'#67e8f9',
-		'#e879f9',
-		'#86efac',
-		'#fda4af',
-		'#7dd3fc',
-		'#d9f99d',
-		'#f0abfc',
-		'#6ee7b7',
-		'#c4b5fd',
-		'#fcd34d',
-		'#93c5fd'
-	];
 
 	type SignalView = {
 		key: string;
@@ -72,9 +40,7 @@
 		plotData.signals.filter((signal) => signal.isDecoding || signal.decodeError || !signal.samples)
 	);
 	const signalViews = $derived(
-		readySignals.map((signal, index) =>
-			signalView(signal, index, traceFile.entry?.metadata.measurementStartMs)
-		)
+		readySignals.map((signal) => signalView(signal, traceFile.entry?.metadata.measurementStartMs))
 	);
 	const totalPoints = $derived(signalViews.reduce((sum, view) => sum + view.points, 0));
 	const markerValues = $derived.by(() => {
@@ -210,7 +176,6 @@
 
 	function signalView(
 		signal: PlotSignal,
-		index: number,
 		measurementStartMs: number | null | undefined
 	): SignalView {
 		const samples = signal.samples ?? [];
@@ -226,7 +191,7 @@
 			key: signal.key,
 			label: signal.label,
 			unit: signal.unit,
-			color: SIGNAL_COLORS[index % SIGNAL_COLORS.length],
+			color: signal.color,
 			x,
 			y,
 			points: samples.length,

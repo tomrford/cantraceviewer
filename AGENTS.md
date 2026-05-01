@@ -20,11 +20,11 @@ bun run wasm:build:release
 bun run wasm:test
 ```
 
-We currently commit the 'released' WASM binary for convenient git-based deployment on cloudflare workers. if you make changes to the zig code, you MUST run the release build script before committing to ensure the bundle is updated.
+The repo commits the release WASM binary for git-based deployment on Cloudflare Workers. If you change Zig code, run `bun run wasm:build:release` before committing so the bundle is updated.
 
 Open work:
 
-- Add a WASM benchmark harness that builds `Debug`, `ReleaseSafe`, `ReleaseFast`, and `ReleaseSmall`, records raw/gzip sizes, and separately times instantiate, DBC parse/JSON export, ASC parse, and signal-series extraction against fixed fixtures.
+- Add a WASM benchmark harness that builds `Debug`, `ReleaseSafe`, `ReleaseFast`, and `ReleaseSmall`, records raw/gzip sizes, and separately times instantiate, DBC parse/JSON export, ASC parse, and signal-series extraction against fixed fixtures. Only needed if we start running into noticeable perf issues with the small build.
 - Investigate ChartGPU point-marker support for selected signal traces. The plot uses line series only until ChartGPU can render per-sample markers cleanly during close zoom levels without custom canvas overlays.
 - Render selected signals with a single decoded sample as one point instead of hiding them from the plot state.
 - If selected-signal graphing spends meaningful time rescanning traces, consider a batch decode API or per-message frame index so multiple selected signals can share one pass over matching ASC frames.

@@ -75,7 +75,10 @@ pub const Frame = struct {
 
 const LineTokenIterator = std.mem.TokenIterator(u8, .any);
 
-pub fn parseLine(base: Base, line: []const u8, payload: *[64]u8) !?Frame {
+/// Parses one timestamped ASC line. Data-frame payload bytes are written to
+/// `payload_out`; callers must copy `payload_out[0..frame.payload_len]` before
+/// the buffer is reused for another line.
+pub fn parseLine(base: Base, line: []const u8, payload_out: *[64]u8) !?Frame {
     var tokens = std.mem.tokenizeAny(u8, line, " \t\r");
     const timestamp_text = tokens.next() orelse return null;
     const timestamp_ns = parseDecimalSecondsToNs(timestamp_text) catch |err| switch (err) {
@@ -85,7 +88,7 @@ pub fn parseLine(base: Base, line: []const u8, payload: *[64]u8) !?Frame {
 
     const first = tokens.next() orelse return .{ .timestamp_ns = timestamp_ns, .kind = .unknown };
     if (std.mem.eql(u8, first, "CANFD")) {
-        return try parseCanFd(base, timestamp_ns, &tokens, payload);
+        return try parseCanFd(base, timestamp_ns, &tokens, payload_out);
     }
 
     const id_or_kind = tokens.next() orelse return .{
@@ -119,7 +122,7 @@ pub fn parseLine(base: Base, line: []const u8, payload: *[64]u8) !?Frame {
         var payload_len: usize = 0;
         while (payload_len < dlc) : (payload_len += 1) {
             const byte_text = tokens.next() orelse return error.InvalidFrameLine;
-            payload[payload_len] = try parseByte(base, byte_text);
+            payload_out[payload_len] = try parseByte(base, byte_text);
         }
         return .{
             .timestamp_ns = timestamp_ns,
@@ -146,7 +149,7 @@ pub fn parseLine(base: Base, line: []const u8, payload: *[64]u8) !?Frame {
     };
 }
 
-fn parseCanFd(base: Base, timestamp_ns: u64, tokens: *LineTokenIterator, payload: *[64]u8) !?Frame {
+fn parseCanFd(base: Base, timestamp_ns: u64, tokens: *LineTokenIterator, payload_out: *[64]u8) !?Frame {
     _ = tokens.next() orelse return error.InvalidFrameLine;
     _ = tokens.next() orelse return error.InvalidFrameLine;
     const id = try parseId(base, tokens.next() orelse return error.InvalidFrameLine);
@@ -160,7 +163,7 @@ fn parseCanFd(base: Base, timestamp_ns: u64, tokens: *LineTokenIterator, payload
 
     var index: usize = 0;
     while (index < payload_len) : (index += 1) {
-        payload[index] = try parseByte(base, tokens.next() orelse return error.InvalidFrameLine);
+        payload_out[index] = try parseByte(base, tokens.next() orelse return error.InvalidFrameLine);
     }
     return .{
         .timestamp_ns = timestamp_ns,
