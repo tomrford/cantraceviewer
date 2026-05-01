@@ -28,6 +28,8 @@ Open work:
 - Investigate ChartGPU point-marker support for selected signal traces. The plot uses line series only until ChartGPU can render per-sample markers cleanly during close zoom levels without custom canvas overlays.
 - Render selected signals with a single decoded sample as one point instead of hiding them from the plot state.
 - If selected-signal graphing spends meaningful time rescanning traces, consider a batch decode API or per-message frame index so multiple selected signals can share one pass over matching ASC frames.
+- Add a social preview image if share cards need richer previews.
+- better error handling across the WASM surface (so we get meaningful failures back).
 
 ### Zig
 

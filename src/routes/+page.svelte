@@ -15,6 +15,9 @@
 	let traceMetadataTitle = $derived(
 		traceFile.entry ? formatTraceMetadata(traceFile.entry.metadata) : undefined
 	);
+	const siteTitle = 'CAN Trace Viewer';
+	const siteDescription = 'Lightweight browser-based CAN trace plotting and analysis GUI.';
+	const siteUrl = 'https://cantraceviewer.com/';
 
 	onMount(() => {
 		const mobileQuery = window.matchMedia('(max-width: 767px), (pointer: coarse)');
@@ -71,7 +74,20 @@
 </script>
 
 <svelte:head>
-	<title>CAN Trace Viewer</title>
+	<title>{siteTitle}</title>
+	<meta name="description" content={siteDescription} />
+	<meta name="theme-color" content="#09090b" />
+	<link rel="canonical" href={siteUrl} />
+
+	<meta property="og:type" content="website" />
+	<meta property="og:site_name" content={siteTitle} />
+	<meta property="og:title" content={siteTitle} />
+	<meta property="og:description" content={siteDescription} />
+	<meta property="og:url" content={siteUrl} />
+
+	<meta name="twitter:card" content="summary" />
+	<meta name="twitter:title" content={siteTitle} />
+	<meta name="twitter:description" content={siteDescription} />
 </svelte:head>
 
 {#if supportStatus === 'supported'}
