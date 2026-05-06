@@ -39,6 +39,8 @@
 	let lastSignature = '';
 	let resizeObserver: ResizeObserver | null = null;
 
+	const PLOT_GRID = { left: 64, right: 24, top: 18, bottom: 44 };
+
 	const readySignals = $derived(
 		plotData.signals.filter((signal) => signal.series && signal.series.timesMs.length >= 2)
 	);
@@ -48,6 +50,18 @@
 	const signalViews = $derived(readySignals.map((signal) => signalView(signal)));
 	const measurementStartMs = $derived(traceFile.entry?.metadata.measurementStartMs);
 	const totalPoints = $derived(signalViews.reduce((sum, view) => sum + view.points, 0));
+	const xDomain = $derived.by(() => signalXDomain(signalViews));
+	const visibleXDomain = $derived.by(() =>
+		xDomain === null ? null : zoomedDomain(xDomain, zoomStart, zoomEnd)
+	);
+	const markerPercent = $derived.by(() => {
+		if (markerX === null || visibleXDomain === null) return null;
+		const span = visibleXDomain.max - visibleXDomain.min;
+		if (!(span > 0)) return null;
+		const percent = ((markerX - visibleXDomain.min) / span) * 100;
+		if (percent < 0 || percent > 100) return null;
+		return percent;
+	});
 	const markerValues = $derived.by(() => {
 		const x = markerX;
 		if (x === null) {
@@ -93,8 +107,7 @@
 	$effect(() => {
 		const signature = JSON.stringify({
 			keys: signalViews.map((view) => [view.key, view.points]),
-			measurementStartMs,
-			markerX
+			measurementStartMs
 		});
 
 		if (signature === lastSignature) return;
@@ -114,7 +127,7 @@
 				fontFamily: 'Geist Variable, sans-serif',
 				fontSize: 12
 			},
-			grid: { left: 64, right: 24, top: 18, bottom: 44 },
+			grid: PLOT_GRID,
 			gridLines: {
 				color: 'rgba(244,244,245,0.1)',
 				horizontal: { count: 6 },
@@ -190,6 +203,48 @@
 		};
 	}
 
+	function signalXDomain(views: SignalView[]): { min: number; max: number } | null {
+		let min = Number.POSITIVE_INFINITY;
+		let max = Number.NEGATIVE_INFINITY;
+
+		for (const view of views) {
+			const first = firstFiniteValue(view.x);
+			const last = lastFiniteValue(view.x);
+			if (first !== null) min = Math.min(min, first);
+			if (last !== null) max = Math.max(max, last);
+		}
+
+		return Number.isFinite(min) && Number.isFinite(max) && min !== max ? { min, max } : null;
+	}
+
+	function firstFiniteValue(values: Float64Array): number | null {
+		for (let index = 0; index < values.length; index += 1) {
+			const value = values[index];
+			if (Number.isFinite(value)) return value;
+		}
+		return null;
+	}
+
+	function lastFiniteValue(values: Float64Array): number | null {
+		for (let index = values.length - 1; index >= 0; index -= 1) {
+			const value = values[index];
+			if (Number.isFinite(value)) return value;
+		}
+		return null;
+	}
+
+	function zoomedDomain(
+		domain: { min: number; max: number },
+		startPercent: number,
+		endPercent: number
+	): { min: number; max: number } {
+		const span = domain.max - domain.min;
+		return {
+			min: domain.min + (startPercent / 100) * span,
+			max: domain.min + (endPercent / 100) * span
+		};
+	}
+
 	function nearestValue(view: SignalView, x: number): number | null {
 		if (view.points === 0) return null;
 		let low = 0;
@@ -251,6 +306,21 @@
 	<div bind:this={container} class="absolute inset-0" aria-label="Selected signal plot"></div>
 
 	{#if signalViews.length > 0}
+		{#if markerPercent !== null}
+			<div
+				class="pointer-events-none absolute z-40 text-foreground/80"
+				style:top={`${PLOT_GRID.top}px`}
+				style:bottom={`${PLOT_GRID.bottom}px`}
+				style:left={`${PLOT_GRID.left}px`}
+				style:right={`${PLOT_GRID.right}px`}
+			>
+				<div
+					class="absolute inset-y-0 border-l border-current"
+					style:left={`${markerPercent}%`}
+				></div>
+			</div>
+		{/if}
+
 		<div
 			class="absolute top-3 right-3 z-50 flex gap-1 rounded-md border bg-background/90 p-1 shadow-sm backdrop-blur"
 		>
@@ -311,7 +381,9 @@
 			>
 				<div class="mb-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
 					<span
-						>{markerX === null ? 'Latest values' : formatAxisTime(markerX, measurementStartMs)}</span
+						>{markerX === null
+							? 'Latest values'
+							: formatAxisTime(markerX, measurementStartMs)}</span
 					>
 					<span>{totalPoints.toLocaleString()} pts</span>
 				</div>

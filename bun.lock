@@ -43,6 +43,9 @@
       },
     },
   },
+  "patchedDependencies": {
+    "chartgpu@0.3.2": "patches/chartgpu@0.3.2.patch",
+  },
   "packages": {
     "@emnapi/core": ["@emnapi/core@1.9.2", "", { "dependencies": { "@emnapi/wasi-threads": "1.2.1", "tslib": "^2.4.0" } }, "sha512-UC+ZhH3XtczQYfOlu3lNEkdW/p4dsJ1r/bP7H8+rhao3TTTMO1ATq/4DdIi23XuGoFY+Cz0JmCbdVl0hz9jZcA=="],
 
