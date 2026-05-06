@@ -55,3 +55,32 @@ pub const OwnedBytes = extern struct {
         return ptr[0..self.len];
     }
 };
+
+/// Heap-owned f64 slice returned across the WebAssembly boundary.
+pub const OwnedFloat64s = extern struct {
+    /// Address of the first float in WebAssembly linear memory.
+    ptr: usize,
+
+    /// Number of f64 values available at `ptr`.
+    len: usize,
+
+    /// Wraps an already-owned heap slice in the boundary shape expected by
+    /// JavaScript. Ownership of `values` moves into the returned object.
+    pub fn fromOwnedSlice(values: []f64) !*OwnedFloat64s {
+        errdefer allocator.free(values);
+
+        const owned = try allocator.create(OwnedFloat64s);
+        owned.* = .{
+            .ptr = @intFromPtr(values.ptr),
+            .len = values.len,
+        };
+        return owned;
+    }
+
+    /// Releases both the f64 payload and the boundary object.
+    pub fn deinit(self: *OwnedFloat64s) void {
+        const ptr: [*]f64 = @ptrFromInt(self.ptr);
+        allocator.free(ptr[0..self.len]);
+        allocator.destroy(self);
+    }
+};

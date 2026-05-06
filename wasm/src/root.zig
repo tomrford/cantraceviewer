@@ -74,21 +74,21 @@ export fn asc_free(handle_value: usize) void {
     handle.deinit(abi.allocator);
 }
 
-/// Exports `(timestamp_ns, value_f64)` samples for one DBC signal.
+/// Exports packed parallel `f64` arrays for one DBC signal.
 ///
-/// The returned byte stream stores each sample as little-endian `u64`
-/// timestamp followed by little-endian IEEE-754 `f64` value.
+/// The returned bytes store all relative millisecond values first, followed by
+/// all decoded signal values.
 export fn get_signal_values(
     dbc_handle_value: usize,
     asc_handle_value: usize,
     message_name: *const abi.OwnedBytes,
     signal_name: *const abi.OwnedBytes,
-) ?*abi.OwnedBytes {
+) ?*abi.OwnedFloat64s {
     if (dbc_handle_value == 0 or asc_handle_value == 0) return null;
 
     const dbc_ptr: *dbc_handle.Handle = @ptrFromInt(dbc_handle_value);
     const asc_ptr: *asc_handle.Handle = @ptrFromInt(asc_handle_value);
-    const bytes = series.selectedSignalValues(
+    const values = series.selectedSignalValues(
         abi.allocator,
         dbc_ptr,
         asc_ptr,
@@ -96,7 +96,7 @@ export fn get_signal_values(
         signal_name.slice(),
     ) catch return null;
 
-    return abi.OwnedBytes.fromOwnedSlice(bytes) catch null;
+    return abi.OwnedFloat64s.fromOwnedSlice(values) catch null;
 }
 
 /// Returns the memory address of an `OwnedBytes` payload.
@@ -112,6 +112,21 @@ export fn owned_bytes_len(bytes: *const abi.OwnedBytes) usize {
 /// Releases an `OwnedBytes` object allocated or returned by WASM.
 export fn owned_bytes_free(bytes: *abi.OwnedBytes) void {
     bytes.deinit();
+}
+
+/// Returns the memory address of an `OwnedFloat64s` payload.
+export fn owned_float64s_ptr(values: *const abi.OwnedFloat64s) usize {
+    return values.ptr;
+}
+
+/// Returns the number of f64 values in an `OwnedFloat64s` payload.
+export fn owned_float64s_len(values: *const abi.OwnedFloat64s) usize {
+    return values.len;
+}
+
+/// Releases an `OwnedFloat64s` object allocated or returned by WASM.
+export fn owned_float64s_free(values: *abi.OwnedFloat64s) void {
+    values.deinit();
 }
 
 test "serializing failed parse handle returns null" {
