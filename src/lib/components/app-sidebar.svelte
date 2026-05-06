@@ -18,17 +18,18 @@
 	let dbcInput: HTMLInputElement;
 	let signalSearch = $state('');
 	let helpOpen = $state(false);
+	let showActiveOnly = $state(false);
 	let expandedDbcIds = $state<string[] | null>(null);
 	let normalizedSignalSearch = $derived(signalSearch.trim().toLowerCase());
 	let isSignalSearchActive = $derived(normalizedSignalSearch.length > 0);
+	let isFiltering = $derived(isSignalSearchActive || showActiveOnly);
 	let visibleDbcFiles = $derived.by(() =>
 		dbcFiles.sidebarFiles.map((dbc) => ({
 			...dbc,
-			signals: isSignalSearchActive
-				? dbc.signals.filter((signal) =>
-						signal.label.toLowerCase().includes(normalizedSignalSearch)
-					)
-				: dbc.signals
+			signals: dbc.signals.filter((signal) => {
+				if (showActiveOnly && !plotData.isSignalSelected(signal.key)) return false;
+				return !isSignalSearchActive || signal.label.toLowerCase().includes(normalizedSignalSearch);
+			})
 		}))
 	);
 
@@ -42,7 +43,7 @@
 	}
 
 	function isDbcExpanded(dbcId: string, index: number): boolean {
-		if (isSignalSearchActive) return true;
+		if (isFiltering) return true;
 		if (expandedDbcIds === null) return index === 0;
 		return expandedDbcIds.includes(dbcId);
 	}
@@ -93,6 +94,17 @@
 				bind:value={signalSearch}
 				placeholder="Filter DBC signals..."
 			/>
+			<button
+				type="button"
+				class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-sidebar-border text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden data-[active=true]:border-emerald-500/40 data-[active=true]:bg-emerald-500/15 data-[active=true]:text-emerald-400"
+				data-active={showActiveOnly}
+				aria-pressed={showActiveOnly}
+				aria-label={showActiveOnly ? 'Show all DBC signals' : 'Show selected DBC signals only'}
+				title={showActiveOnly ? 'Show all DBC signals' : 'Show selected DBC signals only'}
+				onclick={() => (showActiveOnly = !showActiveOnly)}
+			>
+				<CheckIcon class="size-4" />
+			</button>
 		</div>
 	</Sidebar.Header>
 	<Sidebar.Content>
