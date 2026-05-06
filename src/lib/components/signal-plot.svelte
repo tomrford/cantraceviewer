@@ -38,9 +38,8 @@
 	const waitingSignals = $derived(
 		plotData.signals.filter((signal) => signal.isDecoding || signal.decodeError || !signal.series)
 	);
-	const signalViews = $derived(
-		readySignals.map((signal) => signalView(signal, traceFile.entry?.metadata.measurementStartMs))
-	);
+	const signalViews = $derived(readySignals.map((signal) => signalView(signal)));
+	const measurementStartMs = $derived(traceFile.entry?.metadata.measurementStartMs);
 	const totalPoints = $derived(signalViews.reduce((sum, view) => sum + view.points, 0));
 	const markerValues = $derived.by(() => {
 		const x = markerX;
@@ -87,6 +86,7 @@
 	$effect(() => {
 		const signature = JSON.stringify({
 			keys: signalViews.map((view) => [view.key, view.points]),
+			measurementStartMs,
 			markerX
 		});
 
@@ -115,7 +115,7 @@
 			},
 			xAxis: {
 				type: 'time',
-				tickFormatter: (value) => formatAxisTime(value)
+				tickFormatter: (value) => formatAxisTime(value, measurementStartMs)
 			},
 			yAxis: { type: 'value', autoBounds: 'visible' },
 			dataZoom: [{ type: 'inside', start: zoomStart, end: zoomEnd }],
@@ -173,28 +173,17 @@
 		};
 	}
 
-	function signalView(
-		signal: PlotSignal,
-		measurementStartMs: number | null | undefined
-	): SignalView {
+	function signalView(signal: PlotSignal): SignalView {
 		const series = signal.series;
 		const sourceTimes = series?.timesMs ?? new Float64Array(0);
 		const sourceValues = series?.values ?? new Float64Array(0);
-		let x = sourceTimes;
-
-		if (measurementStartMs !== null && measurementStartMs !== undefined) {
-			x = new Float64Array(sourceTimes.length);
-			for (let sampleIndex = 0; sampleIndex < sourceTimes.length; sampleIndex += 1) {
-				x[sampleIndex] = measurementStartMs + sourceTimes[sampleIndex];
-			}
-		}
 
 		return {
 			key: signal.key,
 			label: signal.label,
 			unit: signal.unit,
 			color: signal.color,
-			x,
+			x: sourceTimes,
 			y: sourceValues,
 			points: sourceTimes.length,
 			latestText: formatSampleValue(sourceValues.at(-1) ?? null, signal.unit)
@@ -223,10 +212,10 @@
 		return unit ? `${formatted} ${unit}` : formatted;
 	}
 
-	function formatAxisTime(value: number): string {
+	function formatAxisTime(value: number, measurementStartMs?: number | null): string {
 		if (!Number.isFinite(value)) return '';
-		const date = new Date(value);
-		if (value > 946_684_800_000) {
+		if (measurementStartMs !== null && measurementStartMs !== undefined) {
+			const date = new Date(measurementStartMs + value);
 			return date.toLocaleTimeString([], {
 				hour: '2-digit',
 				minute: '2-digit',
@@ -282,7 +271,9 @@
 			class="absolute top-3 right-3 max-h-64 w-80 overflow-auto rounded-md border bg-background/90 p-3 shadow-sm backdrop-blur"
 		>
 			<div class="mb-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
-				<span>{markerX === null ? 'Latest values' : formatAxisTime(markerX)}</span>
+				<span
+					>{markerX === null ? 'Latest values' : formatAxisTime(markerX, measurementStartMs)}</span
+				>
 				<span>{totalPoints.toLocaleString()} pts</span>
 			</div>
 			<div class="space-y-2">
