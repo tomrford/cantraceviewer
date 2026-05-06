@@ -1,0 +1,5 @@
+[repos.chartgpu]
+source = "npm:chartgpu@0.3.2"
+url = "https://github.com/chartgpu/chartgpu.git"
+mode = "exact"
+commit = "9b5fa290430cd938ae8d6f7a7c8a39a0b285c506"

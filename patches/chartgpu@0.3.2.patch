@@ -1,0 +1,22 @@
+diff --git a/dist/index.js b/dist/index.js
+index 06da45a4fc726b9b9e976150fa9e525565fdeb94..268da41d4b8e8c69a1cafbf56467129e7a4369e1 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1708,7 +1708,7 @@ function Ic(e, t) {
+     n.theme.axisLineColor,
+     n.theme.axisTickColor,
+     Nc
+-  )), c.hasPointer && c.isInGrid) {
++  )), !1 && c.hasPointer && c.isInGrid) {
+     const R = {
+       showX: !0,
+       // Sync has no meaningful y, so avoid horizontal line.
+@@ -1719,7 +1719,7 @@ function Ic(e, t) {
+     e.crosshairRenderer.prepare(c.x, c.y, o, R), e.crosshairRenderer.setVisible(!0);
+   } else
+     e.crosshairRenderer.setVisible(!1);
+-  if (c.source === "mouse" && c.hasPointer && c.isInGrid)
++  if (!1 && c.source === "mouse" && c.hasPointer && c.isInGrid)
+     if (f) {
+       const R = lr(
+         l,
