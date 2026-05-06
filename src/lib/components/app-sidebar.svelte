@@ -193,17 +193,17 @@
 		<AlertDialog.Header>
 			<AlertDialog.Title>CAN Trace Viewer</AlertDialog.Title>
 			<AlertDialog.Description class="space-y-2 text-left text-pretty">
-				<p>Files stay local in your browser. The app does not upload traces or DBC files.</p>
+				<p>Files stay local and are processed only in your browser. No data leaves your machine.</p>
 				<p>
 					Load one Vector ASCII trace, add one or more DBC files, then select decoded signals from
 					the sidebar.
 				</p>
 				<p>
-					Current support is intentionally narrow: ASC traces, a practical subset of DBC, and
-					shared-axis line plots for selected signals.
+					Current support is for ASC traces only and a practical subset of DBC, using shared-axis
+					line plots for selected signals.
 				</p>
 				<p>
-					Source code is available on
+					The source code is available on
 					<a href="https://github.com/tomrford/cantraceviewer" target="_blank" rel="noreferrer">
 						GitHub</a
 					>.

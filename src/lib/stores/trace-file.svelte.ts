@@ -28,8 +28,8 @@ class TraceFileStore {
 		try {
 			assertFileSizeWithinLimit(file, ASC_MAX_FILE_BYTES, 'ASC');
 
-			const text = await file.text();
-			const handle = await openAsc(text);
+			const bytes = new Uint8Array(await file.arrayBuffer());
+			const handle = await openAsc(bytes);
 
 			try {
 				next = {

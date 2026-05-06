@@ -103,6 +103,10 @@ async function loadWasm() {
 
 function copyTextToWasm(wasm: CanLogViewerWasmExports, text: string): number {
 	const input = new TextEncoder().encode(text);
+	return copyBytesToWasm(wasm, input);
+}
+
+function copyBytesToWasm(wasm: CanLogViewerWasmExports, input: Uint8Array): number {
 	const inputBytes = wasm.owned_bytes_alloc(input.byteLength);
 
 	if (inputBytes === 0) {
@@ -223,9 +227,9 @@ export async function getSignalValues(
 	}
 }
 
-export async function openAsc(text: string): Promise<AscHandle> {
+export async function openAsc(bytes: Uint8Array): Promise<AscHandle> {
 	const wasm = await loadWasm();
-	const inputBytes = copyTextToWasm(wasm, text);
+	const inputBytes = copyBytesToWasm(wasm, bytes);
 
 	let handle: number;
 	try {
