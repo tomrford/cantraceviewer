@@ -63,8 +63,7 @@ fn matchesMessage(trace_frame: frame.Frame, msg: message.Message) bool {
     if (trace_frame.kind != .data) return false;
     const id = trace_frame.id orelse return false;
     return id.value == msg.can_id and
-        id.is_extended == msg.is_extended and
-        trace_frame.is_fd == msg.is_fd;
+        id.is_extended == msg.is_extended;
 }
 
 fn payloadForFrame(payloads: []const u8, trace_frame: frame.Frame) ?[]const u8 {
@@ -184,7 +183,7 @@ test "skips matching frames with unexpected payload length" {
     try std.testing.expectEqual(@as(f64, 4660.0), @as(f64, @bitCast(std.mem.readInt(u64, bytes[8..16], .little))));
 }
 
-test "keeps classic and CAN FD frames separate for matching IDs" {
+test "matches classic and CAN FD frames by ID, extended flag, and payload length" {
     const allocator = std.testing.allocator;
     const dbc_text =
         \\BO_ 291 ClassicExample: 8 ECU
@@ -209,9 +208,11 @@ test "keeps classic and CAN FD frames separate for matching IDs" {
     const fd_bytes = try selectedSignalValues(allocator, dbc, asc, "FdExample", "FdSpeed");
     defer allocator.free(fd_bytes);
 
-    try std.testing.expectEqual(@as(usize, 16), classic_bytes.len);
+    try std.testing.expectEqual(@as(usize, 32), classic_bytes.len);
     try std.testing.expectEqual(@as(u64, 1_000_000), std.mem.readInt(u64, classic_bytes[0..8], .little));
     try std.testing.expectEqual(@as(f64, 1.0), @as(f64, @bitCast(std.mem.readInt(u64, classic_bytes[8..16], .little))));
+    try std.testing.expectEqual(@as(u64, 2_000_000), std.mem.readInt(u64, classic_bytes[16..24], .little));
+    try std.testing.expectEqual(@as(f64, 2.0), @as(f64, @bitCast(std.mem.readInt(u64, classic_bytes[24..32], .little))));
 
     try std.testing.expectEqual(@as(usize, 16), fd_bytes.len);
     try std.testing.expectEqual(@as(u64, 3_000_000), std.mem.readInt(u64, fd_bytes[0..8], .little));
