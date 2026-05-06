@@ -55,7 +55,7 @@ describe('dbcFiles', () => {
 		);
 	});
 
-	it('allows classic and CAN FD messages with the same numeric ID', async () => {
+	it('rejects classic and CAN FD messages with the same numeric ID', async () => {
 		const handle = { ptr: 301 };
 		openDbcMock.mockResolvedValueOnce(handle);
 		getDbcCatalogMock.mockResolvedValueOnce(
@@ -67,10 +67,11 @@ describe('dbcFiles', () => {
 
 		await dbcFiles.addFiles([file('mixed.dbc', 'mixed')]);
 
-		expect(dbcFiles.files).toHaveLength(1);
-		expect(dbcFiles.files[0]?.handle).toBe(handle);
-		expect(dbcFiles.error).toBeNull();
-		expect(closeDbcMock).not.toHaveBeenCalled();
+		expect(dbcFiles.files).toHaveLength(0);
+		expect(dbcFiles.error).toBe(
+			'mixed contains messages which overlap with those defined in existing files.'
+		);
+		expect(closeDbcMock).toHaveBeenCalledExactlyOnceWith(handle);
 	});
 });
 
