@@ -55,9 +55,9 @@ export type DbcSignal = z.infer<typeof DbcSignalSchema>;
 export type DbcMessage = z.infer<typeof DbcMessageSchema>;
 export type ParsedDbc = z.infer<typeof ParsedDbcSchema>;
 export type TraceMetadata = z.infer<typeof TraceMetadataSchema>;
-export type SignalSample = {
-	timestampNs: bigint;
-	value: number;
+export type DecodedSignalSeries = {
+	timesMs: Float64Array;
+	values: Float64Array;
 };
 
 export type DbcHandle = {
@@ -86,6 +86,9 @@ type CanLogViewerWasmExports = {
 	owned_bytes_ptr(bytes: number): number;
 	owned_bytes_len(bytes: number): number;
 	owned_bytes_free(bytes: number): void;
+	owned_float64s_ptr(values: number): number;
+	owned_float64s_len(values: number): number;
+	owned_float64s_free(values: number): void;
 };
 
 let wasmPromise: Promise<CanLogViewerWasmExports> | null = null;
@@ -124,29 +127,31 @@ function readOwnedText(wasm: CanLogViewerWasmExports, ownedBytes: number): strin
 	}
 }
 
-function readSignalSamples(wasm: CanLogViewerWasmExports, ownedBytes: number): SignalSample[] {
+function readSignalSeries(wasm: CanLogViewerWasmExports, ownedValues: number): DecodedSignalSeries {
 	try {
-		const ptr = wasm.owned_bytes_ptr(ownedBytes);
-		const len = wasm.owned_bytes_len(ownedBytes);
+		const ptr = wasm.owned_float64s_ptr(ownedValues);
+		const len = wasm.owned_float64s_len(ownedValues);
 
-		if (len % 16 !== 0) {
-			throw new Error('Signal values export returned an invalid byte length');
+		if (len % 2 !== 0) {
+			throw new Error('Signal values export returned an invalid length');
 		}
 
-		const bytes = new Uint8Array(wasm.memory.buffer, ptr, len).slice();
-		const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-		const samples: SignalSample[] = [];
-
-		for (let offset = 0; offset < bytes.byteLength; offset += 16) {
-			samples.push({
-				timestampNs: view.getBigUint64(offset, true),
-				value: view.getFloat64(offset + 8, true)
-			});
+		const count = len / 2;
+		if (count === 0) {
+			return {
+				timesMs: new Float64Array(0),
+				values: new Float64Array(0)
+			};
 		}
 
-		return samples;
+		const valuesPtr = ptr + count * Float64Array.BYTES_PER_ELEMENT;
+
+		return {
+			timesMs: new Float64Array(wasm.memory.buffer, ptr, count).slice(),
+			values: new Float64Array(wasm.memory.buffer, valuesPtr, count).slice()
+		};
 	} finally {
-		wasm.owned_bytes_free(ownedBytes);
+		wasm.owned_float64s_free(ownedValues);
 	}
 }
 
@@ -189,7 +194,7 @@ export async function getSignalValues(
 	ascHandle: AscHandle,
 	messageName: string,
 	signalName: string
-): Promise<SignalSample[]> {
+): Promise<DecodedSignalSeries> {
 	const wasm = await loadWasm();
 	let messageNameBytes = 0;
 	let signalNameBytes = 0;
@@ -197,17 +202,17 @@ export async function getSignalValues(
 		messageNameBytes = copyTextToWasm(wasm, messageName);
 		signalNameBytes = copyTextToWasm(wasm, signalName);
 
-		const seriesBytes = wasm.get_signal_values(
+		const series = wasm.get_signal_values(
 			dbcHandle.ptr,
 			ascHandle.ptr,
 			messageNameBytes,
 			signalNameBytes
 		);
-		if (seriesBytes === 0) {
+		if (series === 0) {
 			throw new Error('Signal decode failed');
 		}
 
-		return readSignalSamples(wasm, seriesBytes);
+		return readSignalSeries(wasm, series);
 	} finally {
 		if (signalNameBytes !== 0) {
 			wasm.owned_bytes_free(signalNameBytes);

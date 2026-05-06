@@ -4,7 +4,7 @@ Client-side CAN trace viewer for plotting DBC-decoded signal values from ASC log
 
 The browser opens directly into the plotter. Load one ASC trace, load one or more DBC files, filter/select signals from the sidebar, and inspect decoded values on a shared time plot.
 
-The WASM boundary exposes opaque DBC and ASC handles, JSON exports for DBC catalogs and ASC metadata, and a selected-signal sample export as little-endian `(timestamp_ns, value_f64)` records. TypeScript owns browser file handling and copies parsed data into normal UI state; the UI does not depend on raw WASM pointers.
+The WASM boundary exposes opaque DBC and ASC handles, JSON exports for DBC catalogs and ASC metadata, and selected-signal sample exports as parallel `f64` arrays for relative milliseconds and decoded values. TypeScript owns browser file handling and copies parsed data into normal UI state; the UI does not depend on raw WASM pointers.
 
 Data stays in the current browser session. Refreshing the page clears loaded files and derived state.
 

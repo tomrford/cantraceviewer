@@ -1,7 +1,7 @@
 //! Selected signal time-series extraction.
 //!
 //! The exported WASM boundary asks for one DBC message name and signal name,
-//! then receives a binary stream of `(timestamp_ns, value_f64)` samples.
+//! then receives parallel `f64` arrays of `(time_ms, value)` samples.
 
 const std = @import("std");
 const asc_handle = @import("asc/handle.zig");
@@ -10,31 +10,33 @@ const message = @import("dbc/message.zig");
 const signal = @import("dbc/signal.zig");
 const frame = @import("asc/frame.zig");
 
-const SAMPLE_BYTES: usize = 16;
-
 pub fn selectedSignalValues(
     allocator: std.mem.Allocator,
     dbc: *const dbc_handle.Handle,
     asc: *const asc_handle.Handle,
     message_name: []const u8,
     signal_name: []const u8,
-) ![]u8 {
+) ![]f64 {
     const selection = try findSignal(dbc, message_name, signal_name);
     const plan = try selection.signal.planDecode(selection.message.size_bytes);
 
-    var out: std.ArrayList(u8) = .empty;
-    errdefer out.deinit(allocator);
+    const sample_count = countMatchingSamples(asc, selection.message);
+    const values_offset = sample_count;
+    const out = try allocator.alloc(f64, sample_count * 2);
+    errdefer allocator.free(out);
 
+    var sample_index: usize = 0;
     for (asc.asc.frames) |trace_frame| {
         if (!matchesMessage(trace_frame, selection.message)) continue;
         if (trace_frame.payload_len != selection.message.size_bytes) continue;
 
         const payload = payloadForFrame(asc.asc.payloads, trace_frame) orelse continue;
-        const value = try plan.decode(payload);
-        try appendSample(allocator, &out, trace_frame.timestamp_ns, value);
+        out[sample_index] = timestampNsToMs(trace_frame.timestamp_ns);
+        out[values_offset + sample_index] = try plan.decode(payload);
+        sample_index += 1;
     }
 
-    return out.toOwnedSlice(allocator);
+    return out;
 }
 
 const SignalSelection = struct {
@@ -66,6 +68,17 @@ fn matchesMessage(trace_frame: frame.Frame, msg: message.Message) bool {
         id.is_extended == msg.is_extended;
 }
 
+fn countMatchingSamples(asc: *const asc_handle.Handle, msg: message.Message) usize {
+    var count: usize = 0;
+    for (asc.asc.frames) |trace_frame| {
+        if (!matchesMessage(trace_frame, msg)) continue;
+        if (trace_frame.payload_len != msg.size_bytes) continue;
+        if (payloadForFrame(asc.asc.payloads, trace_frame) == null) continue;
+        count += 1;
+    }
+    return count;
+}
+
 fn payloadForFrame(payloads: []const u8, trace_frame: frame.Frame) ?[]const u8 {
     const start: usize = @intCast(trace_frame.payload_offset);
     const end = start + @as(usize, trace_frame.payload_len);
@@ -73,14 +86,11 @@ fn payloadForFrame(payloads: []const u8, trace_frame: frame.Frame) ?[]const u8 {
     return payloads[start..end];
 }
 
-fn appendSample(allocator: std.mem.Allocator, out: *std.ArrayList(u8), timestamp_ns: u64, value: f64) !void {
-    const start = out.items.len;
-    try out.resize(allocator, start + SAMPLE_BYTES);
-    std.mem.writeInt(u64, out.items[start..][0..8], timestamp_ns, .little);
-    std.mem.writeInt(u64, out.items[start + 8 ..][0..8], @as(u64, @bitCast(value)), .little);
+fn timestampNsToMs(timestamp_ns: u64) f64 {
+    return @as(f64, @floatFromInt(timestamp_ns)) / 1_000_000.0;
 }
 
-test "extracts selected signal values as timestamp/value samples" {
+test "extracts selected signal values as relative-millisecond/value series" {
     const allocator = std.testing.allocator;
     const dbc_text =
         \\BO_ 291 Example: 2 ECU
@@ -101,14 +111,10 @@ test "extracts selected signal values as timestamp/value samples" {
     const bytes = try selectedSignalValues(allocator, dbc, asc, "Example", "Speed");
     defer allocator.free(bytes);
 
-    try std.testing.expectEqual(@as(usize, 32), bytes.len);
-    try std.testing.expectEqual(@as(u64, 1_000_000), std.mem.readInt(u64, bytes[0..8], .little));
-    try std.testing.expectEqual(@as(u64, 3_000_000), std.mem.readInt(u64, bytes[16..24], .little));
-    try std.testing.expectEqual(@as(f64, 1000.0), @as(f64, @bitCast(std.mem.readInt(u64, bytes[8..16], .little))));
-    try std.testing.expectEqual(@as(f64, 2000.0), @as(f64, @bitCast(std.mem.readInt(u64, bytes[24..32], .little))));
+    try std.testing.expectEqualSlices(f64, &.{ 1.0, 3.0, 1000.0, 2000.0 }, bytes);
 }
 
-test "extracts selected float signal values as timestamp/value samples" {
+test "extracts selected float signal values as relative-millisecond/value series" {
     const allocator = std.testing.allocator;
     const dbc_text =
         \\BO_ 291 Example: 4 ECU
@@ -128,12 +134,10 @@ test "extracts selected float signal values as timestamp/value samples" {
     const bytes = try selectedSignalValues(allocator, dbc, asc, "Example", "Temperature");
     defer allocator.free(bytes);
 
-    try std.testing.expectEqual(@as(usize, 16), bytes.len);
-    try std.testing.expectEqual(@as(u64, 1_000_000), std.mem.readInt(u64, bytes[0..8], .little));
-    try std.testing.expectEqual(@as(f64, 1.5), @as(f64, @bitCast(std.mem.readInt(u64, bytes[8..16], .little))));
+    try std.testing.expectEqualSlices(f64, &.{ 1.0, 1.5 }, bytes);
 }
 
-test "extracts selected motorola float signal values as timestamp/value samples" {
+test "extracts selected motorola float signal values as relative-millisecond/value series" {
     const allocator = std.testing.allocator;
     const dbc_text =
         \\BO_ 291 Example: 4 ECU
@@ -153,9 +157,7 @@ test "extracts selected motorola float signal values as timestamp/value samples"
     const bytes = try selectedSignalValues(allocator, dbc, asc, "Example", "Temperature");
     defer allocator.free(bytes);
 
-    try std.testing.expectEqual(@as(usize, 16), bytes.len);
-    try std.testing.expectEqual(@as(u64, 1_000_000), std.mem.readInt(u64, bytes[0..8], .little));
-    try std.testing.expectEqual(@as(f64, 1.5), @as(f64, @bitCast(std.mem.readInt(u64, bytes[8..16], .little))));
+    try std.testing.expectEqualSlices(f64, &.{ 1.0, 1.5 }, bytes);
 }
 
 test "skips matching frames with unexpected payload length" {
@@ -178,9 +180,7 @@ test "skips matching frames with unexpected payload length" {
     const bytes = try selectedSignalValues(allocator, dbc, asc, "Example", "Speed");
     defer allocator.free(bytes);
 
-    try std.testing.expectEqual(@as(usize, 16), bytes.len);
-    try std.testing.expectEqual(@as(u64, 2_000_000), std.mem.readInt(u64, bytes[0..8], .little));
-    try std.testing.expectEqual(@as(f64, 4660.0), @as(f64, @bitCast(std.mem.readInt(u64, bytes[8..16], .little))));
+    try std.testing.expectEqualSlices(f64, &.{ 2.0, 4660.0 }, bytes);
 }
 
 test "matches classic and CAN FD frames by ID, extended flag, and payload length" {
@@ -203,18 +203,11 @@ test "matches classic and CAN FD frames by ID, extended flag, and payload length
     const asc = try asc_handle.Handle.parse(allocator, asc_text);
     defer asc.deinit(allocator);
 
-    const classic_bytes = try selectedSignalValues(allocator, dbc, asc, "ClassicExample", "ClassicSpeed");
-    defer allocator.free(classic_bytes);
-    const fd_bytes = try selectedSignalValues(allocator, dbc, asc, "FdExample", "FdSpeed");
-    defer allocator.free(fd_bytes);
+    const classic = try selectedSignalValues(allocator, dbc, asc, "ClassicExample", "ClassicSpeed");
+    defer allocator.free(classic);
+    const fd = try selectedSignalValues(allocator, dbc, asc, "FdExample", "FdSpeed");
+    defer allocator.free(fd);
 
-    try std.testing.expectEqual(@as(usize, 32), classic_bytes.len);
-    try std.testing.expectEqual(@as(u64, 1_000_000), std.mem.readInt(u64, classic_bytes[0..8], .little));
-    try std.testing.expectEqual(@as(f64, 1.0), @as(f64, @bitCast(std.mem.readInt(u64, classic_bytes[8..16], .little))));
-    try std.testing.expectEqual(@as(u64, 2_000_000), std.mem.readInt(u64, classic_bytes[16..24], .little));
-    try std.testing.expectEqual(@as(f64, 2.0), @as(f64, @bitCast(std.mem.readInt(u64, classic_bytes[24..32], .little))));
-
-    try std.testing.expectEqual(@as(usize, 16), fd_bytes.len);
-    try std.testing.expectEqual(@as(u64, 3_000_000), std.mem.readInt(u64, fd_bytes[0..8], .little));
-    try std.testing.expectEqual(@as(f64, 3.0), @as(f64, @bitCast(std.mem.readInt(u64, fd_bytes[8..16], .little))));
+    try std.testing.expectEqualSlices(f64, &.{ 1.0, 2.0, 1.0, 2.0 }, classic);
+    try std.testing.expectEqualSlices(f64, &.{ 3.0, 3.0 }, fd);
 }

@@ -3,10 +3,10 @@ import { dbcFiles, signalKey, type DbcFileEntry } from '$lib/stores/dbc-files.sv
 import { traceFile } from '$lib/stores/trace-file.svelte.js';
 import {
 	getSignalValues,
+	type DecodedSignalSeries,
 	type DbcMessage,
 	type DbcSignal,
-	type DbcValueDescription,
-	type SignalSample
+	type DbcValueDescription
 } from '$lib/wasm.js';
 
 export type PlotSignalKey = string;
@@ -38,14 +38,14 @@ export type PlotSignal = {
 	valueType: string;
 	receivers: string[];
 	valueDescriptions: DbcValueDescription[];
-	samples: SignalSample[] | null;
+	series: DecodedSignalSeries | null;
 	isDecoding: boolean;
 	decodeError: string | null;
 };
 
 class PlotDataStore {
 	selectedSignalKeys = $state<PlotSignalKey[]>([]);
-	signalSamples = $state<Record<PlotSignalKey, SignalSample[]>>({});
+	signalSeries = $state<Record<PlotSignalKey, DecodedSignalSeries>>({});
 	decodingSignalKeys = $state<PlotSignalKey[]>([]);
 	decodeErrors = $state<Record<PlotSignalKey, string>>({});
 	private signalColors = createSignalColorAssigner();
@@ -60,7 +60,7 @@ class PlotDataStore {
 			signals.push(
 				plotSignal(target.file.id, target.file.file.name, target.message, target.signal, {
 					color: this.signalColors.colorFor(key),
-					samples: this.signalSamples[key],
+					series: this.signalSeries[key],
 					isDecoding: this.decodingSignalKeys.includes(key),
 					decodeError: this.decodeErrors[key]
 				})
@@ -77,7 +77,7 @@ class PlotDataStore {
 	async toggleSignal(key: PlotSignalKey): Promise<void> {
 		if (this.isSignalSelected(key)) {
 			this.selectedSignalKeys = arrayWith(this.selectedSignalKeys, key, false);
-			this.setSignalSamples(key, null);
+			this.setSignalSeries(key, null);
 			this.setDecodeError(key, null);
 			this.decodingSignalKeys = arrayWith(this.decodingSignalKeys, key, false);
 			this.signalColors.release(key);
@@ -97,8 +97,8 @@ class PlotDataStore {
 		);
 
 		this.selectedSignalKeys = this.selectedSignalKeys.filter((key) => !dbcSignalKeys.has(key));
-		this.signalSamples = Object.fromEntries(
-			Object.entries(this.signalSamples).filter(([key]) => !dbcSignalKeys.has(key))
+		this.signalSeries = Object.fromEntries(
+			Object.entries(this.signalSeries).filter(([key]) => !dbcSignalKeys.has(key))
 		);
 		this.decodeErrors = Object.fromEntries(
 			Object.entries(this.decodeErrors).filter(([key]) => !dbcSignalKeys.has(key))
@@ -111,20 +111,20 @@ class PlotDataStore {
 
 	clearSelectedSignals(): void {
 		this.selectedSignalKeys = [];
-		this.signalSamples = {};
+		this.signalSeries = {};
 		this.decodingSignalKeys = [];
 		this.decodeErrors = {};
 		this.signalColors.clear();
 	}
 
-	setSignalSamples(key: PlotSignalKey, samples: SignalSample[] | null): void {
-		const next = { ...this.signalSamples };
-		if (samples) {
-			next[key] = samples;
+	setSignalSeries(key: PlotSignalKey, series: DecodedSignalSeries | null): void {
+		const next = { ...this.signalSeries };
+		if (series) {
+			next[key] = series;
 		} else {
 			delete next[key];
 		}
-		this.signalSamples = next;
+		this.signalSeries = next;
 	}
 
 	private async decodeSignal(key: PlotSignalKey): Promise<void> {
@@ -136,7 +136,7 @@ class PlotDataStore {
 		this.decodingSignalKeys = arrayWith(this.decodingSignalKeys, key, true);
 
 		try {
-			const samples = await getSignalValues(
+			const series = await getSignalValues(
 				target.file.handle,
 				trace.handle,
 				target.message.name,
@@ -147,7 +147,7 @@ class PlotDataStore {
 				return;
 			}
 
-			this.setSignalSamples(key, samples);
+			this.setSignalSeries(key, series);
 		} catch (error) {
 			if (this.isSignalSelected(key) && traceFile.entry === trace && findSignalTarget(key)) {
 				this.setDecodeError(key, error instanceof Error ? error.message : 'Signal decode failed');
@@ -170,7 +170,7 @@ class PlotDataStore {
 
 type PlotSignalData = {
 	color: string;
-	samples: SignalSample[] | undefined;
+	series: DecodedSignalSeries | undefined;
 	isDecoding: boolean;
 	decodeError: string | undefined;
 };
@@ -209,7 +209,7 @@ function plotSignal(
 		valueType: signal.valueType,
 		receivers: signal.receivers,
 		valueDescriptions: signal.valueDescriptions,
-		samples: data.samples ?? null,
+		series: data.series ?? null,
 		isDecoding: data.isDecoding,
 		decodeError: data.decodeError ?? null
 	};

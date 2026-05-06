@@ -3,7 +3,6 @@
 	import { SIGNAL_COLORS } from '$lib/plot-colors.js';
 	import { plotData, type PlotSignal } from '$lib/stores/plot-data.svelte.js';
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
-	import type { SignalSample } from '$lib/wasm.js';
 	import MinusIcon from '@lucide/svelte/icons/minus';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
@@ -34,10 +33,10 @@
 	let resizeObserver: ResizeObserver | null = null;
 
 	const readySignals = $derived(
-		plotData.signals.filter((signal) => signal.samples && signal.samples.length >= 2)
+		plotData.signals.filter((signal) => signal.series && signal.series.timesMs.length >= 2)
 	);
 	const waitingSignals = $derived(
-		plotData.signals.filter((signal) => signal.isDecoding || signal.decodeError || !signal.samples)
+		plotData.signals.filter((signal) => signal.isDecoding || signal.decodeError || !signal.series)
 	);
 	const signalViews = $derived(
 		readySignals.map((signal) => signalView(signal, traceFile.entry?.metadata.measurementStartMs))
@@ -178,13 +177,16 @@
 		signal: PlotSignal,
 		measurementStartMs: number | null | undefined
 	): SignalView {
-		const samples = signal.samples ?? [];
-		const x = new Float64Array(samples.length);
-		const y = new Float64Array(samples.length);
+		const series = signal.series;
+		const sourceTimes = series?.timesMs ?? new Float64Array(0);
+		const sourceValues = series?.values ?? new Float64Array(0);
+		let x = sourceTimes;
 
-		for (let sampleIndex = 0; sampleIndex < samples.length; sampleIndex += 1) {
-			x[sampleIndex] = sampleTimeMs(samples[sampleIndex], measurementStartMs);
-			y[sampleIndex] = samples[sampleIndex].value;
+		if (measurementStartMs !== null && measurementStartMs !== undefined) {
+			x = new Float64Array(sourceTimes.length);
+			for (let sampleIndex = 0; sampleIndex < sourceTimes.length; sampleIndex += 1) {
+				x[sampleIndex] = measurementStartMs + sourceTimes[sampleIndex];
+			}
 		}
 
 		return {
@@ -193,20 +195,10 @@
 			unit: signal.unit,
 			color: signal.color,
 			x,
-			y,
-			points: samples.length,
-			latestText: formatSampleValue(samples.at(-1)?.value ?? null, signal.unit)
+			y: sourceValues,
+			points: sourceTimes.length,
+			latestText: formatSampleValue(sourceValues.at(-1) ?? null, signal.unit)
 		};
-	}
-
-	function sampleTimeMs(
-		sample: SignalSample,
-		measurementStartMs: number | null | undefined
-	): number {
-		const relativeMs = Number(sample.timestampNs) / 1_000_000;
-		return measurementStartMs === null || measurementStartMs === undefined
-			? relativeMs
-			: measurementStartMs + relativeMs;
 	}
 
 	function nearestValue(view: SignalView, x: number): number | null {
