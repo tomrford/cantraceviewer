@@ -3,11 +3,14 @@
 	import { SIGNAL_COLORS } from '$lib/plot-colors.js';
 	import { plotData, type PlotSignal } from '$lib/stores/plot-data.svelte.js';
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
+	import BoxSelectIcon from '@lucide/svelte/icons/box-select';
+	import ExpandIcon from '@lucide/svelte/icons/expand';
+	import EyeIcon from '@lucide/svelte/icons/eye';
+	import EyeOffIcon from '@lucide/svelte/icons/eye-off';
 	import MinusIcon from '@lucide/svelte/icons/minus';
 	import PlusIcon from '@lucide/svelte/icons/plus';
-	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
 	import { onDestroy, onMount } from 'svelte';
-	import type { AnnotationConfig, ChartGPUInstance, ChartGPUOptions, SeriesConfig } from 'chartgpu';
+	import type { ChartGPUInstance, ChartGPUOptions, SeriesConfig } from 'chartgpu';
 
 	type SignalView = {
 		key: string;
@@ -18,6 +21,9 @@
 		y: Float64Array;
 		points: number;
 		latestText: string;
+		factor: number;
+		offset: number;
+		valueDescriptions: PlotSignal['valueDescriptions'];
 	};
 
 	let container: HTMLDivElement;
@@ -29,6 +35,7 @@
 	let markerX = $state<number | null>(null);
 	let zoomStart = $state(0);
 	let zoomEnd = $state(100);
+	let legendVisible = $state(true);
 	let lastSignature = '';
 	let resizeObserver: ResizeObserver | null = null;
 
@@ -123,7 +130,7 @@
 			tooltip: { show: false },
 			animation: false,
 			palette: SIGNAL_COLORS,
-			annotations: markerX === null ? [] : [markerAnnotation(markerX)],
+			annotations: [],
 			series: signalViews.map((view) => lineSeries(view))
 		};
 	}
@@ -156,20 +163,10 @@
 		};
 	}
 
-	function markerAnnotation(x: number): AnnotationConfig {
-		return {
-			id: 'marker',
-			type: 'lineX',
-			x,
-			layer: 'aboveSeries',
-			style: { color: '#f4f4f5', lineWidth: 1, lineDash: [6, 4], opacity: 0.85 }
-		};
-	}
-
 	function markerValue(view: SignalView, x: number) {
 		return {
 			key: view.key,
-			text: formatSampleValue(nearestValue(view, x), view.unit)
+			text: formatDecodedValue(nearestValue(view, x), view)
 		};
 	}
 
@@ -186,7 +183,10 @@
 			x: sourceTimes,
 			y: sourceValues,
 			points: sourceTimes.length,
-			latestText: formatSampleValue(sourceValues.at(-1) ?? null, signal.unit)
+			latestText: formatDecodedValue(sourceValues.at(-1) ?? null, signal),
+			factor: signal.factor,
+			offset: signal.offset,
+			valueDescriptions: signal.valueDescriptions
 		};
 	}
 
@@ -206,10 +206,26 @@
 		return view.y[nearest];
 	}
 
-	function formatSampleValue(value: number | null, unit: string): string {
+	function formatDecodedValue(
+		value: number | null,
+		context: Pick<PlotSignal, 'unit' | 'factor' | 'offset' | 'valueDescriptions'>
+	): string {
 		if (value === null || !Number.isFinite(value)) return '-';
 		const formatted = Math.abs(value) >= 1000 ? value.toFixed(0) : value.toPrecision(4);
-		return unit ? `${formatted} ${unit}` : formatted;
+		const rawValue = physicalToRaw(value, context.factor, context.offset);
+		const description =
+			rawValue === null
+				? undefined
+				: context.valueDescriptions.find((item) => item.rawValue === rawValue)?.label;
+		const withUnit = context.unit ? `${formatted} ${context.unit}` : formatted;
+		return description ? `${withUnit} · ${description}` : withUnit;
+	}
+
+	function physicalToRaw(value: number, factor: number, offset: number): number | null {
+		if (!Number.isFinite(factor) || factor === 0 || !Number.isFinite(offset)) return null;
+		const raw = (value - offset) / factor;
+		const rounded = Math.round(raw);
+		return Math.abs(raw - rounded) < 1e-6 ? rounded : null;
 	}
 
 	function formatAxisTime(value: number, measurementStartMs?: number | null): string {
@@ -236,7 +252,7 @@
 
 	{#if signalViews.length > 0}
 		<div
-			class="absolute top-3 right-[21.5rem] z-50 flex flex-col gap-1 rounded-md border bg-background/90 p-1 shadow-sm backdrop-blur"
+			class="absolute top-3 right-3 z-50 flex gap-1 rounded-md border bg-background/90 p-1 shadow-sm backdrop-blur"
 		>
 			<Button
 				variant="ghost"
@@ -259,34 +275,58 @@
 			<Button
 				variant="ghost"
 				size="icon"
-				aria-label="Reset zoom"
-				title="Reset zoom"
+				aria-label="Zoom to full extent"
+				title="Zoom to full extent"
 				onclick={resetZoom}
 			>
-				<RotateCcwIcon class="size-4" />
+				<ExpandIcon class="size-4" />
+			</Button>
+			<Button
+				variant="ghost"
+				size="icon"
+				aria-label="Box zoom (coming soon)"
+				title="Box zoom (coming soon)"
+				disabled
+			>
+				<BoxSelectIcon class="size-4" />
+			</Button>
+			<Button
+				variant="ghost"
+				size="icon"
+				aria-label={legendVisible ? 'Hide legend' : 'Show legend'}
+				title={legendVisible ? 'Hide legend' : 'Show legend'}
+				onclick={() => (legendVisible = !legendVisible)}
+			>
+				{#if legendVisible}
+					<EyeOffIcon class="size-4" />
+				{:else}
+					<EyeIcon class="size-4" />
+				{/if}
 			</Button>
 		</div>
 
-		<div
-			class="absolute top-3 right-3 max-h-64 w-80 overflow-auto rounded-md border bg-background/90 p-3 shadow-sm backdrop-blur"
-		>
-			<div class="mb-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
-				<span
-					>{markerX === null ? 'Latest values' : formatAxisTime(markerX, measurementStartMs)}</span
-				>
-				<span>{totalPoints.toLocaleString()} pts</span>
+		{#if legendVisible}
+			<div
+				class="absolute top-14 right-3 max-h-[calc(100%-4.25rem)] w-80 overflow-auto rounded-md border bg-background/90 p-3 shadow-sm backdrop-blur"
+			>
+				<div class="mb-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+					<span
+						>{markerX === null ? 'Latest values' : formatAxisTime(markerX, measurementStartMs)}</span
+					>
+					<span>{totalPoints.toLocaleString()} pts</span>
+				</div>
+				<div class="space-y-2">
+					{#each signalViews as view (view.key)}
+						{@const marker = markerValues.find((value) => value.key === view.key)}
+						<div class="grid grid-cols-[0.75rem_1fr_auto] items-center gap-2 text-xs">
+							<span class="size-2 rounded-full" style:background-color={view.color}></span>
+							<span class="min-w-0 truncate" title={view.label}>{view.label}</span>
+							<span class="font-mono tabular-nums">{marker?.text}</span>
+						</div>
+					{/each}
+				</div>
 			</div>
-			<div class="space-y-2">
-				{#each signalViews as view (view.key)}
-					{@const marker = markerValues.find((value) => value.key === view.key)}
-					<div class="grid grid-cols-[0.75rem_1fr_auto] items-center gap-2 text-xs">
-						<span class="size-2 rounded-full" style:background-color={view.color}></span>
-						<span class="min-w-0 truncate" title={view.label}>{view.label}</span>
-						<span class="font-mono tabular-nums">{marker?.text}</span>
-					</div>
-				{/each}
-			</div>
-		</div>
+		{/if}
 	{:else}
 		<div
 			class="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-muted-foreground"

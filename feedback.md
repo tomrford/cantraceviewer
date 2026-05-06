@@ -1,0 +1,9 @@
+- mousewheel scroll only affects x axis
+- middleclick/drag and shiftclick/drag only move x axis
+- seems that y axis is permanently locked to 100% of current height
+- get rid of the y cursor (horizontal one) that does nothing
+- make zoom ticks from mousewheel smaller
+- left click drag for box/section zoom in
+- initial draw should have +-1% added so values at the extremes arent 'inside' the axis but slightly above/below the edges
+- ability to zoom out past limits (ie free move)
+- very laggy after 8 signals; are we trimming based only on 8k items per signal or across the whole graph? I assume it needs to be the latter
