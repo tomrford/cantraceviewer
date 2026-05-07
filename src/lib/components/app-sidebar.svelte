@@ -1,5 +1,6 @@
 <script lang="ts">
 	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
+	import { fuzzyIncludes } from '$lib/fuzzy-match.js';
 	import { dbcFiles } from '$lib/stores/dbc-files.svelte.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
 	import SearchForm from './search-form.svelte';
@@ -28,7 +29,7 @@
 			...dbc,
 			signals: dbc.signals.filter((signal) => {
 				if (showActiveOnly && !plotData.isSignalSelected(signal.key)) return false;
-				return !isSignalSearchActive || signal.label.toLowerCase().includes(normalizedSignalSearch);
+				return !isSignalSearchActive || fuzzyIncludes(signal.label, normalizedSignalSearch);
 			})
 		}))
 	);

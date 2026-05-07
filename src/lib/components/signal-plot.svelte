@@ -273,7 +273,7 @@
 				? undefined
 				: context.valueDescriptions.find((item) => item.rawValue === rawValue)?.label;
 		const withUnit = context.unit ? `${formatted} ${context.unit}` : formatted;
-		return description ? `${withUnit} · ${description}` : withUnit;
+		return description ?? withUnit;
 	}
 
 	function physicalToRaw(value: number, factor: number, offset: number): number | null {
@@ -308,7 +308,7 @@
 	{#if signalViews.length > 0}
 		{#if markerPercent !== null}
 			<div
-				class="pointer-events-none absolute z-40 text-foreground/80"
+				class="pointer-events-none absolute z-40 text-emerald-500"
 				style:top={`${PLOT_GRID.top}px`}
 				style:bottom={`${PLOT_GRID.bottom}px`}
 				style:left={`${PLOT_GRID.left}px`}
