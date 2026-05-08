@@ -246,7 +246,6 @@ export async function closeTrace(trace: TraceHandle): Promise<void> {
 	wasm.trace_free(trace.ptr);
 }
 
-export async function openTrace(traceType: TraceType, bytes: Uint8Array): Promise<TraceHandle>;
 export async function openTrace(traceType: TraceType, bytes: Uint8Array): Promise<TraceHandle> {
 	const wasm = await loadWasm();
 	const parser = traceType === 'trc' ? wasm.trc_parse : wasm.asc_parse;

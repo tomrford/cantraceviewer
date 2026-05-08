@@ -12,17 +12,15 @@ pub fn toJson(allocator: std.mem.Allocator, metadata: Metadata) ![]u8 {
 
     var writer: std.json.Stringify = .{ .writer = &out.writer };
     try writer.beginObject();
-    try writeJsonField(&writer, "measurementStartMs", metadata.measurement_start_ms);
-    try writeJsonField(&writer, "validMessageCount", metadata.valid_message_count);
-    try writeJsonField(&writer, "durationNs", metadata.duration_ns);
+    try writer.objectField("measurementStartMs");
+    try writer.write(metadata.measurement_start_ms);
+    try writer.objectField("validMessageCount");
+    try writer.write(metadata.valid_message_count);
+    try writer.objectField("durationNs");
+    try writer.write(metadata.duration_ns);
     try writer.endObject();
 
     return out.toOwnedSlice();
-}
-
-fn writeJsonField(writer: *std.json.Stringify, field: []const u8, value: anytype) !void {
-    try writer.objectField(field);
-    try writer.write(value);
 }
 
 test "serializes shared trace metadata to JSON" {

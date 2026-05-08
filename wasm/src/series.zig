@@ -9,30 +9,30 @@ const dbc_handle = @import("dbc/handle.zig");
 const message = @import("dbc/message.zig");
 const signal = @import("dbc/signal.zig");
 const trace_frame = @import("trace/frame.zig");
+const trace = @import("trace/trace.zig");
 const trc = @import("trc/trc.zig");
 
 pub fn selectedSignalValues(
     allocator: std.mem.Allocator,
     dbc: *const dbc_handle.Handle,
-    frames: []const trace_frame.Frame,
-    payloads: []const u8,
+    parsed_trace: trace.Trace,
     message_name: []const u8,
     signal_name: []const u8,
 ) ![]f64 {
     const selection = try findSignal(dbc, message_name, signal_name);
     const plan = try selection.signal.planDecode(selection.message.size_bytes);
 
-    const sample_count = countMatchingSamples(frames, payloads, selection.message);
+    const sample_count = countMatchingSamples(parsed_trace, selection.message);
     const values_offset = sample_count;
     const out = try allocator.alloc(f64, sample_count * 2);
     errdefer allocator.free(out);
 
     var sample_index: usize = 0;
-    for (frames) |frame| {
+    for (parsed_trace.frames) |frame| {
         if (!matchesMessage(frame, selection.message)) continue;
         if (frame.payload_len != selection.message.size_bytes) continue;
 
-        const payload = payloadForFrame(payloads, frame) orelse continue;
+        const payload = payloadForFrame(parsed_trace.payloads, frame) orelse continue;
         out[sample_index] = timestampNsToMs(frame.timestamp_ns);
         out[values_offset + sample_index] = try plan.decode(payload);
         sample_index += 1;
@@ -70,12 +70,12 @@ fn matchesMessage(frame: trace_frame.Frame, msg: message.Message) bool {
         id.is_extended == msg.is_extended;
 }
 
-fn countMatchingSamples(frames: []const trace_frame.Frame, payloads: []const u8, msg: message.Message) usize {
+fn countMatchingSamples(parsed_trace: trace.Trace, msg: message.Message) usize {
     var count: usize = 0;
-    for (frames) |frame| {
+    for (parsed_trace.frames) |frame| {
         if (!matchesMessage(frame, msg)) continue;
         if (frame.payload_len != msg.size_bytes) continue;
-        if (payloadForFrame(payloads, frame) == null) continue;
+        if (payloadForFrame(parsed_trace.payloads, frame) == null) continue;
         count += 1;
     }
     return count;
@@ -107,14 +107,13 @@ test "extracts selected signal values as relative-millisecond/value series" {
 
     const dbc = try dbc_handle.Handle.parse(allocator, dbc_text);
     defer dbc.deinit(allocator);
-    var parsed = try asc.Asc.fromString(allocator, asc_text);
+    var parsed = try asc.fromString(allocator, asc_text);
     defer parsed.deinit(allocator);
 
     const bytes = try selectedSignalValues(
         allocator,
         dbc,
-        parsed.frames,
-        parsed.payloads,
+        parsed,
         "Example",
         "Speed",
     );
@@ -137,14 +136,13 @@ test "extracts selected float signal values as relative-millisecond/value series
 
     const dbc = try dbc_handle.Handle.parse(allocator, dbc_text);
     defer dbc.deinit(allocator);
-    var parsed = try asc.Asc.fromString(allocator, asc_text);
+    var parsed = try asc.fromString(allocator, asc_text);
     defer parsed.deinit(allocator);
 
     const bytes = try selectedSignalValues(
         allocator,
         dbc,
-        parsed.frames,
-        parsed.payloads,
+        parsed,
         "Example",
         "Temperature",
     );
@@ -167,14 +165,13 @@ test "extracts selected motorola float signal values as relative-millisecond/val
 
     const dbc = try dbc_handle.Handle.parse(allocator, dbc_text);
     defer dbc.deinit(allocator);
-    var parsed = try asc.Asc.fromString(allocator, asc_text);
+    var parsed = try asc.fromString(allocator, asc_text);
     defer parsed.deinit(allocator);
 
     const bytes = try selectedSignalValues(
         allocator,
         dbc,
-        parsed.frames,
-        parsed.payloads,
+        parsed,
         "Example",
         "Temperature",
     );
@@ -197,14 +194,13 @@ test "skips matching frames with unexpected payload length" {
 
     const dbc = try dbc_handle.Handle.parse(allocator, dbc_text);
     defer dbc.deinit(allocator);
-    var parsed = try asc.Asc.fromString(allocator, asc_text);
+    var parsed = try asc.fromString(allocator, asc_text);
     defer parsed.deinit(allocator);
 
     const bytes = try selectedSignalValues(
         allocator,
         dbc,
-        parsed.frames,
-        parsed.payloads,
+        parsed,
         "Example",
         "Speed",
     );
@@ -230,14 +226,13 @@ test "matches classic and CAN FD frames by ID, extended flag, and payload length
 
     const dbc = try dbc_handle.Handle.parse(allocator, dbc_text);
     defer dbc.deinit(allocator);
-    var parsed = try asc.Asc.fromString(allocator, asc_text);
+    var parsed = try asc.fromString(allocator, asc_text);
     defer parsed.deinit(allocator);
 
     const classic = try selectedSignalValues(
         allocator,
         dbc,
-        parsed.frames,
-        parsed.payloads,
+        parsed,
         "ClassicExample",
         "ClassicSpeed",
     );
@@ -245,8 +240,7 @@ test "matches classic and CAN FD frames by ID, extended flag, and payload length
     const fd = try selectedSignalValues(
         allocator,
         dbc,
-        parsed.frames,
-        parsed.payloads,
+        parsed,
         "FdExample",
         "FdSpeed",
     );
@@ -271,14 +265,13 @@ test "extracts selected signal values from TRC" {
 
     const dbc = try dbc_handle.Handle.parse(allocator, dbc_text);
     defer dbc.deinit(allocator);
-    var parsed = try trc.Trc.fromString(allocator, trc_text);
+    var parsed = try trc.fromString(allocator, trc_text);
     defer parsed.deinit(allocator);
 
     const bytes = try selectedSignalValues(
         allocator,
         dbc,
-        parsed.frames,
-        parsed.payloads,
+        parsed,
         "Example",
         "Speed",
     );

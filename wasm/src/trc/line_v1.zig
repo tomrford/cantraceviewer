@@ -40,7 +40,10 @@ pub fn parseLine(line: []const u8, payload_out: *[64]u8) !?frame.Frame {
     const dlc = try frame.parseDlc(dlc_text);
     if (dlc > 8) return error.InvalidDlc;
 
-    const kind: frame.Kind = if (isRemoteType(type_token)) .remote else .data;
+    const data_marker = if (dlc_index + 1 < rest_len) rest[dlc_index + 1] else "";
+    if (isErrorType(data_marker)) return .{ .timestamp_ns = timestamp_ns, .kind = .error_frame };
+
+    const kind: frame.Kind = if (isRemoteType(type_token) or isRemoteType(data_marker)) .remote else .data;
     if (kind == .remote) {
         return .{
             .timestamp_ns = timestamp_ns,
@@ -100,6 +103,7 @@ fn isRemoteType(text: []const u8) bool {
 
 fn isErrorType(text: []const u8) bool {
     return std.mem.eql(u8, text, "Error") or std.mem.eql(u8, text, "ErrorFrame") or
+        std.mem.eql(u8, text, "ERROR") or std.mem.eql(u8, text, "ERRORFRAME") or
         std.mem.eql(u8, text, "Warning");
 }
 
@@ -114,6 +118,13 @@ test "parses TRC 1.x data and keeps timestamped remote frames" {
     const remote = (try parseLine("2 0.200 RTR 0123 8", &payload)) orelse return error.ExpectedFrame;
     try std.testing.expectEqual(@as(frame.Kind, .remote), remote.kind);
     try std.testing.expectEqual(@as(u8, 8), remote.dlc);
+
+    const payload_marker_remote = (try parseLine("2 0.250 Rx 0123 3 RTR", &payload)) orelse return error.ExpectedFrame;
+    try std.testing.expectEqual(@as(frame.Kind, .remote), payload_marker_remote.kind);
+    try std.testing.expectEqual(@as(u8, 3), payload_marker_remote.dlc);
+
+    const payload_marker_error = (try parseLine("2 0.275 Rx 0123 3 ERROR", &payload)) orelse return error.ExpectedFrame;
+    try std.testing.expectEqual(@as(frame.Kind, .error_frame), payload_marker_error.kind);
 
     const with_bus = (try parseLine("3 0.300 1 Rx 0124 1 CC", &payload)) orelse return error.ExpectedFrame;
     try std.testing.expectEqual(@as(frame.Kind, .data), with_bus.kind);

@@ -98,8 +98,7 @@ export fn get_trace_signal_values(
     const values = series.selectedSignalValues(
         abi.allocator,
         dbc_ptr,
-        trace_ptr.trace.frames,
-        trace_ptr.trace.payloads,
+        trace_ptr.trace,
         message_name.slice(),
         signal_name.slice(),
     ) catch return null;

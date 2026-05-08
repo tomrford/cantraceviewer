@@ -2,68 +2,61 @@ const std = @import("std");
 pub const frame = @import("frame.zig");
 const line_v1 = @import("line_v1.zig");
 const line_v2 = @import("line_v2.zig");
+const trace = @import("../trace/trace.zig");
 
-pub const Trc = struct {
+const ParserState = struct {
     version: frame.Version = .v10,
     columns: ?frame.ColumnMap = null,
     measurement_start_ms: ?i64 = null,
-    frames: []const frame.Frame = &.{},
-    payloads: []const u8 = &.{},
-    data_frame_count: usize = 0,
     last_timestamp_ns: ?u64 = null,
-    last_data_timestamp_ns: ?u64 = null,
-
-    pub fn fromString(allocator: std.mem.Allocator, text: []const u8) !Trc {
-        var parsed: Trc = .{};
-        var frames: std.ArrayList(frame.Frame) = .empty;
-        errdefer frames.deinit(allocator);
-        var payloads: std.ArrayList(u8) = .empty;
-        errdefer payloads.deinit(allocator);
-
-        var payload_buffer: [64]u8 = undefined;
-        var lines = std.mem.splitScalar(u8, text, '\n');
-        while (lines.next()) |raw_line| {
-            const line = std.mem.trim(u8, raw_line, " \t\r");
-            if (line.len == 0) continue;
-
-            if (try parseHeaderLine(&parsed, line)) continue;
-            if (parsed.version == .v30) return error.UnsupportedTrcVersion;
-            if (parsed.version.isV2() and parsed.columns == null) return error.InvalidTrcColumns;
-
-            const parsed_frame = if (parsed.version.isV2())
-                try line_v2.parseLine(parsed.columns.?, line, &payload_buffer)
-            else
-                try line_v1.parseLine(line, &payload_buffer);
-
-            if (parsed_frame) |line_frame| {
-                var stored = line_frame;
-                if (stored.kind == .data and stored.id != null) {
-                    const start = payloads.items.len;
-                    try payloads.appendSlice(allocator, payload_buffer[0..stored.payload_len]);
-                    stored.payload_offset = @intCast(start);
-                    parsed.data_frame_count += 1;
-                    parsed.last_data_timestamp_ns = stored.timestamp_ns;
-                }
-                parsed.last_timestamp_ns = stored.timestamp_ns;
-                try frames.append(allocator, stored);
-            }
-        }
-
-        if (parsed.version.isV2() and parsed.columns == null) return error.InvalidTrcColumns;
-
-        parsed.frames = try frames.toOwnedSlice(allocator);
-        parsed.payloads = try payloads.toOwnedSlice(allocator);
-        return parsed;
-    }
-
-    pub fn deinit(self: *Trc, allocator: std.mem.Allocator) void {
-        allocator.free(self.frames);
-        allocator.free(self.payloads);
-        self.* = .{};
-    }
 };
 
-fn parseHeaderLine(parsed: *Trc, line: []const u8) !bool {
+pub fn fromString(allocator: std.mem.Allocator, text: []const u8) !trace.Trace {
+    var state: ParserState = .{};
+    var parsed_trace: trace.Trace = .{};
+    var frames: std.ArrayList(frame.Frame) = .empty;
+    errdefer frames.deinit(allocator);
+    var payloads: std.ArrayList(u8) = .empty;
+    errdefer payloads.deinit(allocator);
+
+    var payload_buffer: [64]u8 = undefined;
+    var lines = std.mem.splitScalar(u8, text, '\n');
+    while (lines.next()) |raw_line| {
+        const line = std.mem.trim(u8, raw_line, " \t\r");
+        if (line.len == 0) continue;
+
+        if (try parseHeaderLine(&state, line)) continue;
+        if (state.version == .v30) return error.UnsupportedTrcVersion;
+        if (state.version.isV2() and state.columns == null) return error.InvalidTrcColumns;
+
+        const parsed_frame = if (state.version.isV2())
+            try line_v2.parseLine(state.columns.?, line, &payload_buffer)
+        else
+            try line_v1.parseLine(line, &payload_buffer);
+
+        if (parsed_frame) |line_frame| {
+            var stored = line_frame;
+            if (stored.kind == .data and stored.id != null) {
+                const start = payloads.items.len;
+                try payloads.appendSlice(allocator, payload_buffer[0..stored.payload_len]);
+                stored.payload_offset = @intCast(start);
+                parsed_trace.data_frame_count += 1;
+                parsed_trace.last_data_timestamp_ns = stored.timestamp_ns;
+            }
+            state.last_timestamp_ns = stored.timestamp_ns;
+            try frames.append(allocator, stored);
+        }
+    }
+
+    if (state.version.isV2() and state.columns == null) return error.InvalidTrcColumns;
+
+    parsed_trace.measurement_start_ms = state.measurement_start_ms;
+    parsed_trace.frames = try frames.toOwnedSlice(allocator);
+    parsed_trace.payloads = try payloads.toOwnedSlice(allocator);
+    return parsed_trace;
+}
+
+fn parseHeaderLine(parsed: *ParserState, line: []const u8) !bool {
     if (!std.mem.startsWith(u8, line, ";")) return false;
     const body = std.mem.trim(u8, line[1..], " \t\r");
 
@@ -122,14 +115,13 @@ test "parses TRC 1.x file into frame storage and metadata counters" {
         \\2 0.200 RTR 0123 8
     ;
 
-    var parsed = try Trc.fromString(allocator, text);
+    var parsed = try fromString(allocator, text);
     defer parsed.deinit(allocator);
 
-    try std.testing.expectEqual(@as(frame.Version, .v11), parsed.version);
     try std.testing.expectEqual(@as(i64, 1_765_281_600_000), parsed.measurement_start_ms.?);
     try std.testing.expectEqual(@as(usize, 2), parsed.frames.len);
     try std.testing.expectEqual(@as(usize, 1), parsed.data_frame_count);
-    try std.testing.expectEqual(@as(u64, 200_000), parsed.last_timestamp_ns.?);
+    try std.testing.expectEqual(@as(u64, 200_000), parsed.frames[parsed.frames.len - 1].timestamp_ns);
     try std.testing.expectEqual(@as(u8, 0xaa), parsed.payloads[0]);
 }
 
@@ -149,13 +141,12 @@ test "parses TRC 2.x file with columns" {
         \\2 0.200 ER 1 - - - 0
     ;
 
-    var parsed = try Trc.fromString(allocator, text);
+    var parsed = try fromString(allocator, text);
     defer parsed.deinit(allocator);
 
-    try std.testing.expectEqual(@as(frame.Version, .v21), parsed.version);
     try std.testing.expectEqual(@as(usize, 2), parsed.frames.len);
     try std.testing.expectEqual(@as(usize, 1), parsed.data_frame_count);
-    try std.testing.expectEqual(@as(u64, 200_000), parsed.last_timestamp_ns.?);
+    try std.testing.expectEqual(@as(u64, 200_000), parsed.frames[parsed.frames.len - 1].timestamp_ns);
 }
 
 test "rejects TRC 3.0 for now" {
@@ -166,5 +157,5 @@ test "rejects TRC 3.0 for now" {
         \\1 0.100 DT 0123 Rx 2 AA BB
     ;
 
-    try std.testing.expectError(error.UnsupportedTrcVersion, Trc.fromString(allocator, text));
+    try std.testing.expectError(error.UnsupportedTrcVersion, fromString(allocator, text));
 }

@@ -13,18 +13,7 @@ pub const Handle = struct {
         const handle = try parent_allocator.create(Handle);
         errdefer parent_allocator.destroy(handle);
 
-        var parsed = try asc.Asc.fromString(parent_allocator, input);
-        errdefer parsed.deinit(parent_allocator);
-
-        handle.trace = .{
-            .measurement_start_ms = parsed.measurement_start_ms,
-            .frames = parsed.frames,
-            .payloads = parsed.payloads,
-            .data_frame_count = parsed.data_frame_count,
-            .last_data_timestamp_ns = parsed.last_data_timestamp_ns,
-        };
-        parsed.frames = &.{};
-        parsed.payloads = &.{};
+        handle.trace = try asc.fromString(parent_allocator, input);
         return handle;
     }
 
@@ -32,18 +21,7 @@ pub const Handle = struct {
         const handle = try parent_allocator.create(Handle);
         errdefer parent_allocator.destroy(handle);
 
-        var parsed = try trc.Trc.fromString(parent_allocator, input);
-        errdefer parsed.deinit(parent_allocator);
-
-        handle.trace = .{
-            .measurement_start_ms = parsed.measurement_start_ms,
-            .frames = parsed.frames,
-            .payloads = parsed.payloads,
-            .data_frame_count = parsed.data_frame_count,
-            .last_data_timestamp_ns = parsed.last_data_timestamp_ns,
-        };
-        parsed.frames = &.{};
-        parsed.payloads = &.{};
+        handle.trace = try trc.fromString(parent_allocator, input);
         return handle;
     }
 
