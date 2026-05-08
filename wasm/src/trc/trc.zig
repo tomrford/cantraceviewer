@@ -100,8 +100,10 @@ fn parseOleAutomationDaysToUnixMs(text: []const u8) !i64 {
     var ms = try std.math.mul(i64, days - 25_569, std.time.ms_per_day);
 
     if (fraction_text) |fraction| {
-        const fraction_value = try std.fmt.parseInt(i64, fraction, 10);
-        const scale = std.math.pow(i64, 10, @intCast(fraction.len));
+        const retained_len = @min(fraction.len, 9);
+        const retained_fraction = fraction[0..retained_len];
+        const fraction_value = try std.fmt.parseInt(i64, retained_fraction, 10);
+        const scale = std.math.pow(i64, 10, @intCast(retained_len));
         const fraction_ms = @divTrunc(try std.math.mul(i64, fraction_value, std.time.ms_per_day), scale);
         ms = try std.math.add(i64, ms, fraction_ms);
     }
@@ -129,6 +131,13 @@ test "parses TRC 1.x file into frame storage and metadata counters" {
     try std.testing.expectEqual(@as(usize, 1), parsed.data_frame_count);
     try std.testing.expectEqual(@as(u64, 200_000), parsed.last_timestamp_ns.?);
     try std.testing.expectEqual(@as(u8, 0xaa), parsed.payloads[0]);
+}
+
+test "parses high precision TRC start time without overflow" {
+    try std.testing.expectEqual(
+        @as(i64, 1_777_478_811_899),
+        try parseOleAutomationDaysToUnixMs("46141.6714340249528"),
+    );
 }
 
 test "parses TRC 2.x file with columns" {

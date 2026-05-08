@@ -31,7 +31,10 @@ pub fn parseLine(line: []const u8, payload_out: *[64]u8) !?frame.Frame {
 
     const id = frame.Id.fromTrcText(id_text) catch return .{ .timestamp_ns = timestamp_ns, .kind = .unknown };
 
-    const dlc_index = id_index + 1;
+    const dlc_index = if (id_index + 1 < rest_len and std.mem.eql(u8, rest[id_index + 1], "-"))
+        id_index + 2
+    else
+        id_index + 1;
     if (dlc_index >= rest_len) return .{ .timestamp_ns = timestamp_ns, .kind = .unknown };
     const dlc_text = rest[dlc_index];
     const dlc = try frame.parseDlc(dlc_text);
@@ -75,7 +78,9 @@ fn findIdIndex(tokens: []const []const u8) ?usize {
 
 fn looksLikeLineNumber(text: []const u8) bool {
     if (text.len == 0) return false;
-    for (text) |byte| {
+    const digits = if (text[text.len - 1] == ')') text[0 .. text.len - 1] else text;
+    if (digits.len == 0) return false;
+    for (digits) |byte| {
         if (!std.ascii.isDigit(byte)) return false;
     }
     return true;
@@ -113,4 +118,11 @@ test "parses TRC 1.x data and keeps timestamped remote frames" {
     const with_bus = (try parseLine("3 0.300 1 Rx 0124 1 CC", &payload)) orelse return error.ExpectedFrame;
     try std.testing.expectEqual(@as(frame.Kind, .data), with_bus.kind);
     try std.testing.expectEqual(@as(u32, 0x124), with_bus.id.?.value);
+
+    const pcan_v13 = (try parseLine("1) 1.600 1 Rx 10062123 - 6 D2 AF AA 88 18 80", &payload)) orelse return error.ExpectedFrame;
+    try std.testing.expectEqual(@as(frame.Kind, .data), pcan_v13.kind);
+    try std.testing.expectEqual(@as(u64, 1_600_000), pcan_v13.timestamp_ns);
+    try std.testing.expectEqual(@as(u32, 0x10062123), pcan_v13.id.?.value);
+    try std.testing.expectEqual(@as(u8, 6), pcan_v13.payload_len);
+    try std.testing.expectEqual(@as(u8, 0xd2), payload[0]);
 }
