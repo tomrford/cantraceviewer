@@ -111,7 +111,7 @@
 					bind:this={traceInput}
 					class="hidden"
 					type="file"
-					accept=".asc"
+					accept=".asc,.trc"
 					onchange={selectTrace}
 				/>
 				<button
@@ -120,8 +120,8 @@
 						'flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden',
 						traceFile.entry ? 'ms-auto' : ''
 					]}
-					aria-label="Load ASC trace"
-					title="Load ASC trace"
+					aria-label="Load trace"
+					title="Load trace"
 					onclick={() => traceInput?.click()}
 				>
 					<AudioWaveformIcon class="size-4" />

@@ -2,7 +2,8 @@ import { createSignalColorAssigner } from '$lib/plot-colors.js';
 import { dbcFiles, signalKey, type DbcFileEntry } from '$lib/stores/dbc-files.svelte.js';
 import { traceFile } from '$lib/stores/trace-file.svelte.js';
 import {
-	getSignalValues,
+	getAscSignalValues,
+	getTrcSignalValues,
 	type DecodedSignalSeries,
 	type DbcMessage,
 	type DbcSignal,
@@ -136,12 +137,20 @@ class PlotDataStore {
 		this.decodingSignalKeys = arrayWith(this.decodingSignalKeys, key, true);
 
 		try {
-			const series = await getSignalValues(
-				target.file.handle,
-				trace.handle,
-				target.message.name,
-				target.signal.name
-			);
+			const series =
+				trace.traceType === 'trc'
+					? await getTrcSignalValues(
+							target.file.handle,
+							trace.handle,
+							target.message.name,
+							target.signal.name
+						)
+					: await getAscSignalValues(
+							target.file.handle,
+							trace.handle,
+							target.message.name,
+							target.signal.name
+						);
 
 			if (!this.isSignalSelected(key) || traceFile.entry !== trace || !findSignalTarget(key)) {
 				return;

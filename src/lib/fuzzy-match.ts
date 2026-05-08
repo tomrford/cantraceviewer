@@ -1,24 +1,40 @@
-export function fuzzyIncludes(text: string, query: string): boolean {
-	const tokens = query.trim().split(/\s+/).filter(Boolean);
-	if (tokens.length === 0) return true;
+import Fuse from 'fuse.js';
 
-	const normalizedText = normalizeForFuzzyMatch(text);
-	return tokens.every((token) => fuzzySubsequence(normalizedText, normalizeForFuzzyMatch(token)));
+export function rankedFuzzySearch<T>(
+	items: T[],
+	query: string,
+	getSearchText: (item: T) => string
+): T[] {
+	const normalizedQuery = query.trim();
+	if (normalizedQuery.length === 0) return items;
+
+	const indexedItems = items.map((item) => ({
+		item,
+		searchText: getSearchText(item)
+	}));
+
+	return new Fuse(indexedItems, {
+		keys: ['searchText'],
+		ignoreLocation: true,
+		includeScore: true,
+		threshold: 0.35
+	})
+		.search(normalizedQuery)
+		.sort(
+			(left, right) =>
+				searchRank(left.item.searchText, normalizedQuery) -
+					searchRank(right.item.searchText, normalizedQuery) ||
+				(left.score ?? 0) - (right.score ?? 0)
+		)
+		.map((result) => result.item.item);
 }
 
-function normalizeForFuzzyMatch(value: string): string {
-	return value.toLowerCase().replace(/[^a-z0-9]+/g, '');
-}
+function searchRank(searchText: string, query: string): number {
+	const normalizedQuery = query.toLowerCase();
+	const normalizedText = searchText.toLowerCase();
 
-function fuzzySubsequence(text: string, query: string): boolean {
-	if (query.length === 0) return true;
-
-	let textIndex = 0;
-	for (const queryChar of query) {
-		textIndex = text.indexOf(queryChar, textIndex);
-		if (textIndex === -1) return false;
-		textIndex += 1;
-	}
-
-	return true;
+	if (normalizedText === normalizedQuery) return 0;
+	if (normalizedText.startsWith(normalizedQuery)) return 1;
+	if (normalizedText.includes(normalizedQuery)) return 2;
+	return 3;
 }

@@ -303,7 +303,11 @@
 </script>
 
 <section class="relative min-h-0 flex-1 overflow-hidden bg-background">
-	<div bind:this={container} class="absolute inset-0" aria-label="Selected signal plot"></div>
+	<div
+		bind:this={container}
+		class="absolute inset-0 cursor-none"
+		aria-label="Selected signal plot"
+	></div>
 
 	{#if signalViews.length > 0}
 		{#if markerPercent !== null}
@@ -408,7 +412,7 @@
 			{:else if waitingSignals.length > 0}
 				Decode selected signals to plot them.
 			{:else}
-				Load an ASC trace and select DBC signals.
+				Load a trace and select DBC signals.
 			{/if}
 		</div>
 	{/if}

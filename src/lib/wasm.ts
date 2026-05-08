@@ -2,8 +2,8 @@ import wasmUrl from '$lib/assets/cantraceviewer.wasm?url';
 import { z } from 'zod';
 
 export {
-	ASC_MAX_FILE_BYTES,
 	DBC_MAX_FILE_BYTES,
+	TRACE_MAX_FILE_BYTES,
 	assertFileSizeWithinLimit
 } from '$lib/file-limits.js';
 
@@ -68,6 +68,10 @@ export type AscHandle = {
 	readonly ptr: number;
 };
 
+export type TrcHandle = {
+	readonly ptr: number;
+};
+
 type CanLogViewerWasmExports = {
 	memory: WebAssembly.Memory;
 	owned_bytes_alloc(len: number): number;
@@ -77,9 +81,18 @@ type CanLogViewerWasmExports = {
 	asc_parse(input: number): number;
 	asc_to_metadata_json(handle: number): number;
 	asc_free(handle: number): void;
-	get_signal_values(
+	trc_parse(input: number): number;
+	trc_to_metadata_json(handle: number): number;
+	trc_free(handle: number): void;
+	get_asc_signal_values(
 		dbcHandle: number,
 		ascHandle: number,
+		messageName: number,
+		signalName: number
+	): number;
+	get_trc_signal_values(
+		dbcHandle: number,
+		trcHandle: number,
 		messageName: number,
 		signalName: number
 	): number;
@@ -193,7 +206,7 @@ export async function closeDbc(handle: DbcHandle): Promise<void> {
 	wasm.dbc_free(handle.ptr);
 }
 
-export async function getSignalValues(
+export async function getAscSignalValues(
 	dbcHandle: DbcHandle,
 	ascHandle: AscHandle,
 	messageName: string,
@@ -206,9 +219,43 @@ export async function getSignalValues(
 		messageNameBytes = copyTextToWasm(wasm, messageName);
 		signalNameBytes = copyTextToWasm(wasm, signalName);
 
-		const series = wasm.get_signal_values(
+		const series = wasm.get_asc_signal_values(
 			dbcHandle.ptr,
 			ascHandle.ptr,
+			messageNameBytes,
+			signalNameBytes
+		);
+		if (series === 0) {
+			throw new Error('Signal decode failed');
+		}
+
+		return readSignalSeries(wasm, series);
+	} finally {
+		if (signalNameBytes !== 0) {
+			wasm.owned_bytes_free(signalNameBytes);
+		}
+		if (messageNameBytes !== 0) {
+			wasm.owned_bytes_free(messageNameBytes);
+		}
+	}
+}
+
+export async function getTrcSignalValues(
+	dbcHandle: DbcHandle,
+	trcHandle: TrcHandle,
+	messageName: string,
+	signalName: string
+): Promise<DecodedSignalSeries> {
+	const wasm = await loadWasm();
+	let messageNameBytes = 0;
+	let signalNameBytes = 0;
+	try {
+		messageNameBytes = copyTextToWasm(wasm, messageName);
+		signalNameBytes = copyTextToWasm(wasm, signalName);
+
+		const series = wasm.get_trc_signal_values(
+			dbcHandle.ptr,
+			trcHandle.ptr,
 			messageNameBytes,
 			signalNameBytes
 		);
@@ -259,4 +306,38 @@ export async function getAscMetadata(handle: AscHandle): Promise<TraceMetadata> 
 export async function closeAsc(handle: AscHandle): Promise<void> {
 	const wasm = await loadWasm();
 	wasm.asc_free(handle.ptr);
+}
+
+export async function openTrc(bytes: Uint8Array): Promise<TrcHandle> {
+	const wasm = await loadWasm();
+	const inputBytes = copyBytesToWasm(wasm, bytes);
+
+	let handle: number;
+	try {
+		handle = wasm.trc_parse(inputBytes);
+	} finally {
+		wasm.owned_bytes_free(inputBytes);
+	}
+
+	if (handle === 0) {
+		throw new Error('TRC parse failed');
+	}
+
+	return { ptr: handle };
+}
+
+export async function getTrcMetadata(handle: TrcHandle): Promise<TraceMetadata> {
+	const wasm = await loadWasm();
+	const jsonBytes = wasm.trc_to_metadata_json(handle.ptr);
+
+	if (jsonBytes === 0) {
+		throw new Error('TRC metadata export failed');
+	}
+
+	return TraceMetadataSchema.parse(JSON.parse(readOwnedText(wasm, jsonBytes)));
+}
+
+export async function closeTrc(handle: TrcHandle): Promise<void> {
+	const wasm = await loadWasm();
+	wasm.trc_free(handle.ptr);
 }
