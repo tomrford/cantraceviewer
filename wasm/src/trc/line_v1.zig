@@ -38,7 +38,7 @@ pub fn parseLine(line: []const u8, payload_out: *[64]u8) !?frame.Frame {
     if (dlc_index >= rest_len) return .{ .timestamp_ns = timestamp_ns, .kind = .unknown };
     const dlc_text = rest[dlc_index];
     const dlc = try frame.parseDlc(dlc_text);
-    if (dlc > 8) return error.InvalidDlc;
+    if (dlc > 8) return .{ .timestamp_ns = timestamp_ns, .kind = .unknown };
 
     const data_marker = if (dlc_index + 1 < rest_len) rest[dlc_index + 1] else "";
     if (isErrorType(data_marker)) return .{ .timestamp_ns = timestamp_ns, .kind = .error_frame };
@@ -136,4 +136,8 @@ test "parses TRC 1.x data and keeps timestamped remote frames" {
     try std.testing.expectEqual(@as(u32, 0x10062123), pcan_v13.id.?.value);
     try std.testing.expectEqual(@as(u8, 6), pcan_v13.payload_len);
     try std.testing.expectEqual(@as(u8, 0xd2), payload[0]);
+
+    const long_j1939 = (try parseLine("2) 1.700 1 Rx 10062123 - 9 D2 AF AA 88 18 80 01 02 03", &payload)) orelse return error.ExpectedFrame;
+    try std.testing.expectEqual(@as(frame.Kind, .unknown), long_j1939.kind);
+    try std.testing.expectEqual(@as(u64, 1_700_000), long_j1939.timestamp_ns);
 }

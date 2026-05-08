@@ -65,7 +65,7 @@ fn parseHeaderLine(parsed: *ParserState, line: []const u8) !bool {
         return true;
     }
     if (stripPrefix(body, "$STARTTIME=")) |start_time| {
-        parsed.measurement_start_ms = parseOleAutomationDaysToUnixMs(std.mem.trim(u8, start_time, " \t\r")) catch null;
+        parsed.measurement_start_ms = parseOleAutomationDaysToUnixMs(trimHeaderValue(start_time)) catch null;
         return true;
     }
     if (stripPrefix(body, "$COLUMNS=")) |columns_text| {
@@ -79,6 +79,10 @@ fn parseHeaderLine(parsed: *ParserState, line: []const u8) !bool {
 fn stripPrefix(text: []const u8, prefix: []const u8) ?[]const u8 {
     if (!std.mem.startsWith(u8, text, prefix)) return null;
     return text[prefix.len..];
+}
+
+fn trimHeaderValue(text: []const u8) []const u8 {
+    return std.mem.trim(u8, text, " \t\r;");
 }
 
 fn parseOleAutomationDaysToUnixMs(text: []const u8) !i64 {
@@ -130,6 +134,41 @@ test "parses high precision TRC start time without overflow" {
         @as(i64, 1_777_478_811_899),
         try parseOleAutomationDaysToUnixMs("46141.6714340249528"),
     );
+}
+
+test "parses TRC start time with trailing semicolon" {
+    const allocator = std.testing.allocator;
+    const text =
+        \\;$FILEVERSION=1.2
+        \\;$STARTTIME=39878.6772258947;
+        \\1 1059.900 1 Rx 0300 7 00 00 00 00 04 00 00
+    ;
+
+    var parsed = try fromString(allocator, text);
+    defer parsed.deinit(allocator);
+
+    try std.testing.expectEqual(
+        try parseOleAutomationDaysToUnixMs("39878.6772258947"),
+        parsed.measurement_start_ms.?,
+    );
+}
+
+test "keeps unsupported TRC 1.3 long J1939 records as unknown frames" {
+    const allocator = std.testing.allocator;
+    const text =
+        \\;$FILEVERSION=1.3
+        \\1) 1.000 1 Rx 10062123 - 9 D2 AF AA 88 18 80 01 02 03
+        \\2) 2.000 1 Rx 0123 - 2 AA BB
+    ;
+
+    var parsed = try fromString(allocator, text);
+    defer parsed.deinit(allocator);
+
+    try std.testing.expectEqual(@as(usize, 2), parsed.frames.len);
+    try std.testing.expectEqual(frame.Kind.unknown, parsed.frames[0].kind);
+    try std.testing.expectEqual(frame.Kind.data, parsed.frames[1].kind);
+    try std.testing.expectEqual(@as(usize, 1), parsed.data_frame_count);
+    try std.testing.expectEqual(@as(u8, 0xaa), parsed.payloads[0]);
 }
 
 test "parses TRC 2.x file with columns" {
