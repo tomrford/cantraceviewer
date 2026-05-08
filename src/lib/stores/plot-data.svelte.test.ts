@@ -3,25 +3,18 @@ import type { Mock } from 'vitest';
 import { dbcFiles, signalKey } from './dbc-files.svelte';
 import { plotData } from './plot-data.svelte';
 import { traceFile } from './trace-file.svelte';
-import { getAscSignalValues, getTrcSignalValues } from '$lib/wasm.js';
+import { getSignalValues } from '$lib/wasm.js';
 import type { DbcMessage, DbcSignal, DecodedSignalSeries } from '$lib/wasm.js';
 
 vi.mock('$lib/wasm.js', () => ({
-	closeAsc: vi.fn(() => Promise.resolve()),
 	closeDbc: vi.fn(() => Promise.resolve()),
-	closeTrc: vi.fn(() => Promise.resolve()),
-	getAscMetadata: vi.fn(),
-	getAscSignalValues: vi.fn(),
+	closeTrace: vi.fn(() => Promise.resolve()),
 	getDbcCatalog: vi.fn(),
-	getTrcMetadata: vi.fn(),
-	getTrcSignalValues: vi.fn(),
-	openAsc: vi.fn(),
-	openTrc: vi.fn(),
+	getSignalValues: vi.fn(),
 	openDbc: vi.fn()
 }));
 
-const getAscSignalValuesMock = getAscSignalValues as Mock<typeof getAscSignalValues>;
-const getTrcSignalValuesMock = getTrcSignalValues as Mock<typeof getTrcSignalValues>;
+const getSignalValuesMock = getSignalValues as Mock<typeof getSignalValues>;
 
 describe('plotData', () => {
 	beforeEach(() => {
@@ -35,13 +28,13 @@ describe('plotData', () => {
 
 	it('decodes a selected signal into samples', async () => {
 		const series = signalSeries([0.001], [12.5]);
-		getAscSignalValuesMock.mockResolvedValueOnce(series);
+		getSignalValuesMock.mockResolvedValueOnce(series);
 
 		await plotData.toggleSignal(key());
 
-		expect(getAscSignalValuesMock).toHaveBeenCalledExactlyOnceWith(
+		expect(getSignalValuesMock).toHaveBeenCalledExactlyOnceWith(
 			{ ptr: 1 },
-			{ ptr: 2 },
+			traceFile.entry,
 			'SpeedMessage',
 			'VehicleSpeed'
 		);
@@ -58,7 +51,7 @@ describe('plotData', () => {
 
 	it('keeps a stale decode result out of state after the trace changes', async () => {
 		const deferred = createDeferred<DecodedSignalSeries>();
-		getAscSignalValuesMock.mockReturnValueOnce(deferred.promise);
+		getSignalValuesMock.mockReturnValueOnce(deferred.promise);
 
 		const decode = plotData.toggleSignal(key());
 		traceFile.entry = traceEntry(3);
@@ -71,10 +64,10 @@ describe('plotData', () => {
 	});
 
 	it('clears samples and decode errors when a signal is deselected', async () => {
-		getAscSignalValuesMock.mockResolvedValueOnce(signalSeries([0.001], [12.5]));
+		getSignalValuesMock.mockResolvedValueOnce(signalSeries([0.001], [12.5]));
 		await plotData.toggleSignal(key());
 
-		getAscSignalValuesMock.mockRejectedValueOnce(new Error('decode failed'));
+		getSignalValuesMock.mockRejectedValueOnce(new Error('decode failed'));
 		await plotData.toggleSignal(key());
 		await plotData.toggleSignal(key());
 
@@ -88,19 +81,18 @@ describe('plotData', () => {
 		expect(plotData.decodingSignalKeys).toEqual([]);
 	});
 
-	it('switches signal decoding by trace type', async () => {
-		traceFile.entry = traceEntry(4, 'trc');
-		getTrcSignalValuesMock.mockResolvedValueOnce(signalSeries([0.001], [12.5]));
+	it('passes the selected trace through to signal decoding', async () => {
+		traceFile.entry = traceEntry(4);
+		getSignalValuesMock.mockResolvedValueOnce(signalSeries([0.001], [12.5]));
 
 		await plotData.toggleSignal(key());
 
-		expect(getTrcSignalValuesMock).toHaveBeenCalledExactlyOnceWith(
+		expect(getSignalValuesMock).toHaveBeenCalledExactlyOnceWith(
 			{ ptr: 1 },
-			{ ptr: 4 },
+			traceFile.entry,
 			'SpeedMessage',
 			'VehicleSpeed'
 		);
-		expect(getAscSignalValuesMock).not.toHaveBeenCalled();
 	});
 });
 
@@ -119,11 +111,10 @@ function dbcEntry() {
 	};
 }
 
-function traceEntry(ptr: number, traceType: 'asc' | 'trc' = 'asc') {
+function traceEntry(ptr: number) {
 	return {
-		traceType,
-		file: new File([traceType], `drive.${traceType}`),
-		handle: { ptr },
+		ptr,
+		file: new File(['trace'], 'drive.asc'),
 		metadata: {
 			measurementStartMs: null,
 			validMessageCount: 1,

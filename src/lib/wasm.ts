@@ -59,17 +59,15 @@ export type DecodedSignalSeries = {
 	timesMs: Float64Array;
 	values: Float64Array;
 };
+export type TraceType = 'asc' | 'trc';
 
 export type DbcHandle = {
 	readonly ptr: number;
 };
 
-export type AscHandle = {
+export type TraceHandle = {
 	readonly ptr: number;
-};
-
-export type TrcHandle = {
-	readonly ptr: number;
+	readonly metadata: TraceMetadata;
 };
 
 type CanLogViewerWasmExports = {
@@ -79,20 +77,12 @@ type CanLogViewerWasmExports = {
 	dbc_to_json(handle: number): number;
 	dbc_free(handle: number): void;
 	asc_parse(input: number): number;
-	asc_to_metadata_json(handle: number): number;
-	asc_free(handle: number): void;
 	trc_parse(input: number): number;
-	trc_to_metadata_json(handle: number): number;
-	trc_free(handle: number): void;
-	get_asc_signal_values(
+	trace_to_metadata_json(handle: number): number;
+	trace_free(handle: number): void;
+	get_trace_signal_values(
 		dbcHandle: number,
-		ascHandle: number,
-		messageName: number,
-		signalName: number
-	): number;
-	get_trc_signal_values(
-		dbcHandle: number,
-		trcHandle: number,
+		traceHandle: number,
 		messageName: number,
 		signalName: number
 	): number;
@@ -206,9 +196,9 @@ export async function closeDbc(handle: DbcHandle): Promise<void> {
 	wasm.dbc_free(handle.ptr);
 }
 
-export async function getAscSignalValues(
+export async function getSignalValues(
 	dbcHandle: DbcHandle,
-	ascHandle: AscHandle,
+	trace: TraceHandle,
 	messageName: string,
 	signalName: string
 ): Promise<DecodedSignalSeries> {
@@ -219,9 +209,9 @@ export async function getAscSignalValues(
 		messageNameBytes = copyTextToWasm(wasm, messageName);
 		signalNameBytes = copyTextToWasm(wasm, signalName);
 
-		const series = wasm.get_asc_signal_values(
+		const series = wasm.get_trace_signal_values(
 			dbcHandle.ptr,
-			ascHandle.ptr,
+			trace.ptr,
 			messageNameBytes,
 			signalNameBytes
 		);
@@ -240,104 +230,58 @@ export async function getAscSignalValues(
 	}
 }
 
-export async function getTrcSignalValues(
-	dbcHandle: DbcHandle,
-	trcHandle: TrcHandle,
-	messageName: string,
-	signalName: string
-): Promise<DecodedSignalSeries> {
+export async function getTraceMetadata(handle: Pick<TraceHandle, 'ptr'>): Promise<TraceMetadata> {
 	const wasm = await loadWasm();
-	let messageNameBytes = 0;
-	let signalNameBytes = 0;
-	try {
-		messageNameBytes = copyTextToWasm(wasm, messageName);
-		signalNameBytes = copyTextToWasm(wasm, signalName);
-
-		const series = wasm.get_trc_signal_values(
-			dbcHandle.ptr,
-			trcHandle.ptr,
-			messageNameBytes,
-			signalNameBytes
-		);
-		if (series === 0) {
-			throw new Error('Signal decode failed');
-		}
-
-		return readSignalSeries(wasm, series);
-	} finally {
-		if (signalNameBytes !== 0) {
-			wasm.owned_bytes_free(signalNameBytes);
-		}
-		if (messageNameBytes !== 0) {
-			wasm.owned_bytes_free(messageNameBytes);
-		}
-	}
-}
-
-export async function openAsc(bytes: Uint8Array): Promise<AscHandle> {
-	const wasm = await loadWasm();
-	const inputBytes = copyBytesToWasm(wasm, bytes);
-
-	let handle: number;
-	try {
-		handle = wasm.asc_parse(inputBytes);
-	} finally {
-		wasm.owned_bytes_free(inputBytes);
-	}
-
-	if (handle === 0) {
-		throw new Error('ASC parse failed');
-	}
-
-	return { ptr: handle };
-}
-
-export async function getAscMetadata(handle: AscHandle): Promise<TraceMetadata> {
-	const wasm = await loadWasm();
-	const jsonBytes = wasm.asc_to_metadata_json(handle.ptr);
+	const jsonBytes = wasm.trace_to_metadata_json(handle.ptr);
 
 	if (jsonBytes === 0) {
-		throw new Error('ASC metadata export failed');
+		throw new Error('Trace metadata export failed');
 	}
 
 	return TraceMetadataSchema.parse(JSON.parse(readOwnedText(wasm, jsonBytes)));
 }
 
-export async function closeAsc(handle: AscHandle): Promise<void> {
+export async function closeTrace(trace: TraceHandle): Promise<void> {
 	const wasm = await loadWasm();
-	wasm.asc_free(handle.ptr);
+	wasm.trace_free(trace.ptr);
 }
 
-export async function openTrc(bytes: Uint8Array): Promise<TrcHandle> {
+export async function openTrace(traceType: TraceType, bytes: Uint8Array): Promise<TraceHandle>;
+export async function openTrace(traceType: TraceType, bytes: Uint8Array): Promise<TraceHandle> {
 	const wasm = await loadWasm();
+	const parser = traceType === 'trc' ? wasm.trc_parse : wasm.asc_parse;
+	const ptr = parseTraceBytes(wasm, bytes, parser, traceType === 'trc' ? 'TRC' : 'ASC');
+
+	const handle = { ptr };
+	try {
+		return {
+			ptr,
+			metadata: await getTraceMetadata(handle)
+		};
+	} catch (error) {
+		wasm.trace_free(ptr);
+		throw error;
+	}
+}
+
+function parseTraceBytes(
+	wasm: CanLogViewerWasmExports,
+	bytes: Uint8Array,
+	parse: (input: number) => number,
+	formatLabel: 'ASC' | 'TRC'
+): number {
 	const inputBytes = copyBytesToWasm(wasm, bytes);
 
 	let handle: number;
 	try {
-		handle = wasm.trc_parse(inputBytes);
+		handle = parse(inputBytes);
 	} finally {
 		wasm.owned_bytes_free(inputBytes);
 	}
 
 	if (handle === 0) {
-		throw new Error('TRC parse failed');
+		throw new Error(`${formatLabel} parse failed`);
 	}
 
-	return { ptr: handle };
-}
-
-export async function getTrcMetadata(handle: TrcHandle): Promise<TraceMetadata> {
-	const wasm = await loadWasm();
-	const jsonBytes = wasm.trc_to_metadata_json(handle.ptr);
-
-	if (jsonBytes === 0) {
-		throw new Error('TRC metadata export failed');
-	}
-
-	return TraceMetadataSchema.parse(JSON.parse(readOwnedText(wasm, jsonBytes)));
-}
-
-export async function closeTrc(handle: TrcHandle): Promise<void> {
-	const wasm = await loadWasm();
-	wasm.trc_free(handle.ptr);
+	return handle;
 }

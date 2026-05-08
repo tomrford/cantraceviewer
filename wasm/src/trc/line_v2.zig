@@ -20,7 +20,7 @@ pub fn parseLine(columns: frame.ColumnMap, line: []const u8, payload_out: *[64]u
         return .{ .timestamp_ns = timestamp_ns, .kind = if (std.mem.eql(u8, record_type, "ER")) .error_frame else .unknown };
     }
 
-    const id = frame.Id.fromTrcText(tokenAt(tokens_buffer[0..token_count], columns.id.?)) catch return .{
+    const id = frame.idFromText(tokenAt(tokens_buffer[0..token_count], columns.id.?)) catch return .{
         .timestamp_ns = timestamp_ns,
         .kind = .unknown,
     };

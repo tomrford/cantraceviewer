@@ -2,25 +2,15 @@
 
 const std = @import("std");
 const asc = @import("asc.zig");
+const metadata = @import("../trace/metadata.zig");
 
 /// Serializes the small trace metadata object consumed by the TypeScript adapter.
 pub fn toJson(allocator: std.mem.Allocator, parsed: asc.Asc) ![]u8 {
-    var out: std.Io.Writer.Allocating = .init(allocator);
-    errdefer out.deinit();
-
-    var writer: std.json.Stringify = .{ .writer = &out.writer };
-    try writer.beginObject();
-    try writeJsonField(&writer, "measurementStartMs", parsed.measurement_start_ms);
-    try writeJsonField(&writer, "validMessageCount", parsed.data_frame_count);
-    try writeJsonField(&writer, "durationNs", parsed.last_data_timestamp_ns);
-    try writer.endObject();
-
-    return out.toOwnedSlice();
-}
-
-fn writeJsonField(writer: *std.json.Stringify, field: []const u8, value: anytype) !void {
-    try writer.objectField(field);
-    try writer.write(value);
+    return metadata.toJson(allocator, .{
+        .measurement_start_ms = parsed.measurement_start_ms,
+        .valid_message_count = parsed.data_frame_count,
+        .duration_ns = parsed.last_data_timestamp_ns,
+    });
 }
 
 test "serializes trace metadata to JSON" {

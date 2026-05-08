@@ -1,31 +1,7 @@
-import {
-	closeAsc,
-	closeTrc,
-	getAscMetadata,
-	getTrcMetadata,
-	openAsc,
-	openTrc,
-	type AscHandle,
-	type TrcHandle,
-	type TraceMetadata
-} from '$lib/wasm.js';
+import { closeTrace, openTrace, type TraceHandle, type TraceType } from '$lib/wasm.js';
 import { TRACE_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '$lib/file-limits.js';
 
-export type AscTraceFileEntry = {
-	traceType: 'asc';
-	file: File;
-	handle: AscHandle;
-	metadata: TraceMetadata;
-};
-
-export type TrcTraceFileEntry = {
-	traceType: 'trc';
-	file: File;
-	handle: TrcHandle;
-	metadata: TraceMetadata;
-};
-
-export type TraceFileEntry = AscTraceFileEntry | TrcTraceFileEntry;
+export type TraceFileEntry = TraceHandle & { file: File };
 
 class TraceFileStore {
 	entry = $state<TraceFileEntry | null>(null);
@@ -44,7 +20,7 @@ class TraceFileStore {
 			assertFileSizeWithinLimit(file, TRACE_MAX_FILE_BYTES, 'Trace');
 
 			const bytes = new Uint8Array(await file.arrayBuffer());
-			next = await openTrace(traceType, file, bytes);
+			next = await openTraceFile(traceType, file, bytes);
 
 			const previous = this.entry;
 			this.entry = next;
@@ -83,52 +59,21 @@ function displayTraceName(fileName: string): string {
 	return fileName.replace(/\.(asc|trc)$/i, '');
 }
 
-function traceTypeForFile(file: File): TraceFileEntry['traceType'] {
+function traceTypeForFile(file: File): TraceType {
 	if (/\.trc$/i.test(file.name)) return 'trc';
 	if (/\.asc$/i.test(file.name)) return 'asc';
 	throw new Error('Unsupported trace file type');
 }
 
-async function openTrace(
-	traceType: TraceFileEntry['traceType'],
+async function openTraceFile(
+	traceType: TraceType,
 	file: File,
 	bytes: Uint8Array
 ): Promise<TraceFileEntry> {
-	if (traceType === 'trc') {
-		const handle = await openTrc(bytes);
-		try {
-			return {
-				traceType,
-				file,
-				handle,
-				metadata: await getTrcMetadata(handle)
-			};
-		} catch (error) {
-			await closeTrc(handle);
-			throw error;
-		}
-	}
-
-	const handle = await openAsc(bytes);
-	try {
-		return {
-			traceType,
-			file,
-			handle,
-			metadata: await getAscMetadata(handle)
-		};
-	} catch (error) {
-		await closeAsc(handle);
-		throw error;
-	}
-}
-
-async function closeTrace(entry: TraceFileEntry): Promise<void> {
-	if (entry.traceType === 'trc') {
-		await closeTrc(entry.handle);
-		return;
-	}
-	await closeAsc(entry.handle);
+	return {
+		...(await openTrace(traceType, bytes)),
+		file
+	};
 }
 
 export const traceFile = new TraceFileStore();

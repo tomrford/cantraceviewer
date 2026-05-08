@@ -1,25 +1,15 @@
 //! TRC trace metadata exported for browser axis setup.
 
 const std = @import("std");
+const metadata = @import("../trace/metadata.zig");
 const trc = @import("trc.zig");
 
 pub fn toJson(allocator: std.mem.Allocator, parsed: trc.Trc) ![]u8 {
-    var out: std.Io.Writer.Allocating = .init(allocator);
-    errdefer out.deinit();
-
-    var writer: std.json.Stringify = .{ .writer = &out.writer };
-    try writer.beginObject();
-    try writeJsonField(&writer, "measurementStartMs", parsed.measurement_start_ms);
-    try writeJsonField(&writer, "validMessageCount", parsed.data_frame_count);
-    try writeJsonField(&writer, "durationNs", parsed.last_data_timestamp_ns);
-    try writer.endObject();
-
-    return out.toOwnedSlice();
-}
-
-fn writeJsonField(writer: *std.json.Stringify, field: []const u8, value: anytype) !void {
-    try writer.objectField(field);
-    try writer.write(value);
+    return metadata.toJson(allocator, .{
+        .measurement_start_ms = parsed.measurement_start_ms,
+        .valid_message_count = parsed.data_frame_count,
+        .duration_ns = parsed.last_data_timestamp_ns,
+    });
 }
 
 test "serializes TRC metadata to JSON" {

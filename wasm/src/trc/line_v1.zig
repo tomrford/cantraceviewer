@@ -29,7 +29,7 @@ pub fn parseLine(line: []const u8, payload_out: *[64]u8) !?frame.Frame {
         return .{ .timestamp_ns = timestamp_ns, .kind = .error_frame };
     }
 
-    const id = frame.Id.fromTrcText(id_text) catch return .{ .timestamp_ns = timestamp_ns, .kind = .unknown };
+    const id = frame.idFromText(id_text) catch return .{ .timestamp_ns = timestamp_ns, .kind = .unknown };
 
     const dlc_index = if (id_index + 1 < rest_len and std.mem.eql(u8, rest[id_index + 1], "-"))
         id_index + 2

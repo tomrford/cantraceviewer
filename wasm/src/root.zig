@@ -7,11 +7,10 @@ const std = @import("std");
 const abi = @import("abi.zig");
 pub const dbc = @import("dbc/dbc.zig");
 pub const asc = @import("asc/asc.zig");
-const asc_handle = @import("asc/handle.zig");
 const dbc_handle = @import("dbc/handle.zig");
 const series = @import("series.zig");
+const trace_handle = @import("trace/handle.zig");
 pub const trc = @import("trc/trc.zig");
-const trc_handle = @import("trc/handle.zig");
 
 /// Allocates a byte buffer in WASM memory for JavaScript to populate.
 export fn owned_bytes_alloc(len: usize) ?*abi.OwnedBytes {
@@ -50,9 +49,9 @@ export fn dbc_free(handle_value: usize) void {
 /// Parses an ASC trace file from an `OwnedBytes` input buffer.
 ///
 /// The returned integer is an opaque handle. JavaScript must release it with
-/// `asc_free` after metadata exports and signal decoding are finished.
+/// `trace_free` after metadata exports and signal decoding are finished.
 export fn asc_parse(input: *const abi.OwnedBytes) usize {
-    const handle = asc_handle.Handle.parse(abi.allocator, input.slice()) catch return 0;
+    const handle = trace_handle.Handle.parseAsc(abi.allocator, input.slice()) catch return 0;
     return @intFromPtr(handle);
 }
 
@@ -60,85 +59,47 @@ export fn asc_parse(input: *const abi.OwnedBytes) usize {
 ///
 /// The returned bytes are owned by WASM and must be released with
 /// `owned_bytes_free` after JavaScript copies them out.
-export fn asc_to_metadata_json(handle_value: usize) ?*abi.OwnedBytes {
+export fn trace_to_metadata_json(handle_value: usize) ?*abi.OwnedBytes {
     if (handle_value == 0) return null;
 
-    const handle: *asc_handle.Handle = @ptrFromInt(handle_value);
+    const handle: *trace_handle.Handle = @ptrFromInt(handle_value);
     const json = handle.toMetadataJson(abi.allocator) catch return null;
     return abi.OwnedBytes.fromOwnedSlice(json) catch null;
 }
 
-/// Releases a parsed ASC handle and all trace data behind it.
-export fn asc_free(handle_value: usize) void {
+/// Releases a parsed trace handle and all trace data behind it.
+export fn trace_free(handle_value: usize) void {
     if (handle_value == 0) return;
 
-    const handle: *asc_handle.Handle = @ptrFromInt(handle_value);
+    const handle: *trace_handle.Handle = @ptrFromInt(handle_value);
     handle.deinit(abi.allocator);
 }
 
 /// Parses a TRC trace file from an `OwnedBytes` input buffer.
 export fn trc_parse(input: *const abi.OwnedBytes) usize {
-    const handle = trc_handle.Handle.parse(abi.allocator, input.slice()) catch return 0;
+    const handle = trace_handle.Handle.parseTrc(abi.allocator, input.slice()) catch return 0;
     return @intFromPtr(handle);
 }
 
-/// Exports small parsed-TRC metadata used by the browser plot axes.
-export fn trc_to_metadata_json(handle_value: usize) ?*abi.OwnedBytes {
-    if (handle_value == 0) return null;
-
-    const handle: *trc_handle.Handle = @ptrFromInt(handle_value);
-    const json = handle.toMetadataJson(abi.allocator) catch return null;
-    return abi.OwnedBytes.fromOwnedSlice(json) catch null;
-}
-
-/// Releases a parsed TRC handle and all trace data behind it.
-export fn trc_free(handle_value: usize) void {
-    if (handle_value == 0) return;
-
-    const handle: *trc_handle.Handle = @ptrFromInt(handle_value);
-    handle.deinit(abi.allocator);
-}
-
-/// Exports packed parallel `f64` arrays for one DBC signal.
+/// Exports packed parallel `f64` arrays for one DBC signal from a parsed trace.
 ///
 /// The returned bytes store all relative millisecond values first, followed by
 /// all decoded signal values.
-export fn get_asc_signal_values(
+export fn get_trace_signal_values(
     dbc_handle_value: usize,
-    asc_handle_value: usize,
+    trace_handle_value: usize,
     message_name: *const abi.OwnedBytes,
     signal_name: *const abi.OwnedBytes,
 ) ?*abi.OwnedFloat64s {
-    if (dbc_handle_value == 0 or asc_handle_value == 0) return null;
+    if (dbc_handle_value == 0 or trace_handle_value == 0) return null;
 
     const dbc_ptr: *dbc_handle.Handle = @ptrFromInt(dbc_handle_value);
-    const asc_ptr: *asc_handle.Handle = @ptrFromInt(asc_handle_value);
-    const values = series.selectedAscSignalValues(
+    const trace_ptr: *trace_handle.Handle = @ptrFromInt(trace_handle_value);
+    const values = series.selectedSignalValues(
         abi.allocator,
         dbc_ptr,
-        asc_ptr,
-        message_name.slice(),
-        signal_name.slice(),
-    ) catch return null;
-
-    return abi.OwnedFloat64s.fromOwnedSlice(values) catch null;
-}
-
-/// Exports packed parallel `f64` arrays for one DBC signal from a TRC trace.
-export fn get_trc_signal_values(
-    dbc_handle_value: usize,
-    trc_handle_value: usize,
-    message_name: *const abi.OwnedBytes,
-    signal_name: *const abi.OwnedBytes,
-) ?*abi.OwnedFloat64s {
-    if (dbc_handle_value == 0 or trc_handle_value == 0) return null;
-
-    const dbc_ptr: *dbc_handle.Handle = @ptrFromInt(dbc_handle_value);
-    const trc_ptr: *trc_handle.Handle = @ptrFromInt(trc_handle_value);
-    const values = series.selectedTrcSignalValues(
-        abi.allocator,
-        dbc_ptr,
-        trc_ptr,
+        trace_ptr.trace.frames,
+        trace_ptr.trace.payloads,
         message_name.slice(),
         signal_name.slice(),
     ) catch return null;
@@ -181,9 +142,5 @@ test "serializing failed parse handle returns null" {
 }
 
 test "serializing failed ASC parse handle returns null" {
-    try std.testing.expectEqual(@as(?*abi.OwnedBytes, null), asc_to_metadata_json(0));
-}
-
-test "serializing failed TRC parse handle returns null" {
-    try std.testing.expectEqual(@as(?*abi.OwnedBytes, null), trc_to_metadata_json(0));
+    try std.testing.expectEqual(@as(?*abi.OwnedBytes, null), trace_to_metadata_json(0));
 }

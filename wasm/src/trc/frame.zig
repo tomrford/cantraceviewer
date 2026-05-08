@@ -1,4 +1,5 @@
 const std = @import("std");
+const trace_frame = @import("../trace/frame.zig");
 
 pub const Version = enum {
     v10,
@@ -25,38 +26,20 @@ pub const Version = enum {
     }
 };
 
-pub const Kind = enum {
-    data,
-    remote,
-    error_frame,
-    unknown,
-};
+pub const Kind = trace_frame.Kind;
+pub const Id = trace_frame.Id;
+pub const Frame = trace_frame.Frame;
 
-pub const Id = struct {
-    value: u32,
-    is_extended: bool,
-
-    pub fn fromTrcText(text: []const u8) !Id {
-        if (text.len != 4 and text.len != 8) return error.InvalidId;
-        const value = try std.fmt.parseUnsigned(u32, text, 16);
-        if (text.len == 8) {
-            if (value > 0x1fff_ffff) return error.InvalidId;
-            return .{ .value = value, .is_extended = true };
-        }
-        if (value > 0x7ff) return error.InvalidId;
-        return .{ .value = value, .is_extended = false };
+pub fn idFromText(text: []const u8) !Id {
+    if (text.len != 4 and text.len != 8) return error.InvalidId;
+    const value = try std.fmt.parseUnsigned(u32, text, 16);
+    if (text.len == 8) {
+        if (value > 0x1fff_ffff) return error.InvalidId;
+        return Id.extended(value);
     }
-};
-
-pub const Frame = struct {
-    timestamp_ns: u64,
-    kind: Kind,
-    id: ?Id = null,
-    is_fd: bool = false,
-    dlc: u8 = 0,
-    payload_offset: u32 = 0,
-    payload_len: u8 = 0,
-};
+    if (value > 0x7ff) return error.InvalidId;
+    return Id.standard(@intCast(value));
+}
 
 pub const ColumnMap = struct {
     number: ?usize = null,
@@ -171,7 +154,7 @@ test "parses TRC millisecond timestamps into nanoseconds" {
 }
 
 test "parses TRC ID width into standard or extended IDs" {
-    try std.testing.expectEqual(Id{ .value = 0x123, .is_extended = false }, try Id.fromTrcText("0123"));
-    try std.testing.expectEqual(Id{ .value = 0x18fee900, .is_extended = true }, try Id.fromTrcText("18FEE900"));
-    try std.testing.expectError(error.InvalidId, Id.fromTrcText("0800"));
+    try std.testing.expectEqual(Id{ .value = 0x123, .is_extended = false }, try idFromText("0123"));
+    try std.testing.expectEqual(Id{ .value = 0x18fee900, .is_extended = true }, try idFromText("18FEE900"));
+    try std.testing.expectError(error.InvalidId, idFromText("0800"));
 }

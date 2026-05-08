@@ -1,4 +1,5 @@
 const std = @import("std");
+const trace_frame = @import("../trace/frame.zig");
 
 /// .asc files can store messages in either decimal or hexadecimal format.
 /// This base is parsed from the file header.
@@ -19,59 +20,10 @@ pub const Base = enum {
 ///
 /// Unknown events preserve timestamped lines the parser does not decode so
 /// relative timestamp normalization still accounts for them.
-pub const Kind = enum {
-    data,
-    remote,
-    error_frame,
-    unknown,
-};
-
-pub const Id = struct {
-    value: u32,
-    is_extended: bool,
-
-    pub fn standard(value: u32) Id {
-        std.debug.assert(value <= 0x7ff);
-        return .{ .value = value, .is_extended = false };
-    }
-
-    pub fn extended(value: u32) Id {
-        std.debug.assert(value <= 0x1fff_ffff);
-        return .{ .value = value, .is_extended = true };
-    }
-};
-
-pub const FrameKey = struct {
-    id: u32,
-    is_extended: bool,
-
-    pub fn fromFrame(frame: Frame) ?FrameKey {
-        const id = frame.id orelse return null;
-        return .{
-            .id = id.value,
-            .is_extended = id.is_extended,
-        };
-    }
-};
-
-pub const Frame = struct {
-    /// Parsed event timestamp in nanoseconds. The file parser normalizes
-    /// relative ASC timestamps after parsing each line.
-    timestamp_ns: u64,
-
-    kind: Kind,
-
-    id: ?Id = null,
-
-    /// Only needed to distinguish classic CAN from CAN FD payload limits.
-    is_fd: bool = false,
-
-    /// Raw DLC as written in the trace. For CAN FD, this is not necessarily the
-    /// payload length: DLC 9..15 maps to 12,16,20,24,32,48,64 bytes.
-    dlc: u8 = 0,
-    payload_offset: u32 = 0,
-    payload_len: u8 = 0,
-};
+pub const Kind = trace_frame.Kind;
+pub const Id = trace_frame.Id;
+pub const FrameKey = trace_frame.FrameKey;
+pub const Frame = trace_frame.Frame;
 
 const LineTokenIterator = std.mem.TokenIterator(u8, .any);
 
