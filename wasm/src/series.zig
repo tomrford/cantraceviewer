@@ -18,25 +18,7 @@ pub fn selectedAscSignalValues(
     signal_name: []const u8,
 ) ![]f64 {
     const selection = try findSignal(dbc, message_name, signal_name);
-    const plan = try selection.signal.planDecode(selection.message.size_bytes);
-
-    const sample_count = countMatchingSamples(asc, selection.message);
-    const values_offset = sample_count;
-    const out = try allocator.alloc(f64, sample_count * 2);
-    errdefer allocator.free(out);
-
-    var sample_index: usize = 0;
-    for (asc.asc.frames) |trace_frame| {
-        if (!matchesMessage(trace_frame, selection.message)) continue;
-        if (trace_frame.payload_len != selection.message.size_bytes) continue;
-
-        const payload = payloadForFrame(asc.asc.payloads, trace_frame) orelse continue;
-        out[sample_index] = timestampNsToMs(trace_frame.timestamp_ns);
-        out[values_offset + sample_index] = try plan.decode(payload);
-        sample_index += 1;
-    }
-
-    return out;
+    return selectedSignalValues(allocator, selection, asc.asc.frames, asc.asc.payloads);
 }
 
 pub fn selectedTrcSignalValues(
@@ -47,19 +29,28 @@ pub fn selectedTrcSignalValues(
     signal_name: []const u8,
 ) ![]f64 {
     const selection = try findSignal(dbc, message_name, signal_name);
+    return selectedSignalValues(allocator, selection, trc.trc.frames, trc.trc.payloads);
+}
+
+fn selectedSignalValues(
+    allocator: std.mem.Allocator,
+    selection: SignalSelection,
+    frames: anytype,
+    payloads: []const u8,
+) ![]f64 {
     const plan = try selection.signal.planDecode(selection.message.size_bytes);
 
-    const sample_count = countMatchingTrcSamples(trc, selection.message);
+    const sample_count = countMatchingSamples(frames, payloads, selection.message);
     const values_offset = sample_count;
     const out = try allocator.alloc(f64, sample_count * 2);
     errdefer allocator.free(out);
 
     var sample_index: usize = 0;
-    for (trc.trc.frames) |trace_frame| {
+    for (frames) |trace_frame| {
         if (!matchesMessage(trace_frame, selection.message)) continue;
         if (trace_frame.payload_len != selection.message.size_bytes) continue;
 
-        const payload = payloadForFrame(trc.trc.payloads, trace_frame) orelse continue;
+        const payload = payloadForFrame(payloads, trace_frame) orelse continue;
         out[sample_index] = timestampNsToMs(trace_frame.timestamp_ns);
         out[values_offset + sample_index] = try plan.decode(payload);
         sample_index += 1;
@@ -94,27 +85,15 @@ fn matchesMessage(trace_frame: anytype, msg: message.Message) bool {
     if (trace_frame.kind != .data) return false;
     const id = trace_frame.id orelse return false;
     return id.value == msg.can_id and
-        id.is_extended == msg.is_extended and
-        trace_frame.is_fd == msg.is_fd;
+        id.is_extended == msg.is_extended;
 }
 
-fn countMatchingSamples(asc: *const asc_handle.Handle, msg: message.Message) usize {
+fn countMatchingSamples(frames: anytype, payloads: []const u8, msg: message.Message) usize {
     var count: usize = 0;
-    for (asc.asc.frames) |trace_frame| {
+    for (frames) |trace_frame| {
         if (!matchesMessage(trace_frame, msg)) continue;
         if (trace_frame.payload_len != msg.size_bytes) continue;
-        if (payloadForFrame(asc.asc.payloads, trace_frame) == null) continue;
-        count += 1;
-    }
-    return count;
-}
-
-fn countMatchingTrcSamples(trc: *const trc_handle.Handle, msg: message.Message) usize {
-    var count: usize = 0;
-    for (trc.trc.frames) |trace_frame| {
-        if (!matchesMessage(trace_frame, msg)) continue;
-        if (trace_frame.payload_len != msg.size_bytes) continue;
-        if (payloadForFrame(trc.trc.payloads, trace_frame) == null) continue;
+        if (payloadForFrame(payloads, trace_frame) == null) continue;
         count += 1;
     }
     return count;
@@ -249,7 +228,7 @@ test "matches classic and CAN FD frames by ID, extended flag, and payload length
     const fd = try selectedAscSignalValues(allocator, dbc, asc, "FdExample", "FdSpeed");
     defer allocator.free(fd);
 
-    try std.testing.expectEqualSlices(f64, &.{ 1.0, 1.0 }, classic);
+    try std.testing.expectEqualSlices(f64, &.{ 1.0, 2.0, 1.0, 2.0 }, classic);
     try std.testing.expectEqualSlices(f64, &.{ 3.0, 3.0 }, fd);
 }
 

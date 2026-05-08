@@ -1,8 +1,8 @@
 # CAN Trace Viewer
 
-Client-side CAN trace viewer for plotting DBC-decoded signal values from ASC and TRC logs. The app uses SvelteKit for the browser UI and Zig compiled to WebAssembly for DBC parsing, trace parsing, and signal decode work.
+Client-side CAN trace viewer for plotting DBC-decoded signal values from ASC and PCAN TRC 1.x/2.x logs. The app uses SvelteKit for the browser UI and Zig compiled to WebAssembly for DBC parsing, trace parsing, and signal decode work.
 
-The browser opens directly into the plotter. Load one ASC or TRC trace, load one or more DBC files, filter/select signals from the sidebar, and inspect decoded values on a shared time plot.
+The browser opens directly into the plotter. Load one ASC or PCAN TRC 1.x/2.x trace, load one or more DBC files, filter/select signals from the sidebar, and inspect decoded values on a shared time plot.
 
 The WASM boundary exposes opaque DBC and trace-format handles, JSON exports for DBC catalogs and trace metadata, and selected-signal sample exports as parallel `f64` arrays for relative milliseconds and decoded values. TypeScript owns browser file handling and copies parsed data into normal UI state; the UI does not depend on raw WASM pointers.
 
@@ -22,6 +22,7 @@ Useful checks:
 
 ```sh
 nix develop -c bun run test
-nix develop -c bunx svelte-check --tsconfig ./tsconfig.json
-nix develop -c sh -c 'cd wasm && zig build test'
+nix develop -c bun run check
+nix develop -c bun run wasm:test
+nix develop -c bun run wasm:build:release
 ```

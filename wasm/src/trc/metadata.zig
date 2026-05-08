@@ -11,7 +11,7 @@ pub fn toJson(allocator: std.mem.Allocator, parsed: trc.Trc) ![]u8 {
     try writer.beginObject();
     try writeJsonField(&writer, "measurementStartMs", parsed.measurement_start_ms);
     try writeJsonField(&writer, "validMessageCount", parsed.data_frame_count);
-    try writeJsonField(&writer, "durationNs", parsed.last_timestamp_ns);
+    try writeJsonField(&writer, "durationNs", parsed.last_data_timestamp_ns);
     try writer.endObject();
 
     return out.toOwnedSlice();
@@ -37,5 +37,5 @@ test "serializes TRC metadata to JSON" {
     defer allocator.free(json);
 
     try std.testing.expect(std.mem.indexOf(u8, json, "\"validMessageCount\":1") != null);
-    try std.testing.expect(std.mem.indexOf(u8, json, "\"durationNs\":200000") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"durationNs\":100000") != null);
 }
