@@ -22,7 +22,6 @@ pub const Base = enum {
 /// relative timestamp normalization still accounts for them.
 pub const Kind = trace_frame.Kind;
 pub const Id = trace_frame.Id;
-pub const FrameKey = trace_frame.FrameKey;
 pub const Frame = trace_frame.Frame;
 
 const LineTokenIterator = std.mem.TokenIterator(u8, .any);

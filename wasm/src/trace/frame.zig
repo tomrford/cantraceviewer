@@ -22,19 +22,6 @@ pub const Id = struct {
     }
 };
 
-pub const FrameKey = struct {
-    id: u32,
-    is_extended: bool,
-
-    pub fn fromFrame(frame: Frame) ?FrameKey {
-        const id = frame.id orelse return null;
-        return .{
-            .id = id.value,
-            .is_extended = id.is_extended,
-        };
-    }
-};
-
 pub const Frame = struct {
     timestamp_ns: u64,
     kind: Kind,
