@@ -138,7 +138,7 @@ class PlotDataStore {
 		try {
 			const series = await getSignalValues(
 				target.file.handle,
-				trace.handle,
+				trace,
 				target.message.name,
 				target.signal.name
 			);

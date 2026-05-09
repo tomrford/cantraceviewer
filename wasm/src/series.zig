@@ -4,34 +4,36 @@
 //! then receives parallel `f64` arrays of `(time_ms, value)` samples.
 
 const std = @import("std");
-const asc_handle = @import("asc/handle.zig");
+const asc = @import("asc/asc.zig");
 const dbc_handle = @import("dbc/handle.zig");
 const message = @import("dbc/message.zig");
 const signal = @import("dbc/signal.zig");
-const frame = @import("asc/frame.zig");
+const trace_frame = @import("trace/frame.zig");
+const trace = @import("trace/trace.zig");
+const trc = @import("trc/trc.zig");
 
 pub fn selectedSignalValues(
     allocator: std.mem.Allocator,
     dbc: *const dbc_handle.Handle,
-    asc: *const asc_handle.Handle,
+    parsed_trace: trace.Trace,
     message_name: []const u8,
     signal_name: []const u8,
 ) ![]f64 {
     const selection = try findSignal(dbc, message_name, signal_name);
     const plan = try selection.signal.planDecode(selection.message.size_bytes);
 
-    const sample_count = countMatchingSamples(asc, selection.message);
+    const sample_count = countMatchingSamples(parsed_trace, selection.message);
     const values_offset = sample_count;
     const out = try allocator.alloc(f64, sample_count * 2);
     errdefer allocator.free(out);
 
     var sample_index: usize = 0;
-    for (asc.asc.frames) |trace_frame| {
-        if (!matchesMessage(trace_frame, selection.message)) continue;
-        if (trace_frame.payload_len != selection.message.size_bytes) continue;
+    for (parsed_trace.frames) |frame| {
+        if (!matchesMessage(frame, selection.message)) continue;
+        if (frame.payload_len != selection.message.size_bytes) continue;
 
-        const payload = payloadForFrame(asc.asc.payloads, trace_frame) orelse continue;
-        out[sample_index] = timestampNsToMs(trace_frame.timestamp_ns);
+        const payload = payloadForFrame(parsed_trace.payloads, frame) orelse continue;
+        out[sample_index] = timestampNsToMs(frame.timestamp_ns);
         out[values_offset + sample_index] = try plan.decode(payload);
         sample_index += 1;
     }
@@ -61,27 +63,27 @@ fn findSignal(
     return error.MessageNotFound;
 }
 
-fn matchesMessage(trace_frame: frame.Frame, msg: message.Message) bool {
-    if (trace_frame.kind != .data) return false;
-    const id = trace_frame.id orelse return false;
+fn matchesMessage(frame: trace_frame.Frame, msg: message.Message) bool {
+    if (frame.kind != .data) return false;
+    const id = frame.id orelse return false;
     return id.value == msg.can_id and
         id.is_extended == msg.is_extended;
 }
 
-fn countMatchingSamples(asc: *const asc_handle.Handle, msg: message.Message) usize {
+fn countMatchingSamples(parsed_trace: trace.Trace, msg: message.Message) usize {
     var count: usize = 0;
-    for (asc.asc.frames) |trace_frame| {
-        if (!matchesMessage(trace_frame, msg)) continue;
-        if (trace_frame.payload_len != msg.size_bytes) continue;
-        if (payloadForFrame(asc.asc.payloads, trace_frame) == null) continue;
+    for (parsed_trace.frames) |frame| {
+        if (!matchesMessage(frame, msg)) continue;
+        if (frame.payload_len != msg.size_bytes) continue;
+        if (payloadForFrame(parsed_trace.payloads, frame) == null) continue;
         count += 1;
     }
     return count;
 }
 
-fn payloadForFrame(payloads: []const u8, trace_frame: frame.Frame) ?[]const u8 {
-    const start: usize = @intCast(trace_frame.payload_offset);
-    const end = start + @as(usize, trace_frame.payload_len);
+fn payloadForFrame(payloads: []const u8, frame: trace_frame.Frame) ?[]const u8 {
+    const start: usize = @intCast(frame.payload_offset);
+    const end = start + @as(usize, frame.payload_len);
     if (end > payloads.len) return null;
     return payloads[start..end];
 }
@@ -105,10 +107,16 @@ test "extracts selected signal values as relative-millisecond/value series" {
 
     const dbc = try dbc_handle.Handle.parse(allocator, dbc_text);
     defer dbc.deinit(allocator);
-    const asc = try asc_handle.Handle.parse(allocator, asc_text);
-    defer asc.deinit(allocator);
+    var parsed = try asc.fromString(allocator, asc_text);
+    defer parsed.deinit(allocator);
 
-    const bytes = try selectedSignalValues(allocator, dbc, asc, "Example", "Speed");
+    const bytes = try selectedSignalValues(
+        allocator,
+        dbc,
+        parsed,
+        "Example",
+        "Speed",
+    );
     defer allocator.free(bytes);
 
     try std.testing.expectEqualSlices(f64, &.{ 1.0, 3.0, 1000.0, 2000.0 }, bytes);
@@ -128,10 +136,16 @@ test "extracts selected float signal values as relative-millisecond/value series
 
     const dbc = try dbc_handle.Handle.parse(allocator, dbc_text);
     defer dbc.deinit(allocator);
-    const asc = try asc_handle.Handle.parse(allocator, asc_text);
-    defer asc.deinit(allocator);
+    var parsed = try asc.fromString(allocator, asc_text);
+    defer parsed.deinit(allocator);
 
-    const bytes = try selectedSignalValues(allocator, dbc, asc, "Example", "Temperature");
+    const bytes = try selectedSignalValues(
+        allocator,
+        dbc,
+        parsed,
+        "Example",
+        "Temperature",
+    );
     defer allocator.free(bytes);
 
     try std.testing.expectEqualSlices(f64, &.{ 1.0, 1.5 }, bytes);
@@ -151,10 +165,16 @@ test "extracts selected motorola float signal values as relative-millisecond/val
 
     const dbc = try dbc_handle.Handle.parse(allocator, dbc_text);
     defer dbc.deinit(allocator);
-    const asc = try asc_handle.Handle.parse(allocator, asc_text);
-    defer asc.deinit(allocator);
+    var parsed = try asc.fromString(allocator, asc_text);
+    defer parsed.deinit(allocator);
 
-    const bytes = try selectedSignalValues(allocator, dbc, asc, "Example", "Temperature");
+    const bytes = try selectedSignalValues(
+        allocator,
+        dbc,
+        parsed,
+        "Example",
+        "Temperature",
+    );
     defer allocator.free(bytes);
 
     try std.testing.expectEqualSlices(f64, &.{ 1.0, 1.5 }, bytes);
@@ -174,10 +194,16 @@ test "skips matching frames with unexpected payload length" {
 
     const dbc = try dbc_handle.Handle.parse(allocator, dbc_text);
     defer dbc.deinit(allocator);
-    const asc = try asc_handle.Handle.parse(allocator, asc_text);
-    defer asc.deinit(allocator);
+    var parsed = try asc.fromString(allocator, asc_text);
+    defer parsed.deinit(allocator);
 
-    const bytes = try selectedSignalValues(allocator, dbc, asc, "Example", "Speed");
+    const bytes = try selectedSignalValues(
+        allocator,
+        dbc,
+        parsed,
+        "Example",
+        "Speed",
+    );
     defer allocator.free(bytes);
 
     try std.testing.expectEqualSlices(f64, &.{ 2.0, 4660.0 }, bytes);
@@ -200,14 +226,56 @@ test "matches classic and CAN FD frames by ID, extended flag, and payload length
 
     const dbc = try dbc_handle.Handle.parse(allocator, dbc_text);
     defer dbc.deinit(allocator);
-    const asc = try asc_handle.Handle.parse(allocator, asc_text);
-    defer asc.deinit(allocator);
+    var parsed = try asc.fromString(allocator, asc_text);
+    defer parsed.deinit(allocator);
 
-    const classic = try selectedSignalValues(allocator, dbc, asc, "ClassicExample", "ClassicSpeed");
+    const classic = try selectedSignalValues(
+        allocator,
+        dbc,
+        parsed,
+        "ClassicExample",
+        "ClassicSpeed",
+    );
     defer allocator.free(classic);
-    const fd = try selectedSignalValues(allocator, dbc, asc, "FdExample", "FdSpeed");
+    const fd = try selectedSignalValues(
+        allocator,
+        dbc,
+        parsed,
+        "FdExample",
+        "FdSpeed",
+    );
     defer allocator.free(fd);
 
     try std.testing.expectEqualSlices(f64, &.{ 1.0, 2.0, 1.0, 2.0 }, classic);
     try std.testing.expectEqualSlices(f64, &.{ 3.0, 3.0 }, fd);
+}
+
+test "extracts selected signal values from TRC" {
+    const allocator = std.testing.allocator;
+    const dbc_text =
+        \\BO_ 291 Example: 2 ECU
+        \\ SG_ Speed : 0|16@1+ (1,0) [0|65535] "" DASH
+    ;
+    const trc_text =
+        \\;$FILEVERSION=2.1
+        \\;$COLUMNS=N,O,T,B,I,d,R,L,D
+        \\1 0.100 DT 1 0123 Rx - 2 34 12
+        \\2 0.200 RR 1 0123 Rx - 8
+    ;
+
+    const dbc = try dbc_handle.Handle.parse(allocator, dbc_text);
+    defer dbc.deinit(allocator);
+    var parsed = try trc.fromString(allocator, trc_text);
+    defer parsed.deinit(allocator);
+
+    const bytes = try selectedSignalValues(
+        allocator,
+        dbc,
+        parsed,
+        "Example",
+        "Speed",
+    );
+    defer allocator.free(bytes);
+
+    try std.testing.expectEqualSlices(f64, &.{ 0.1, 4660.0 }, bytes);
 }
