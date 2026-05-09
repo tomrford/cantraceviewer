@@ -5,10 +5,10 @@
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
 	import BoxSelectIcon from '@lucide/svelte/icons/box-select';
 	import ExpandIcon from '@lucide/svelte/icons/expand';
-	import EyeIcon from '@lucide/svelte/icons/eye';
-	import EyeOffIcon from '@lucide/svelte/icons/eye-off';
+	import ListIcon from '@lucide/svelte/icons/list';
 	import MinusIcon from '@lucide/svelte/icons/minus';
 	import PlusIcon from '@lucide/svelte/icons/plus';
+	import SeparatorVerticalIcon from '@lucide/svelte/icons/separator-vertical';
 	import { onDestroy, onMount } from 'svelte';
 	import type { ChartGPUInstance, ChartGPUOptions, SeriesConfig } from 'chartgpu';
 
@@ -33,6 +33,7 @@
 		| null = null;
 	let chartError = $state<string | null>(null);
 	let markerX = $state<number | null>(null);
+	let markerDragPointerId = $state<number | null>(null);
 	let zoomStart = $state(0);
 	let zoomEnd = $state(100);
 	let legendVisible = $state(true);
@@ -49,7 +50,6 @@
 	);
 	const signalViews = $derived(readySignals.map((signal) => signalView(signal)));
 	const measurementStartMs = $derived(traceFile.entry?.metadata.measurementStartMs);
-	const totalPoints = $derived(signalViews.reduce((sum, view) => sum + view.points, 0));
 	const xDomain = $derived.by(() => signalXDomain(signalViews));
 	const visibleXDomain = $derived.by(() =>
 		xDomain === null ? null : zoomedDomain(xDomain, zoomStart, zoomEnd)
@@ -84,9 +84,6 @@
 			const mod = await import('chartgpu');
 			createChart = mod.ChartGPU.create;
 			chart = await createChart(container, chartOptions());
-			chart.onInteractionXChange((x) => {
-				markerX = x;
-			});
 			chart.on('zoomRangeChange', ({ start, end }) => {
 				zoomStart = start;
 				zoomEnd = end;
@@ -161,7 +158,55 @@
 		zoomStart = 0;
 		zoomEnd = 100;
 		chart?.setZoomRange(0, 100);
-		markerX = null;
+	}
+
+	function toggleMarker() {
+		if (markerX !== null) {
+			markerX = null;
+			return;
+		}
+
+		if (visibleXDomain === null) return;
+		markerX = visibleXDomain.min + (visibleXDomain.max - visibleXDomain.min) / 2;
+	}
+
+	function startMarkerDrag(event: PointerEvent) {
+		event.preventDefault();
+		event.stopPropagation();
+		markerDragPointerId = event.pointerId;
+		(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+		updateMarkerFromPointer(event);
+	}
+
+	function dragMarker(event: PointerEvent) {
+		if (markerDragPointerId !== event.pointerId) return;
+		event.preventDefault();
+		updateMarkerFromPointer(event);
+	}
+
+	function stopMarkerDrag(event: PointerEvent) {
+		if (markerDragPointerId !== event.pointerId) return;
+		markerDragPointerId = null;
+		const target = event.currentTarget as HTMLElement;
+		if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
+	}
+
+	function updateMarkerFromPointer(event: PointerEvent) {
+		const x = pointerToDataX(event);
+		if (x !== null) markerX = x;
+	}
+
+	function pointerToDataX(event: PointerEvent): number | null {
+		if (visibleXDomain === null) return null;
+		const rect = container.getBoundingClientRect();
+		const plotLeft = rect.left + PLOT_GRID.left;
+		const plotRight = rect.right - PLOT_GRID.right;
+		const plotWidth = plotRight - plotLeft;
+		if (!(plotWidth > 0)) return null;
+
+		const plotX = Math.min(plotRight, Math.max(plotLeft, event.clientX));
+		const ratio = (plotX - plotLeft) / plotWidth;
+		return visibleXDomain.min + ratio * (visibleXDomain.max - visibleXDomain.min);
 	}
 
 	function lineSeries(view: SignalView): SeriesConfig {
@@ -303,25 +348,31 @@
 </script>
 
 <section class="relative min-h-0 flex-1 overflow-hidden bg-background">
-	<div
-		bind:this={container}
-		class="absolute inset-0 cursor-none"
-		aria-label="Selected signal plot"
-	></div>
+	<div bind:this={container} class="absolute inset-0" aria-label="Selected signal plot"></div>
 
 	{#if signalViews.length > 0}
 		{#if markerPercent !== null}
 			<div
-				class="pointer-events-none absolute z-40 text-emerald-500"
+				class="absolute z-40 text-emerald-500"
 				style:top={`${PLOT_GRID.top}px`}
 				style:bottom={`${PLOT_GRID.bottom}px`}
 				style:left={`${PLOT_GRID.left}px`}
 				style:right={`${PLOT_GRID.right}px`}
 			>
 				<div
-					class="absolute inset-y-0 border-l border-current"
+					class="absolute inset-y-0 w-5 -translate-x-1/2 cursor-ew-resize"
 					style:left={`${markerPercent}%`}
-				></div>
+					role="separator"
+					aria-label="X marker"
+					aria-orientation="vertical"
+					tabindex="-1"
+					onpointerdown={startMarkerDrag}
+					onpointermove={dragMarker}
+					onpointerup={stopMarkerDrag}
+					onpointercancel={stopMarkerDrag}
+				>
+					<span class="absolute inset-y-0 left-1/2 border-l border-current"></span>
+				</div>
 			</div>
 		{/if}
 
@@ -367,15 +418,21 @@
 			<Button
 				variant="ghost"
 				size="icon"
+				aria-label={markerX === null ? 'Show x marker' : 'Hide x marker'}
+				title={markerX === null ? 'Show x marker' : 'Hide x marker'}
+				aria-pressed={markerX !== null}
+				onclick={toggleMarker}
+			>
+				<SeparatorVerticalIcon class={`size-4 ${markerX !== null ? 'text-emerald-500' : ''}`} />
+			</Button>
+			<Button
+				variant="ghost"
+				size="icon"
 				aria-label={legendVisible ? 'Hide legend' : 'Show legend'}
 				title={legendVisible ? 'Hide legend' : 'Show legend'}
 				onclick={() => (legendVisible = !legendVisible)}
 			>
-				{#if legendVisible}
-					<EyeOffIcon class="size-4" />
-				{:else}
-					<EyeIcon class="size-4" />
-				{/if}
+				<ListIcon class={`size-4 ${legendVisible ? 'text-emerald-500' : ''}`} />
 			</Button>
 		</div>
 
@@ -383,24 +440,27 @@
 			<div
 				class="absolute top-14 right-3 z-50 max-h-[calc(100%-4.25rem)] w-80 overflow-auto rounded-md border bg-background/90 p-3 shadow-sm backdrop-blur"
 			>
-				<div class="mb-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
-					<span
-						>{markerX === null
-							? 'Latest values'
-							: formatAxisTime(markerX, measurementStartMs)}</span
-					>
-					<span>{totalPoints.toLocaleString()} pts</span>
-				</div>
 				<div class="space-y-2">
 					{#each signalViews as view (view.key)}
 						{@const marker = markerValues.find((value) => value.key === view.key)}
-						<div class="grid grid-cols-[0.75rem_1fr_auto] items-center gap-2 text-xs">
+						<div
+							class="grid items-center gap-2 text-xs"
+							class:grid-cols-[0.75rem_1fr_auto]={markerX !== null}
+							class:grid-cols-[0.75rem_1fr]={markerX === null}
+						>
 							<span class="size-2 rounded-full" style:background-color={view.color}></span>
 							<span class="min-w-0 truncate" title={view.label}>{view.label}</span>
-							<span class="font-mono tabular-nums">{marker?.text}</span>
+							{#if markerX !== null}
+								<span class="font-mono tabular-nums">{marker?.text}</span>
+							{/if}
 						</div>
 					{/each}
 				</div>
+				{#if markerX !== null}
+					<div class="mt-2 text-xs text-muted-foreground">
+						{formatAxisTime(markerX, measurementStartMs)}
+					</div>
+				{/if}
 			</div>
 		{/if}
 	{:else}
