@@ -1,7 +1,28 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button/index.js';
+	import {
+		normalizedWheelDelta,
+		type PlotRatioPoint,
+		plotSize,
+		pointerToPlotRatio
+	} from '$lib/plot-geometry.js';
 	import { SIGNAL_COLORS } from '$lib/plot-colors.js';
-	import { plotData, type PlotSignal } from '$lib/stores/plot-data.svelte.js';
+	import {
+		boxViewport,
+		panViewport,
+		type PlotViewport,
+		viewportsAlmostEqual,
+		viewportIndicator,
+		zoomViewport
+	} from '$lib/plot-viewport.js';
+	import {
+		formatAxisTime,
+		lineSeries,
+		markerValue,
+		signalDomain,
+		signalView
+	} from '$lib/signal-plot-data.js';
+	import { plotData } from '$lib/stores/plot-data.svelte.js';
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
 	import BoxSelectIcon from '@lucide/svelte/icons/box-select';
 	import ExpandIcon from '@lucide/svelte/icons/expand';
@@ -9,22 +30,8 @@
 	import MinusIcon from '@lucide/svelte/icons/minus';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SeparatorVerticalIcon from '@lucide/svelte/icons/separator-vertical';
-	import { onDestroy, onMount } from 'svelte';
-	import type { ChartGPUInstance, ChartGPUOptions, SeriesConfig } from 'chartgpu';
-
-	type SignalView = {
-		key: string;
-		label: string;
-		unit: string;
-		color: string;
-		x: Float64Array;
-		y: Float64Array;
-		points: number;
-		latestText: string;
-		factor: number;
-		offset: number;
-		valueDescriptions: PlotSignal['valueDescriptions'];
-	};
+	import { onDestroy, onMount, untrack } from 'svelte';
+	import type { ChartGPUInstance, ChartGPUOptions } from 'chartgpu';
 
 	let container: HTMLDivElement;
 	let chart: ChartGPUInstance | null = null;
@@ -34,13 +41,31 @@
 	let chartError = $state<string | null>(null);
 	let markerX = $state<number | null>(null);
 	let markerDragPointerId = $state<number | null>(null);
-	let zoomStart = $state(0);
-	let zoomEnd = $state(100);
+	let viewport = $state<PlotViewport | null>(null);
+	let lastFullDomain: PlotViewport | null = null;
 	let legendVisible = $state(true);
+	let boxZoomEnabled = $state(false);
+	let dragState = $state<DragState | null>(null);
 	let lastSignature = '';
 	let resizeObserver: ResizeObserver | null = null;
 
 	const PLOT_GRID = { left: 64, right: 24, top: 18, bottom: 44 };
+	const WHEEL_ZOOM_SPEED = 0.002;
+
+	type DragState =
+		| {
+				type: 'pan';
+				pointerId: number;
+				clientX: number;
+				clientY: number;
+				startViewport: PlotViewport;
+		  }
+		| {
+				type: 'box';
+				pointerId: number;
+				start: PlotRatioPoint;
+				current: PlotRatioPoint;
+		  };
 
 	const readySignals = $derived(
 		plotData.signals.filter((signal) => signal.series && signal.series.timesMs.length >= 2)
@@ -50,15 +75,19 @@
 	);
 	const signalViews = $derived(readySignals.map((signal) => signalView(signal)));
 	const measurementStartMs = $derived(traceFile.entry?.metadata.measurementStartMs);
-	const xDomain = $derived.by(() => signalXDomain(signalViews));
-	const visibleXDomain = $derived.by(() =>
-		xDomain === null ? null : zoomedDomain(xDomain, zoomStart, zoomEnd)
+	const fullDomain = $derived.by(() => signalDomain(signalViews));
+	const activeViewport = $derived(viewport ?? fullDomain);
+	const isFitAll = $derived(viewportsAlmostEqual(activeViewport, fullDomain));
+	const locationIndicator = $derived.by(() =>
+		activeViewport === null || fullDomain === null
+			? null
+			: viewportIndicator(activeViewport, fullDomain)
 	);
 	const markerPercent = $derived.by(() => {
-		if (markerX === null || visibleXDomain === null) return null;
-		const span = visibleXDomain.max - visibleXDomain.min;
+		if (markerX === null || activeViewport === null) return null;
+		const span = activeViewport.xMax - activeViewport.xMin;
 		if (!(span > 0)) return null;
-		const percent = ((markerX - visibleXDomain.min) / span) * 100;
+		const percent = ((markerX - activeViewport.xMin) / span) * 100;
 		if (percent < 0 || percent > 100) return null;
 		return percent;
 	});
@@ -84,10 +113,6 @@
 			const mod = await import('chartgpu');
 			createChart = mod.ChartGPU.create;
 			chart = await createChart(container, chartOptions());
-			chart.on('zoomRangeChange', ({ start, end }) => {
-				zoomStart = start;
-				zoomEnd = end;
-			});
 
 			resizeObserver = new ResizeObserver(() => chart?.resize());
 			resizeObserver.observe(container);
@@ -102,9 +127,24 @@
 	});
 
 	$effect(() => {
+		const currentViewport = untrack(() => viewport);
+		const wasFitAll =
+			currentViewport === null || viewportsAlmostEqual(currentViewport, lastFullDomain);
+		if (fullDomain === null) {
+			if (currentViewport !== null) viewport = null;
+			lastFullDomain = null;
+			return;
+		}
+
+		if (wasFitAll && !viewportsAlmostEqual(currentViewport, fullDomain)) viewport = fullDomain;
+		lastFullDomain = fullDomain;
+	});
+
+	$effect(() => {
 		const signature = JSON.stringify({
 			keys: signalViews.map((view) => [view.key, view.points]),
-			measurementStartMs
+			measurementStartMs,
+			viewport: activeViewport
 		});
 
 		if (signature === lastSignature) return;
@@ -132,10 +172,15 @@
 			},
 			xAxis: {
 				type: 'time',
+				min: activeViewport?.xMin,
+				max: activeViewport?.xMax,
 				tickFormatter: (value) => formatAxisTime(value, measurementStartMs)
 			},
-			yAxis: { type: 'value', autoBounds: 'visible' },
-			dataZoom: [{ type: 'inside', start: zoomStart, end: zoomEnd }],
+			yAxis: {
+				type: 'value',
+				min: activeViewport?.yMin,
+				max: activeViewport?.yMax
+			},
 			legend: { show: false },
 			tooltip: { show: false },
 			animation: false,
@@ -146,18 +191,14 @@
 	}
 
 	function zoomBy(factor: number) {
-		const range = chart?.getZoomRange() ?? { start: 0, end: 100 };
-		const center = (range.start + range.end) / 2;
-		const span = Math.min(100, Math.max(0.01, (range.end - range.start) * factor));
-		zoomStart = Math.max(0, center - span / 2);
-		zoomEnd = Math.min(100, center + span / 2);
-		chart?.setZoomRange(zoomStart, zoomEnd);
+		if (activeViewport === null) return;
+		viewport = zoomViewport(activeViewport, factor, { xRatio: 0.5, yRatio: 0.5 });
 	}
 
 	function resetZoom() {
-		zoomStart = 0;
-		zoomEnd = 100;
-		chart?.setZoomRange(0, 100);
+		if (fullDomain === null) return;
+		viewport = fullDomain;
+		dragState = null;
 	}
 
 	function toggleMarker() {
@@ -166,8 +207,8 @@
 			return;
 		}
 
-		if (visibleXDomain === null) return;
-		markerX = visibleXDomain.min + (visibleXDomain.max - visibleXDomain.min) / 2;
+		if (activeViewport === null) return;
+		markerX = activeViewport.xMin + (activeViewport.xMax - activeViewport.xMin) / 2;
 	}
 
 	function startMarkerDrag(event: PointerEvent) {
@@ -197,153 +238,105 @@
 	}
 
 	function pointerToDataX(event: PointerEvent): number | null {
-		if (visibleXDomain === null) return null;
-		const rect = container.getBoundingClientRect();
-		const plotLeft = rect.left + PLOT_GRID.left;
-		const plotRight = rect.right - PLOT_GRID.right;
-		const plotWidth = plotRight - plotLeft;
-		if (!(plotWidth > 0)) return null;
-
-		const plotX = Math.min(plotRight, Math.max(plotLeft, event.clientX));
-		const ratio = (plotX - plotLeft) / plotWidth;
-		return visibleXDomain.min + ratio * (visibleXDomain.max - visibleXDomain.min);
+		if (activeViewport === null) return null;
+		const point = currentPlotRatio(event);
+		if (point === null) return null;
+		return activeViewport.xMin + point.xRatio * (activeViewport.xMax - activeViewport.xMin);
 	}
 
-	function lineSeries(view: SignalView): SeriesConfig {
-		return {
-			type: 'line',
-			name: view.label,
-			data: { x: view.x, y: view.y },
-			color: view.color,
-			lineStyle: { color: view.color, width: 1.5, opacity: 0.95 },
-			sampling: 'lttb',
-			samplingThreshold: 8_000
-		};
-	}
+	function handlePlotWheel(event: WheelEvent) {
+		if (activeViewport === null) return;
+		const point = currentPlotRatio(event);
+		if (point === null) return;
 
-	function markerValue(view: SignalView, x: number) {
-		return {
-			key: view.key,
-			text: formatDecodedValue(nearestValue(view, x), view)
-		};
-	}
+		const delta = normalizedWheelDelta(event, currentPlotSize().height);
+		if (delta.x === 0 && delta.y === 0) return;
 
-	function signalView(signal: PlotSignal): SignalView {
-		const series = signal.series;
-		const sourceTimes = series?.timesMs ?? new Float64Array(0);
-		const sourceValues = series?.values ?? new Float64Array(0);
-
-		return {
-			key: signal.key,
-			label: signal.label,
-			unit: signal.unit,
-			color: signal.color,
-			x: sourceTimes,
-			y: sourceValues,
-			points: sourceTimes.length,
-			latestText: formatDecodedValue(sourceValues.at(-1) ?? null, signal),
-			factor: signal.factor,
-			offset: signal.offset,
-			valueDescriptions: signal.valueDescriptions
-		};
-	}
-
-	function signalXDomain(views: SignalView[]): { min: number; max: number } | null {
-		let min = Number.POSITIVE_INFINITY;
-		let max = Number.NEGATIVE_INFINITY;
-
-		for (const view of views) {
-			const first = firstFiniteValue(view.x);
-			const last = lastFiniteValue(view.x);
-			if (first !== null) min = Math.min(min, first);
-			if (last !== null) max = Math.max(max, last);
+		if (Math.abs(delta.x) > Math.abs(delta.y) && !event.shiftKey && !event.altKey) {
+			event.preventDefault();
+			const plotSize = currentPlotSize();
+			viewport = panViewport(activeViewport, { x: -delta.x, y: 0 }, plotSize);
+			return;
 		}
 
-		return Number.isFinite(min) && Number.isFinite(max) && min !== max ? { min, max } : null;
+		event.preventDefault();
+		const factor = Math.exp(Math.min(200, Math.max(-200, delta.y)) * WHEEL_ZOOM_SPEED);
+		viewport = zoomViewport(activeViewport, factor, point, {
+			x: !event.altKey,
+			y: !event.shiftKey
+		});
 	}
 
-	function firstFiniteValue(values: Float64Array): number | null {
-		for (let index = 0; index < values.length; index += 1) {
-			const value = values[index];
-			if (Number.isFinite(value)) return value;
-		}
-		return null;
+	function startPlotDrag(event: PointerEvent) {
+		if (activeViewport === null || event.button !== 0) return;
+		const point = currentPlotRatio(event);
+		if (point === null) return;
+		event.preventDefault();
+		(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+
+		dragState = boxZoomEnabled
+			? { type: 'box', pointerId: event.pointerId, start: point, current: point }
+			: {
+					type: 'pan',
+					pointerId: event.pointerId,
+					clientX: event.clientX,
+					clientY: event.clientY,
+					startViewport: activeViewport
+				};
 	}
 
-	function lastFiniteValue(values: Float64Array): number | null {
-		for (let index = values.length - 1; index >= 0; index -= 1) {
-			const value = values[index];
-			if (Number.isFinite(value)) return value;
-		}
-		return null;
-	}
+	function dragPlot(event: PointerEvent) {
+		if (dragState === null || dragState.pointerId !== event.pointerId) return;
+		event.preventDefault();
 
-	function zoomedDomain(
-		domain: { min: number; max: number },
-		startPercent: number,
-		endPercent: number
-	): { min: number; max: number } {
-		const span = domain.max - domain.min;
-		return {
-			min: domain.min + (startPercent / 100) * span,
-			max: domain.min + (endPercent / 100) * span
-		};
-	}
-
-	function nearestValue(view: SignalView, x: number): number | null {
-		if (view.points === 0) return null;
-		let low = 0;
-		let high = view.points - 1;
-
-		while (low < high) {
-			const mid = Math.floor((low + high) / 2);
-			if (view.x[mid] < x) low = mid + 1;
-			else high = mid;
+		if (dragState.type === 'box') {
+			const point = currentPlotRatio(event);
+			if (point !== null) dragState = { ...dragState, current: point };
+			return;
 		}
 
-		const previous = Math.max(0, low - 1);
-		const nearest = Math.abs(view.x[previous] - x) <= Math.abs(view.x[low] - x) ? previous : low;
-		return view.y[nearest];
+		viewport = panViewport(
+			dragState.startViewport,
+			{
+				x: event.clientX - dragState.clientX,
+				y: event.clientY - dragState.clientY
+			},
+			currentPlotSize()
+		);
 	}
 
-	function formatDecodedValue(
-		value: number | null,
-		context: Pick<PlotSignal, 'unit' | 'factor' | 'offset' | 'valueDescriptions'>
-	): string {
-		if (value === null || !Number.isFinite(value)) return '-';
-		const formatted = Math.abs(value) >= 1000 ? value.toFixed(0) : value.toPrecision(4);
-		const rawValue = physicalToRaw(value, context.factor, context.offset);
-		const description =
-			rawValue === null
-				? undefined
-				: context.valueDescriptions.find((item) => item.rawValue === rawValue)?.label;
-		const withUnit = context.unit ? `${formatted} ${context.unit}` : formatted;
-		return description ?? withUnit;
-	}
+	function stopPlotDrag(event: PointerEvent) {
+		if (dragState === null || dragState.pointerId !== event.pointerId) return;
+		const state = dragState;
+		dragState = null;
+		const target = event.currentTarget as HTMLElement;
+		if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
 
-	function physicalToRaw(value: number, factor: number, offset: number): number | null {
-		if (!Number.isFinite(factor) || factor === 0 || !Number.isFinite(offset)) return null;
-		const raw = (value - offset) / factor;
-		const rounded = Math.round(raw);
-		return Math.abs(raw - rounded) < 1e-6 ? rounded : null;
-	}
-
-	function formatAxisTime(value: number, measurementStartMs?: number | null): string {
-		if (!Number.isFinite(value)) return '';
-		if (measurementStartMs !== null && measurementStartMs !== undefined) {
-			const date = new Date(measurementStartMs + value);
-			return date.toLocaleTimeString([], {
-				hour: '2-digit',
-				minute: '2-digit',
-				second: '2-digit',
-				fractionalSecondDigits: 3
-			});
+		if (state.type === 'box' && activeViewport !== null) {
+			const nextViewport = boxViewport(activeViewport, state.start, state.current);
+			if (nextViewport !== null) viewport = nextViewport;
 		}
+	}
 
-		const seconds = value / 1000;
-		if (seconds < 60) return `${seconds.toFixed(3)}s`;
-		const minutes = Math.floor(seconds / 60);
-		return `${minutes}m ${(seconds - minutes * 60).toFixed(3)}s`;
+	function cancelBoxZoom(event: KeyboardEvent) {
+		if (event.key !== 'Escape' || dragState?.type !== 'box') return;
+		event.preventDefault();
+		dragState = null;
+	}
+
+	function toggleBoxZoom() {
+		boxZoomEnabled = !boxZoomEnabled;
+		dragState = null;
+	}
+
+	function currentPlotRatio(
+		event: Pick<PointerEvent, 'clientX' | 'clientY'>
+	): PlotRatioPoint | null {
+		return pointerToPlotRatio(container.getBoundingClientRect(), PLOT_GRID, event);
+	}
+
+	function currentPlotSize(): { width: number; height: number } {
+		return plotSize(container.getBoundingClientRect(), PLOT_GRID);
 	}
 </script>
 
@@ -351,16 +344,75 @@
 	<div bind:this={container} class="absolute inset-0" aria-label="Selected signal plot"></div>
 
 	{#if signalViews.length > 0}
+		<button
+			type="button"
+			class={`absolute z-30 border-0 bg-transparent p-0 text-left outline-none ${
+				boxZoomEnabled
+					? 'cursor-crosshair'
+					: dragState?.type === 'pan'
+						? 'cursor-grabbing'
+						: 'cursor-grab'
+			}`}
+			style:top={`${PLOT_GRID.top}px`}
+			style:bottom={`${PLOT_GRID.bottom}px`}
+			style:left={`${PLOT_GRID.left}px`}
+			style:right={`${PLOT_GRID.right}px`}
+			aria-label="Plot viewport interaction"
+			onwheel={handlePlotWheel}
+			onpointerdown={startPlotDrag}
+			onpointermove={dragPlot}
+			onpointerup={stopPlotDrag}
+			onpointercancel={stopPlotDrag}
+			onkeydown={cancelBoxZoom}
+		>
+			{#if dragState?.type === 'box'}
+				<div
+					class="absolute border border-white/90 bg-white/10"
+					style:left={`${Math.min(dragState.start.xRatio, dragState.current.xRatio) * 100}%`}
+					style:top={`${Math.min(dragState.start.yRatio, dragState.current.yRatio) * 100}%`}
+					style:width={`${Math.abs(dragState.current.xRatio - dragState.start.xRatio) * 100}%`}
+					style:height={`${Math.abs(dragState.current.yRatio - dragState.start.yRatio) * 100}%`}
+				></div>
+			{/if}
+		</button>
+
+		{#if locationIndicator !== null && !isFitAll}
+			<div
+				class="pointer-events-none absolute z-50 h-1 overflow-hidden rounded-full bg-transparent"
+				style:left={`${PLOT_GRID.left}px`}
+				style:right={`${PLOT_GRID.right}px`}
+				style:bottom={`${PLOT_GRID.bottom - 1}px`}
+			>
+				<span
+					class="absolute inset-y-0 rounded-full bg-muted-foreground/60"
+					style:left={`${locationIndicator.xLeft}%`}
+					style:width={`${locationIndicator.xWidth}%`}
+				></span>
+			</div>
+			<div
+				class="pointer-events-none absolute z-50 w-1 overflow-hidden rounded-full bg-transparent"
+				style:top={`${PLOT_GRID.top}px`}
+				style:bottom={`${PLOT_GRID.bottom}px`}
+				style:left={`${PLOT_GRID.left - 1}px`}
+			>
+				<span
+					class="absolute inset-x-0 rounded-full bg-muted-foreground/60"
+					style:top={`${locationIndicator.yTop}%`}
+					style:height={`${locationIndicator.yHeight}%`}
+				></span>
+			</div>
+		{/if}
+
 		{#if markerPercent !== null}
 			<div
-				class="absolute z-40 text-emerald-500"
+				class="pointer-events-none absolute z-40 text-white"
 				style:top={`${PLOT_GRID.top}px`}
 				style:bottom={`${PLOT_GRID.bottom}px`}
 				style:left={`${PLOT_GRID.left}px`}
 				style:right={`${PLOT_GRID.right}px`}
 			>
 				<div
-					class="absolute inset-y-0 w-5 -translate-x-1/2 cursor-ew-resize"
+					class="pointer-events-auto absolute inset-y-0 w-5 -translate-x-1/2 cursor-ew-resize"
 					style:left={`${markerPercent}%`}
 					role="separator"
 					aria-label="X marker"
@@ -403,17 +455,19 @@
 				aria-label="Zoom to full extent"
 				title="Zoom to full extent"
 				onclick={resetZoom}
+				disabled={isFitAll}
 			>
 				<ExpandIcon class="size-4" />
 			</Button>
 			<Button
 				variant="ghost"
 				size="icon"
-				aria-label="Box zoom (coming soon)"
-				title="Box zoom (coming soon)"
-				disabled
+				aria-label={boxZoomEnabled ? 'Use drag pan' : 'Use box zoom'}
+				title={boxZoomEnabled ? 'Use drag pan' : 'Use box zoom'}
+				aria-pressed={boxZoomEnabled}
+				onclick={toggleBoxZoom}
 			>
-				<BoxSelectIcon class="size-4" />
+				<BoxSelectIcon class={`size-4 ${boxZoomEnabled ? 'text-emerald-500' : ''}`} />
 			</Button>
 			<Button
 				variant="ghost"
