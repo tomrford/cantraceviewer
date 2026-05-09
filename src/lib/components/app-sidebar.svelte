@@ -1,6 +1,6 @@
 <script lang="ts">
 	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
-	import { fuzzyIncludes } from '$lib/fuzzy-match.js';
+	import { rankedFuzzySearch } from '$lib/fuzzy-match.js';
 	import { dbcFiles } from '$lib/stores/dbc-files.svelte.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
 	import SearchForm from './search-form.svelte';
@@ -27,10 +27,11 @@
 	let visibleDbcFiles = $derived.by(() =>
 		dbcFiles.sidebarFiles.map((dbc) => ({
 			...dbc,
-			signals: dbc.signals.filter((signal) => {
-				if (showActiveOnly && !plotData.isSignalSelected(signal.key)) return false;
-				return !isSignalSearchActive || fuzzyIncludes(signal.label, normalizedSignalSearch);
-			})
+			signals: rankedFuzzySearch(
+				dbc.signals.filter((signal) => !showActiveOnly || plotData.isSignalSelected(signal.key)),
+				normalizedSignalSearch,
+				(signal) => signal.label
+			)
 		}))
 	);
 
@@ -208,12 +209,12 @@
 			<AlertDialog.Description class="space-y-2 text-left text-pretty">
 				<p>Files stay local and are processed only in your browser. No data leaves your machine.</p>
 				<p>
-					Load one Vector ASCII trace, add one or more DBC files, then select decoded signals from
-					the sidebar.
+					Load one ASC or TRC trace, add one or more DBC files, then select decoded signals from the
+					sidebar.
 				</p>
 				<p>
-					Current support is for ASC traces only and a practical subset of DBC, using shared-axis
-					line plots for selected signals.
+					Current support is for text traces and a practical subset of DBC, using shared-axis line
+					plots for selected signals.
 				</p>
 				<p>
 					The source code is available on

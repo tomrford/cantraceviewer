@@ -1,17 +1,7 @@
-import {
-	closeAsc,
-	getAscMetadata,
-	openAsc,
-	type AscHandle,
-	type TraceMetadata
-} from '$lib/wasm.js';
-import { ASC_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '$lib/file-limits.js';
+import { closeTrace, openTrace, type TraceHandle, type TraceType } from '$lib/wasm.js';
+import { TRACE_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '$lib/file-limits.js';
 
-export type TraceFileEntry = {
-	file: File;
-	handle: AscHandle;
-	metadata: TraceMetadata;
-};
+export type TraceFileEntry = TraceHandle & { file: File };
 
 class TraceFileStore {
 	entry = $state<TraceFileEntry | null>(null);
@@ -26,35 +16,25 @@ class TraceFileStore {
 
 		let next: TraceFileEntry | null = null;
 		try {
-			assertFileSizeWithinLimit(file, ASC_MAX_FILE_BYTES, 'ASC');
+			const traceType = traceTypeForFile(file);
+			assertFileSizeWithinLimit(file, TRACE_MAX_FILE_BYTES, 'Trace');
 
 			const bytes = new Uint8Array(await file.arrayBuffer());
-			const handle = await openAsc(bytes);
-
-			try {
-				next = {
-					file,
-					handle,
-					metadata: await getAscMetadata(handle)
-				};
-			} catch (error) {
-				await closeAsc(handle);
-				throw error;
-			}
+			next = await openTraceFile(traceType, file, bytes);
 
 			const previous = this.entry;
 			this.entry = next;
 			next = null;
 
 			if (previous) {
-				await closeAsc(previous.handle);
+				await closeTrace(previous);
 			}
 			return true;
 		} catch (error) {
 			if (next) {
-				await closeAsc(next.handle);
+				await closeTrace(next);
 			}
-			this.error = error instanceof Error ? error.message : 'ASC load failed';
+			this.error = error instanceof Error ? error.message : 'Trace load failed';
 			return false;
 		} finally {
 			this.isLoading = false;
@@ -66,7 +46,7 @@ class TraceFileStore {
 		this.entry = null;
 
 		if (previous) {
-			await closeAsc(previous.handle);
+			await closeTrace(previous);
 		}
 	}
 
@@ -76,7 +56,24 @@ class TraceFileStore {
 }
 
 function displayTraceName(fileName: string): string {
-	return fileName.replace(/\.asc$/i, '');
+	return fileName.replace(/\.(asc|trc)$/i, '');
+}
+
+function traceTypeForFile(file: File): TraceType {
+	if (/\.trc$/i.test(file.name)) return 'trc';
+	if (/\.asc$/i.test(file.name)) return 'asc';
+	throw new Error('Unsupported trace file type');
+}
+
+async function openTraceFile(
+	traceType: TraceType,
+	file: File,
+	bytes: Uint8Array
+): Promise<TraceFileEntry> {
+	return {
+		...(await openTrace(traceType, bytes)),
+		file
+	};
 }
 
 export const traceFile = new TraceFileStore();

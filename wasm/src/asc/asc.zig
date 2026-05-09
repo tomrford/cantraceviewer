@@ -1,5 +1,6 @@
 const std = @import("std");
 pub const frame = @import("frame.zig");
+const trace = @import("../trace/trace.zig");
 
 pub const Base = frame.Base;
 
@@ -9,69 +10,60 @@ pub const TimestampMode = enum {
     relative,
 };
 
-pub const Asc = struct {
+const ParserState = struct {
     base: Base = .hex,
     timestamp_mode: TimestampMode = .absolute,
 
     /// Measurement-start wall clock parsed from `Begin Triggerblock ...`, or
     /// from `date ...` when no triggerblock start has been seen.
     measurement_start_ms: ?i64 = null,
-
-    frames: []const frame.Frame = &.{},
-    payloads: []const u8 = &.{},
-    data_frame_count: usize = 0,
-    last_data_timestamp_ns: ?u64 = null,
-
-    pub fn fromString(allocator: std.mem.Allocator, text: []const u8) !Asc {
-        var parsed: Asc = .{};
-        var frames: std.ArrayList(frame.Frame) = .empty;
-        errdefer frames.deinit(allocator);
-        var payloads: std.ArrayList(u8) = .empty;
-        errdefer payloads.deinit(allocator);
-
-        var payload_buffer: [64]u8 = undefined;
-        var relative_timestamp_ns: u64 = 0;
-        var lines = std.mem.splitScalar(u8, text, '\n');
-        while (lines.next()) |raw_line| {
-            const line = std.mem.trim(u8, raw_line, " \t\r");
-            if (line.len == 0) continue;
-
-            if (try parseHeaderLine(&parsed, line)) continue;
-
-            if (try frame.parseLine(parsed.base, line, &payload_buffer)) |line_frame| {
-                var normalized = line_frame;
-                if (parsed.timestamp_mode == .relative) {
-                    relative_timestamp_ns = try std.math.add(u64, relative_timestamp_ns, normalized.timestamp_ns);
-                    normalized.timestamp_ns = relative_timestamp_ns;
-                }
-                const payload_offset: u32 = if (normalized.kind == .data and normalized.id != null) offset: {
-                    const start = payloads.items.len;
-                    try payloads.appendSlice(allocator, payload_buffer[0..normalized.payload_len]);
-                    break :offset @intCast(start);
-                } else 0;
-                normalized.payload_offset = payload_offset;
-
-                if (normalized.kind == .data and normalized.id != null) {
-                    parsed.data_frame_count += 1;
-                    parsed.last_data_timestamp_ns = normalized.timestamp_ns;
-                }
-                try frames.append(allocator, normalized);
-            }
-        }
-
-        parsed.frames = try frames.toOwnedSlice(allocator);
-        parsed.payloads = try payloads.toOwnedSlice(allocator);
-        return parsed;
-    }
-
-    pub fn deinit(self: *Asc, allocator: std.mem.Allocator) void {
-        allocator.free(self.frames);
-        allocator.free(self.payloads);
-        self.* = .{};
-    }
 };
 
-fn parseHeaderLine(parsed: *Asc, line: []const u8) !bool {
+pub fn fromString(allocator: std.mem.Allocator, text: []const u8) !trace.Trace {
+    var state: ParserState = .{};
+    var parsed_trace: trace.Trace = .{};
+    var frames: std.ArrayList(frame.Frame) = .empty;
+    errdefer frames.deinit(allocator);
+    var payloads: std.ArrayList(u8) = .empty;
+    errdefer payloads.deinit(allocator);
+
+    var payload_buffer: [64]u8 = undefined;
+    var relative_timestamp_ns: u64 = 0;
+    var lines = std.mem.splitScalar(u8, text, '\n');
+    while (lines.next()) |raw_line| {
+        const line = std.mem.trim(u8, raw_line, " \t\r");
+        if (line.len == 0) continue;
+
+        if (try parseHeaderLine(&state, line)) continue;
+
+        if (try frame.parseLine(state.base, line, &payload_buffer)) |line_frame| {
+            var normalized = line_frame;
+            if (state.timestamp_mode == .relative) {
+                relative_timestamp_ns = try std.math.add(u64, relative_timestamp_ns, normalized.timestamp_ns);
+                normalized.timestamp_ns = relative_timestamp_ns;
+            }
+            const payload_offset: u32 = if (normalized.kind == .data and normalized.id != null) offset: {
+                const start = payloads.items.len;
+                try payloads.appendSlice(allocator, payload_buffer[0..normalized.payload_len]);
+                break :offset @intCast(start);
+            } else 0;
+            normalized.payload_offset = payload_offset;
+
+            if (normalized.kind == .data and normalized.id != null) {
+                parsed_trace.data_frame_count += 1;
+                parsed_trace.last_data_timestamp_ns = normalized.timestamp_ns;
+            }
+            try frames.append(allocator, normalized);
+        }
+    }
+
+    parsed_trace.measurement_start_ms = state.measurement_start_ms;
+    parsed_trace.frames = try frames.toOwnedSlice(allocator);
+    parsed_trace.payloads = try payloads.toOwnedSlice(allocator);
+    return parsed_trace;
+}
+
+fn parseHeaderLine(parsed: *ParserState, line: []const u8) !bool {
     if (std.mem.eql(u8, line, "no internal events logged") or
         std.mem.eql(u8, line, "internal events logged"))
     {
@@ -103,7 +95,7 @@ fn parseHeaderLine(parsed: *Asc, line: []const u8) !bool {
     return false;
 }
 
-fn parseBaseLine(parsed: *Asc, line: []const u8) !void {
+fn parseBaseLine(parsed: *ParserState, line: []const u8) !void {
     var tokens = std.mem.tokenizeAny(u8, line, " \t\r");
     const base_keyword = tokens.next() orelse return error.InvalidBaseLine;
     if (!std.mem.eql(u8, base_keyword, "base")) return error.InvalidBaseLine;
@@ -240,11 +232,9 @@ test "parses asc source with measurement start and decimal base" {
         \\End TriggerBlock
     ;
 
-    var parsed = try Asc.fromString(allocator, text);
+    var parsed = try fromString(allocator, text);
     defer parsed.deinit(allocator);
 
-    try std.testing.expectEqual(@as(Base, .dec), parsed.base);
-    try std.testing.expectEqual(@as(TimestampMode, .absolute), parsed.timestamp_mode);
     try std.testing.expectEqual(@as(i64, 1_777_370_400_000), parsed.measurement_start_ms.?);
     try std.testing.expectEqual(@as(usize, 1), parsed.frames.len);
     try std.testing.expectEqual(@as(usize, 2), parsed.payloads.len);
@@ -264,10 +254,9 @@ test "normalizes relative timestamps across unknown events" {
         \\0.300000 1 123 Rx d 1 bb
     ;
 
-    var parsed = try Asc.fromString(allocator, text);
+    var parsed = try fromString(allocator, text);
     defer parsed.deinit(allocator);
 
-    try std.testing.expectEqual(@as(TimestampMode, .relative), parsed.timestamp_mode);
     try std.testing.expectEqual(@as(usize, 3), parsed.frames.len);
     try std.testing.expectEqual(@as(u64, 100_000_000), parsed.frames[0].timestamp_ns);
     try std.testing.expectEqual(@as(u64, 300_000_000), parsed.frames[1].timestamp_ns);
@@ -285,7 +274,7 @@ test "stores data payloads in a compact side buffer" {
         \\0.400000 CANFD 1 Rx 123 - 1 0 9 12 01 02 03 04 05 06 07 08 09 0a 0b 0c
     ;
 
-    var parsed = try Asc.fromString(allocator, text);
+    var parsed = try fromString(allocator, text);
     defer parsed.deinit(allocator);
 
     try std.testing.expectEqual(@as(usize, 4), parsed.frames.len);
@@ -313,7 +302,7 @@ test "counts data frames and reports duration from last data frame" {
         \\0.400000 1 123 Rx d 1 bb
     ;
 
-    var parsed = try Asc.fromString(allocator, text);
+    var parsed = try fromString(allocator, text);
     defer parsed.deinit(allocator);
 
     try std.testing.expectEqual(@as(usize, 2), parsed.data_frame_count);
@@ -327,7 +316,7 @@ test "duration is null when no data frames are present" {
         \\0.200000 CANFD_STATISTIC whatever else
     ;
 
-    var parsed = try Asc.fromString(allocator, text);
+    var parsed = try fromString(allocator, text);
     defer parsed.deinit(allocator);
 
     try std.testing.expectEqual(@as(usize, 0), parsed.data_frame_count);

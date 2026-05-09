@@ -7,12 +7,10 @@ import { getSignalValues } from '$lib/wasm.js';
 import type { DbcMessage, DbcSignal, DecodedSignalSeries } from '$lib/wasm.js';
 
 vi.mock('$lib/wasm.js', () => ({
-	closeAsc: vi.fn(() => Promise.resolve()),
 	closeDbc: vi.fn(() => Promise.resolve()),
-	getAscMetadata: vi.fn(),
+	closeTrace: vi.fn(() => Promise.resolve()),
 	getDbcCatalog: vi.fn(),
 	getSignalValues: vi.fn(),
-	openAsc: vi.fn(),
 	openDbc: vi.fn()
 }));
 
@@ -36,7 +34,7 @@ describe('plotData', () => {
 
 		expect(getSignalValuesMock).toHaveBeenCalledExactlyOnceWith(
 			{ ptr: 1 },
-			{ ptr: 2 },
+			traceFile.entry,
 			'SpeedMessage',
 			'VehicleSpeed'
 		);
@@ -82,6 +80,20 @@ describe('plotData', () => {
 		expect(plotData.decodeErrors).toEqual({});
 		expect(plotData.decodingSignalKeys).toEqual([]);
 	});
+
+	it('passes the selected trace through to signal decoding', async () => {
+		traceFile.entry = traceEntry(4);
+		getSignalValuesMock.mockResolvedValueOnce(signalSeries([0.001], [12.5]));
+
+		await plotData.toggleSignal(key());
+
+		expect(getSignalValuesMock).toHaveBeenCalledExactlyOnceWith(
+			{ ptr: 1 },
+			traceFile.entry,
+			'SpeedMessage',
+			'VehicleSpeed'
+		);
+	});
 });
 
 function key(): string {
@@ -101,8 +113,8 @@ function dbcEntry() {
 
 function traceEntry(ptr: number) {
 	return {
-		file: new File(['asc'], 'drive.asc'),
-		handle: { ptr },
+		ptr,
+		file: new File(['trace'], 'drive.asc'),
 		metadata: {
 			measurementStartMs: null,
 			validMessageCount: 1,

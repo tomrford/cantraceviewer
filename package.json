@@ -53,6 +53,7 @@
 	},
 	"dependencies": {
 		"chartgpu": "0.3.2",
+		"fuse.js": "7.3.0",
 		"zod": "4.3.6"
 	},
 	"patchedDependencies": {
