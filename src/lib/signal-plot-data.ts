@@ -16,6 +16,13 @@ export type SignalView = {
 	valueDescriptions: PlotSignal['valueDescriptions'];
 };
 
+export type VisibleSignalView = SignalView & {
+	x: Float64Array<ArrayBufferLike>;
+	y: Float64Array<ArrayBufferLike>;
+};
+
+const DEFAULT_TOTAL_SAMPLING_THRESHOLD = 25_000;
+
 export function signalView(signal: PlotSignal): SignalView {
 	const series = signal.series;
 	const sourceTimes = series?.timesMs ?? new Float64Array(0);
@@ -36,7 +43,34 @@ export function signalView(signal: PlotSignal): SignalView {
 	};
 }
 
-export function lineSeries(view: SignalView): SeriesConfig {
+export function visibleSignalViews(
+	views: SignalView[],
+	viewport: Pick<PlotViewport, 'xMin' | 'xMax'> | null
+): VisibleSignalView[] {
+	if (viewport === null) return views;
+
+	return views.map((view) => {
+		const { start, end } = visibleIndexRange(view.x, viewport.xMin, viewport.xMax);
+		if (start === 0 && end === view.points) return view;
+		return {
+			...view,
+			x: view.x.subarray(start, end),
+			y: view.y.subarray(start, end),
+			points: end - start
+		};
+	});
+}
+
+export function lineSeries(
+	view: SignalView,
+	visibleLineCount = 1,
+	totalSamplingThreshold = DEFAULT_TOTAL_SAMPLING_THRESHOLD
+): SeriesConfig {
+	const samplingThreshold = Math.max(
+		2,
+		Math.floor(totalSamplingThreshold / Math.max(1, visibleLineCount))
+	);
+
 	return {
 		type: 'line',
 		name: view.label,
@@ -44,8 +78,13 @@ export function lineSeries(view: SignalView): SeriesConfig {
 		color: view.color,
 		lineStyle: { color: view.color, width: 1.5, opacity: 0.95 },
 		sampling: 'lttb',
-		samplingThreshold: 8_000
+		samplingThreshold
 	};
+}
+
+export function lineSeriesForViews(views: SignalView[]): SeriesConfig[] {
+	const plottedViews = views.filter((view) => view.points > 0);
+	return plottedViews.map((view) => lineSeries(view, plottedViews.length));
 }
 
 export function markerValue(view: SignalView, x: number) {
@@ -99,6 +138,45 @@ function nearestValue(view: SignalView, x: number): number | null {
 	const previous = Math.max(0, low - 1);
 	const nearest = Math.abs(view.x[previous] - x) <= Math.abs(view.x[low] - x) ? previous : low;
 	return view.y[nearest];
+}
+
+function visibleIndexRange(
+	x: Float64Array<ArrayBufferLike>,
+	xMin: number,
+	xMax: number
+): { start: number; end: number } {
+	if (x.length === 0 || !Number.isFinite(xMin) || !Number.isFinite(xMax)) {
+		return { start: 0, end: x.length };
+	}
+
+	const min = Math.min(xMin, xMax);
+	const max = Math.max(xMin, xMax);
+	const start = lowerBound(x, min);
+	const end = upperBound(x, max);
+
+	return { start, end: Math.max(start, end) };
+}
+
+function lowerBound(values: Float64Array<ArrayBufferLike>, target: number): number {
+	let low = 0;
+	let high = values.length;
+	while (low < high) {
+		const mid = Math.floor((low + high) / 2);
+		if (values[mid] < target) low = mid + 1;
+		else high = mid;
+	}
+	return low;
+}
+
+function upperBound(values: Float64Array<ArrayBufferLike>, target: number): number {
+	let low = 0;
+	let high = values.length;
+	while (low < high) {
+		const mid = Math.floor((low + high) / 2);
+		if (values[mid] <= target) low = mid + 1;
+		else high = mid;
+	}
+	return low;
 }
 
 function formatDecodedValue(
