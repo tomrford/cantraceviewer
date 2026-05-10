@@ -56,10 +56,11 @@ class TraceFileStore {
 }
 
 function displayTraceName(fileName: string): string {
-	return fileName.replace(/\.(asc|trc)$/i, '');
+	return fileName.replace(/\.(asc|trc|blf)$/i, '');
 }
 
 function traceTypeForFile(file: File): TraceType {
+	if (/\.blf$/i.test(file.name)) return 'blf';
 	if (/\.trc$/i.test(file.name)) return 'trc';
 	if (/\.asc$/i.test(file.name)) return 'asc';
 	throw new Error('Unsupported trace file type');
