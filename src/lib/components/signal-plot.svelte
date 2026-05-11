@@ -17,10 +17,11 @@
 	} from '$lib/plot-viewport.js';
 	import {
 		formatAxisTime,
-		lineSeries,
+		lineSeriesForViews,
 		markerValue,
 		signalDomain,
-		signalView
+		signalView,
+		visibleSignalViews
 	} from '$lib/signal-plot-data.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
@@ -77,6 +78,7 @@
 	const measurementStartMs = $derived(traceFile.entry?.metadata.measurementStartMs);
 	const fullDomain = $derived.by(() => signalDomain(signalViews));
 	const activeViewport = $derived(viewport ?? fullDomain);
+	const visibleViews = $derived(visibleSignalViews(signalViews, activeViewport));
 	const isFitAll = $derived(viewportsAlmostEqual(activeViewport, fullDomain));
 	const locationIndicator = $derived.by(() =>
 		activeViewport === null || fullDomain === null
@@ -144,7 +146,8 @@
 		const signature = JSON.stringify({
 			keys: signalViews.map((view) => [view.key, view.points]),
 			measurementStartMs,
-			viewport: activeViewport
+			viewport: activeViewport,
+			visible: visibleViews.map((view) => [view.key, view.points])
 		});
 
 		if (signature === lastSignature) return;
@@ -186,7 +189,7 @@
 			animation: false,
 			palette: SIGNAL_COLORS,
 			annotations: [],
-			series: signalViews.map((view) => lineSeries(view))
+			series: lineSeriesForViews(visibleViews)
 		};
 	}
 
