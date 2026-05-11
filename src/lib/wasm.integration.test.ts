@@ -91,6 +91,25 @@ describe('WASM adapter integration', () => {
 		}
 	});
 
+	it('opens a generated BLF trace through the TypeScript boundary', async () => {
+		const dbc = await openFixtureDbc();
+		const trace = await openTrace('blf', generatedBlfTrace());
+		try {
+			expect(trace.metadata).toEqual({
+				measurementStartMs: 1778494830400,
+				validMessageCount: 2,
+				durationNs: 20_000_000
+			});
+
+			const speed = await getSignalValues(dbc, trace, 'PowertrainStatus', 'vehicle_speed');
+			expect(Array.from(speed.timesMs)).toEqual([10, 20]);
+			expect(Array.from(speed.values)).toEqual([100, 123.4]);
+		} finally {
+			await closeTrace(trace);
+			await closeDbc(dbc);
+		}
+	});
+
 	it('normalizes parse and decode failures', async () => {
 		const trace = await openFixtureTrace();
 		const dbc = await openFixtureDbc();
@@ -117,4 +136,93 @@ async function openFixtureDbc(): Promise<DbcHandle> {
 async function openFixtureTrace(): Promise<TraceHandle> {
 	const bytes = await readFile(resolve(fixturesDir, 'agentic-demo.asc'));
 	return openTrace('asc', bytes);
+}
+
+function generatedBlfTrace(): Uint8Array {
+	const inner = concatBytes(
+		blfCanMessage(10_000_000, 0x120, [0xe8, 0x03, 0, 0, 0, 120, 0, 0]),
+		blfCanMessage(20_000_000, 0x120, [0xd2, 0x04, 0, 0, 0, 130, 0, 0])
+	);
+	return concatBytes(blfFileHeader(), blfContainer(inner));
+}
+
+function blfFileHeader(): Uint8Array {
+	const bytes = new Uint8Array(144);
+	const view = new DataView(bytes.buffer);
+	bytes.set(new TextEncoder().encode('LOGG'), 0);
+	view.setUint32(4, 144, true);
+	writeSystemTime(view, 40, 2026, 5, 11, 10, 20, 30, 400);
+	return bytes;
+}
+
+function blfContainer(payload: Uint8Array): Uint8Array {
+	const objectSize = 16 + 16 + payload.byteLength;
+	const bytes = new Uint8Array(objectSize + paddingSize(objectSize));
+	const view = new DataView(bytes.buffer);
+	writeObjectBase(bytes, view, 0, 16, objectSize, 10);
+	view.setUint16(16, 0, true);
+	view.setUint32(24, payload.byteLength, true);
+	bytes.set(payload, 32);
+	return bytes;
+}
+
+function blfCanMessage(timestampNs: number, canId: number, payload: number[]): Uint8Array {
+	const objectSize = 16 + 16 + 16;
+	const bytes = new Uint8Array(objectSize);
+	const view = new DataView(bytes.buffer);
+	writeObjectBase(bytes, view, 0, 32, objectSize, 1);
+	view.setUint32(16, 2, true);
+	view.setBigUint64(24, BigInt(timestampNs), true);
+	view.setUint16(32, 1, true);
+	view.setUint8(35, payload.length);
+	view.setUint32(36, canId, true);
+	bytes.set(payload, 40);
+	return bytes;
+}
+
+function writeObjectBase(
+	bytes: Uint8Array,
+	view: DataView,
+	offset: number,
+	headerSize: number,
+	objectSize: number,
+	objectType: number
+): void {
+	bytes.set(new TextEncoder().encode('LOBJ'), offset);
+	view.setUint16(offset + 4, headerSize, true);
+	view.setUint16(offset + 6, 1, true);
+	view.setUint32(offset + 8, objectSize, true);
+	view.setUint32(offset + 12, objectType, true);
+}
+
+function writeSystemTime(
+	view: DataView,
+	offset: number,
+	year: number,
+	month: number,
+	day: number,
+	hour: number,
+	minute: number,
+	second: number,
+	millisecond: number
+): void {
+	const values = [year, month, 0, day, hour, minute, second, millisecond];
+	for (const [index, value] of values.entries()) {
+		view.setUint16(offset + index * 2, value, true);
+	}
+}
+
+function concatBytes(...parts: Uint8Array[]): Uint8Array {
+	const total = parts.reduce((sum, part) => sum + part.byteLength, 0);
+	const bytes = new Uint8Array(total);
+	let offset = 0;
+	for (const part of parts) {
+		bytes.set(part, offset);
+		offset += part.byteLength;
+	}
+	return bytes;
+}
+
+function paddingSize(size: number): number {
+	return size % 4;
 }

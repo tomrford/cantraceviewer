@@ -10,16 +10,24 @@ const obj_header_v1_size = 16;
 const obj_header_v2_size = 24;
 const log_container_size = 16;
 const can_message_size = 16;
+const can_error_ext_size = 32;
+const can_fd_message_size = 84;
+const can_fd_message_64_size = 40;
 
 const can_message: u32 = 1;
 const log_container: u32 = 10;
+const can_error_ext: u32 = 73;
 const can_message2: u32 = 86;
+const can_fd_message: u32 = 100;
+const can_fd_message_64: u32 = 101;
 
 const no_compression: u16 = 0;
 const zlib_deflate: u16 = 2;
 
 const can_msg_ext: u32 = 0x8000_0000;
 const remote_flag: u8 = 0x80;
+const fd64_remote_flag: u32 = 0x0010;
+const fd64_edl_flag: u32 = 0x1000;
 
 const time_ten_mics: u32 = 0x0000_0001;
 const time_one_nans: u32 = 0x0000_0002;
@@ -101,16 +109,21 @@ const Parser = struct {
                     break :timestamp try timestampToNs(flags, raw_timestamp);
                 },
                 else => {
-                    pos = object_end;
+                    pos = object_end + paddingSize(object_size);
+                    if (pos > buffer.items.len) return error.TruncatedBlfObjectPadding;
                     continue;
                 },
             };
 
             switch (object_type) {
                 can_message, can_message2 => try self.parseCanMessage(buffer.items[cursor..object_end], timestamp),
+                can_error_ext => try self.parseCanErrorExt(buffer.items[cursor..object_end], timestamp),
+                can_fd_message => try self.parseCanFdMessage(buffer.items[cursor..object_end], timestamp),
+                can_fd_message_64 => try self.parseCanFdMessage64(buffer.items[cursor..object_end], header_size, object_size, timestamp),
                 else => {},
             }
-            pos = object_end;
+            pos = object_end + paddingSize(object_size);
+            if (pos > buffer.items.len) return error.TruncatedBlfObjectPadding;
         }
     }
 
@@ -145,7 +158,93 @@ const Parser = struct {
         }
         try self.frames.append(self.allocator, stored);
     }
+
+    fn parseCanErrorExt(self: *Parser, body: []const u8, timestamp_ns: u64) !void {
+        if (body.len < can_error_ext_size) return error.InvalidBlfCanErrorExt;
+
+        const dlc = body[10];
+        const payload_len: u8 = @min(dlc, 8);
+        const raw_id = readU32(body, 16);
+        var stored: trace_frame.Frame = .{
+            .timestamp_ns = timestamp_ns,
+            .kind = .error_frame,
+            .id = idFromRaw(raw_id),
+            .dlc = dlc,
+            .payload_len = payload_len,
+        };
+        try self.copyPayload(&stored, body[24 .. 24 + payload_len]);
+        try self.frames.append(self.allocator, stored);
+    }
+
+    fn parseCanFdMessage(self: *Parser, body: []const u8, timestamp_ns: u64) !void {
+        if (body.len < can_fd_message_size) return error.InvalidBlfCanFdMessage;
+
+        const flags = body[2];
+        const dlc = body[3];
+        const raw_id = readU32(body, 4);
+        const valid_bytes: u8 = @min(body[14], 64);
+        var stored: trace_frame.Frame = .{
+            .timestamp_ns = timestamp_ns,
+            .kind = if ((flags & remote_flag) != 0) .remote else .data,
+            .id = idFromRaw(raw_id),
+            .is_fd = true,
+            .dlc = dlc,
+            .payload_len = valid_bytes,
+        };
+        if (stored.kind == .data) {
+            try self.copyPayload(&stored, body[20 .. 20 + valid_bytes]);
+            self.parsed_trace.data_frame_count += 1;
+            self.parsed_trace.last_data_timestamp_ns = timestamp_ns;
+        }
+        try self.frames.append(self.allocator, stored);
+    }
+
+    fn parseCanFdMessage64(self: *Parser, body: []const u8, header_size: usize, object_size: usize, timestamp_ns: u64) !void {
+        if (body.len < can_fd_message_64_size) return error.InvalidBlfCanFdMessage64;
+
+        const dlc = body[1];
+        const valid_bytes: u8 = @min(body[2], 64);
+        const raw_id = readU32(body, 4);
+        const flags = readU32(body, 12);
+        const ext_data_offset = body[35];
+        const data_field_end = if (ext_data_offset != 0) @as(usize, ext_data_offset) else object_size;
+        const available_payload_len = data_field_end -| (header_size + can_fd_message_64_size);
+        const copied_payload_len = @min(@as(usize, valid_bytes), @min(available_payload_len, body.len - can_fd_message_64_size));
+
+        var stored: trace_frame.Frame = .{
+            .timestamp_ns = timestamp_ns,
+            .kind = if ((flags & fd64_remote_flag) != 0) .remote else .data,
+            .id = idFromRaw(raw_id),
+            .is_fd = (flags & fd64_edl_flag) != 0,
+            .dlc = dlc,
+            .payload_len = valid_bytes,
+        };
+
+        if (stored.kind == .data) {
+            const payload_offset = self.payloads.items.len;
+            try self.payloads.appendSlice(self.allocator, body[can_fd_message_64_size .. can_fd_message_64_size + copied_payload_len]);
+            try self.payloads.appendNTimes(self.allocator, 0, valid_bytes - copied_payload_len);
+            stored.payload_offset = @intCast(payload_offset);
+            self.parsed_trace.data_frame_count += 1;
+            self.parsed_trace.last_data_timestamp_ns = timestamp_ns;
+        }
+        try self.frames.append(self.allocator, stored);
+    }
+
+    fn copyPayload(self: *Parser, stored: *trace_frame.Frame, payload: []const u8) !void {
+        const payload_offset = self.payloads.items.len;
+        try self.payloads.appendSlice(self.allocator, payload);
+        stored.payload_offset = @intCast(payload_offset);
+    }
 };
+
+fn idFromRaw(raw_id: u32) trace_frame.Id {
+    const id_value = raw_id & 0x1fff_ffff;
+    return if ((raw_id & can_msg_ext) != 0)
+        trace_frame.Id.extended(id_value)
+    else
+        trace_frame.Id.standard(@intCast(id_value));
+}
 
 pub fn fromBytes(allocator: std.mem.Allocator, bytes: []const u8) !trace.Trace {
     if (bytes.len < file_header_parsed_size) return error.InvalidBlfHeader;
@@ -331,6 +430,75 @@ fn appendClassicCanObject(bytes: *std.ArrayList(u8), allocator: std.mem.Allocato
     try bytes.appendNTimes(allocator, 0, 8 - payload.len);
 }
 
+fn appendCanErrorExtObject(bytes: *std.ArrayList(u8), allocator: std.mem.Allocator, timestamp_ns: u64, can_id: u32, payload: []const u8) !void {
+    const header_size = obj_header_base_size + obj_header_v1_size;
+    const object_size = header_size + can_error_ext_size;
+    try appendObjectBase(bytes, allocator, object_size, can_error_ext, header_size);
+    try appendObjectTimestampV1(bytes, allocator, timestamp_ns);
+    try appendU16(bytes, allocator, 1);
+    try appendU16(bytes, allocator, 0);
+    try appendU32(bytes, allocator, 0);
+    try bytes.append(allocator, 0);
+    try bytes.append(allocator, 0);
+    try bytes.append(allocator, @intCast(payload.len));
+    try bytes.append(allocator, 0);
+    try appendU32(bytes, allocator, 0);
+    try appendU32(bytes, allocator, can_id);
+    try appendU16(bytes, allocator, 0);
+    try bytes.appendNTimes(allocator, 0, 2);
+    try bytes.appendSlice(allocator, payload);
+    try bytes.appendNTimes(allocator, 0, 8 - payload.len);
+}
+
+fn appendCanFdMessageObject(bytes: *std.ArrayList(u8), allocator: std.mem.Allocator, timestamp_ns: u64, can_id: u32, dlc: u8, payload: []const u8) !void {
+    const header_size = obj_header_base_size + obj_header_v1_size;
+    const object_size = header_size + can_fd_message_size;
+    try appendObjectBase(bytes, allocator, object_size, can_fd_message, header_size);
+    try appendObjectTimestampV1(bytes, allocator, timestamp_ns);
+    try appendU16(bytes, allocator, 1);
+    try bytes.append(allocator, 0);
+    try bytes.append(allocator, dlc);
+    try appendU32(bytes, allocator, can_id);
+    try appendU32(bytes, allocator, 0);
+    try bytes.append(allocator, 0);
+    try bytes.append(allocator, 0x07);
+    try bytes.append(allocator, @intCast(payload.len));
+    try bytes.appendNTimes(allocator, 0, 5);
+    try bytes.appendSlice(allocator, payload);
+    try bytes.appendNTimes(allocator, 0, 64 - payload.len);
+}
+
+fn appendCanFdMessage64Object(bytes: *std.ArrayList(u8), allocator: std.mem.Allocator, timestamp_ns: u64, can_id: u32, dlc: u8, valid_bytes: u8, payload: []const u8) !void {
+    const header_size = obj_header_base_size + obj_header_v1_size;
+    const object_size = header_size + can_fd_message_64_size + payload.len;
+    try appendObjectBase(bytes, allocator, object_size, can_fd_message_64, header_size);
+    try appendObjectTimestampV1(bytes, allocator, timestamp_ns);
+    try bytes.append(allocator, 1);
+    try bytes.append(allocator, dlc);
+    try bytes.append(allocator, valid_bytes);
+    try bytes.append(allocator, 0);
+    try appendU32(bytes, allocator, can_id);
+    try appendU32(bytes, allocator, 0);
+    try appendU32(bytes, allocator, fd64_edl_flag);
+    try appendU32(bytes, allocator, 0);
+    try appendU32(bytes, allocator, 0);
+    try appendU32(bytes, allocator, 0);
+    try appendU32(bytes, allocator, 0);
+    try appendU16(bytes, allocator, 0);
+    try bytes.append(allocator, 0);
+    try bytes.append(allocator, 0);
+    try appendU32(bytes, allocator, 0);
+    try bytes.appendSlice(allocator, payload);
+    try bytes.appendNTimes(allocator, 0, paddingSize(object_size));
+}
+
+fn appendObjectTimestampV1(bytes: *std.ArrayList(u8), allocator: std.mem.Allocator, timestamp_ns: u64) !void {
+    try appendU32(bytes, allocator, time_one_nans);
+    try appendU16(bytes, allocator, 0);
+    try appendU16(bytes, allocator, 0);
+    try appendU64(bytes, allocator, timestamp_ns);
+}
+
 fn appendObjectBase(bytes: *std.ArrayList(u8), allocator: std.mem.Allocator, object_size: usize, object_type: u32, header_size: usize) !void {
     try bytes.appendSlice(allocator, "LOBJ");
     try appendU16(bytes, allocator, @intCast(header_size));
@@ -409,4 +577,60 @@ test "rejects unsupported container compression" {
     try file.appendNTimes(allocator, 0, 14);
 
     try std.testing.expectError(error.UnsupportedBlfCompression, fromBytes(allocator, file.items));
+}
+
+test "parses remaining BLF CAN frame object types" {
+    const allocator = std.testing.allocator;
+    var inner: std.ArrayList(u8) = .empty;
+    defer inner.deinit(allocator);
+    try appendCanErrorExtObject(&inner, allocator, 1_000, can_msg_ext | 0x19999999, &.{ 0xcc, 0xdd });
+    try appendCanFdMessageObject(&inner, allocator, 2_000, 0x123, 9, &.{ 0x10, 0x20, 0x30, 0x40 });
+    try appendCanFdMessage64Object(&inner, allocator, 3_000, 0x456, 15, 64, &.{ 0xaa, 0xbb });
+
+    var file: std.ArrayList(u8) = .empty;
+    defer file.deinit(allocator);
+    try appendFileHeader(&file, allocator);
+    try appendOuterContainer(&file, allocator, inner.items);
+
+    var parsed = try fromBytes(allocator, file.items);
+    defer parsed.deinit(allocator);
+
+    try std.testing.expectEqual(@as(usize, 3), parsed.frames.len);
+    try std.testing.expectEqual(@as(usize, 2), parsed.data_frame_count);
+    try std.testing.expectEqual(trace_frame.Kind.error_frame, parsed.frames[0].kind);
+    try std.testing.expectEqual(trace_frame.Id.extended(0x19999999), parsed.frames[0].id.?);
+    try std.testing.expectEqual(@as(u8, 2), parsed.frames[0].payload_len);
+
+    try std.testing.expect(parsed.frames[1].is_fd);
+    try std.testing.expectEqual(@as(u8, 9), parsed.frames[1].dlc);
+    try std.testing.expectEqual(@as(u8, 4), parsed.frames[1].payload_len);
+
+    try std.testing.expect(parsed.frames[2].is_fd);
+    try std.testing.expectEqual(@as(u8, 15), parsed.frames[2].dlc);
+    try std.testing.expectEqual(@as(u8, 64), parsed.frames[2].payload_len);
+    const fd64_payload = parsed.payloads[parsed.frames[2].payload_offset..][0..parsed.frames[2].payload_len];
+    try std.testing.expectEqual(@as(u8, 0xaa), fd64_payload[0]);
+    try std.testing.expectEqual(@as(u8, 0xbb), fd64_payload[1]);
+    try std.testing.expectEqual(@as(u8, 0), fd64_payload[63]);
+}
+
+test "ignores trailing inner object padding" {
+    const allocator = std.testing.allocator;
+    var inner: std.ArrayList(u8) = .empty;
+    defer inner.deinit(allocator);
+    try appendCanFdMessage64Object(&inner, allocator, 4_000, 0x456, 9, 12, &.{ 0xaa, 0xbb });
+
+    var file: std.ArrayList(u8) = .empty;
+    defer file.deinit(allocator);
+    try appendFileHeader(&file, allocator);
+    try appendOuterContainer(&file, allocator, inner.items);
+
+    var parsed = try fromBytes(allocator, file.items);
+    defer parsed.deinit(allocator);
+
+    try std.testing.expectEqual(@as(usize, 1), parsed.frames.len);
+    try std.testing.expectEqual(@as(u8, 12), parsed.frames[0].payload_len);
+    const payload = parsed.payloads[parsed.frames[0].payload_offset..][0..parsed.frames[0].payload_len];
+    try std.testing.expectEqual(@as(u8, 0xaa), payload[0]);
+    try std.testing.expectEqual(@as(u8, 0), payload[11]);
 }
