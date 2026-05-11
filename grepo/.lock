@@ -1,5 +1,17 @@
+[repos.blf_asc]
+backend = "tarball"
+source = "cargo:blf_asc@0.2.0"
+url = "https://crates.io/api/v1/crates/blf_asc/0.2.0/download"
+sha256 = "6025dfd29c56e3d0f782d94e494f0cba824f337546bd6f4063a7df5bdbd2cb33"
+
 [repos.chartgpu]
 source = "npm:chartgpu@0.3.2"
 url = "https://github.com/chartgpu/chartgpu.git"
 mode = "exact"
 commit = "9b5fa290430cd938ae8d6f7a7c8a39a0b285c506"
+
+[repos.python-can]
+url = "https://github.com/hardbyte/python-can.git"
+mode = "ref"
+ref = "main"
+commit = "5d5cc168bb7bb6f0888459d75c5f5defa11c8bc5"

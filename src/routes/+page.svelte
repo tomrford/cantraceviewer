@@ -111,7 +111,7 @@
 					bind:this={traceInput}
 					class="hidden"
 					type="file"
-					accept=".asc,.trc"
+					accept=".asc,.trc,.blf"
 					onchange={selectTrace}
 				/>
 				<button

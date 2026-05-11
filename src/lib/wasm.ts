@@ -59,7 +59,7 @@ export type DecodedSignalSeries = {
 	timesMs: Float64Array;
 	values: Float64Array;
 };
-export type TraceType = 'asc' | 'trc';
+export type TraceType = 'asc' | 'trc' | 'blf';
 
 export type DbcHandle = {
 	readonly ptr: number;
@@ -78,6 +78,7 @@ type CanLogViewerWasmExports = {
 	dbc_free(handle: number): void;
 	asc_parse(input: number): number;
 	trc_parse(input: number): number;
+	blf_parse(input: number): number;
 	trace_to_metadata_json(handle: number): number;
 	trace_free(handle: number): void;
 	get_trace_signal_values(
@@ -248,8 +249,8 @@ export async function closeTrace(trace: TraceHandle): Promise<void> {
 
 export async function openTrace(traceType: TraceType, bytes: Uint8Array): Promise<TraceHandle> {
 	const wasm = await loadWasm();
-	const parser = traceType === 'trc' ? wasm.trc_parse : wasm.asc_parse;
-	const ptr = parseTraceBytes(wasm, bytes, parser, traceType === 'trc' ? 'TRC' : 'ASC');
+	const traceParser = parserForTraceType(wasm, traceType);
+	const ptr = parseTraceBytes(wasm, bytes, traceParser.parse, traceParser.label);
 
 	const handle = { ptr };
 	try {
@@ -267,7 +268,7 @@ function parseTraceBytes(
 	wasm: CanLogViewerWasmExports,
 	bytes: Uint8Array,
 	parse: (input: number) => number,
-	formatLabel: 'ASC' | 'TRC'
+	formatLabel: TraceFormatLabel
 ): number {
 	const inputBytes = copyBytesToWasm(wasm, bytes);
 
@@ -284,3 +285,19 @@ function parseTraceBytes(
 
 	return handle;
 }
+
+function parserForTraceType(
+	wasm: CanLogViewerWasmExports,
+	traceType: TraceType
+): { parse: (input: number) => number; label: TraceFormatLabel } {
+	switch (traceType) {
+		case 'asc':
+			return { parse: wasm.asc_parse, label: 'ASC' };
+		case 'trc':
+			return { parse: wasm.trc_parse, label: 'TRC' };
+		case 'blf':
+			return { parse: wasm.blf_parse, label: 'BLF' };
+	}
+}
+
+type TraceFormatLabel = 'ASC' | 'TRC' | 'BLF';
