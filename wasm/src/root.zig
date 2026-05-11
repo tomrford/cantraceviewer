@@ -6,6 +6,7 @@
 const std = @import("std");
 const abi = @import("abi.zig");
 pub const dbc = @import("dbc/dbc.zig");
+pub const blf = @import("blf/blf.zig");
 pub const asc = @import("asc/asc.zig");
 const dbc_handle = @import("dbc/handle.zig");
 const series = @import("series.zig");
@@ -78,6 +79,12 @@ export fn trace_free(handle_value: usize) void {
 /// Parses a TRC trace file from an `OwnedBytes` input buffer.
 export fn trc_parse(input: *const abi.OwnedBytes) usize {
     const handle = trace_handle.Handle.parseTrc(abi.allocator, input.slice()) catch return 0;
+    return @intFromPtr(handle);
+}
+
+/// Parses a BLF trace file from an `OwnedBytes` input buffer.
+export fn blf_parse(input: *const abi.OwnedBytes) usize {
+    const handle = trace_handle.Handle.parseBlf(abi.allocator, input.slice()) catch return 0;
     return @intFromPtr(handle);
 }
 
