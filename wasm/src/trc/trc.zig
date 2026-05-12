@@ -188,7 +188,7 @@ test "parses TRC 2.x file with columns" {
     try std.testing.expectEqual(@as(u64, 200_000), parsed.frames[parsed.frames.len - 1].timestamp_ns);
 }
 
-test "rejects TRC 3.0 for now" {
+test "rejects unsupported TRC 3.0" {
     const allocator = std.testing.allocator;
     const text =
         \\;$FILEVERSION=3.0
