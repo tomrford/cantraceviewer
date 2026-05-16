@@ -209,12 +209,12 @@
 			<AlertDialog.Description class="space-y-2 text-left text-pretty">
 				<p>Files stay local and are processed only in your browser. No data leaves your machine.</p>
 				<p>
-					Load one ASC or TRC trace, add one or more DBC files, then select decoded signals from the
-					sidebar.
+					Load one ASC, TRC, or BLF trace, add one or more DBC files, then select decoded signals
+					from the sidebar.
 				</p>
 				<p>
-					Current support is for text traces and a practical subset of DBC, using shared-axis line
-					plots for selected signals.
+					Current support covers CAN trace plotting and a practical subset of DBC, using shared-axis
+					line plots for selected signals.
 				</p>
 				<p>
 					The source code is available on
