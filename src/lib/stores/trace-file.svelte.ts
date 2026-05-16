@@ -63,7 +63,7 @@ function traceTypeForFile(file: File): TraceType {
 	if (/\.blf$/i.test(file.name)) return 'blf';
 	if (/\.trc$/i.test(file.name)) return 'trc';
 	if (/\.asc$/i.test(file.name)) return 'asc';
-	throw new Error('Unsupported trace file type');
+	throw new Error('Unsupported trace file type. Open .asc, .trc, or .blf.');
 }
 
 async function openTraceFile(

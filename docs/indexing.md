@@ -1,12 +1,12 @@
 # Trace Indexing
 
-Signal extraction currently scans the parsed frame list for the loaded text
-trace and filters by the selected DBC message ID, extended-ID flag, and payload
-length. This keeps the ASC and TRC parsers simple while the UI is exercised
+Signal extraction currently scans the parsed frame list for the loaded trace and
+filters by the selected DBC message ID, extended-ID flag, and payload length.
+This keeps the ASC, TRC, and BLF parsers simple while the UI is exercised
 against real traces.
 
 If signal extraction becomes a measured bottleneck, add a parse-time frame index
-owned by each text trace parser:
+owned by the shared trace model:
 
 ```zig
 pub const FrameIndexEntry = struct {
@@ -14,12 +14,7 @@ pub const FrameIndexEntry = struct {
     frame_indices: []const u32,
 };
 
-pub const Asc = struct {
-    frames: []const frame.Frame = &.{},
-    by_id: []const FrameIndexEntry = &.{},
-};
-
-pub const Trc = struct {
+pub const Trace = struct {
     frames: []const frame.Frame = &.{},
     by_id: []const FrameIndexEntry = &.{},
 };

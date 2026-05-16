@@ -105,7 +105,9 @@
 					>{traceFile.displayName}</span
 				>
 				{#if !traceFile.entry}
-					<span class="ms-auto text-sm text-muted-foreground">Open a trace to get started -></span>
+					<span class="ms-auto text-sm text-muted-foreground"
+						>Open a trace (.asc, .trc, .blf) to get started -></span
+					>
 				{/if}
 				<input
 					bind:this={traceInput}
