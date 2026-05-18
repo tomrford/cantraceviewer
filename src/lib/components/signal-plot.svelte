@@ -32,8 +32,16 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SeparatorVerticalIcon from '@lucide/svelte/icons/separator-vertical';
 	import { onDestroy, onMount, untrack } from 'svelte';
+	import type { HTMLAttributes } from 'svelte/elements';
 	import type { ChartGPUInstance, ChartGPUOptions } from 'chartgpu';
 
+	let {
+		dropActive = false,
+		class: className,
+		...restProps
+	}: HTMLAttributes<HTMLElement> & {
+		dropActive?: boolean;
+	} = $props();
 	let container: HTMLDivElement;
 	let chart: ChartGPUInstance | null = null;
 	let createChart:
@@ -343,7 +351,21 @@
 	}
 </script>
 
-<section class="relative min-h-0 flex-1 overflow-hidden bg-background">
+<section
+	class={[
+		'relative min-h-0 flex-1 overflow-hidden bg-background',
+		dropActive ? 'outline-2 -outline-offset-2 outline-emerald-500/70' : '',
+		className
+	]}
+	{...restProps}
+>
+	{#if dropActive}
+		<div
+			class="pointer-events-none absolute inset-0 z-[60] flex items-center justify-center bg-background/25 text-sm font-medium text-foreground backdrop-blur-[1px]"
+		>
+			Drop trace to open
+		</div>
+	{/if}
 	<div bind:this={container} class="absolute inset-0" aria-label="Selected signal plot"></div>
 
 	{#if signalViews.length > 0}
