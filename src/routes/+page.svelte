@@ -2,15 +2,23 @@
 	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 	import AppSidebar from '$lib/components/app-sidebar.svelte';
 	import SignalPlot from '$lib/components/signal-plot.svelte';
+	import {
+		dragLeftCurrentTarget,
+		filesFromDrop,
+		hasDraggedFiles,
+		traceFileFromDrop
+	} from '$lib/file-drop.js';
 	import { Separator } from '$lib/components/ui/separator/index.js';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
+	import { TRACE_FILE_ACCEPT } from '$lib/trace-file-types.js';
 	import type { TraceMetadata } from '$lib/wasm.js';
 	import AudioWaveformIcon from '@lucide/svelte/icons/audio-waveform';
 	import { onMount } from 'svelte';
 
 	let traceInput = $state<HTMLInputElement>();
+	let traceDropActive = $state(false);
 	let supportStatus = $state<'checking' | 'supported' | 'mobile' | 'webgpu'>('checking');
 	let traceMetadataTitle = $derived(
 		traceFile.entry ? formatTraceMetadata(traceFile.entry.metadata) : undefined
@@ -39,10 +47,33 @@
 		const file = input.files?.[0] ?? null;
 		input.value = '';
 
+		await openTraceFile(file);
+	}
+
+	async function openTraceFile(file: File | null) {
 		if (!file) return;
 		if (await traceFile.openFile(file)) {
 			plotData.clearSelectedSignals();
 		}
+	}
+
+	function handleTraceDrag(event: DragEvent) {
+		if (!hasDraggedFiles(event)) return;
+
+		event.preventDefault();
+		traceDropActive = true;
+	}
+
+	function clearTraceDrag(event: DragEvent) {
+		if (!dragLeftCurrentTarget(event)) return;
+
+		traceDropActive = false;
+	}
+
+	async function dropTrace(event: DragEvent) {
+		event.preventDefault();
+		traceDropActive = false;
+		await openTraceFile(traceFileFromDrop(filesFromDrop(event)));
 	}
 
 	function formatTraceMetadata(metadata: TraceMetadata): string {
@@ -113,7 +144,7 @@
 					bind:this={traceInput}
 					class="hidden"
 					type="file"
-					accept=".asc,.trc,.blf"
+					accept={TRACE_FILE_ACCEPT}
 					onchange={selectTrace}
 				/>
 				<button
@@ -129,7 +160,13 @@
 					<AudioWaveformIcon class="size-4" />
 				</button>
 			</header>
-			<SignalPlot />
+			<SignalPlot
+				dropActive={traceDropActive}
+				ondragenter={handleTraceDrag}
+				ondragover={handleTraceDrag}
+				ondragleave={clearTraceDrag}
+				ondrop={dropTrace}
+			/>
 		</Sidebar.Inset>
 	</Sidebar.Provider>
 
