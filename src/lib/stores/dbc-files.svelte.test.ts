@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
 import { dbcFiles } from './dbc-files.svelte';
+import { listStoredDbcs, putStoredDbcs } from './dbc-library.js';
 import { closeDbc, getDbcCatalog, openDbc } from '$lib/wasm.js';
 import type { DbcMessage, ParsedDbc } from '$lib/wasm.js';
 
@@ -10,9 +11,18 @@ vi.mock('$lib/wasm.js', () => ({
 	openDbc: vi.fn()
 }));
 
+vi.mock('./dbc-library.js', () => ({
+	deleteStoredDbc: vi.fn(() => Promise.resolve()),
+	listStoredDbcs: vi.fn(() => Promise.resolve([])),
+	putStoredDbcs: vi.fn(() => Promise.resolve()),
+	storedDbcId: vi.fn((text: string) => Promise.resolve(text))
+}));
+
 const openDbcMock = openDbc as Mock<typeof openDbc>;
 const getDbcCatalogMock = getDbcCatalog as Mock<typeof getDbcCatalog>;
 const closeDbcMock = closeDbc as Mock<typeof closeDbc>;
+const listStoredDbcsMock = listStoredDbcs as Mock<typeof listStoredDbcs>;
+const putStoredDbcsMock = putStoredDbcs as Mock<typeof putStoredDbcs>;
 
 describe('dbcFiles', () => {
 	beforeEach(() => {
@@ -20,6 +30,7 @@ describe('dbcFiles', () => {
 		dbcFiles.files = [];
 		dbcFiles.error = null;
 		dbcFiles.isLoading = false;
+		dbcFiles.hasLoadedLibrary = false;
 	});
 
 	it('closes a parsed handle when catalog export fails', async () => {
@@ -72,6 +83,41 @@ describe('dbcFiles', () => {
 			'mixed contains messages which overlap with those defined in existing files.'
 		);
 		expect(closeDbcMock).toHaveBeenCalledExactlyOnceWith(handle);
+	});
+
+	it('ignores added files while another DBC operation is loading', async () => {
+		dbcFiles.isLoading = true;
+
+		await dbcFiles.addFiles([file('late.dbc', 'late')]);
+
+		expect(openDbcMock).not.toHaveBeenCalled();
+		expect(putStoredDbcsMock).not.toHaveBeenCalled();
+		expect(dbcFiles.files).toEqual([]);
+		expect(dbcFiles.isLoading).toBe(true);
+	});
+
+	it('allows library load retry after an initial failure', async () => {
+		const handle = { ptr: 401 };
+		listStoredDbcsMock
+			.mockRejectedValueOnce(new Error('indexeddb unavailable'))
+			.mockResolvedValueOnce([{ id: 'stored-id', name: 'stored.dbc', text: 'stored' }]);
+		openDbcMock.mockResolvedValueOnce(handle);
+		getDbcCatalogMock.mockResolvedValueOnce(catalog(message({ name: 'Stored' })));
+
+		await dbcFiles.loadLibrary();
+
+		expect(dbcFiles.hasLoadedLibrary).toBe(false);
+		expect(dbcFiles.files).toEqual([]);
+		expect(dbcFiles.error).toBe('indexeddb unavailable');
+
+		await dbcFiles.loadLibrary();
+
+		expect(listStoredDbcsMock).toHaveBeenCalledTimes(2);
+		expect(openDbcMock).toHaveBeenCalledExactlyOnceWith('stored');
+		expect(dbcFiles.hasLoadedLibrary).toBe(true);
+		expect(dbcFiles.files).toHaveLength(1);
+		expect(dbcFiles.files[0]?.handle).toBe(handle);
+		expect(dbcFiles.error).toBe(null);
 	});
 });
 

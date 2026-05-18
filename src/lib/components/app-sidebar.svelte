@@ -19,6 +19,7 @@
 	import GithubIcon from '@lucide/svelte/icons/github';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
+	import { onMount } from 'svelte';
 	import type { ComponentProps } from 'svelte';
 
 	let {
@@ -31,7 +32,7 @@
 	let dbcDropActive = $state(false);
 	let helpOpen = $state(false);
 	let showActiveOnly = $state(false);
-	let expandedDbcIds = $state<string[] | null>(null);
+	let expandedDbcIds = $state<string[]>([]);
 	let normalizedSignalSearch = $derived(signalSearch.trim().toLowerCase());
 	let isSignalSearchActive = $derived(normalizedSignalSearch.length > 0);
 	let isFiltering = $derived(isSignalSearchActive || showActiveOnly);
@@ -45,6 +46,10 @@
 			)
 		}))
 	);
+
+	onMount(() => {
+		void dbcFiles.loadLibrary();
+	});
 
 	async function selectDbcs(event: Event) {
 		const input = event.currentTarget as HTMLInputElement;
@@ -79,18 +84,17 @@
 		await addDbcFiles(dbcFilesFromDrop(filesFromDrop(event)));
 	}
 
-	function isDbcExpanded(dbcId: string, index: number): boolean {
+	function isDbcExpanded(dbcId: string): boolean {
 		if (isFiltering) return true;
-		if (expandedDbcIds === null) return index === 0;
 		return expandedDbcIds.includes(dbcId);
 	}
 
 	function setDbcExpanded(dbcId: string, open: boolean): void {
-		expandedDbcIds = arrayWith(expandedDbcIds ?? initialExpandedDbcIds(), dbcId, open);
+		expandedDbcIds = arrayWith(expandedDbcIds, dbcId, open);
 	}
 
 	async function removeDbc(dbcId: string): Promise<void> {
-		expandedDbcIds = (expandedDbcIds ?? initialExpandedDbcIds()).filter((id) => id !== dbcId);
+		expandedDbcIds = expandedDbcIds.filter((id) => id !== dbcId);
 		plotData.deselectDbcFile(dbcId);
 		await dbcFiles.removeFile(dbcId);
 	}
@@ -99,15 +103,11 @@
 		if (include) return values.includes(value) ? values : [...values, value];
 		return values.filter((candidate) => candidate !== value);
 	}
-
-	function initialExpandedDbcIds(): string[] {
-		return dbcFiles.sidebarFiles[0]?.id ? [dbcFiles.sidebarFiles[0].id] : [];
-	}
 </script>
 
 <Sidebar.Root
 	bind:ref
-	class={['relative', className]}
+	class={className}
 	ondragenter={handleDbcDrag}
 	ondragover={handleDbcDrag}
 	ondragleave={clearDbcDrag}
@@ -116,7 +116,7 @@
 >
 	{#if dbcDropActive}
 		<div
-			class="pointer-events-none absolute inset-0 z-[60] flex items-center justify-center bg-sidebar/25 text-sm font-medium text-sidebar-foreground backdrop-blur-[1px]"
+			class="pointer-events-none absolute inset-0 z-60 flex items-center justify-center bg-sidebar/25 text-sm font-medium text-sidebar-foreground backdrop-blur-[1px]"
 		>
 			Drop DBC files to add
 		</div>
@@ -162,9 +162,9 @@
 	<Sidebar.Content>
 		<Sidebar.Group class="px-4">
 			<Sidebar.Menu>
-				{#each visibleDbcFiles as dbc, index (dbc.id)}
+				{#each visibleDbcFiles as dbc (dbc.id)}
 					<Collapsible.Root
-						open={isDbcExpanded(dbc.id, index)}
+						open={isDbcExpanded(dbc.id)}
 						onOpenChange={(open) => setDbcExpanded(dbc.id, open)}
 						class="group/collapsible"
 					>
@@ -175,7 +175,7 @@
 										<Sidebar.MenuButton
 											{...props}
 											class="min-w-0 flex-1"
-											aria-label={isDbcExpanded(dbc.id, index)
+											aria-label={isDbcExpanded(dbc.id)
 												? `Collapse ${dbc.name}`
 												: `Expand ${dbc.name}`}
 										>
@@ -258,6 +258,10 @@
 			<AlertDialog.Title>CAN Trace Viewer</AlertDialog.Title>
 			<AlertDialog.Description class="space-y-2 text-left text-pretty">
 				<p>Files stay local and are processed only in your browser. No data leaves your machine.</p>
+				<p>
+					Saved DBC files, theme, timestamp, and sidebar settings are saved only in this browser's
+					local storage. They are not uploaded to a server.
+				</p>
 				<p>
 					Load one ASC, TRC, or BLF trace, add one or more DBC files, then select decoded signals
 					from the sidebar.
