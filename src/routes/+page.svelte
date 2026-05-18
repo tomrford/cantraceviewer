@@ -2,6 +2,7 @@
 	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 	import AppSidebar from '$lib/components/app-sidebar.svelte';
 	import SignalPlot from '$lib/components/signal-plot.svelte';
+	import { filesFromDrop, hasDraggedFiles, traceFileFromDrop } from '$lib/file-drop.js';
 	import { Separator } from '$lib/components/ui/separator/index.js';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
@@ -11,6 +12,7 @@
 	import { onMount } from 'svelte';
 
 	let traceInput = $state<HTMLInputElement>();
+	let traceDropActive = $state(false);
 	let supportStatus = $state<'checking' | 'supported' | 'mobile' | 'webgpu'>('checking');
 	let traceMetadataTitle = $derived(
 		traceFile.entry ? formatTraceMetadata(traceFile.entry.metadata) : undefined
@@ -39,10 +41,36 @@
 		const file = input.files?.[0] ?? null;
 		input.value = '';
 
+		await openTraceFile(file);
+	}
+
+	async function openTraceFile(file: File | null) {
 		if (!file) return;
 		if (await traceFile.openFile(file)) {
 			plotData.clearSelectedSignals();
 		}
+	}
+
+	function handleTraceDrag(event: DragEvent) {
+		if (!hasDraggedFiles(event)) return;
+
+		event.preventDefault();
+		traceDropActive = true;
+	}
+
+	function clearTraceDrag(event: DragEvent) {
+		const nextTarget = event.relatedTarget;
+		if (nextTarget instanceof Node && event.currentTarget instanceof Node) {
+			if (event.currentTarget.contains(nextTarget)) return;
+		}
+
+		traceDropActive = false;
+	}
+
+	async function dropTrace(event: DragEvent) {
+		event.preventDefault();
+		traceDropActive = false;
+		await openTraceFile(traceFileFromDrop(filesFromDrop(event)));
 	}
 
 	function formatTraceMetadata(metadata: TraceMetadata): string {
@@ -129,7 +157,13 @@
 					<AudioWaveformIcon class="size-4" />
 				</button>
 			</header>
-			<SignalPlot />
+			<SignalPlot
+				dropActive={traceDropActive}
+				ondragenter={handleTraceDrag}
+				ondragover={handleTraceDrag}
+				ondragleave={clearTraceDrag}
+				ondrop={dropTrace}
+			/>
 		</Sidebar.Inset>
 	</Sidebar.Provider>
 

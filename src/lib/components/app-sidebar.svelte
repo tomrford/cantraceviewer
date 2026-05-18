@@ -1,5 +1,6 @@
 <script lang="ts">
 	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
+	import { dbcFilesFromDrop, filesFromDrop, hasDraggedFiles } from '$lib/file-drop.js';
 	import { rankedFuzzySearch } from '$lib/fuzzy-match.js';
 	import { dbcFiles } from '$lib/stores/dbc-files.svelte.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
@@ -15,9 +16,14 @@
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 	import type { ComponentProps } from 'svelte';
 
-	let { ref = $bindable(null), ...restProps }: ComponentProps<typeof Sidebar.Root> = $props();
+	let {
+		ref = $bindable(null),
+		class: className,
+		...restProps
+	}: ComponentProps<typeof Sidebar.Root> = $props();
 	let dbcInput: HTMLInputElement;
 	let signalSearch = $state('');
+	let dbcDropActive = $state(false);
 	let helpOpen = $state(false);
 	let showActiveOnly = $state(false);
 	let expandedDbcIds = $state<string[] | null>(null);
@@ -39,9 +45,36 @@
 		const input = event.currentTarget as HTMLInputElement;
 		const files = Array.from(input.files ?? []);
 		input.value = '';
+
+		await addDbcFiles(files);
+	}
+
+	async function addDbcFiles(files: File[]) {
 		if (files.length === 0) return;
 
 		await dbcFiles.addFiles(files);
+	}
+
+	function handleDbcDrag(event: DragEvent) {
+		if (!hasDraggedFiles(event)) return;
+
+		event.preventDefault();
+		dbcDropActive = true;
+	}
+
+	function clearDbcDrag(event: DragEvent) {
+		const nextTarget = event.relatedTarget;
+		if (nextTarget instanceof Node && event.currentTarget instanceof Node) {
+			if (event.currentTarget.contains(nextTarget)) return;
+		}
+
+		dbcDropActive = false;
+	}
+
+	async function dropDbcs(event: DragEvent) {
+		event.preventDefault();
+		dbcDropActive = false;
+		await addDbcFiles(dbcFilesFromDrop(filesFromDrop(event)));
 	}
 
 	function isDbcExpanded(dbcId: string, index: number): boolean {
@@ -70,7 +103,22 @@
 	}
 </script>
 
-<Sidebar.Root bind:ref {...restProps}>
+<Sidebar.Root
+	bind:ref
+	class={['relative', className]}
+	ondragenter={handleDbcDrag}
+	ondragover={handleDbcDrag}
+	ondragleave={clearDbcDrag}
+	ondrop={dropDbcs}
+	{...restProps}
+>
+	{#if dbcDropActive}
+		<div
+			class="pointer-events-none absolute inset-0 z-[60] flex items-center justify-center bg-sidebar/25 text-sm font-medium text-sidebar-foreground backdrop-blur-[1px]"
+		>
+			Drop DBC files to add
+		</div>
+	{/if}
 	<Sidebar.Header class="px-4 pt-4">
 		<input
 			bind:this={dbcInput}
