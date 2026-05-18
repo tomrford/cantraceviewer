@@ -1,11 +1,12 @@
 <script lang="ts">
-	import {
-		settings,
-		type ThemePreference,
-		type TimestampMode
-	} from '$lib/stores/settings.svelte.js';
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import * as Select from '$lib/components/ui/select/index.js';
+	import {
+		themePreference,
+		timestampMode,
+		type ThemePreference,
+		type TimestampMode
+	} from '$lib/stores/preferences.svelte.js';
 	import LaptopIcon from '@lucide/svelte/icons/laptop';
 	import MoonIcon from '@lucide/svelte/icons/moon';
 	import SunIcon from '@lucide/svelte/icons/sun';
@@ -18,9 +19,12 @@
 		{ value: 'system', label: 'System', icon: LaptopIcon }
 	];
 
-	function setTimestampMode(mode: TimestampMode): void {
-		settings.setTimestampMode(mode);
-	}
+	const timestampOptions: { value: TimestampMode; label: string }[] = [
+		{ value: 'relative', label: 'Relative' },
+		{ value: 'absolute', label: 'Absolute' }
+	];
+
+	const selectedTimestampMode = $derived(timestampMode.current);
 </script>
 
 <Popover.Content
@@ -46,9 +50,9 @@
 				<button
 					type="button"
 					class="flex h-16 flex-col items-center justify-center gap-1 rounded-md border text-xs transition-colors hover:bg-accent hover:text-accent-foreground data-[selected=true]:border-emerald-500/60 data-[selected=true]:bg-emerald-500/15 data-[selected=true]:text-emerald-500"
-					data-selected={settings.theme === option.value}
-					aria-pressed={settings.theme === option.value}
-					onclick={() => settings.setTheme(option.value)}
+					data-selected={themePreference.current === option.value}
+					aria-pressed={themePreference.current === option.value}
+					onclick={() => (themePreference.current = option.value)}
 				>
 					<Icon class="size-4" />
 					<span>{option.label}</span>
@@ -61,15 +65,16 @@
 		<span class="text-xs font-medium text-muted-foreground">X-axis timestamps</span>
 		<Select.Root
 			type="single"
-			value={settings.timestampMode}
-			onValueChange={(value: string) => setTimestampMode(value as TimestampMode)}
+			value={selectedTimestampMode}
+			onValueChange={(value: string) => (timestampMode.current = value as TimestampMode)}
 		>
 			<Select.Trigger class="w-full">
-				<span>{settings.timestampMode === 'absolute' ? 'Absolute' : 'Relative'}</span>
+				<span>{timestampMode.current === 'absolute' ? 'Absolute' : 'Relative'}</span>
 			</Select.Trigger>
 			<Select.Content>
-				<Select.Item value="relative" label="Relative" />
-				<Select.Item value="absolute" label="Absolute" />
+				{#each timestampOptions as option (option.value)}
+					<Select.Item value={option.value} label={option.label} />
+				{/each}
 			</Select.Content>
 		</Select.Root>
 	</label>

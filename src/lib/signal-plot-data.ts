@@ -1,7 +1,7 @@
 import type { SeriesConfig } from 'chartgpu';
 import { fitDomain, type PlotPoint, type PlotViewport } from './plot-viewport';
 import type { PlotSignal } from './stores/plot-data.svelte.js';
-import type { TimestampMode } from './stores/settings.svelte.js';
+import type { TimestampMode } from './stores/preferences.svelte.js';
 
 export type SignalView = {
 	key: string;

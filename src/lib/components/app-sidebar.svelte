@@ -107,7 +107,7 @@
 
 <Sidebar.Root
 	bind:ref
-	class={['relative', className]}
+	class={className}
 	ondragenter={handleDbcDrag}
 	ondragover={handleDbcDrag}
 	ondragleave={clearDbcDrag}
@@ -116,7 +116,7 @@
 >
 	{#if dbcDropActive}
 		<div
-			class="pointer-events-none absolute inset-0 z-[60] flex items-center justify-center bg-sidebar/25 text-sm font-medium text-sidebar-foreground backdrop-blur-[1px]"
+			class="pointer-events-none absolute inset-0 z-60 flex items-center justify-center bg-sidebar/25 text-sm font-medium text-sidebar-foreground backdrop-blur-[1px]"
 		>
 			Drop DBC files to add
 		</div>

@@ -13,7 +13,7 @@
 	import { Separator } from '$lib/components/ui/separator/index.js';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
-	import { settings } from '$lib/stores/settings.svelte.js';
+	import { applyTheme, sidebarOpen, themePreference } from '$lib/stores/preferences.svelte.js';
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
 	import { TRACE_FILE_ACCEPT } from '$lib/trace-file-types.js';
 	import type { TraceMetadata } from '$lib/wasm.js';
@@ -31,10 +31,13 @@
 	const siteDescription = 'Lightweight browser-based CAN trace plotting and analysis GUI.';
 	const siteUrl = 'https://cantraceviewer.com/';
 
+	$effect(() => {
+		applyTheme(themePreference.current);
+	});
+
 	onMount(() => {
-		settings.load();
 		const colorSchemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
-		const applySystemTheme = () => settings.applyTheme();
+		const applySystemTheme = () => applyTheme();
 		colorSchemeQuery.addEventListener('change', applySystemTheme);
 
 		const mobileQuery = window.matchMedia('(max-width: 767px), (pointer: coarse)');
@@ -134,8 +137,8 @@
 {#if supportStatus === 'supported'}
 	<Sidebar.Provider
 		style="--sidebar-width: 24rem;"
-		open={settings.sidebarOpen}
-		onOpenChange={(open) => settings.setSidebarOpen(open)}
+		open={sidebarOpen.current}
+		onOpenChange={(open) => (sidebarOpen.current = open)}
 	>
 		<AppSidebar />
 		<Sidebar.Inset class="flex min-h-screen flex-col bg-background">
