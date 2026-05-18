@@ -58,7 +58,7 @@ class PlotDataStore {
 			if (!target) continue;
 
 			signals.push(
-				plotSignal(target.file.id, target.file.file.name, target.message, target.signal, {
+				plotSignal(target.file.id, target.file.name, target.message, target.signal, {
 					color: this.signalColors.colorFor(key),
 					series: this.signalSeries[key],
 					isDecoding: this.decodingSignalKeys.includes(key),

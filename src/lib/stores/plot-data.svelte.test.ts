@@ -103,7 +103,8 @@ function key(): string {
 function dbcEntry() {
 	return {
 		id: 'dbc-1',
-		file: new File(['dbc'], 'powertrain.dbc'),
+		name: 'powertrain.dbc',
+		text: 'dbc',
 		handle: { ptr: 1 },
 		catalog: {
 			messages: [message()]

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 	import AppSidebar from '$lib/components/app-sidebar.svelte';
+	import SettingsDialog from '$lib/components/settings-dialog.svelte';
 	import SignalPlot from '$lib/components/signal-plot.svelte';
 	import {
 		dragLeftCurrentTarget,
@@ -11,14 +12,17 @@
 	import { Separator } from '$lib/components/ui/separator/index.js';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
+	import { settings } from '$lib/stores/settings.svelte.js';
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
 	import { TRACE_FILE_ACCEPT } from '$lib/trace-file-types.js';
 	import type { TraceMetadata } from '$lib/wasm.js';
 	import AudioWaveformIcon from '@lucide/svelte/icons/audio-waveform';
+	import CogIcon from '@lucide/svelte/icons/cog';
 	import { onMount } from 'svelte';
 
 	let traceInput = $state<HTMLInputElement>();
 	let traceDropActive = $state(false);
+	let settingsOpen = $state(false);
 	let supportStatus = $state<'checking' | 'supported' | 'mobile' | 'webgpu'>('checking');
 	let traceMetadataTitle = $derived(
 		traceFile.entry ? formatTraceMetadata(traceFile.entry.metadata) : undefined
@@ -28,18 +32,24 @@
 	const siteUrl = 'https://cantraceviewer.com/';
 
 	onMount(() => {
+		settings.load();
+		const colorSchemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+		const applySystemTheme = () => settings.applyTheme();
+		colorSchemeQuery.addEventListener('change', applySystemTheme);
+
 		const mobileQuery = window.matchMedia('(max-width: 767px), (pointer: coarse)');
 		if (mobileQuery.matches) {
 			supportStatus = 'mobile';
-			return;
+			return () => colorSchemeQuery.removeEventListener('change', applySystemTheme);
 		}
 
 		if (!('gpu' in navigator)) {
 			supportStatus = 'webgpu';
-			return;
+			return () => colorSchemeQuery.removeEventListener('change', applySystemTheme);
 		}
 
 		supportStatus = 'supported';
+		return () => colorSchemeQuery.removeEventListener('change', applySystemTheme);
 	});
 
 	async function selectTrace(event: Event) {
@@ -122,7 +132,11 @@
 </svelte:head>
 
 {#if supportStatus === 'supported'}
-	<Sidebar.Provider style="--sidebar-width: 24rem;">
+	<Sidebar.Provider
+		style="--sidebar-width: 24rem;"
+		open={settings.sidebarOpen}
+		onOpenChange={(open) => settings.setSidebarOpen(open)}
+	>
 		<AppSidebar />
 		<Sidebar.Inset class="flex min-h-screen flex-col bg-background">
 			<header class="flex h-16 shrink-0 items-center gap-2 border-b px-4">
@@ -159,6 +173,15 @@
 				>
 					<AudioWaveformIcon class="size-4" />
 				</button>
+				<button
+					type="button"
+					class="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
+					aria-label="Open settings"
+					title="Settings"
+					onclick={() => (settingsOpen = true)}
+				>
+					<CogIcon class="size-4" />
+				</button>
 			</header>
 			<SignalPlot
 				dropActive={traceDropActive}
@@ -169,6 +192,7 @@
 			/>
 		</Sidebar.Inset>
 	</Sidebar.Provider>
+	<SettingsDialog bind:open={settingsOpen} />
 
 	<AlertDialog.Root
 		bind:open={() => traceFile.error !== null, (open) => !open && traceFile.clearError()}

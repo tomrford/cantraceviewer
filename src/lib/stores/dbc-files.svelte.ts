@@ -7,11 +7,19 @@ import {
 	type DbcHandle,
 	type ParsedDbc
 } from '$lib/wasm.js';
+import {
+	deleteStoredDbc,
+	listStoredDbcs,
+	putStoredDbc,
+	storedDbcId,
+	type StoredDbc
+} from './dbc-library.js';
 import { DBC_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '$lib/file-limits.js';
 
 export type DbcFileEntry = {
 	id: string;
-	file: File;
+	name: string;
+	text: string;
 	handle: DbcHandle;
 	catalog: ParsedDbc;
 };
@@ -44,13 +52,14 @@ class DbcFilesStore {
 	files = $state<DbcFileEntry[]>([]);
 	isLoading = $state(false);
 	error = $state<string | null>(null);
+	hasLoadedLibrary = $state(false);
 
 	canIdIndex = $derived.by(() => buildCanIdIndex(this.files));
 
 	sidebarFiles = $derived.by<SidebarDbcFile[]>(() =>
 		this.files.map((entry) => ({
 			id: entry.id,
-			name: displayDbcName(entry.file.name),
+			name: displayDbcName(entry.name),
 			signals: entry.catalog.messages.flatMap((message) =>
 				message.signals.map((signal) => sidebarSignal(entry.id, message, signal))
 			)
@@ -69,6 +78,9 @@ class DbcFilesStore {
 
 			assertNoCanIdOverlaps(this.canIdIndex, candidates);
 			this.files = [...this.files, ...candidates];
+			await Promise.all(
+				candidates.map((entry) => putStoredDbc({ name: entry.name, text: entry.text }))
+			);
 		} catch (error) {
 			await closeEntries(candidates);
 			this.error = error instanceof Error ? error.message : 'DBC load failed';
@@ -83,6 +95,7 @@ class DbcFilesStore {
 
 		this.files = this.files.filter((file) => file.id !== id);
 		await closeDbc(entry.handle);
+		await deleteStoredDbc({ name: entry.name, text: entry.text });
 	}
 
 	async clear(): Promise<void> {
@@ -95,17 +108,45 @@ class DbcFilesStore {
 		this.error = null;
 	}
 
+	async loadLibrary(): Promise<void> {
+		if (this.hasLoadedLibrary) return;
+		this.hasLoadedLibrary = true;
+		this.error = null;
+		this.isLoading = true;
+
+		const candidates: DbcFileEntry[] = [];
+		try {
+			for (const dbc of await listStoredDbcs()) {
+				candidates.push(await this.openStoredDbc(dbc));
+			}
+
+			assertNoCanIdOverlaps({}, candidates);
+			this.files = candidates;
+		} catch (error) {
+			await closeEntries(candidates);
+			this.files = [];
+			this.error = error instanceof Error ? error.message : 'DBC library load failed';
+		} finally {
+			this.isLoading = false;
+		}
+	}
+
 	private async openFile(file: File): Promise<DbcFileEntry> {
 		assertFileSizeWithinLimit(file, DBC_MAX_FILE_BYTES, 'DBC');
 
 		const text = await file.text();
-		const handle = await openDbc(text);
+		return this.openStoredDbc({ name: file.name, text });
+	}
+
+	private async openStoredDbc(dbc: StoredDbc): Promise<DbcFileEntry> {
+		const handle = await openDbc(dbc.text);
 
 		try {
 			const catalog = await getDbcCatalog(handle);
 			return {
-				id: crypto.randomUUID(),
-				file,
+				id: await storedDbcId(dbc.text),
+				name: dbc.name,
+				text: dbc.text,
 				handle,
 				catalog
 			};
@@ -152,7 +193,7 @@ function messageIdentities(entry: DbcFileEntry): DbcMessageIdentity[] {
 		canId: message.canId,
 		isExtended: message.isExtended,
 		isFd: message.isFd,
-		fileName: entry.file.name,
+		fileName: entry.name,
 		messageName: message.name
 	}));
 }

@@ -1,6 +1,7 @@
 import type { SeriesConfig } from 'chartgpu';
 import { fitDomain, type PlotPoint, type PlotViewport } from './plot-viewport';
 import type { PlotSignal } from './stores/plot-data.svelte.js';
+import type { TimestampMode } from './stores/settings.svelte.js';
 
 export type SignalView = {
 	key: string;
@@ -98,10 +99,17 @@ export function signalDomain(views: SignalView[]): PlotViewport | null {
 	return fitDomain(plotPoints(views));
 }
 
-export function formatAxisTime(value: number, measurementStartMs?: number | null): string {
+export function formatAxisTime(
+	value: number,
+	options: { measurementStartMs?: number | null; mode: TimestampMode }
+): string {
 	if (!Number.isFinite(value)) return '';
-	if (measurementStartMs !== null && measurementStartMs !== undefined) {
-		const date = new Date(measurementStartMs + value);
+	if (
+		options.mode === 'absolute' &&
+		options.measurementStartMs !== null &&
+		options.measurementStartMs !== undefined
+	) {
+		const date = new Date(options.measurementStartMs + value);
 		return date.toLocaleTimeString([], {
 			hour: '2-digit',
 			minute: '2-digit',
