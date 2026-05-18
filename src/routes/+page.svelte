@@ -3,6 +3,9 @@
 	import AppSidebar from '$lib/components/app-sidebar.svelte';
 	import SettingsDialog from '$lib/components/settings-dialog.svelte';
 	import SignalPlot from '$lib/components/signal-plot.svelte';
+	import * as ButtonGroup from '$lib/components/ui/button-group/index.js';
+	import { Button } from '$lib/components/ui/button/index.js';
+	import * as Empty from '$lib/components/ui/empty/index.js';
 	import {
 		dragLeftCurrentTarget,
 		filesFromDrop,
@@ -12,18 +15,35 @@
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import { Separator } from '$lib/components/ui/separator/index.js';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
+	import * as ToggleGroup from '$lib/components/ui/toggle-group/index.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
 	import { applyTheme, sidebarOpen, themePreference } from '$lib/stores/preferences.svelte.js';
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
 	import { TRACE_FILE_ACCEPT } from '$lib/trace-file-types.js';
 	import type { TraceMetadata } from '$lib/wasm.js';
 	import AudioWaveformIcon from '@lucide/svelte/icons/audio-waveform';
+	import BoxSelectIcon from '@lucide/svelte/icons/box-select';
 	import CogIcon from '@lucide/svelte/icons/cog';
+	import ExpandIcon from '@lucide/svelte/icons/expand';
+	import ListIcon from '@lucide/svelte/icons/list';
+	import MinusIcon from '@lucide/svelte/icons/minus';
+	import PlusIcon from '@lucide/svelte/icons/plus';
+	import SeparatorVerticalIcon from '@lucide/svelte/icons/separator-vertical';
 	import { onMount } from 'svelte';
 
 	let traceInput = $state<HTMLInputElement>();
 	let traceDropActive = $state(false);
 	let supportStatus = $state<'checking' | 'supported' | 'mobile' | 'webgpu'>('checking');
+	let markerEnabled = $state(false);
+	let markerX = $state<number | null>(null);
+	let boxZoomEnabled = $state(false);
+	let legendVisible = $state(true);
+	let canResetZoom = $state(false);
+	let zoomControls = $state<{
+		zoomIn: () => void;
+		zoomOut: () => void;
+		resetZoom: () => void;
+	} | null>(null);
 	let traceMetadataTitle = $derived(
 		traceFile.entry ? formatTraceMetadata(traceFile.entry.metadata) : undefined
 	);
@@ -152,11 +172,6 @@
 				<span class="min-w-0 truncate text-sm font-medium" title={traceMetadataTitle}
 					>{traceFile.displayName}</span
 				>
-				{#if !traceFile.entry}
-					<span class="ms-auto text-sm text-muted-foreground"
-						>Open a trace (.asc, .trc, .blf) to get started -></span
-					>
-				{/if}
 				<input
 					bind:this={traceInput}
 					class="hidden"
@@ -164,18 +179,92 @@
 					accept={TRACE_FILE_ACCEPT}
 					onchange={selectTrace}
 				/>
-				<button
-					type="button"
-					class={[
-						'flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden',
-						traceFile.entry ? 'ms-auto' : ''
-					]}
-					aria-label="Load trace"
-					title="Load trace"
-					onclick={() => traceInput?.click()}
-				>
-					<AudioWaveformIcon class="size-4" />
-				</button>
+				{#if traceFile.entry}
+					<button
+						type="button"
+						class="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
+						aria-label="Load trace"
+						title="Load trace"
+						onclick={() => traceInput?.click()}
+					>
+						<AudioWaveformIcon class="size-4" />
+					</button>
+				{/if}
+				<span class="ms-auto"></span>
+				{#if traceFile.entry}
+					<ButtonGroup.Root aria-label="Plot zoom controls">
+						<Button
+							variant="outline"
+							size="icon"
+							class="border-input bg-transparent hover:bg-muted hover:text-foreground dark:bg-transparent dark:hover:bg-muted/50"
+							aria-label="Zoom in"
+							title="Zoom in"
+							onclick={() => zoomControls?.zoomIn()}
+						>
+							<PlusIcon class="size-3.5" />
+						</Button>
+						<Button
+							variant="outline"
+							size="icon"
+							class="border-input bg-transparent hover:bg-muted hover:text-foreground dark:bg-transparent dark:hover:bg-muted/50"
+							aria-label="Zoom out"
+							title="Zoom out"
+							onclick={() => zoomControls?.zoomOut()}
+						>
+							<MinusIcon class="size-3.5" />
+						</Button>
+						<Button
+							variant="outline"
+							size="icon"
+							class="border-input bg-transparent hover:bg-muted hover:text-foreground dark:bg-transparent dark:hover:bg-muted/50"
+							aria-label="Zoom to full extent"
+							title="Zoom to full extent"
+							onclick={() => zoomControls?.resetZoom()}
+							disabled={!canResetZoom}
+						>
+							<ExpandIcon class="size-3.5" />
+						</Button>
+					</ButtonGroup.Root>
+					<ToggleGroup.Root
+						type="multiple"
+						value={[
+							markerEnabled ? 'marker' : null,
+							boxZoomEnabled ? 'boxZoom' : null,
+							legendVisible ? 'legend' : null
+						].filter((value): value is string => value !== null)}
+						onValueChange={(values) => {
+							markerEnabled = values.includes('marker');
+							boxZoomEnabled = values.includes('boxZoom');
+							legendVisible = values.includes('legend');
+							if (!markerEnabled) markerX = null;
+						}}
+						variant="outline"
+						size="default"
+						aria-label="Plot display controls"
+					>
+						<ToggleGroup.Item
+							value="boxZoom"
+							aria-label={boxZoomEnabled ? 'Use drag pan' : 'Use box zoom'}
+							title={boxZoomEnabled ? 'Use drag pan' : 'Use box zoom'}
+						>
+							<BoxSelectIcon class="size-3.5" />
+						</ToggleGroup.Item>
+						<ToggleGroup.Item
+							value="marker"
+							aria-label={markerEnabled ? 'Hide x marker' : 'Show x marker'}
+							title={markerEnabled ? 'Hide x marker' : 'Show x marker'}
+						>
+							<SeparatorVerticalIcon class="size-3.5" />
+						</ToggleGroup.Item>
+						<ToggleGroup.Item
+							value="legend"
+							aria-label={legendVisible ? 'Hide legend' : 'Show legend'}
+							title={legendVisible ? 'Hide legend' : 'Show legend'}
+						>
+							<ListIcon class="size-3.5" />
+						</ToggleGroup.Item>
+					</ToggleGroup.Root>
+				{/if}
 				<Popover.Root>
 					<Popover.Trigger
 						class="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
@@ -187,13 +276,54 @@
 					<SettingsDialog />
 				</Popover.Root>
 			</header>
-			<SignalPlot
-				dropActive={traceDropActive}
-				ondragenter={handleTraceDrag}
-				ondragover={handleTraceDrag}
-				ondragleave={clearTraceDrag}
-				ondrop={dropTrace}
-			/>
+			{#if traceFile.entry}
+				<SignalPlot
+					bind:markerEnabled
+					bind:markerX
+					bind:boxZoomEnabled
+					bind:legendVisible
+					onPlotControlsChange={(controls) => {
+						canResetZoom = controls.canResetZoom;
+						zoomControls = controls;
+					}}
+					dropActive={traceDropActive}
+					ondragenter={handleTraceDrag}
+					ondragover={handleTraceDrag}
+					ondragleave={clearTraceDrag}
+					ondrop={dropTrace}
+				/>
+			{:else}
+				<section
+					class="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-background p-6"
+					aria-label="Trace loading"
+					ondragenter={handleTraceDrag}
+					ondragover={handleTraceDrag}
+					ondragleave={clearTraceDrag}
+					ondrop={dropTrace}
+				>
+					{#if traceDropActive}
+						<div
+							class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-background/25 text-sm font-medium text-foreground backdrop-blur-[1px]"
+						>
+							Drop trace to open
+						</div>
+					{/if}
+					<Empty.Root class="max-w-md border-0">
+						<Empty.Header>
+							<Empty.Title>Open a trace</Empty.Title>
+							<Empty.Description>
+								Load an ASC, TRC, or BLF file to start plotting decoded CAN signals.
+							</Empty.Description>
+						</Empty.Header>
+						<Empty.Content>
+							<Button size="lg" onclick={() => traceInput?.click()}>
+								<AudioWaveformIcon data-icon="inline-start" class="size-4" />
+								Open trace
+							</Button>
+						</Empty.Content>
+					</Empty.Root>
+				</section>
+			{/if}
 		</Sidebar.Inset>
 	</Sidebar.Provider>
 
