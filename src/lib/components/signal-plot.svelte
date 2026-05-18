@@ -36,7 +36,8 @@
 		markerX = $bindable<number | null>(null),
 		boxZoomEnabled = $bindable(false),
 		legendVisible = $bindable(true),
-		onPlotControlsChange,
+		canResetZoom = $bindable(false),
+		plotCommand = null,
 		class: className,
 		...restProps
 	}: HTMLAttributes<HTMLElement> & {
@@ -45,12 +46,8 @@
 		markerX?: number | null;
 		boxZoomEnabled?: boolean;
 		legendVisible?: boolean;
-		onPlotControlsChange?: (controls: {
-			canResetZoom: boolean;
-			zoomIn: () => void;
-			zoomOut: () => void;
-			resetZoom: () => void;
-		}) => void;
+		canResetZoom?: boolean;
+		plotCommand?: { type: 'zoom-in' | 'zoom-out' | 'reset-zoom' } | null;
 	} = $props();
 	let container: HTMLDivElement;
 	let chart: ChartGPUInstance | null = null;
@@ -63,6 +60,7 @@
 	let lastFullDomain: PlotViewport | null = null;
 	let dragState = $state<DragState | null>(null);
 	let lastSignature = '';
+	let handledPlotCommand: typeof plotCommand = null;
 	let resizeObserver: ResizeObserver | null = null;
 
 	const PLOT_GRID = { left: 64, right: 24, top: 18, bottom: 44 };
@@ -144,12 +142,22 @@
 	});
 
 	$effect(() => {
-		onPlotControlsChange?.({
-			canResetZoom: !isFitAll,
-			zoomIn: () => zoomBy(0.5),
-			zoomOut: () => zoomBy(2),
-			resetZoom
-		});
+		const nextCanResetZoom = !isFitAll;
+		if (canResetZoom !== nextCanResetZoom) canResetZoom = nextCanResetZoom;
+	});
+
+	$effect(() => {
+		const command = plotCommand;
+		if (command === null || command === handledPlotCommand) return;
+		handledPlotCommand = command;
+
+		if (command.type === 'zoom-in') {
+			zoomBy(0.5);
+		} else if (command.type === 'zoom-out') {
+			zoomBy(2);
+		} else {
+			resetZoom();
+		}
 	});
 
 	$effect(() => {
@@ -379,12 +387,12 @@
 	]}
 	{...restProps}
 >
-	{#if dropActive}
-		<div
-			class="pointer-events-none absolute inset-0 z-[60] flex items-center justify-center bg-background/25 text-sm font-medium text-foreground backdrop-blur-[1px]"
-		>
-			Drop trace to open
-		</div>
+		{#if dropActive}
+			<div
+				class="pointer-events-none absolute inset-0 z-[60] flex items-center justify-center bg-background/25 text-sm font-medium text-foreground backdrop-blur-[1px]"
+			>
+				Drop trace to open
+			</div>
 	{/if}
 	<div bind:this={container} class="absolute inset-0" aria-label="Selected signal plot"></div>
 
