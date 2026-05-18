@@ -1,7 +1,10 @@
 export type StoredDbc = {
+	id: string;
 	name: string;
 	text: string;
 };
+
+type StoredDbcValue = Omit<StoredDbc, 'id'>;
 
 const DATABASE_NAME = 'cantraceviewer';
 const DATABASE_VERSION = 1;
@@ -10,27 +13,36 @@ const DBC_STORE_NAME = 'dbc-files';
 export async function listStoredDbcs(): Promise<StoredDbc[]> {
 	if (!isIndexedDbAvailable()) return [];
 	const database = await openDatabase();
-	return requestToPromise(
-		database.transaction(DBC_STORE_NAME).objectStore(DBC_STORE_NAME).getAll()
-	);
+	const transaction = database.transaction(DBC_STORE_NAME);
+	const done = transactionDone(transaction);
+	const store = transaction.objectStore(DBC_STORE_NAME);
+	const [values, keys] = await Promise.all([
+		requestToPromise(store.getAll() as IDBRequest<StoredDbcValue[]>),
+		requestToPromise(store.getAllKeys())
+	]);
+	await done;
+	return values.map((value, index) => ({ id: String(keys[index]), ...value }));
 }
 
-export async function putStoredDbc(dbc: StoredDbc): Promise<void> {
-	if (!isIndexedDbAvailable()) return;
+export async function putStoredDbcs(dbcs: StoredDbc[]): Promise<void> {
+	if (!isIndexedDbAvailable() || dbcs.length === 0) return;
 	const database = await openDatabase();
-	const id = await storedDbcId(dbc.text);
-	await requestToPromise(
-		database.transaction(DBC_STORE_NAME, 'readwrite').objectStore(DBC_STORE_NAME).put(dbc, id)
-	);
+	const transaction = database.transaction(DBC_STORE_NAME, 'readwrite');
+	const done = transactionDone(transaction);
+	const store = transaction.objectStore(DBC_STORE_NAME);
+	for (const { id, name, text } of dbcs) {
+		store.put({ name, text } satisfies StoredDbcValue, id);
+	}
+	await done;
 }
 
-export async function deleteStoredDbc(dbc: StoredDbc): Promise<void> {
+export async function deleteStoredDbc(id: string): Promise<void> {
 	if (!isIndexedDbAvailable()) return;
 	const database = await openDatabase();
-	const id = await storedDbcId(dbc.text);
-	await requestToPromise(
-		database.transaction(DBC_STORE_NAME, 'readwrite').objectStore(DBC_STORE_NAME).delete(id)
-	);
+	const transaction = database.transaction(DBC_STORE_NAME, 'readwrite');
+	const done = transactionDone(transaction);
+	transaction.objectStore(DBC_STORE_NAME).delete(id);
+	await done;
 }
 
 function isIndexedDbAvailable(): boolean {
@@ -54,8 +66,10 @@ function fallbackHashText(text: string): string {
 	return `fnv1a-${(hash >>> 0).toString(16).padStart(8, '0')}`;
 }
 
+let databasePromise: Promise<IDBDatabase> | null = null;
+
 function openDatabase(): Promise<IDBDatabase> {
-	return new Promise((resolve, reject) => {
+	databasePromise ??= new Promise((resolve, reject) => {
 		const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
 
 		request.onupgradeneeded = () => {
@@ -67,11 +81,20 @@ function openDatabase(): Promise<IDBDatabase> {
 		request.onsuccess = () => resolve(request.result);
 		request.onerror = () => reject(request.error ?? new Error('DBC library failed to open'));
 	});
+	return databasePromise;
 }
 
 function requestToPromise<T>(request: IDBRequest<T>): Promise<T> {
 	return new Promise((resolve, reject) => {
 		request.onsuccess = () => resolve(request.result);
 		request.onerror = () => reject(request.error ?? new Error('DBC library request failed'));
+	});
+}
+
+function transactionDone(transaction: IDBTransaction): Promise<void> {
+	return new Promise((resolve, reject) => {
+		transaction.oncomplete = () => resolve();
+		transaction.onabort = transaction.onerror = () =>
+			reject(transaction.error ?? new Error('DBC library transaction failed'));
 	});
 }

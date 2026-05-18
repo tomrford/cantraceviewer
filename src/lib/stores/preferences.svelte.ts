@@ -8,9 +8,9 @@ export const themePreference = new PersistedState(
 	'system' as ThemePreference
 );
 
-export const timestampMode = new PersistedState(
+export const timestampMode = new PersistedState<TimestampMode>(
 	'cantraceviewer:timestamp-mode',
-	'relative' as TimestampMode,
+	'relative',
 	{ syncTabs: false }
 );
 

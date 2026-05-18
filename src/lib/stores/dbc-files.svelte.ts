@@ -2,15 +2,15 @@ import {
 	closeDbc,
 	getDbcCatalog,
 	openDbc,
+	type DbcHandle,
 	type DbcMessage,
 	type DbcSignal,
-	type DbcHandle,
 	type ParsedDbc
 } from '$lib/wasm.js';
 import {
 	deleteStoredDbc,
 	listStoredDbcs,
-	putStoredDbc,
+	putStoredDbcs,
 	storedDbcId,
 	type StoredDbc
 } from './dbc-library.js';
@@ -19,7 +19,6 @@ import { DBC_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '$lib/file-limits.
 export type DbcFileEntry = {
 	id: string;
 	name: string;
-	text: string;
 	handle: DbcHandle;
 	catalog: ParsedDbc;
 };
@@ -47,6 +46,10 @@ type DbcMessageIdentity = {
 };
 
 type CanIdIndex = Record<string, DbcMessageIdentity>;
+type DbcCandidate = {
+	entry: DbcFileEntry;
+	stored: StoredDbc;
+};
 
 class DbcFilesStore {
 	files = $state<DbcFileEntry[]>([]);
@@ -69,20 +72,19 @@ class DbcFilesStore {
 	async addFiles(files: Iterable<File>): Promise<void> {
 		this.error = null;
 		this.isLoading = true;
-		const candidates: DbcFileEntry[] = [];
+		const candidates: DbcCandidate[] = [];
 
 		try {
 			for (const file of files) {
 				candidates.push(await this.openFile(file));
 			}
 
-			assertNoCanIdOverlaps(this.canIdIndex, candidates);
-			this.files = [...this.files, ...candidates];
-			await Promise.all(
-				candidates.map((entry) => putStoredDbc({ name: entry.name, text: entry.text }))
-			);
+			const entries = candidates.map((candidate) => candidate.entry);
+			assertNoCanIdOverlaps(this.canIdIndex, entries);
+			await putStoredDbcs(candidates.map((candidate) => candidate.stored));
+			this.files = [...this.files, ...entries];
 		} catch (error) {
-			await closeEntries(candidates);
+			await closeEntries(candidates.map((candidate) => candidate.entry));
 			this.error = error instanceof Error ? error.message : 'DBC load failed';
 		} finally {
 			this.isLoading = false;
@@ -95,7 +97,7 @@ class DbcFilesStore {
 
 		this.files = this.files.filter((file) => file.id !== id);
 		await closeDbc(entry.handle);
-		await deleteStoredDbc({ name: entry.name, text: entry.text });
+		await deleteStoredDbc(entry.id);
 	}
 
 	async clear(): Promise<void> {
@@ -117,7 +119,7 @@ class DbcFilesStore {
 		const candidates: DbcFileEntry[] = [];
 		try {
 			for (const dbc of await listStoredDbcs()) {
-				candidates.push(await this.openStoredDbc(dbc));
+				candidates.push((await this.openStoredDbc(dbc)).entry);
 			}
 
 			assertNoCanIdOverlaps({}, candidates);
@@ -131,24 +133,26 @@ class DbcFilesStore {
 		}
 	}
 
-	private async openFile(file: File): Promise<DbcFileEntry> {
+	private async openFile(file: File): Promise<DbcCandidate> {
 		assertFileSizeWithinLimit(file, DBC_MAX_FILE_BYTES, 'DBC');
 
 		const text = await file.text();
-		return this.openStoredDbc({ name: file.name, text });
+		return this.openStoredDbc({ id: await storedDbcId(text), name: file.name, text });
 	}
 
-	private async openStoredDbc(dbc: StoredDbc): Promise<DbcFileEntry> {
+	private async openStoredDbc(dbc: StoredDbc): Promise<DbcCandidate> {
 		const handle = await openDbc(dbc.text);
 
 		try {
 			const catalog = await getDbcCatalog(handle);
 			return {
-				id: await storedDbcId(dbc.text),
-				name: dbc.name,
-				text: dbc.text,
-				handle,
-				catalog
+				entry: {
+					id: dbc.id,
+					name: dbc.name,
+					handle,
+					catalog
+				},
+				stored: dbc
 			};
 		} catch (error) {
 			await closeDbc(handle);
