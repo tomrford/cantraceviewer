@@ -9,6 +9,7 @@
 		hasDraggedFiles,
 		traceFileFromDrop
 	} from '$lib/file-drop.js';
+	import * as Popover from '$lib/components/ui/popover/index.js';
 	import { Separator } from '$lib/components/ui/separator/index.js';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
@@ -22,7 +23,6 @@
 
 	let traceInput = $state<HTMLInputElement>();
 	let traceDropActive = $state(false);
-	let settingsOpen = $state(false);
 	let supportStatus = $state<'checking' | 'supported' | 'mobile' | 'webgpu'>('checking');
 	let traceMetadataTitle = $derived(
 		traceFile.entry ? formatTraceMetadata(traceFile.entry.metadata) : undefined
@@ -173,15 +173,16 @@
 				>
 					<AudioWaveformIcon class="size-4" />
 				</button>
-				<button
-					type="button"
-					class="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
-					aria-label="Open settings"
-					title="Settings"
-					onclick={() => (settingsOpen = true)}
-				>
-					<CogIcon class="size-4" />
-				</button>
+				<Popover.Root>
+					<Popover.Trigger
+						class="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
+						aria-label="Open settings"
+						title="Settings"
+					>
+						<CogIcon class="size-4" />
+					</Popover.Trigger>
+					<SettingsDialog />
+				</Popover.Root>
 			</header>
 			<SignalPlot
 				dropActive={traceDropActive}
@@ -192,7 +193,6 @@
 			/>
 		</Sidebar.Inset>
 	</Sidebar.Provider>
-	<SettingsDialog bind:open={settingsOpen} />
 
 	<AlertDialog.Root
 		bind:open={() => traceFile.error !== null, (open) => !open && traceFile.clearError()}
