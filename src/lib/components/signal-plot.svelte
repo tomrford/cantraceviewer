@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { Button } from '$lib/components/ui/button/index.js';
 	import {
 		normalizedWheelDelta,
 		type PlotRatioPoint,
@@ -23,25 +22,35 @@
 		signalView,
 		visibleSignalViews
 	} from '$lib/signal-plot-data.js';
+	import SignalPlotLegend from './signal-plot-legend.svelte';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
 	import { themeState, timestampMode } from '$lib/stores/preferences.svelte.js';
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
-	import BoxSelectIcon from '@lucide/svelte/icons/box-select';
-	import ExpandIcon from '@lucide/svelte/icons/expand';
-	import ListIcon from '@lucide/svelte/icons/list';
-	import MinusIcon from '@lucide/svelte/icons/minus';
-	import PlusIcon from '@lucide/svelte/icons/plus';
-	import SeparatorVerticalIcon from '@lucide/svelte/icons/separator-vertical';
 	import { onDestroy, onMount, untrack } from 'svelte';
 	import type { HTMLAttributes } from 'svelte/elements';
 	import type { ChartGPUInstance, ChartGPUOptions } from 'chartgpu';
 
 	let {
 		dropActive = false,
+		markerEnabled = $bindable(false),
+		markerX = $bindable<number | null>(null),
+		boxZoomEnabled = $bindable(false),
+		legendVisible = $bindable(true),
+		onPlotControlsChange,
 		class: className,
 		...restProps
 	}: HTMLAttributes<HTMLElement> & {
 		dropActive?: boolean;
+		markerEnabled?: boolean;
+		markerX?: number | null;
+		boxZoomEnabled?: boolean;
+		legendVisible?: boolean;
+		onPlotControlsChange?: (controls: {
+			canResetZoom: boolean;
+			zoomIn: () => void;
+			zoomOut: () => void;
+			resetZoom: () => void;
+		}) => void;
 	} = $props();
 	let container: HTMLDivElement;
 	let chart: ChartGPUInstance | null = null;
@@ -49,12 +58,9 @@
 		| ((container: HTMLElement, options: ChartGPUOptions) => Promise<ChartGPUInstance>)
 		| null = null;
 	let chartError = $state<string | null>(null);
-	let markerX = $state<number | null>(null);
 	let markerDragPointerId = $state<number | null>(null);
 	let viewport = $state<PlotViewport | null>(null);
 	let lastFullDomain: PlotViewport | null = null;
-	let legendVisible = $state(true);
-	let boxZoomEnabled = $state(false);
 	let dragState = $state<DragState | null>(null);
 	let lastSignature = '';
 	let resizeObserver: ResizeObserver | null = null;
@@ -135,6 +141,25 @@
 	onDestroy(() => {
 		resizeObserver?.disconnect();
 		chart?.dispose();
+	});
+
+	$effect(() => {
+		onPlotControlsChange?.({
+			canResetZoom: !isFitAll,
+			zoomIn: () => zoomBy(0.5),
+			zoomOut: () => zoomBy(2),
+			resetZoom
+		});
+	});
+
+	$effect(() => {
+		if (!markerEnabled) {
+			if (markerX !== null) markerX = null;
+			return;
+		}
+
+		if (markerX !== null || activeViewport === null) return;
+		markerX = activeViewport.xMin + (activeViewport.xMax - activeViewport.xMin) / 2;
 	});
 
 	$effect(() => {
@@ -219,16 +244,6 @@
 		dragState = null;
 	}
 
-	function toggleMarker() {
-		if (markerX !== null) {
-			markerX = null;
-			return;
-		}
-
-		if (activeViewport === null) return;
-		markerX = activeViewport.xMin + (activeViewport.xMax - activeViewport.xMin) / 2;
-	}
-
 	function startMarkerDrag(event: PointerEvent) {
 		event.preventDefault();
 		event.stopPropagation();
@@ -252,7 +267,10 @@
 
 	function updateMarkerFromPointer(event: PointerEvent) {
 		const x = pointerToDataX(event);
-		if (x !== null) markerX = x;
+		if (x !== null) {
+			markerEnabled = true;
+			markerX = x;
+		}
 	}
 
 	function pointerToDataX(event: PointerEvent): number | null {
@@ -339,11 +357,6 @@
 	function cancelBoxZoom(event: KeyboardEvent) {
 		if (event.key !== 'Escape' || dragState?.type !== 'box') return;
 		event.preventDefault();
-		dragState = null;
-	}
-
-	function toggleBoxZoom() {
-		boxZoomEnabled = !boxZoomEnabled;
 		dragState = null;
 	}
 
@@ -460,97 +473,14 @@
 			</div>
 		{/if}
 
-		<div
-			class="absolute top-3 right-3 z-50 flex gap-1 rounded-md border bg-background/90 p-1 shadow-sm backdrop-blur"
-		>
-			<Button
-				variant="ghost"
-				size="icon"
-				aria-label="Zoom in"
-				title="Zoom in"
-				onclick={() => zoomBy(0.5)}
-			>
-				<PlusIcon class="size-4" />
-			</Button>
-			<Button
-				variant="ghost"
-				size="icon"
-				aria-label="Zoom out"
-				title="Zoom out"
-				onclick={() => zoomBy(2)}
-			>
-				<MinusIcon class="size-4" />
-			</Button>
-			<Button
-				variant="ghost"
-				size="icon"
-				aria-label="Zoom to full extent"
-				title="Zoom to full extent"
-				onclick={resetZoom}
-				disabled={isFitAll}
-			>
-				<ExpandIcon class="size-4" />
-			</Button>
-			<Button
-				variant="ghost"
-				size="icon"
-				aria-label={boxZoomEnabled ? 'Use drag pan' : 'Use box zoom'}
-				title={boxZoomEnabled ? 'Use drag pan' : 'Use box zoom'}
-				aria-pressed={boxZoomEnabled}
-				onclick={toggleBoxZoom}
-			>
-				<BoxSelectIcon class={`size-4 ${boxZoomEnabled ? 'text-emerald-500' : ''}`} />
-			</Button>
-			<Button
-				variant="ghost"
-				size="icon"
-				aria-label={markerX === null ? 'Show x marker' : 'Hide x marker'}
-				title={markerX === null ? 'Show x marker' : 'Hide x marker'}
-				aria-pressed={markerX !== null}
-				onclick={toggleMarker}
-			>
-				<SeparatorVerticalIcon class={`size-4 ${markerX !== null ? 'text-emerald-500' : ''}`} />
-			</Button>
-			<Button
-				variant="ghost"
-				size="icon"
-				aria-label={legendVisible ? 'Hide legend' : 'Show legend'}
-				title={legendVisible ? 'Hide legend' : 'Show legend'}
-				onclick={() => (legendVisible = !legendVisible)}
-			>
-				<ListIcon class={`size-4 ${legendVisible ? 'text-emerald-500' : ''}`} />
-			</Button>
-		</div>
-
 		{#if legendVisible}
-			<div
-				class="absolute top-14 right-3 z-50 max-h-[calc(100%-4.25rem)] w-80 overflow-auto rounded-md border bg-background/90 p-3 shadow-sm backdrop-blur"
-			>
-				<div class="space-y-2">
-					{#each signalViews as view (view.key)}
-						{@const marker = markerValues.find((value) => value.key === view.key)}
-						<div
-							class="grid items-center gap-2 text-xs"
-							class:grid-cols-[0.75rem_1fr_auto]={markerX !== null}
-							class:grid-cols-[0.75rem_1fr]={markerX === null}
-						>
-							<span class="size-2 rounded-full" style:background-color={view.color}></span>
-							<span class="min-w-0 truncate" title={view.label}>{view.label}</span>
-							{#if markerX !== null}
-								<span class="font-mono tabular-nums">{marker?.text}</span>
-							{/if}
-						</div>
-					{/each}
-				</div>
-				{#if markerX !== null}
-					<div class="mt-2 text-xs text-muted-foreground">
-						{formatAxisTime(markerX, {
-							measurementStartMs,
-							mode: timestampMode.current
-						})}
-					</div>
-				{/if}
-			</div>
+			<SignalPlotLegend
+				views={signalViews}
+				{markerX}
+				{markerValues}
+				{measurementStartMs}
+				timestampMode={timestampMode.current}
+			/>
 		{/if}
 	{:else}
 		<div
