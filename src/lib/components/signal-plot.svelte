@@ -561,7 +561,7 @@
 			{:else if waitingSignals.length > 0}
 				Decode selected signals to plot them.
 			{:else}
-				Load a trace and select DBC signals.
+				Select signals from the DBC side panel to view them.
 			{/if}
 		</div>
 	{/if}

@@ -3,6 +3,8 @@
 	import AppSidebar from '$lib/components/app-sidebar.svelte';
 	import SettingsDialog from '$lib/components/settings-dialog.svelte';
 	import SignalPlot from '$lib/components/signal-plot.svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
+	import * as Empty from '$lib/components/ui/empty/index.js';
 	import {
 		dragLeftCurrentTarget,
 		filesFromDrop,
@@ -152,11 +154,6 @@
 				<span class="min-w-0 truncate text-sm font-medium" title={traceMetadataTitle}
 					>{traceFile.displayName}</span
 				>
-				{#if !traceFile.entry}
-					<span class="ms-auto text-sm text-muted-foreground"
-						>Open a trace (.asc, .trc, .blf) to get started -></span
-					>
-				{/if}
 				<input
 					bind:this={traceInput}
 					class="hidden"
@@ -164,18 +161,18 @@
 					accept={TRACE_FILE_ACCEPT}
 					onchange={selectTrace}
 				/>
-				<button
-					type="button"
-					class={[
-						'flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden',
-						traceFile.entry ? 'ms-auto' : ''
-					]}
-					aria-label="Load trace"
-					title="Load trace"
-					onclick={() => traceInput?.click()}
-				>
-					<AudioWaveformIcon class="size-4" />
-				</button>
+				{#if traceFile.entry}
+					<button
+						type="button"
+						class="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
+						aria-label="Load trace"
+						title="Load trace"
+						onclick={() => traceInput?.click()}
+					>
+						<AudioWaveformIcon class="size-4" />
+					</button>
+				{/if}
+				<span class="ms-auto"></span>
 				<Popover.Root>
 					<Popover.Trigger
 						class="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
@@ -187,13 +184,46 @@
 					<SettingsDialog />
 				</Popover.Root>
 			</header>
-			<SignalPlot
-				dropActive={traceDropActive}
-				ondragenter={handleTraceDrag}
-				ondragover={handleTraceDrag}
-				ondragleave={clearTraceDrag}
-				ondrop={dropTrace}
-			/>
+			{#if traceFile.entry}
+				<SignalPlot
+					dropActive={traceDropActive}
+					ondragenter={handleTraceDrag}
+					ondragover={handleTraceDrag}
+					ondragleave={clearTraceDrag}
+					ondrop={dropTrace}
+				/>
+			{:else}
+				<section
+					class="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-background p-6"
+					aria-label="Trace loading"
+					ondragenter={handleTraceDrag}
+					ondragover={handleTraceDrag}
+					ondragleave={clearTraceDrag}
+					ondrop={dropTrace}
+				>
+					{#if traceDropActive}
+						<div
+							class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-background/25 text-sm font-medium text-foreground backdrop-blur-[1px]"
+						>
+							Drop trace to open
+						</div>
+					{/if}
+					<Empty.Root class="max-w-md border-0">
+						<Empty.Header>
+							<Empty.Title>Open a trace</Empty.Title>
+							<Empty.Description>
+								Load an ASC, TRC, or BLF file to start plotting decoded CAN signals.
+							</Empty.Description>
+						</Empty.Header>
+						<Empty.Content>
+							<Button size="lg" onclick={() => traceInput?.click()}>
+								<AudioWaveformIcon data-icon="inline-start" class="size-4" />
+								Open trace
+							</Button>
+						</Empty.Content>
+					</Empty.Root>
+				</section>
+			{/if}
 		</Sidebar.Inset>
 	</Sidebar.Provider>
 
