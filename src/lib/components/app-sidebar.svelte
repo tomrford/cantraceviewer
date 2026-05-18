@@ -1,6 +1,11 @@
 <script lang="ts">
 	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
-	import { dbcFilesFromDrop, filesFromDrop, hasDraggedFiles } from '$lib/file-drop.js';
+	import {
+		dbcFilesFromDrop,
+		dragLeftCurrentTarget,
+		filesFromDrop,
+		hasDraggedFiles
+	} from '$lib/file-drop.js';
 	import { rankedFuzzySearch } from '$lib/fuzzy-match.js';
 	import { dbcFiles } from '$lib/stores/dbc-files.svelte.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
@@ -63,10 +68,7 @@
 	}
 
 	function clearDbcDrag(event: DragEvent) {
-		const nextTarget = event.relatedTarget;
-		if (nextTarget instanceof Node && event.currentTarget instanceof Node) {
-			if (event.currentTarget.contains(nextTarget)) return;
-		}
+		if (!dragLeftCurrentTarget(event)) return;
 
 		dbcDropActive = false;
 	}

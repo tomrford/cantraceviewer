@@ -2,11 +2,17 @@
 	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 	import AppSidebar from '$lib/components/app-sidebar.svelte';
 	import SignalPlot from '$lib/components/signal-plot.svelte';
-	import { filesFromDrop, hasDraggedFiles, traceFileFromDrop } from '$lib/file-drop.js';
+	import {
+		dragLeftCurrentTarget,
+		filesFromDrop,
+		hasDraggedFiles,
+		traceFileFromDrop
+	} from '$lib/file-drop.js';
 	import { Separator } from '$lib/components/ui/separator/index.js';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
+	import { TRACE_FILE_ACCEPT } from '$lib/trace-file-types.js';
 	import type { TraceMetadata } from '$lib/wasm.js';
 	import AudioWaveformIcon from '@lucide/svelte/icons/audio-waveform';
 	import { onMount } from 'svelte';
@@ -59,10 +65,7 @@
 	}
 
 	function clearTraceDrag(event: DragEvent) {
-		const nextTarget = event.relatedTarget;
-		if (nextTarget instanceof Node && event.currentTarget instanceof Node) {
-			if (event.currentTarget.contains(nextTarget)) return;
-		}
+		if (!dragLeftCurrentTarget(event)) return;
 
 		traceDropActive = false;
 	}
@@ -141,7 +144,7 @@
 					bind:this={traceInput}
 					class="hidden"
 					type="file"
-					accept=".asc,.trc,.blf"
+					accept={TRACE_FILE_ACCEPT}
 					onchange={selectTrace}
 				/>
 				<button

@@ -1,5 +1,10 @@
 import { closeTrace, openTrace, type TraceHandle, type TraceType } from '$lib/wasm.js';
 import { TRACE_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '$lib/file-limits.js';
+import {
+	TRACE_FILE_DESCRIPTION,
+	displayTraceName,
+	traceTypeForFileName
+} from '$lib/trace-file-types.js';
 
 export type TraceFileEntry = TraceHandle & { file: File };
 
@@ -55,15 +60,10 @@ class TraceFileStore {
 	}
 }
 
-function displayTraceName(fileName: string): string {
-	return fileName.replace(/\.(asc|trc|blf)$/i, '');
-}
-
 function traceTypeForFile(file: File): TraceType {
-	if (/\.blf$/i.test(file.name)) return 'blf';
-	if (/\.trc$/i.test(file.name)) return 'trc';
-	if (/\.asc$/i.test(file.name)) return 'asc';
-	throw new Error('Unsupported trace file type. Open .asc, .trc, or .blf.');
+	const traceType = traceTypeForFileName(file.name);
+	if (traceType !== null) return traceType;
+	throw new Error(`Unsupported trace file type. Open ${TRACE_FILE_DESCRIPTION}.`);
 }
 
 async function openTraceFile(

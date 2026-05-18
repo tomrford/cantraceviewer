@@ -37,33 +37,33 @@ flowchart TD
 
 Every non-`ID` block has a common header and then type-specific links/data. Public readers model the common header as:
 
-| Field | Size | Meaning |
-| --- | ---: | --- |
-| `id` | 4 bytes | ASCII block ID such as `##HD`, `##DG`, `##CG`, `##CN`, `##DT`, `##DL`, `##DZ` |
-| reserved | 4 bytes | Alignment/reserved bytes |
-| `length` | 8 bytes | Total block length in bytes, including common header |
-| `link_count` | 8 bytes | Number of 64-bit absolute file-position links following the header |
+| Field        |    Size | Meaning                                                                       |
+| ------------ | ------: | ----------------------------------------------------------------------------- |
+| `id`         | 4 bytes | ASCII block ID such as `##HD`, `##DG`, `##CG`, `##CN`, `##DT`, `##DL`, `##DZ` |
+| reserved     | 4 bytes | Alignment/reserved bytes                                                      |
+| `length`     | 8 bytes | Total block length in bytes, including common header                          |
+| `link_count` | 8 bytes | Number of 64-bit absolute file-position links following the header            |
 
 The link section has `link_count` 64-bit links. A zero link is nil. Unknown block types should be skippable by declared length, but a parser that follows links must preserve enough address information to keep the graph consistent.
 
 ## Core blocks for a CAN-first reader
 
-| Block | Role | CAN parser relevance |
-| --- | --- | --- |
-| `ID` | File identification and MDF version | Validate MDF4/MF4 input and reject MDF3 `.mdf` files |
-| `HD` | File root, start time, top-level lists | Read measurement start time and first `DG` link |
-| `DG` | Data group | Find its `CG` list and data-block/data-list link |
-| `CG` | Channel group | Identify bus-event groups, record ID, cycles, sample bytes, invalidation bytes, and source |
-| `SI` | Source information | Confirm source type is bus and bus type is CAN |
-| `CN` | Channel | Locate master time channel and `CAN_DataFrame.*` member channels |
-| `CC` | Channel conversion | Convert master time raw value to seconds when conversion is not identity |
-| `DT` | Data block | Read records directly |
-| `DL` | Data list | Walk distributed `DT`/`DZ` blocks |
-| `HL` | Header list | Dispatch linked lists of data blocks, especially compressed data |
-| `DZ` | Zipped data block | Decompress deflate-compressed record sections |
-| `SD` | Signal data block | Read variable-length signal data if a file stores payloads through VLSD indirection |
-| `MD`/`TX` | Metadata and text | Useful for comments, XML names, and diagnostics; not required for frame extraction |
-| `FH`/`EV`/`AT` | File history, events, attachments | Preserve/skip for parsing; attachments may contain DBC/ARXML but are not needed for initial DBC selection |
+| Block          | Role                                   | CAN parser relevance                                                                                      |
+| -------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `ID`           | File identification and MDF version    | Validate MDF4/MF4 input and reject MDF3 `.mdf` files                                                      |
+| `HD`           | File root, start time, top-level lists | Read measurement start time and first `DG` link                                                           |
+| `DG`           | Data group                             | Find its `CG` list and data-block/data-list link                                                          |
+| `CG`           | Channel group                          | Identify bus-event groups, record ID, cycles, sample bytes, invalidation bytes, and source                |
+| `SI`           | Source information                     | Confirm source type is bus and bus type is CAN                                                            |
+| `CN`           | Channel                                | Locate master time channel and `CAN_DataFrame.*` member channels                                          |
+| `CC`           | Channel conversion                     | Convert master time raw value to seconds when conversion is not identity                                  |
+| `DT`           | Data block                             | Read records directly                                                                                     |
+| `DL`           | Data list                              | Walk distributed `DT`/`DZ` blocks                                                                         |
+| `HL`           | Header list                            | Dispatch linked lists of data blocks, especially compressed data                                          |
+| `DZ`           | Zipped data block                      | Decompress deflate-compressed record sections                                                             |
+| `SD`           | Signal data block                      | Read variable-length signal data if a file stores payloads through VLSD indirection                       |
+| `MD`/`TX`      | Metadata and text                      | Useful for comments, XML names, and diagnostics; not required for frame extraction                        |
+| `FH`/`EV`/`AT` | File history, events, attachments      | Preserve/skip for parsing; attachments may contain DBC/ARXML but are not needed for initial DBC selection |
 
 MDF4 4.1 introduced `DZ` compressed data blocks using Deflate/zlib. MDF 4.3.0 adds newer associated standards and compression options. The first cantraceviewer parser should accept uncompressed `DT` and Deflate `DZ`, and return a clear unsupported-compression error for other compression modes.
 
@@ -95,18 +95,18 @@ For this repo, the first supported event type should be `CAN_DataFrame`. Remote 
 
 The member set varies by producer and MDF version. The parser should recognize these names with the event prefix and dot separator, e.g. `CAN_DataFrame.ID`.
 
-| Member | Meaning | Mapping |
-| --- | --- | --- |
-| `BusChannel` | CAN bus/channel number | Not currently stored in `trace.Frame`; useful later for filtering |
-| `ID` | 11-bit or 29-bit CAN identifier | `trace_frame.Id.value`, masked to `0x1fffffff` |
-| `IDE` | Identifier extension flag | `trace_frame.Id.is_extended` |
-| `DLC` | Raw CAN DLC | `trace_frame.Frame.dlc` |
-| `DataLength` | Actual payload length | `trace_frame.Frame.payload_len`, capped to 64 for CAN FD |
-| `DataBytes` | Payload bytes | copied to `trace.Trace.payloads` |
-| `Dir` | Direction, usually Rx/Tx | Not currently stored |
-| `EDL` | CAN FD extended-data-length flag | `trace_frame.Frame.is_fd` when present and true |
-| `BRS` | CAN FD bit-rate-switch flag | Not currently stored |
-| `ESI` | CAN FD error-state-indicator flag | Not currently stored |
+| Member       | Meaning                           | Mapping                                                           |
+| ------------ | --------------------------------- | ----------------------------------------------------------------- |
+| `BusChannel` | CAN bus/channel number            | Not currently stored in `trace.Frame`; useful later for filtering |
+| `ID`         | 11-bit or 29-bit CAN identifier   | `trace_frame.Id.value`, masked to `0x1fffffff`                    |
+| `IDE`        | Identifier extension flag         | `trace_frame.Id.is_extended`                                      |
+| `DLC`        | Raw CAN DLC                       | `trace_frame.Frame.dlc`                                           |
+| `DataLength` | Actual payload length             | `trace_frame.Frame.payload_len`, capped to 64 for CAN FD          |
+| `DataBytes`  | Payload bytes                     | copied to `trace.Trace.payloads`                                  |
+| `Dir`        | Direction, usually Rx/Tx          | Not currently stored                                              |
+| `EDL`        | CAN FD extended-data-length flag  | `trace_frame.Frame.is_fd` when present and true                   |
+| `BRS`        | CAN FD bit-rate-switch flag       | Not currently stored                                              |
+| `ESI`        | CAN FD error-state-indicator flag | Not currently stored                                              |
 
 Classic CAN has up to 8 data bytes. CAN FD uses `DataLength` for the actual byte count and can carry up to 64 bytes. Preserve raw `DLC` separately from payload length because the existing trace model already distinguishes them and DBC matching depends on the actual payload bytes, not textual export conventions.
 
@@ -184,13 +184,13 @@ The browser trace cap remains the existing trace-file cap. The parser should rej
 
 ## Open-source parser comparison
 
-| Tool | Language | Licence | MF4 role | CAN bus-logging support |
-| --- | --- | --- | --- | --- |
-| `asammdf` | Python | LGPL-3.0-or-later | Broad MDF2/3/4 reader, writer, converter, GUI backend | Strong; DBC extraction, bus logging maps, sorted/unsorted loading |
-| `python-can` MF4 | Python | LGPL-3.0-only | CAN-message reader/writer facade over `asammdf` | Good API reference for CAN, CAN FD, remote/error handling |
-| `mdflib` | C++ | MIT | MDF3/4 reader/writer library | Useful structural reference; broader measurement focus |
-| MathWorks Vehicle Network Toolbox | MATLAB | Commercial | MDF read/decode/write examples | Good naming and event-type reference |
-| CSS Electronics CANedge tools | Python/docs | Mixed/open tooling | Real-world CAN logger examples and samples | Useful CANedge MDF 4.11 sample corpus |
+| Tool                              | Language    | Licence            | MF4 role                                              | CAN bus-logging support                                           |
+| --------------------------------- | ----------- | ------------------ | ----------------------------------------------------- | ----------------------------------------------------------------- |
+| `asammdf`                         | Python      | LGPL-3.0-or-later  | Broad MDF2/3/4 reader, writer, converter, GUI backend | Strong; DBC extraction, bus logging maps, sorted/unsorted loading |
+| `python-can` MF4                  | Python      | LGPL-3.0-only      | CAN-message reader/writer facade over `asammdf`       | Good API reference for CAN, CAN FD, remote/error handling         |
+| `mdflib`                          | C++         | MIT                | MDF3/4 reader/writer library                          | Useful structural reference; broader measurement focus            |
+| MathWorks Vehicle Network Toolbox | MATLAB      | Commercial         | MDF read/decode/write examples                        | Good naming and event-type reference                              |
+| CSS Electronics CANedge tools     | Python/docs | Mixed/open tooling | Real-world CAN logger examples and samples            | Useful CANedge MDF 4.11 sample corpus                             |
 
 ## Minimum regression corpus
 

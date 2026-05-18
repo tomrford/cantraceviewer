@@ -3,19 +3,25 @@ import { dbcFilesFromDrop, traceFileFromDrop } from './file-drop';
 
 describe('file drop helpers', () => {
 	it('selects one supported trace file', () => {
-		expect(traceFileFromDrop([file('drive.trc')])?.name).toBe('drive.trc');
+		expect(traceFileFromDrop([new File([''], 'drive.trc')])?.name).toBe('drive.trc');
 	});
 
 	it('rejects multi-file trace drops', () => {
-		expect(traceFileFromDrop([file('drive.trc'), file('other.asc')])).toBeNull();
+		expect(
+			traceFileFromDrop([new File([''], 'drive.trc'), new File([''], 'other.asc')])
+		).toBeNull();
 	});
 
 	it('ignores unsupported trace files', () => {
-		expect(traceFileFromDrop([file('powertrain.dbc')])).toBeNull();
+		expect(traceFileFromDrop([new File([''], 'powertrain.dbc')])).toBeNull();
 	});
 
 	it('keeps all dropped DBC files', () => {
-		const files = [file('powertrain.dbc'), file('trace.asc'), file('body.DBC')];
+		const files = [
+			new File([''], 'powertrain.dbc'),
+			new File([''], 'trace.asc'),
+			new File([''], 'body.DBC')
+		];
 
 		expect(dbcFilesFromDrop(files).map((dropped) => dropped.name)).toEqual([
 			'powertrain.dbc',
@@ -23,7 +29,3 @@ describe('file drop helpers', () => {
 		]);
 	});
 });
-
-function file(name: string): File {
-	return new File([''], name);
-}

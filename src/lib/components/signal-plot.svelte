@@ -37,6 +37,7 @@
 
 	let {
 		dropActive = false,
+		class: className,
 		...restProps
 	}: HTMLAttributes<HTMLElement> & {
 		dropActive?: boolean;
@@ -353,7 +354,8 @@
 <section
 	class={[
 		'relative min-h-0 flex-1 overflow-hidden bg-background',
-		dropActive ? 'outline-2 -outline-offset-2 outline-emerald-500/70' : ''
+		dropActive ? 'outline-2 -outline-offset-2 outline-emerald-500/70' : '',
+		className
 	]}
 	{...restProps}
 >
