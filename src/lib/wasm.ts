@@ -70,7 +70,7 @@ export type TraceHandle = {
 	readonly metadata: TraceMetadata;
 };
 
-type CanLogViewerWasmExports = {
+type CanTraceViewerWasmExports = {
 	memory: WebAssembly.Memory;
 	owned_bytes_alloc(len: number): number;
 	dbc_parse(input: number): number;
@@ -95,22 +95,22 @@ type CanLogViewerWasmExports = {
 	owned_float64s_free(values: number): void;
 };
 
-let wasmPromise: Promise<CanLogViewerWasmExports> | null = null;
+let wasmPromise: Promise<CanTraceViewerWasmExports> | null = null;
 
 async function loadWasm() {
 	wasmPromise ??= WebAssembly.instantiateStreaming(fetch(wasmUrl), {}).then((result) => {
-		return result.instance.exports as CanLogViewerWasmExports;
+		return result.instance.exports as CanTraceViewerWasmExports;
 	});
 
 	return wasmPromise;
 }
 
-function copyTextToWasm(wasm: CanLogViewerWasmExports, text: string): number {
+function copyTextToWasm(wasm: CanTraceViewerWasmExports, text: string): number {
 	const input = new TextEncoder().encode(text);
 	return copyBytesToWasm(wasm, input);
 }
 
-function copyBytesToWasm(wasm: CanLogViewerWasmExports, input: Uint8Array): number {
+function copyBytesToWasm(wasm: CanTraceViewerWasmExports, input: Uint8Array): number {
 	const inputBytes = wasm.owned_bytes_alloc(input.byteLength);
 
 	if (inputBytes === 0) {
@@ -123,7 +123,7 @@ function copyBytesToWasm(wasm: CanLogViewerWasmExports, input: Uint8Array): numb
 	return inputBytes;
 }
 
-function readOwnedText(wasm: CanLogViewerWasmExports, ownedBytes: number): string {
+function readOwnedText(wasm: CanTraceViewerWasmExports, ownedBytes: number): string {
 	try {
 		const ptr = wasm.owned_bytes_ptr(ownedBytes);
 		const len = wasm.owned_bytes_len(ownedBytes);
@@ -135,7 +135,10 @@ function readOwnedText(wasm: CanLogViewerWasmExports, ownedBytes: number): strin
 	}
 }
 
-function readSignalSeries(wasm: CanLogViewerWasmExports, ownedValues: number): DecodedSignalSeries {
+function readSignalSeries(
+	wasm: CanTraceViewerWasmExports,
+	ownedValues: number
+): DecodedSignalSeries {
 	try {
 		const ptr = wasm.owned_float64s_ptr(ownedValues);
 		const len = wasm.owned_float64s_len(ownedValues);
@@ -265,7 +268,7 @@ export async function openTrace(traceType: TraceType, bytes: Uint8Array): Promis
 }
 
 function parseTraceBytes(
-	wasm: CanLogViewerWasmExports,
+	wasm: CanTraceViewerWasmExports,
 	bytes: Uint8Array,
 	parse: (input: number) => number,
 	formatLabel: TraceFormatLabel
@@ -287,7 +290,7 @@ function parseTraceBytes(
 }
 
 function parserForTraceType(
-	wasm: CanLogViewerWasmExports,
+	wasm: CanTraceViewerWasmExports,
 	traceType: TraceType
 ): { parse: (input: number) => number; label: TraceFormatLabel } {
 	switch (traceType) {

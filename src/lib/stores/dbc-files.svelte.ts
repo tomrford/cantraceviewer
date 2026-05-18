@@ -70,6 +70,8 @@ class DbcFilesStore {
 	);
 
 	async addFiles(files: Iterable<File>): Promise<void> {
+		if (this.isLoading) return;
+
 		this.error = null;
 		this.isLoading = true;
 		const candidates: DbcCandidate[] = [];
@@ -111,8 +113,8 @@ class DbcFilesStore {
 	}
 
 	async loadLibrary(): Promise<void> {
-		if (this.hasLoadedLibrary) return;
-		this.hasLoadedLibrary = true;
+		if (this.hasLoadedLibrary || this.isLoading) return;
+
 		this.error = null;
 		this.isLoading = true;
 
@@ -124,9 +126,9 @@ class DbcFilesStore {
 
 			assertNoCanIdOverlaps({}, candidates);
 			this.files = candidates;
+			this.hasLoadedLibrary = true;
 		} catch (error) {
 			await closeEntries(candidates);
-			this.files = [];
 			this.error = error instanceof Error ? error.message : 'DBC library load failed';
 		} finally {
 			this.isLoading = false;
