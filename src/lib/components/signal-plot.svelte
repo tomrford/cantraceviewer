@@ -24,6 +24,7 @@
 		visibleSignalViews
 	} from '$lib/signal-plot-data.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
+	import { themeState, timestampMode } from '$lib/stores/preferences.svelte.js';
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
 	import BoxSelectIcon from '@lucide/svelte/icons/box-select';
 	import ExpandIcon from '@lucide/svelte/icons/expand';
@@ -154,6 +155,8 @@
 		const signature = JSON.stringify({
 			keys: signalViews.map((view) => [view.key, view.points]),
 			measurementStartMs,
+			isDark: themeState.isDark,
+			timestampMode: timestampMode.current,
 			viewport: activeViewport,
 			visible: visibleViews.map((view) => [view.key, view.points])
 		});
@@ -166,11 +169,11 @@
 	function chartOptions(): ChartGPUOptions {
 		return {
 			theme: {
-				backgroundColor: '#09090b',
-				textColor: '#e4e4e7',
-				axisLineColor: '#3f3f46',
+				backgroundColor: themeState.isDark ? '#09090b' : '#ffffff',
+				textColor: themeState.isDark ? '#e4e4e7' : '#18181b',
+				axisLineColor: themeState.isDark ? '#3f3f46' : '#d4d4d8',
 				axisTickColor: '#71717a',
-				gridLineColor: 'rgba(244,244,245,0.1)',
+				gridLineColor: themeState.isDark ? 'rgba(244,244,245,0.1)' : 'rgba(24,24,27,0.1)',
 				colorPalette: SIGNAL_COLORS,
 				fontFamily: 'Geist Variable, sans-serif',
 				fontSize: 12
@@ -185,7 +188,11 @@
 				type: 'time',
 				min: activeViewport?.xMin,
 				max: activeViewport?.xMax,
-				tickFormatter: (value) => formatAxisTime(value, measurementStartMs)
+				tickFormatter: (value) =>
+					formatAxisTime(value, {
+						measurementStartMs,
+						mode: timestampMode.current
+					})
 			},
 			yAxis: {
 				type: 'value',
@@ -537,7 +544,10 @@
 				</div>
 				{#if markerX !== null}
 					<div class="mt-2 text-xs text-muted-foreground">
-						{formatAxisTime(markerX, measurementStartMs)}
+						{formatAxisTime(markerX, {
+							measurementStartMs,
+							mode: timestampMode.current
+						})}
 					</div>
 				{/if}
 			</div>

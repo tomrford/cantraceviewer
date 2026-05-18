@@ -2,11 +2,11 @@
 
 This repo is a client-side CAN trace viewer. The UI is SvelteKit/Svelte 5 with Bun, Tailwind, and shadcn-svelte style components. Zig code lives under `wasm/` and compiles to WebAssembly for DBC parsing, trace parsing, and signal decode work.
 
-Current product direction: open directly into the plotter. Load one ASC, PCAN TRC 1.x/2.x, or BLF trace, load one or more DBC files, select signals from the sidebar, and render decoded signal series as relative-millisecond/value arrays on a shared time plot.
+Current product direction: open directly into the plotter. Load one ASC, PCAN TRC 1.x/2.x, or BLF trace, save one or more DBC files to the local browser library, select signals from the sidebar, and render decoded signal series as relative-millisecond/value arrays on a shared time plot.
 
 Keep TypeScript as the glue between the Svelte UI and WASM workers. Do not make the UI depend on raw WASM pointers or allocator details; expose small typed adapters.
 
-Do not add persistence by default. Loaded files and derived state live in memory for the current browser session.
+Saved DBC files and UI preferences live only in browser storage on the current device. Loaded traces and derived signal series live in memory for the current browser session. Do not add server persistence or new persisted state without an explicit product reason.
 
 Enforce browser file-size caps in TypeScript before reading file contents: DBC files are capped at 1 MiB per file, and trace files are capped at 500 MiB per file.
 
