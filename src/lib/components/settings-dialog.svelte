@@ -40,10 +40,11 @@
 <Popover.Content
 	align="end"
 	sideOffset={-32}
-	class="grid w-[min(22rem,calc(100vw-1rem))] translate-x-2 -translate-y-2 gap-4 rounded-lg border bg-popover/80 p-4 text-popover-foreground shadow-lg backdrop-blur-md"
+	class="grid w-[min(22rem,calc(100vw-1rem))] translate-x-2 -translate-y-2 gap-4 rounded-lg border bg-popover/90 p-4 text-popover-foreground backdrop-blur-md"
+	style="box-shadow: 0 1px 2px rgb(0 0 0 / 0.08)"
 >
 	<Popover.Close
-		class="absolute top-2 right-2 flex size-8 items-center justify-center text-sidebar-foreground/60 transition-colors hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
+		class="absolute top-[6.5px] right-[7px] flex size-8 items-center justify-center text-sidebar-foreground/60 transition-colors hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
 		aria-label="Close settings"
 	>
 		<XIcon class="size-4" />

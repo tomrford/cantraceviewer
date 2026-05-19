@@ -257,10 +257,9 @@
 		<AlertDialog.Header>
 			<AlertDialog.Title>CAN Trace Viewer</AlertDialog.Title>
 			<AlertDialog.Description class="space-y-2 text-left text-pretty">
-				<p>Files stay local and are processed only in your browser. No data leaves your machine.</p>
 				<p>
-					Saved DBC files, theme, timestamp, and sidebar settings are saved only in this browser's
-					local storage. They are not uploaded to a server.
+					all files, preferences and saved settings are processed and stored solely in this
+					browser's local storage. Nothing leaves your machine.
 				</p>
 				<p>
 					Load one ASC, TRC, or BLF trace, add one or more DBC files, then select decoded signals

@@ -25,7 +25,7 @@ pub const Message = struct {
     is_extended: bool,
     is_fd: bool,
     name: []const u8,
-    size_bytes: u8,
+    size_bytes: u16,
     transmitter: []const u8,
     signals: []signal.Signal,
 
@@ -44,7 +44,7 @@ pub const Message = struct {
         if (name_text.len == 0 or name_text[name_text.len - 1] != ':') return error.InvalidMessageLine;
 
         const dbc_id = try std.fmt.parseInt(u32, dbc_id_text, 10);
-        const size_bytes = try std.fmt.parseInt(u8, size_text, 10);
+        const size_bytes = try std.fmt.parseInt(u16, size_text, 10);
         const is_extended = (dbc_id & EXTENDED_FLAG) != 0;
 
         return .{
@@ -68,7 +68,7 @@ test "parse fixture message line" {
     try std.testing.expect(!msg.is_extended);
     try std.testing.expect(!msg.is_fd);
     try std.testing.expectEqualStrings("PowertrainStatus", msg.name);
-    try std.testing.expectEqual(@as(u8, 8), msg.size_bytes);
+    try std.testing.expectEqual(@as(u16, 8), msg.size_bytes);
     try std.testing.expectEqualStrings("Agent", msg.transmitter);
     try std.testing.expectEqual(@as(usize, 0), msg.signals.len);
 }
@@ -78,7 +78,7 @@ test "parse message line separated by tabs" {
 
     try std.testing.expectEqual(@as(u32, 288), msg.dbc_id);
     try std.testing.expectEqualStrings("PowertrainStatus", msg.name);
-    try std.testing.expectEqual(@as(u8, 8), msg.size_bytes);
+    try std.testing.expectEqual(@as(u16, 8), msg.size_bytes);
     try std.testing.expectEqualStrings("Agent", msg.transmitter);
 }
 
@@ -90,7 +90,7 @@ test "parse fixture extended message line" {
     try std.testing.expect(msg.is_extended);
     try std.testing.expect(!msg.is_fd);
     try std.testing.expectEqualStrings("ext_MUX_multiplexors", msg.name);
-    try std.testing.expectEqual(@as(u8, 7), msg.size_bytes);
+    try std.testing.expectEqual(@as(u16, 7), msg.size_bytes);
     try std.testing.expectEqualStrings("Vector__XXX", msg.transmitter);
 }
 
@@ -98,7 +98,15 @@ test "message larger than eight bytes is marked FD" {
     const msg = try Message.fromString("BO_ 512 LargePayload: 12 ECU");
 
     try std.testing.expect(msg.is_fd);
-    try std.testing.expectEqual(@as(u8, 12), msg.size_bytes);
+    try std.testing.expectEqual(@as(u16, 12), msg.size_bytes);
+}
+
+test "parse large J1939 transport message length" {
+    const msg = try Message.fromString("BO_ 2566834942 J1939_DM01: 1785 OBC7_ST_J1939_PLC");
+
+    try std.testing.expect(msg.is_extended);
+    try std.testing.expect(msg.is_fd);
+    try std.testing.expectEqual(@as(u16, 1785), msg.size_bytes);
 }
 
 test "reject message line without BO prefix" {
