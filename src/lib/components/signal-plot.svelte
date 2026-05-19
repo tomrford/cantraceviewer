@@ -221,9 +221,7 @@
 			grid: PLOT_GRID,
 			gridLines: {
 				color: gridLine.color,
-				opacity: gridLine.opacity,
-				horizontal: { count: 5 },
-				vertical: { count: 8 }
+				opacity: gridLine.opacity
 			},
 			xAxis: {
 				type: 'time',
