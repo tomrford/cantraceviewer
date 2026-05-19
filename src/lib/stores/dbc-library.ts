@@ -1,4 +1,4 @@
-import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import { deleteDB, openDB, type DBSchema, type IDBPDatabase } from 'idb';
 
 export type StoredDbc = {
 	id: string;
@@ -19,8 +19,13 @@ const DBC_STORE_NAME = 'dbc-files';
 
 export async function listStoredDbcs(): Promise<StoredDbc[]> {
 	if (!isIndexedDbAvailable()) return [];
-	const database = await openDatabase();
-	return database.getAll(DBC_STORE_NAME);
+	try {
+		const database = await openDatabase();
+		return database.getAll(DBC_STORE_NAME);
+	} catch {
+		await resetStoredDbcs();
+		return [];
+	}
 }
 
 export async function putStoredDbcs(dbcs: StoredDbc[]): Promise<void> {
@@ -40,6 +45,15 @@ export async function deleteStoredDbc(id: string): Promise<void> {
 	const transaction = database.transaction(DBC_STORE_NAME, 'readwrite');
 	transaction.objectStore(DBC_STORE_NAME).delete(id);
 	await transaction.done;
+}
+
+export async function resetStoredDbcs(): Promise<void> {
+	if (!isIndexedDbAvailable()) return;
+
+	const database = await databasePromise?.catch(() => null);
+	database?.close();
+	databasePromise = null;
+	await deleteDB(DATABASE_NAME);
 }
 
 function isIndexedDbAvailable(): boolean {
