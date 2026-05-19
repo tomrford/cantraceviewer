@@ -106,7 +106,8 @@ pub const Signal = struct {
     ///
     /// Motorola signals are planned against `msg_size_bytes`; callers must pass
     /// payload slices of that exact length to `DecodePlan.decode`.
-    pub fn planDecode(self: Signal, msg_size_bytes: u8) !DecodePlan {
+    pub fn planDecode(self: Signal, msg_size_bytes: u16) !DecodePlan {
+        if (msg_size_bytes > 64) return error.UnsupportedMessageLength;
         if (self.unsupported_mux) return error.UnsupportedMultiplexing;
         switch (self.value_type) {
             .integer => if (self.bit_length == 0 or self.bit_length > 64) return error.InvalidSignalBitLength,
@@ -137,7 +138,7 @@ pub const Signal = struct {
             },
             .signedness = self.signedness,
             .value_type = self.value_type,
-            .required_payload_len = msg_size_bytes,
+            .required_payload_len = @intCast(msg_size_bytes),
             .factor = self.factor,
             .offset = self.offset,
         };
@@ -435,4 +436,13 @@ test "rejects float signals with non-float bit lengths" {
 
     try std.testing.expectError(error.InvalidSignalBitLength, float32_sig.planDecode(2));
     try std.testing.expectError(error.InvalidSignalBitLength, float64_sig.planDecode(4));
+}
+
+test "rejects decode plans above stored trace payload length" {
+    const allocator = std.testing.allocator;
+    const sig = try Signal.fromString(allocator, " SG_ trouble_code : 0|16@1+ (1,0) [0|65535] \"\" Tester");
+    defer allocator.free(sig.receivers);
+    defer allocator.free(sig.unit);
+
+    try std.testing.expectError(error.UnsupportedMessageLength, sig.planDecode(1785));
 }

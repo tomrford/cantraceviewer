@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	formatAxisValue,
 	lineSeries,
 	lineSeriesForViews,
 	visibleSignalViews,
@@ -59,5 +60,12 @@ describe('signal plot data', () => {
 		expect(series.type).toBe('line');
 		if (series.type !== 'line') throw new Error('expected line series');
 		expect(series.samplingThreshold).toBe(25_000);
+	});
+
+	it('keeps y-axis tick labels compact', () => {
+		expect(formatAxisValue(123.456789)).toBe('123');
+		expect(formatAxisValue(12.3456789)).toBe('12.3');
+		expect(formatAxisValue(1.23456789)).toBe('1.235');
+		expect(formatAxisValue(0.000012345)).toBe('1.23e-5');
 	});
 });
