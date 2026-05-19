@@ -8,6 +8,7 @@ import {
 	type DbcSignal,
 	type DbcValueDescription
 } from '$lib/wasm.js';
+import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 
 export type PlotSignalKey = string;
 
@@ -44,10 +45,10 @@ export type PlotSignal = {
 };
 
 class PlotDataStore {
-	selectedSignalKeys = $state<PlotSignalKey[]>([]);
-	signalSeries = $state<Record<PlotSignalKey, DecodedSignalSeries>>({});
-	decodingSignalKeys = $state<PlotSignalKey[]>([]);
-	decodeErrors = $state<Record<PlotSignalKey, string>>({});
+	selectedSignalKeys = new SvelteSet<PlotSignalKey>();
+	signalSeries = new SvelteMap<PlotSignalKey, DecodedSignalSeries>();
+	decodingSignalKeys = new SvelteSet<PlotSignalKey>();
+	decodeErrors = new SvelteMap<PlotSignalKey, string>();
 	private signalColors = createSignalColorAssigner();
 
 	signals = $derived.by<PlotSignal[]>(() => {
@@ -60,9 +61,9 @@ class PlotDataStore {
 			signals.push(
 				plotSignal(target.file.id, target.file.name, target.message, target.signal, {
 					color: this.signalColors.colorFor(key),
-					series: this.signalSeries[key],
-					isDecoding: this.decodingSignalKeys.includes(key),
-					decodeError: this.decodeErrors[key]
+					series: this.signalSeries.get(key),
+					isDecoding: this.decodingSignalKeys.has(key),
+					decodeError: this.decodeErrors.get(key)
 				})
 			);
 		}
@@ -71,21 +72,21 @@ class PlotDataStore {
 	});
 
 	isSignalSelected(key: PlotSignalKey): boolean {
-		return this.selectedSignalKeys.includes(key);
+		return this.selectedSignalKeys.has(key);
 	}
 
 	async toggleSignal(key: PlotSignalKey): Promise<void> {
 		if (this.isSignalSelected(key)) {
-			this.selectedSignalKeys = arrayWith(this.selectedSignalKeys, key, false);
+			this.selectedSignalKeys.delete(key);
 			this.setSignalSeries(key, null);
 			this.setDecodeError(key, null);
-			this.decodingSignalKeys = arrayWith(this.decodingSignalKeys, key, false);
+			this.decodingSignalKeys.delete(key);
 			this.signalColors.release(key);
 			return;
 		}
 
 		this.signalColors.colorFor(key);
-		this.selectedSignalKeys = arrayWith(this.selectedSignalKeys, key, true);
+		this.selectedSignalKeys.add(key);
 		await this.decodeSignal(key);
 	}
 
@@ -96,35 +97,31 @@ class PlotDataStore {
 				?.signals.map((signal) => signal.key) ?? []
 		);
 
-		this.selectedSignalKeys = this.selectedSignalKeys.filter((key) => !dbcSignalKeys.has(key));
-		this.signalSeries = Object.fromEntries(
-			Object.entries(this.signalSeries).filter(([key]) => !dbcSignalKeys.has(key))
-		);
-		this.decodeErrors = Object.fromEntries(
-			Object.entries(this.decodeErrors).filter(([key]) => !dbcSignalKeys.has(key))
-		);
-		this.decodingSignalKeys = this.decodingSignalKeys.filter((key) => !dbcSignalKeys.has(key));
+		for (const key of dbcSignalKeys) {
+			this.selectedSignalKeys.delete(key);
+			this.decodingSignalKeys.delete(key);
+			this.signalSeries.delete(key);
+			this.decodeErrors.delete(key);
+		}
 		for (const key of dbcSignalKeys) {
 			this.signalColors.release(key);
 		}
 	}
 
 	clearSelectedSignals(): void {
-		this.selectedSignalKeys = [];
-		this.signalSeries = {};
-		this.decodingSignalKeys = [];
-		this.decodeErrors = {};
+		this.selectedSignalKeys.clear();
+		this.signalSeries.clear();
+		this.decodingSignalKeys.clear();
+		this.decodeErrors.clear();
 		this.signalColors.clear();
 	}
 
 	setSignalSeries(key: PlotSignalKey, series: DecodedSignalSeries | null): void {
-		const next = { ...this.signalSeries };
 		if (series) {
-			next[key] = series;
+			this.signalSeries.set(key, series);
 		} else {
-			delete next[key];
+			this.signalSeries.delete(key);
 		}
-		this.signalSeries = next;
 	}
 
 	private async decodeSignal(key: PlotSignalKey): Promise<void> {
@@ -133,7 +130,7 @@ class PlotDataStore {
 		if (!trace || !target) return;
 
 		this.setDecodeError(key, null);
-		this.decodingSignalKeys = arrayWith(this.decodingSignalKeys, key, true);
+		this.decodingSignalKeys.add(key);
 
 		try {
 			const series = await getSignalValues(
@@ -153,18 +150,16 @@ class PlotDataStore {
 				this.setDecodeError(key, error instanceof Error ? error.message : 'Signal decode failed');
 			}
 		} finally {
-			this.decodingSignalKeys = arrayWith(this.decodingSignalKeys, key, false);
+			this.decodingSignalKeys.delete(key);
 		}
 	}
 
 	private setDecodeError(key: PlotSignalKey, error: string | null): void {
-		const next = { ...this.decodeErrors };
 		if (error) {
-			next[key] = error;
+			this.decodeErrors.set(key, error);
 		} else {
-			delete next[key];
+			this.decodeErrors.delete(key);
 		}
-		this.decodeErrors = next;
 	}
 }
 
@@ -237,11 +232,6 @@ function findSignalTarget(key: PlotSignalKey): SignalTarget | null {
 
 function displayDbcName(fileName: string): string {
 	return fileName.replace(/\.dbc$/i, '');
-}
-
-function arrayWith(values: string[], value: string, include: boolean): string[] {
-	if (include) return values.includes(value) ? values : [...values, value];
-	return values.filter((candidate) => candidate !== value);
 }
 
 export const plotData = new PlotDataStore();
