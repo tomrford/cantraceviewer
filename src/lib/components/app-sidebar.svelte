@@ -20,6 +20,7 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 	import { onMount } from 'svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 	import type { ComponentProps } from 'svelte';
 
 	let {
@@ -32,7 +33,7 @@
 	let dbcDropActive = $state(false);
 	let helpOpen = $state(false);
 	let showActiveOnly = $state(false);
-	let expandedDbcIds = $state<string[]>([]);
+	let expandedDbcIds = new SvelteSet<string>();
 	let normalizedSignalSearch = $derived(signalSearch.trim().toLowerCase());
 	let isSignalSearchActive = $derived(normalizedSignalSearch.length > 0);
 	let isFiltering = $derived(isSignalSearchActive || showActiveOnly);
@@ -86,22 +87,21 @@
 
 	function isDbcExpanded(dbcId: string): boolean {
 		if (isFiltering) return true;
-		return expandedDbcIds.includes(dbcId);
+		return expandedDbcIds.has(dbcId);
 	}
 
 	function setDbcExpanded(dbcId: string, open: boolean): void {
-		expandedDbcIds = arrayWith(expandedDbcIds, dbcId, open);
+		if (open) {
+			expandedDbcIds.add(dbcId);
+		} else {
+			expandedDbcIds.delete(dbcId);
+		}
 	}
 
 	async function removeDbc(dbcId: string): Promise<void> {
-		expandedDbcIds = expandedDbcIds.filter((id) => id !== dbcId);
+		expandedDbcIds.delete(dbcId);
 		plotData.deselectDbcFile(dbcId);
 		await dbcFiles.removeFile(dbcId);
-	}
-
-	function arrayWith(values: string[], value: string, include: boolean): string[] {
-		if (include) return values.includes(value) ? values : [...values, value];
-		return values.filter((candidate) => candidate !== value);
 	}
 </script>
 

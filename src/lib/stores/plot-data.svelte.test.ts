@@ -75,10 +75,10 @@ describe('plotData', () => {
 
 		await plotData.toggleSignal(key());
 
-		expect(plotData.selectedSignalKeys).toEqual([]);
-		expect(plotData.signalSeries).toEqual({});
-		expect(plotData.decodeErrors).toEqual({});
-		expect(plotData.decodingSignalKeys).toEqual([]);
+		expect([...plotData.selectedSignalKeys]).toEqual([]);
+		expect([...plotData.signalSeries]).toEqual([]);
+		expect([...plotData.decodeErrors]).toEqual([]);
+		expect([...plotData.decodingSignalKeys]).toEqual([]);
 	});
 
 	it('passes the selected trace through to signal decoding', async () => {
