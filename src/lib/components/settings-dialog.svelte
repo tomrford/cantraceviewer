@@ -2,13 +2,17 @@
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import * as Select from '$lib/components/ui/select/index.js';
 	import {
+		resetPreferences,
 		themePreference,
 		timestampMode,
 		type ThemePreference,
 		type TimestampMode
 	} from '$lib/stores/preferences.svelte.js';
+	import { dbcFiles } from '$lib/stores/dbc-files.svelte.js';
+	import { plotData } from '$lib/stores/plot-data.svelte.js';
 	import LaptopIcon from '@lucide/svelte/icons/laptop';
 	import MoonIcon from '@lucide/svelte/icons/moon';
+	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
 	import SunIcon from '@lucide/svelte/icons/sun';
 	import XIcon from '@lucide/svelte/icons/x';
 	import type { Component } from 'svelte';
@@ -25,6 +29,12 @@
 	];
 
 	const selectedTimestampMode = $derived(timestampMode.current);
+
+	async function resetBrowserData(): Promise<void> {
+		plotData.clearSelectedSignals();
+		resetPreferences();
+		await dbcFiles.resetLibrary();
+	}
 </script>
 
 <Popover.Content
@@ -78,4 +88,16 @@
 			</Select.Content>
 		</Select.Root>
 	</label>
+
+	<div class="grid gap-2 border-t pt-4">
+		<div class="text-xs font-medium text-muted-foreground">Browser data</div>
+		<button
+			type="button"
+			class="flex h-10 items-center justify-center gap-2 rounded-md border border-destructive/40 px-3 text-sm text-destructive transition-colors hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
+			onclick={resetBrowserData}
+		>
+			<RotateCcwIcon class="size-4" />
+			<span>Reset local data</span>
+		</button>
+	</div>
 </Popover.Content>

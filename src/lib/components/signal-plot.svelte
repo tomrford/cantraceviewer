@@ -387,12 +387,12 @@
 	]}
 	{...restProps}
 >
-		{#if dropActive}
-			<div
-				class="pointer-events-none absolute inset-0 z-[60] flex items-center justify-center bg-background/25 text-sm font-medium text-foreground backdrop-blur-[1px]"
-			>
-				Drop trace to open
-			</div>
+	{#if dropActive}
+		<div
+			class="pointer-events-none absolute inset-0 z-[60] flex items-center justify-center bg-background/25 text-sm font-medium text-foreground backdrop-blur-[1px]"
+		>
+			Drop trace to open
+		</div>
 	{/if}
 	<div bind:this={container} class="absolute inset-0" aria-label="Selected signal plot"></div>
 

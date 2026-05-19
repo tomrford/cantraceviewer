@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
 import { dbcFiles } from './dbc-files.svelte';
-import { listStoredDbcs, putStoredDbcs } from './dbc-library.js';
+import { listStoredDbcs, putStoredDbcs, resetStoredDbcs } from './dbc-library.js';
 import { closeDbc, getDbcCatalog, openDbc } from '$lib/wasm.js';
 import type { DbcMessage, ParsedDbc } from '$lib/wasm.js';
 
@@ -15,6 +15,7 @@ vi.mock('./dbc-library.js', () => ({
 	deleteStoredDbc: vi.fn(() => Promise.resolve()),
 	listStoredDbcs: vi.fn(() => Promise.resolve([])),
 	putStoredDbcs: vi.fn(() => Promise.resolve()),
+	resetStoredDbcs: vi.fn(() => Promise.resolve()),
 	storedDbcId: vi.fn((text: string) => Promise.resolve(text))
 }));
 
@@ -23,6 +24,7 @@ const getDbcCatalogMock = getDbcCatalog as Mock<typeof getDbcCatalog>;
 const closeDbcMock = closeDbc as Mock<typeof closeDbc>;
 const listStoredDbcsMock = listStoredDbcs as Mock<typeof listStoredDbcs>;
 const putStoredDbcsMock = putStoredDbcs as Mock<typeof putStoredDbcs>;
+const resetStoredDbcsMock = resetStoredDbcs as Mock<typeof resetStoredDbcs>;
 
 describe('dbcFiles', () => {
 	beforeEach(() => {
@@ -96,28 +98,44 @@ describe('dbcFiles', () => {
 		expect(dbcFiles.isLoading).toBe(true);
 	});
 
-	it('allows library load retry after an initial failure', async () => {
+	it('resets the stored DBC library after a library load failure', async () => {
 		const handle = { ptr: 401 };
-		listStoredDbcsMock
-			.mockRejectedValueOnce(new Error('indexeddb unavailable'))
-			.mockResolvedValueOnce([{ id: 'stored-id', name: 'stored.dbc', text: 'stored' }]);
+		listStoredDbcsMock.mockResolvedValueOnce([
+			{ id: 'stored-id', name: 'stored.dbc', text: 'stored' }
+		]);
 		openDbcMock.mockResolvedValueOnce(handle);
-		getDbcCatalogMock.mockResolvedValueOnce(catalog(message({ name: 'Stored' })));
+		getDbcCatalogMock.mockRejectedValueOnce(new Error('cached DBC failed'));
 
 		await dbcFiles.loadLibrary();
 
-		expect(dbcFiles.hasLoadedLibrary).toBe(false);
-		expect(dbcFiles.files).toEqual([]);
-		expect(dbcFiles.error).toBe('indexeddb unavailable');
-
-		await dbcFiles.loadLibrary();
-
-		expect(listStoredDbcsMock).toHaveBeenCalledTimes(2);
 		expect(openDbcMock).toHaveBeenCalledExactlyOnceWith('stored');
+		expect(closeDbcMock).toHaveBeenCalledExactlyOnceWith(handle);
+		expect(resetStoredDbcsMock).toHaveBeenCalledOnce();
 		expect(dbcFiles.hasLoadedLibrary).toBe(true);
-		expect(dbcFiles.files).toHaveLength(1);
-		expect(dbcFiles.files[0]?.handle).toBe(handle);
+		expect(dbcFiles.files).toEqual([]);
 		expect(dbcFiles.error).toBe(null);
+	});
+
+	it('resets loaded DBC handles and the stored DBC library', async () => {
+		const handle = { ptr: 501 };
+		dbcFiles.files = [
+			{
+				id: 'stored-id',
+				name: 'stored.dbc',
+				handle,
+				catalog: catalog(message({ name: 'Stored' }))
+			}
+		];
+		dbcFiles.error = 'previous error';
+		dbcFiles.hasLoadedLibrary = false;
+
+		await dbcFiles.resetLibrary();
+
+		expect(closeDbcMock).toHaveBeenCalledExactlyOnceWith(handle);
+		expect(resetStoredDbcsMock).toHaveBeenCalledOnce();
+		expect(dbcFiles.files).toEqual([]);
+		expect(dbcFiles.error).toBe(null);
+		expect(dbcFiles.hasLoadedLibrary).toBe(true);
 	});
 });
 

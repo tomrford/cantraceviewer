@@ -11,6 +11,7 @@ import {
 	deleteStoredDbc,
 	listStoredDbcs,
 	putStoredDbcs,
+	resetStoredDbcs,
 	storedDbcId,
 	type StoredDbc
 } from './dbc-library.js';
@@ -108,6 +109,13 @@ class DbcFilesStore {
 		await Promise.all(handles.map((handle) => closeDbc(handle)));
 	}
 
+	async resetLibrary(): Promise<void> {
+		this.error = null;
+		this.hasLoadedLibrary = true;
+		await this.clear();
+		await resetStoredDbcs();
+	}
+
 	clearError(): void {
 		this.error = null;
 	}
@@ -127,9 +135,12 @@ class DbcFilesStore {
 			assertNoCanIdOverlaps({}, candidates);
 			this.files = candidates;
 			this.hasLoadedLibrary = true;
-		} catch (error) {
+		} catch {
 			await closeEntries(candidates);
-			this.error = error instanceof Error ? error.message : 'DBC library load failed';
+			await resetStoredDbcs();
+			this.files = [];
+			this.error = null;
+			this.hasLoadedLibrary = true;
 		} finally {
 			this.isLoading = false;
 		}

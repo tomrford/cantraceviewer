@@ -20,6 +20,12 @@ export const sidebarOpen = new PersistedState('cantraceviewer:sidebar-open', tru
 
 export const themeState = $state({ isDark: false });
 
+export function resetPreferences(): void {
+	themePreference.current = 'system';
+	timestampMode.current = 'relative';
+	sidebarOpen.current = true;
+}
+
 export function applyTheme(preference = themePreference.current): void {
 	if (typeof document === 'undefined' || typeof window === 'undefined') return;
 
