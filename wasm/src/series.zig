@@ -30,7 +30,7 @@ pub fn selectedSignalValues(
     var sample_index: usize = 0;
     for (parsed_trace.frames) |frame| {
         if (!matchesMessage(frame, selection.message)) continue;
-        if (frame.payload_len != selection.message.size_bytes) continue;
+        if (@as(u16, frame.payload_len) != selection.message.size_bytes) continue;
 
         const payload = payloadForFrame(parsed_trace.payloads, frame) orelse continue;
         out[sample_index] = timestampNsToMs(frame.timestamp_ns);
@@ -74,7 +74,7 @@ fn countMatchingSamples(parsed_trace: trace.Trace, msg: message.Message) usize {
     var count: usize = 0;
     for (parsed_trace.frames) |frame| {
         if (!matchesMessage(frame, msg)) continue;
-        if (frame.payload_len != msg.size_bytes) continue;
+        if (@as(u16, frame.payload_len) != msg.size_bytes) continue;
         if (payloadForFrame(parsed_trace.payloads, frame) == null) continue;
         count += 1;
     }

@@ -15,6 +15,7 @@
 		zoomViewport
 	} from '$lib/plot-viewport.js';
 	import {
+		formatAxisValue,
 		formatAxisTime,
 		lineSeriesForViews,
 		markerValue,
@@ -230,7 +231,8 @@
 			yAxis: {
 				type: 'value',
 				min: activeViewport?.yMin,
-				max: activeViewport?.yMax
+				max: activeViewport?.yMax,
+				tickFormatter: formatAxisValue
 			},
 			legend: { show: false },
 			tooltip: { show: false },
@@ -420,7 +422,7 @@
 		>
 			{#if dragState?.type === 'box'}
 				<div
-					class="absolute border border-white/90 bg-white/10"
+					class="absolute border border-current bg-current/10 text-foreground"
 					style:left={`${Math.min(dragState.start.xRatio, dragState.current.xRatio) * 100}%`}
 					style:top={`${Math.min(dragState.start.yRatio, dragState.current.yRatio) * 100}%`}
 					style:width={`${Math.abs(dragState.current.xRatio - dragState.start.xRatio) * 100}%`}

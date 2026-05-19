@@ -124,6 +124,22 @@ export function formatAxisTime(
 	return `${minutes}m ${(seconds - minutes * 60).toFixed(3)}s`;
 }
 
+export function formatAxisValue(value: number): string | null {
+	if (!Number.isFinite(value)) return null;
+	if (Object.is(value, -0) || Math.abs(value) < 1e-12) return '0';
+
+	const magnitude = Math.abs(value);
+	if (magnitude >= 1_000_000 || magnitude < 0.001) {
+		return value.toExponential(2);
+	}
+
+	const maximumFractionDigits = magnitude >= 100 ? 0 : magnitude >= 10 ? 1 : 3;
+	return new Intl.NumberFormat('en-US', {
+		maximumFractionDigits,
+		useGrouping: false
+	}).format(value);
+}
+
 function* plotPoints(views: SignalView[]): Iterable<PlotPoint> {
 	for (const view of views) {
 		for (let index = 0; index < view.points; index += 1) {
