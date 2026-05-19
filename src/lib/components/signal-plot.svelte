@@ -65,6 +65,10 @@
 	let resizeObserver: ResizeObserver | null = null;
 
 	const PLOT_GRID = { left: 64, right: 24, top: 18, bottom: 44 };
+	const GRID_LINE = {
+		dark: { color: '#f4f4f5', opacity: 0.1 },
+		light: { color: '#71717a', opacity: 0.3 }
+	} as const;
 	const WHEEL_ZOOM_SPEED = 0.002;
 
 	type DragState =
@@ -201,21 +205,24 @@
 	});
 
 	function chartOptions(): ChartGPUOptions {
+		const gridLine = themeState.isDark ? GRID_LINE.dark : GRID_LINE.light;
+
 		return {
 			theme: {
 				backgroundColor: themeState.isDark ? '#09090b' : '#ffffff',
 				textColor: themeState.isDark ? '#e4e4e7' : '#18181b',
 				axisLineColor: themeState.isDark ? '#3f3f46' : '#d4d4d8',
 				axisTickColor: '#71717a',
-				gridLineColor: themeState.isDark ? 'rgba(244,244,245,0.1)' : 'rgba(24,24,27,0.1)',
+				gridLineColor: gridLine.color,
 				colorPalette: SIGNAL_COLORS,
 				fontFamily: 'Geist Variable, sans-serif',
 				fontSize: 12
 			},
 			grid: PLOT_GRID,
 			gridLines: {
-				color: 'rgba(244,244,245,0.1)',
-				horizontal: { count: 6 },
+				color: gridLine.color,
+				opacity: gridLine.opacity,
+				horizontal: { count: 5 },
 				vertical: { count: 8 }
 			},
 			xAxis: {
