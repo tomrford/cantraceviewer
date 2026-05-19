@@ -1,7 +1,16 @@
 diff --git a/dist/index.js b/dist/index.js
-index 06da45a4fc726b9b9e976150fa9e525565fdeb94..268da41d4b8e8c69a1cafbf56467129e7a4369e1 100644
+index 06da45a..bbee87f 100644
 --- a/dist/index.js
 +++ b/dist/index.js
+@@ -1673,7 +1673,7 @@ function Ic(e, t) {
+     interactionScales: f,
+     seriesForRender: l,
+     withAlpha: g
+-  } = t, u = n.gridLines, y = u.show && u.horizontal.show ? u.horizontal.count : 0, p = u.show && u.vertical.show ? u.vertical.count : 0;
++  } = t, u = n.gridLines, y = u.show && u.horizontal.show ? Nc : 0, p = u.show && u.vertical.show ? s : 0;
+   if (y === 0 && p === 0)
+     e.gridRenderer.prepare(o, { lineCount: { horizontal: 0, vertical: 0 } });
+   else if (y > 0 && p > 0 && u.horizontal.color !== u.vertical.color)
 @@ -1708,7 +1708,7 @@ function Ic(e, t) {
      n.theme.axisLineColor,
      n.theme.axisTickColor,
