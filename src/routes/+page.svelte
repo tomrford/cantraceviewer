@@ -15,7 +15,7 @@
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import { Separator } from '$lib/components/ui/separator/index.js';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
-	import * as ToggleGroup from '$lib/components/ui/toggle-group/index.js';
+	import { Toggle } from '$lib/components/ui/toggle/index.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
 	import { applyTheme, sidebarOpen, themePreference } from '$lib/stores/preferences.svelte.js';
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
@@ -39,17 +39,15 @@
 	let boxZoomEnabled = $state(false);
 	let legendVisible = $state(true);
 	let canResetZoom = $state(false);
-	let zoomControls = $state<{
-		zoomIn: () => void;
-		zoomOut: () => void;
-		resetZoom: () => void;
-	} | null>(null);
+	let plotCommand = $state<{ type: 'zoom-in' | 'zoom-out' | 'reset-zoom' } | null>(null);
 	let traceMetadataTitle = $derived(
 		traceFile.entry ? formatTraceMetadata(traceFile.entry.metadata) : undefined
 	);
 	const siteTitle = 'CAN Trace Viewer';
 	const siteDescription = 'Lightweight browser-based CAN trace plotting and analysis GUI.';
 	const siteUrl = 'https://cantraceviewer.com/';
+	const toolbarIconButtonClass =
+		'border-input bg-transparent hover:bg-muted hover:text-foreground dark:bg-transparent dark:hover:bg-muted/50';
 
 	$effect(() => {
 		applyTheme(themePreference.current);
@@ -135,6 +133,10 @@
 		const hours = Math.floor(minutes / 60);
 		return `${hours}h ${minutes % 60}m ${seconds.toFixed(3)}s`;
 	}
+
+	function sendPlotCommand(type: NonNullable<typeof plotCommand>['type']) {
+		plotCommand = { type };
+	}
 </script>
 
 <svelte:head>
@@ -196,74 +198,64 @@
 						<Button
 							variant="outline"
 							size="icon"
-							class="border-input bg-transparent hover:bg-muted hover:text-foreground dark:bg-transparent dark:hover:bg-muted/50"
+							class={toolbarIconButtonClass}
 							aria-label="Zoom in"
 							title="Zoom in"
-							onclick={() => zoomControls?.zoomIn()}
+							onclick={() => sendPlotCommand('zoom-in')}
 						>
 							<PlusIcon class="size-3.5" />
 						</Button>
 						<Button
 							variant="outline"
 							size="icon"
-							class="border-input bg-transparent hover:bg-muted hover:text-foreground dark:bg-transparent dark:hover:bg-muted/50"
+							class={toolbarIconButtonClass}
 							aria-label="Zoom out"
 							title="Zoom out"
-							onclick={() => zoomControls?.zoomOut()}
+							onclick={() => sendPlotCommand('zoom-out')}
 						>
 							<MinusIcon class="size-3.5" />
 						</Button>
 						<Button
 							variant="outline"
 							size="icon"
-							class="border-input bg-transparent hover:bg-muted hover:text-foreground dark:bg-transparent dark:hover:bg-muted/50"
+							class={toolbarIconButtonClass}
 							aria-label="Zoom to full extent"
 							title="Zoom to full extent"
-							onclick={() => zoomControls?.resetZoom()}
+							onclick={() => sendPlotCommand('reset-zoom')}
 							disabled={!canResetZoom}
 						>
 							<ExpandIcon class="size-3.5" />
 						</Button>
 					</ButtonGroup.Root>
-					<ToggleGroup.Root
-						type="multiple"
-						value={[
-							markerEnabled ? 'marker' : null,
-							boxZoomEnabled ? 'boxZoom' : null,
-							legendVisible ? 'legend' : null
-						].filter((value): value is string => value !== null)}
-						onValueChange={(values) => {
-							markerEnabled = values.includes('marker');
-							boxZoomEnabled = values.includes('boxZoom');
-							legendVisible = values.includes('legend');
-							if (!markerEnabled) markerX = null;
-						}}
-						variant="outline"
-						size="default"
-						aria-label="Plot display controls"
-					>
-						<ToggleGroup.Item
-							value="boxZoom"
+					<ButtonGroup.Root aria-label="Plot display controls">
+						<Toggle
+							bind:pressed={boxZoomEnabled}
+							variant="outline"
+							size="default"
 							aria-label={boxZoomEnabled ? 'Use drag pan' : 'Use box zoom'}
 							title={boxZoomEnabled ? 'Use drag pan' : 'Use box zoom'}
 						>
 							<BoxSelectIcon class="size-3.5" />
-						</ToggleGroup.Item>
-						<ToggleGroup.Item
-							value="marker"
+						</Toggle>
+						<Toggle
+							bind:pressed={markerEnabled}
+							variant="outline"
+							size="default"
 							aria-label={markerEnabled ? 'Hide x marker' : 'Show x marker'}
 							title={markerEnabled ? 'Hide x marker' : 'Show x marker'}
 						>
 							<SeparatorVerticalIcon class="size-3.5" />
-						</ToggleGroup.Item>
-						<ToggleGroup.Item
-							value="legend"
+						</Toggle>
+						<Toggle
+							bind:pressed={legendVisible}
+							variant="outline"
+							size="default"
 							aria-label={legendVisible ? 'Hide legend' : 'Show legend'}
 							title={legendVisible ? 'Hide legend' : 'Show legend'}
 						>
 							<ListIcon class="size-3.5" />
-						</ToggleGroup.Item>
-					</ToggleGroup.Root>
+						</Toggle>
+					</ButtonGroup.Root>
 				{/if}
 				<Popover.Root>
 					<Popover.Trigger
@@ -282,10 +274,8 @@
 					bind:markerX
 					bind:boxZoomEnabled
 					bind:legendVisible
-					onPlotControlsChange={(controls) => {
-						canResetZoom = controls.canResetZoom;
-						zoomControls = controls;
-					}}
+					bind:canResetZoom
+					{plotCommand}
 					dropActive={traceDropActive}
 					ondragenter={handleTraceDrag}
 					ondragover={handleTraceDrag}
