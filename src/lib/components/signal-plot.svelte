@@ -458,7 +458,7 @@
 
 		{#if markerPercent !== null}
 			<div
-				class="pointer-events-none absolute z-40 text-white"
+				class="pointer-events-none absolute z-40 text-foreground"
 				style:top={`${PLOT_GRID.top}px`}
 				style:bottom={`${PLOT_GRID.bottom}px`}
 				style:left={`${PLOT_GRID.left}px`}
