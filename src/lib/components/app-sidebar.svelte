@@ -216,7 +216,7 @@
 														<CheckIcon class="size-3" />
 													{/if}
 												</span>
-												<span class="truncate">{signal.label}</span>
+												<span class="truncate font-mono">{signal.label}</span>
 											</button>
 										</Sidebar.MenuSubItem>
 									{/each}

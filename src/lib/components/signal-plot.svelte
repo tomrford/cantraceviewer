@@ -11,7 +11,6 @@
 		panViewport,
 		type PlotViewport,
 		viewportsAlmostEqual,
-		viewportIndicator,
 		zoomViewport
 	} from '$lib/plot-viewport.js';
 	import {
@@ -98,11 +97,6 @@
 	const activeViewport = $derived(viewport ?? fullDomain);
 	const visibleViews = $derived(visibleSignalViews(signalViews, activeViewport));
 	const isFitAll = $derived(viewportsAlmostEqual(activeViewport, fullDomain));
-	const locationIndicator = $derived.by(() =>
-		activeViewport === null || fullDomain === null
-			? null
-			: viewportIndicator(activeViewport, fullDomain)
-	);
 	const markerPercent = $derived.by(() => {
 		if (markerX === null || activeViewport === null) return null;
 		const span = activeViewport.xMax - activeViewport.xMin;
@@ -435,33 +429,6 @@
 				></div>
 			{/if}
 		</button>
-
-		{#if locationIndicator !== null && !isFitAll}
-			<div
-				class="pointer-events-none absolute z-50 h-1 overflow-hidden rounded-full bg-transparent"
-				style:left={`${PLOT_GRID.left}px`}
-				style:right={`${PLOT_GRID.right}px`}
-				style:bottom={`${PLOT_GRID.bottom - 1}px`}
-			>
-				<span
-					class="absolute inset-y-0 rounded-full bg-muted-foreground/60"
-					style:left={`${locationIndicator.xLeft}%`}
-					style:width={`${locationIndicator.xWidth}%`}
-				></span>
-			</div>
-			<div
-				class="pointer-events-none absolute z-50 w-1 overflow-hidden rounded-full bg-transparent"
-				style:top={`${PLOT_GRID.top}px`}
-				style:bottom={`${PLOT_GRID.bottom}px`}
-				style:left={`${PLOT_GRID.left - 1}px`}
-			>
-				<span
-					class="absolute inset-x-0 rounded-full bg-muted-foreground/60"
-					style:top={`${locationIndicator.yTop}%`}
-					style:height={`${locationIndicator.yHeight}%`}
-				></span>
-			</div>
-		{/if}
 
 		{#if markerPercent !== null}
 			<div

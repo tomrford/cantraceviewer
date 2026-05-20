@@ -29,7 +29,11 @@
 				class:grid-cols-[0.75rem_1fr]={markerX === null}
 			>
 				<span class="size-2 rounded-full" style:background-color={view.color}></span>
-				<span class="min-w-0 truncate" title={view.label}>{view.label}</span>
+				<span class="flex min-w-0 font-mono" title={view.label}>
+					<span class="min-w-[2ch] shrink truncate">{view.messageName}</span>
+					<span class="shrink-0">.</span>
+					<span class="min-w-0 flex-[999_1_auto] truncate">{view.signalName}</span>
+				</span>
 				{#if markerX !== null}
 					<span class="font-mono tabular-nums">{marker?.text}</span>
 				{/if}
