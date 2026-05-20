@@ -11,6 +11,8 @@ function view(x: number[], y: number[] = x): SignalView {
 	return {
 		key: 'signal',
 		label: 'Signal',
+		messageName: 'Message',
+		signalName: 'Signal',
 		unit: '',
 		color: '#fff',
 		x: new Float64Array(x),
