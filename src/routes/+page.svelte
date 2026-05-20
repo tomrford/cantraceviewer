@@ -328,7 +328,7 @@
 							<Empty.Header>
 								<Empty.Title>Open a trace</Empty.Title>
 								<Empty.Description>
-									Load an ASC, TRC, or BLF file to start plotting decoded CAN signals.
+									Load an ASC, TRC, BLF, or MF4 file to start plotting decoded CAN signals.
 								</Empty.Description>
 							</Empty.Header>
 							<Empty.Content>

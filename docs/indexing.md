@@ -2,7 +2,7 @@
 
 Signal extraction currently scans the parsed frame list for the loaded trace and
 filters by the selected DBC message ID, extended-ID flag, and payload length.
-This keeps the ASC, TRC, and BLF parsers simple while the UI is exercised
+This keeps the ASC, TRC, BLF, and MF4 parsers simple while the UI is exercised
 against real traces.
 
 If signal extraction becomes a measured bottleneck, add a parse-time frame index

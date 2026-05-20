@@ -54,7 +54,7 @@ export type DecodedSignalSeries = {
 	timesMs: Float64Array;
 	values: Float64Array;
 };
-export type TraceType = 'asc' | 'trc' | 'blf';
+export type TraceType = 'asc' | 'trc' | 'blf' | 'mf4';
 
 declare const DbcHandleBrand: unique symbol;
 declare const TraceHandleBrand: unique symbol;
@@ -81,6 +81,7 @@ type CanTraceViewerWasmExports = {
 	asc_parse(input: number): number;
 	trc_parse(input: number): number;
 	blf_parse(input: number): number;
+	mf4_parse(input: number): number;
 	trace_to_metadata_json(handle: number): number;
 	trace_free(handle: number): void;
 	get_trace_signal_values(
@@ -302,7 +303,9 @@ function parserForTraceType(
 			return { parse: wasm.trc_parse, label: 'TRC' };
 		case 'blf':
 			return { parse: wasm.blf_parse, label: 'BLF' };
+		case 'mf4':
+			return { parse: wasm.mf4_parse, label: 'MF4' };
 	}
 }
 
-type TraceFormatLabel = 'ASC' | 'TRC' | 'BLF';
+type TraceFormatLabel = 'ASC' | 'TRC' | 'BLF' | 'MF4';

@@ -4,6 +4,7 @@ import { dbcFilesFromDrop, traceFileFromDrop } from './file-drop';
 describe('file drop helpers', () => {
 	it('selects one supported trace file', () => {
 		expect(traceFileFromDrop([new File([''], 'drive.trc')])?.name).toBe('drive.trc');
+		expect(traceFileFromDrop([new File([''], 'drive.mf4')])?.name).toBe('drive.mf4');
 	});
 
 	it('rejects multi-file trace drops', () => {

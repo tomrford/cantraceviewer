@@ -361,8 +361,8 @@
 					browser's local storage. Nothing leaves your machine.
 				</p>
 				<p>
-					Load one ASC, TRC, or BLF trace, add one or more DBC files, then select decoded signals
-					from the sidebar.
+					Load one ASC, TRC, BLF, or MF4 trace, add one or more DBC files, then select decoded
+					signals from the sidebar.
 				</p>
 				<p>
 					Current support covers CAN trace plotting and a practical subset of DBC, using shared-axis

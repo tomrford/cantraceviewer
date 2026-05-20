@@ -3,6 +3,7 @@
 const std = @import("std");
 const asc = @import("../asc/asc.zig");
 const blf = @import("../blf/blf.zig");
+const mf4 = @import("../mf4/mf4.zig");
 const metadata = @import("metadata.zig");
 const trace = @import("trace.zig");
 const trc = @import("../trc/trc.zig");
@@ -31,6 +32,14 @@ pub const Handle = struct {
         errdefer parent_allocator.destroy(handle);
 
         handle.trace = try blf.fromBytes(parent_allocator, input);
+        return handle;
+    }
+
+    pub fn parseMf4(parent_allocator: std.mem.Allocator, input: []const u8) !*Handle {
+        const handle = try parent_allocator.create(Handle);
+        errdefer parent_allocator.destroy(handle);
+
+        handle.trace = try mf4.fromBytes(parent_allocator, input);
         return handle;
     }
 

@@ -120,6 +120,18 @@ describe('WASM adapter integration', () => {
 		}
 	});
 
+	it('opens a python-can MF4 trace through the TypeScript boundary', async () => {
+		const bytes = await readFile(resolve('wasm/src/mf4/fixtures/python-can-classic-fd.mf4'));
+		const trace = await openTrace('mf4', bytes);
+		try {
+			expect(trace.metadata.validMessageCount).toBe(2);
+			expect(trace.metadata.durationNs).toBeGreaterThanOrEqual(199_999_872);
+			expect(trace.metadata.durationNs).toBeLessThanOrEqual(200_000_128);
+		} finally {
+			await closeTrace(trace);
+		}
+	});
+
 	it('normalizes parse and decode failures', async () => {
 		const trace = await openFixtureTrace();
 		const dbc = await openFixtureDbc();

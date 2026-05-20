@@ -9,6 +9,7 @@ pub const dbc = @import("dbc/dbc.zig");
 pub const blf = @import("blf/blf.zig");
 pub const asc = @import("asc/asc.zig");
 const dbc_handle = @import("dbc/handle.zig");
+pub const mf4 = @import("mf4/mf4.zig");
 const series = @import("series.zig");
 const trace_handle = @import("trace/handle.zig");
 pub const trc = @import("trc/trc.zig");
@@ -85,6 +86,12 @@ export fn trc_parse(input: *const abi.OwnedBytes) usize {
 /// Parses a BLF trace file from an `OwnedBytes` input buffer.
 export fn blf_parse(input: *const abi.OwnedBytes) usize {
     const handle = trace_handle.Handle.parseBlf(abi.allocator, input.slice()) catch return 0;
+    return @intFromPtr(handle);
+}
+
+/// Parses an MF4 trace file from an `OwnedBytes` input buffer.
+export fn mf4_parse(input: *const abi.OwnedBytes) usize {
+    const handle = trace_handle.Handle.parseMf4(abi.allocator, input.slice()) catch return 0;
     return @intFromPtr(handle);
 }
 

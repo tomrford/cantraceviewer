@@ -6,6 +6,8 @@ The current ASAM MDF version is **4.3.0**, released on **23 September 2025**. Th
 
 For cantraceviewer, MF4 support means reading MDF4 bus-logging groups and normalizing `CAN_DataFrame` rows into the existing `trace.Trace` model: relative nanosecond timestamp, CAN ID, extended-ID flag, FD flag, DLC, payload length, and payload bytes. DBC signal decoding should stay unchanged after trace normalization.
 
+The in-repo parser targets MDF4 bus-logging files with direct `DT` data blocks or Deflate `DZ` blocks, including the transposed Deflate layout emitted by `python-can`/`asammdf`. It recognizes `CAN_DataFrame`, `CAN_ErrorFrame`, and `CAN_RemoteFrame` channel groups from CAN bus sources, stores data frames for DBC decoding, and keeps remote/error frames in the shared trace stream. Distributed `DL`/`HL` data lists, VLSD/`SD` payload indirection, attachments, and J1939 transport reassembly remain outside the current parser surface.
+
 ## Source materials
 
 **ASAM MDF pages.** The ASAM MDF standard page identifies MDF as the current Measurement Data Format standard, lists `.mf4` as the file format, and describes the current 4.3.0 release. The ASAM MDF wiki documents the core block model: `ID`, `HD`, `DG`, `CG`, `CN`, `DT`, `DL`, `DZ`, `SD`, block links, sorted/unsorted data groups, compression, channel types, master channels, and bus logging.
