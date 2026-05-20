@@ -77,7 +77,7 @@ export function lineSeries(
 		name: view.label,
 		data: { x: view.x, y: view.y },
 		color: view.color,
-		lineStyle: { color: view.color, width: 1.5, opacity: 0.95 },
+		lineStyle: { color: view.color, width: 2.5, opacity: 0.95 },
 		sampling: 'lttb',
 		samplingThreshold
 	};
