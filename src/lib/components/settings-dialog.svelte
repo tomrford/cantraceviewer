@@ -1,9 +1,11 @@
 <script lang="ts">
 	import * as Popover from '$lib/components/ui/popover/index.js';
+	import { Input } from '$lib/components/ui/input/index.js';
 	import * as Select from '$lib/components/ui/select/index.js';
 	import {
 		resetPreferences,
 		themePreference,
+		traceLineWidth,
 		timestampMode,
 		type ThemePreference,
 		type TimestampMode
@@ -29,11 +31,17 @@
 	];
 
 	const selectedTimestampMode = $derived(timestampMode.current);
+	const selectedTraceLineWidth = $derived(traceLineWidth.current);
 
 	async function resetBrowserData(): Promise<void> {
 		plotData.clearSelectedSignals();
 		resetPreferences();
 		await dbcFiles.resetLibrary();
+	}
+
+	function setTraceLineWidth(value: string | number | null | undefined): void {
+		const width = Number(value);
+		traceLineWidth.current = Number.isFinite(width) ? Math.min(8, Math.max(0.5, width)) : 2;
 	}
 </script>
 
@@ -88,6 +96,18 @@
 				{/each}
 			</Select.Content>
 		</Select.Root>
+	</label>
+
+	<label class="grid gap-2">
+		<span class="text-xs font-medium text-muted-foreground">Trace line width</span>
+		<Input
+			type="number"
+			min="0.5"
+			max="8"
+			step="0.25"
+			value={selectedTraceLineWidth}
+			oninput={(event) => setTraceLineWidth(event.currentTarget.value)}
+		/>
 	</label>
 
 	<div class="grid gap-2 border-t pt-4">
