@@ -25,7 +25,7 @@
 	} from '$lib/signal-plot-data.js';
 	import SignalPlotLegend from './signal-plot-legend.svelte';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
-	import { themeState, timestampMode, traceLineWidth } from '$lib/stores/preferences.svelte.js';
+	import { themeState, timestampMode } from '$lib/stores/preferences.svelte.js';
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
 	import { onDestroy, onMount, untrack } from 'svelte';
 	import type { HTMLAttributes } from 'svelte/elements';
@@ -195,7 +195,6 @@
 			measurementStartMs,
 			isDark: themeState.isDark,
 			timestampMode: timestampMode.current,
-			traceLineWidth: traceLineWidth.current,
 			viewport: activeViewport,
 			visible: visibleViews.map((view) => [view.key, view.points])
 		});
@@ -245,7 +244,7 @@
 			animation: false,
 			palette: SIGNAL_COLORS,
 			annotations: [],
-			series: lineSeriesForViews(visibleViews, traceLineWidth.current)
+			series: lineSeriesForViews(visibleViews)
 		};
 	}
 

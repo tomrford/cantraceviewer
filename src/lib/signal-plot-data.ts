@@ -65,8 +65,7 @@ export function visibleSignalViews(
 export function lineSeries(
 	view: SignalView,
 	visibleLineCount = 1,
-	totalSamplingThreshold = DEFAULT_TOTAL_SAMPLING_THRESHOLD,
-	lineWidth = 2
+	totalSamplingThreshold = DEFAULT_TOTAL_SAMPLING_THRESHOLD
 ): SeriesConfig {
 	const samplingThreshold = Math.max(
 		2,
@@ -78,15 +77,15 @@ export function lineSeries(
 		name: view.label,
 		data: { x: view.x, y: view.y },
 		color: view.color,
-		lineStyle: { color: view.color, width: lineWidth, opacity: 0.95 },
+		lineStyle: { color: view.color, width: 3, opacity: 0.95 },
 		sampling: 'lttb',
 		samplingThreshold
 	};
 }
 
-export function lineSeriesForViews(views: SignalView[], lineWidth = 2): SeriesConfig[] {
+export function lineSeriesForViews(views: SignalView[]): SeriesConfig[] {
 	const plottedViews = views.filter((view) => view.points > 0);
-	return plottedViews.map((view) => lineSeries(view, plottedViews.length, undefined, lineWidth));
+	return plottedViews.map((view) => lineSeries(view, plottedViews.length));
 }
 
 export function markerValue(view: SignalView, x: number) {

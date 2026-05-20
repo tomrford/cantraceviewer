@@ -14,10 +14,6 @@ export const timestampMode = new PersistedState<TimestampMode>(
 	{ syncTabs: false }
 );
 
-export const traceLineWidth = new PersistedState('cantraceviewer:trace-line-width', 2, {
-	syncTabs: false
-});
-
 export const sidebarOpen = new PersistedState('cantraceviewer:sidebar-open', true, {
 	syncTabs: false
 });
@@ -27,7 +23,6 @@ export const themeState = $state({ isDark: false });
 export function resetPreferences(): void {
 	themePreference.current = 'system';
 	timestampMode.current = 'relative';
-	traceLineWidth.current = 2;
 	sidebarOpen.current = true;
 }
 
