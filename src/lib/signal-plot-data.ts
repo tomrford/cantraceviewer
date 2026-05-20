@@ -6,6 +6,8 @@ import type { TimestampMode } from './stores/preferences.svelte.js';
 export type SignalView = {
 	key: string;
 	label: string;
+	messageName: string;
+	signalName: string;
 	unit: string;
 	color: string;
 	x: Float64Array;
@@ -32,6 +34,8 @@ export function signalView(signal: PlotSignal): SignalView {
 	return {
 		key: signal.key,
 		label: signal.label,
+		messageName: signal.messageName,
+		signalName: signal.signalName,
 		unit: signal.unit,
 		color: signal.color,
 		x: sourceTimes,
