@@ -27,6 +27,12 @@ export type DbcFileEntry = {
 export type SidebarDbcFile = {
 	id: string;
 	name: string;
+	messages: SidebarDbcMessage[];
+};
+
+export type SidebarDbcMessage = {
+	key: string;
+	name: string;
 	signals: SidebarDbcSignal[];
 };
 
@@ -72,9 +78,11 @@ class DbcFilesStore {
 		this.files.map((entry) => ({
 			id: entry.id,
 			name: displayDbcName(entry.name),
-			signals: entry.catalog.messages.flatMap((message) =>
-				message.signals.map((signal) => sidebarSignal(entry.id, message, signal))
-			)
+			messages: entry.catalog.messages.map((message) => ({
+				key: messageKey(entry.id, message.name),
+				name: message.name,
+				signals: message.signals.map((signal) => sidebarSignal(entry.id, message, signal))
+			}))
 		}))
 	);
 
@@ -247,6 +255,10 @@ function buildSignalTargetIndex(files: DbcFileEntry[]): SignalTargetIndex {
 
 export function signalKey(dbcFileId: string, messageName: string, signalName: string): string {
 	return JSON.stringify([dbcFileId, messageName, signalName]);
+}
+
+function messageKey(dbcFileId: string, messageName: string): string {
+	return JSON.stringify([dbcFileId, messageName]);
 }
 
 function sidebarSignal(

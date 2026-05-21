@@ -15,10 +15,8 @@
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
-	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
 	import CircleHelpIcon from '@lucide/svelte/icons/circle-help';
 	import GithubIcon from '@lucide/svelte/icons/github';
-	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 	import { onMount } from 'svelte';
@@ -36,6 +34,7 @@
 	let helpOpen = $state(false);
 	let showActiveOnly = $state(false);
 	let expandedDbcIds = new SvelteSet<string>();
+	let expandedMessageKeys = new SvelteSet<string>();
 	let normalizedSignalSearch = $derived(signalSearch.trim().toLowerCase());
 	let isSignalSearchActive = $derived(normalizedSignalSearch.length > 0);
 	let isFiltering = $derived(isSignalSearchActive || showActiveOnly);
@@ -43,13 +42,20 @@
 		dbcFiles.sidebarFiles
 			.map((dbc) => ({
 				...dbc,
-				signals: rankedFuzzySearch(
-					dbc.signals.filter((signal) => !showActiveOnly || plotData.isSignalSelected(signal.key)),
-					normalizedSignalSearch,
-					(signal) => signal.label
-				)
+				messages: dbc.messages
+					.map((message) => ({
+						...message,
+						signals: rankedFuzzySearch(
+							message.signals.filter(
+								(signal) => !showActiveOnly || plotData.isSignalSelected(signal.key)
+							),
+							normalizedSignalSearch,
+							(signal) => signal.label
+						)
+					}))
+					.filter((message) => message.signals.length > 0)
 			}))
-			.filter((dbc) => !isFiltering || dbc.signals.length > 0)
+			.filter((dbc) => !isFiltering || dbc.messages.length > 0)
 	);
 
 	onMount(() => {
@@ -102,8 +108,24 @@
 		}
 	}
 
+	function isMessageExpanded(messageKey: string): boolean {
+		if (isFiltering) return true;
+		return expandedMessageKeys.has(messageKey);
+	}
+
+	function setMessageExpanded(messageKey: string, open: boolean): void {
+		if (open) {
+			expandedMessageKeys.add(messageKey);
+		} else {
+			expandedMessageKeys.delete(messageKey);
+		}
+	}
+
 	async function removeDbc(dbcId: string): Promise<void> {
 		expandedDbcIds.delete(dbcId);
+		for (const message of dbcFiles.sidebarFiles.find((dbc) => dbc.id === dbcId)?.messages ?? []) {
+			expandedMessageKeys.delete(message.key);
+		}
 		plotData.deselectDbcFile(dbcId);
 		await dbcFiles.removeFile(dbcId);
 	}
@@ -204,34 +226,72 @@
 							</div>
 							<Collapsible.Content>
 								<Sidebar.MenuSub>
-									{#each dbc.signals as signal (signal.key)}
-										{@const isSelected = plotData.isSignalSelected(signal.key)}
-										{@const decodeStatus = isSelected
-											? plotData.signalDecodeStatus(signal.key)
-											: null}
+									{#each dbc.messages as message (message.key)}
 										<Sidebar.MenuSubItem>
-											<button
-												type="button"
-												class="flex h-7 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
-												aria-pressed={isSelected}
-												onclick={() => plotData.toggleSignal(signal.key)}
+											<Collapsible.Root
+												open={isMessageExpanded(message.key)}
+												onOpenChange={(open) => setMessageExpanded(message.key, open)}
+												class="group/message-collapsible"
 											>
-												<span
-													class="flex size-4 shrink-0 items-center justify-center rounded border border-sidebar-border bg-sidebar text-sidebar-foreground/45 data-[selected=true]:border-sidebar-foreground/40 data-[selected=true]:bg-sidebar-accent data-[selected=true]:text-sidebar-foreground data-[selected=true]:data-[error=true]:border-destructive/50 data-[selected=true]:data-[error=true]:bg-destructive/10 data-[selected=true]:data-[error=true]:text-destructive"
-													data-selected={isSelected}
-													data-error={decodeStatus?.decodeError != null}
-													title={decodeStatus?.decodeError ?? undefined}
-												>
-													{#if decodeStatus?.decodeError}
-														<CircleAlertIcon class="size-3" />
-													{:else if decodeStatus?.isDecoding}
-														<LoaderCircleIcon class="size-3 animate-spin" />
-													{:else if isSelected}
-														<CheckIcon class="size-3" />
-													{/if}
-												</span>
-												<span class="truncate font-mono">{signal.label}</span>
-											</button>
+												<Collapsible.Trigger>
+													{#snippet child({ props })}
+														<button
+															{...props}
+															type="button"
+															class="flex h-7 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
+															aria-label={isMessageExpanded(message.key)
+																? `Collapse ${message.name}`
+																: `Expand ${message.name}`}
+														>
+															<span
+																class="flex size-4 shrink-0 items-center justify-center text-sidebar-foreground/60"
+															>
+																<ChevronRightIcon
+																	class="size-4 group-data-[state=open]/message-collapsible:hidden"
+																/>
+																<ChevronDownIcon
+																	class="size-4 group-data-[state=closed]/message-collapsible:hidden"
+																/>
+															</span>
+															<span class="truncate">{message.name}</span>
+														</button>
+													{/snippet}
+												</Collapsible.Trigger>
+												<Collapsible.Content>
+													<Sidebar.MenuSub>
+														{#each message.signals as signal (signal.key)}
+															{@const isSelected = plotData.isSignalSelected(signal.key)}
+															{@const decodeStatus = isSelected
+																? plotData.signalDecodeStatus(signal.key)
+																: null}
+															<Sidebar.MenuSubItem>
+																<button
+																	type="button"
+																	class="flex h-7 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
+																	aria-pressed={isSelected}
+																	onclick={() => plotData.toggleSignal(signal.key)}
+																>
+																	<span
+																		class="flex size-4 shrink-0 items-center justify-center rounded border border-sidebar-border bg-sidebar text-sidebar-foreground/45 data-[selected=true]:border-sidebar-foreground/40 data-[selected=true]:bg-sidebar-accent data-[selected=true]:text-sidebar-foreground data-[selected=true]:data-[error=true]:border-destructive/50 data-[selected=true]:data-[error=true]:bg-destructive/10 data-[selected=true]:data-[error=true]:text-destructive"
+																		data-selected={isSelected}
+																		data-error={decodeStatus?.decodeError != null}
+																		title={decodeStatus?.decodeError ?? undefined}
+																	>
+																		{#if decodeStatus?.decodeError}
+																			<CircleAlertIcon class="size-3" />
+																		{:else if decodeStatus?.isDecoding}
+																			<LoaderCircleIcon class="size-3 animate-spin" />
+																		{:else if isSelected}
+																			<CheckIcon class="size-3" />
+																		{/if}
+																	</span>
+																	<span class="truncate font-mono">{signal.label}</span>
+																</button>
+															</Sidebar.MenuSubItem>
+														{/each}
+													</Sidebar.MenuSub>
+												</Collapsible.Content>
+											</Collapsible.Root>
 										</Sidebar.MenuSubItem>
 									{/each}
 								</Sidebar.MenuSub>

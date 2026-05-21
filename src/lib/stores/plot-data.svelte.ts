@@ -108,10 +108,11 @@ class PlotDataStore {
 	}
 
 	deselectDbcFile(dbcFileId: string): void {
+		const entry = dbcFiles.files.find((file) => file.id === dbcFileId);
 		const dbcSignalKeys = new Set(
-			dbcFiles.sidebarFiles
-				.find((file) => file.id === dbcFileId)
-				?.signals.map((signal) => signal.key) ?? []
+			entry?.catalog.messages.flatMap((message) =>
+				message.signals.map((signal) => signalKey(dbcFileId, message.name, signal.name))
+			) ?? []
 		);
 
 		for (const key of dbcSignalKeys) {

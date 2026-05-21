@@ -31,10 +31,11 @@
 				class:grid-cols-[0.75rem_1fr]={displayedMarkerX === null}
 			>
 				<span class="size-2 rounded-full" style:background-color={view.color}></span>
-				<span class="flex min-w-0 font-mono" title={view.label}>
-					<span class="min-w-[2ch] shrink truncate">{view.messageName}</span>
-					<span class="shrink-0">.</span>
-					<span class="min-w-0 flex-[999_1_auto] truncate">{view.signalName}</span>
+				<span class="flex min-w-0" title={view.label}>
+					<span class="shrink-0">{view.signalName}</span>
+					<span class="shrink-0 text-muted-foreground">&nbsp;(</span>
+					<span class="min-w-0 shrink truncate text-muted-foreground">{view.messageName}</span>
+					<span class="shrink-0 text-muted-foreground">)</span>
 				</span>
 				{#if displayedMarkerX !== null}
 					<span class="font-mono tabular-nums">{marker?.text}</span>
