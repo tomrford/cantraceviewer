@@ -79,7 +79,7 @@ class DbcFilesStore {
 			id: entry.id,
 			name: displayDbcName(entry.name),
 			messages: entry.catalog.messages.map((message) => ({
-				key: messageKey(entry.id, message.name),
+				key: messageKey(entry.id, message),
 				name: message.name,
 				signals: message.signals.map((signal) => sidebarSignal(entry.id, message, signal))
 			}))
@@ -257,8 +257,8 @@ export function signalKey(dbcFileId: string, messageName: string, signalName: st
 	return JSON.stringify([dbcFileId, messageName, signalName]);
 }
 
-function messageKey(dbcFileId: string, messageName: string): string {
-	return JSON.stringify([dbcFileId, messageName]);
+function messageKey(dbcFileId: string, message: DbcMessage): string {
+	return JSON.stringify([dbcFileId, canIdKey(message.canId, message.isExtended)]);
 }
 
 function sidebarSignal(

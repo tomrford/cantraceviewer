@@ -26,16 +26,20 @@
 		{#each views as view (view.key)}
 			{@const marker = markerValuesByKey.get(view.key)}
 			<div
-				class="grid items-center gap-2 text-xs"
-				class:grid-cols-[0.75rem_1fr_auto]={displayedMarkerX !== null}
-				class:grid-cols-[0.75rem_1fr]={displayedMarkerX === null}
+				class="grid min-w-0 items-center gap-2 text-xs"
+				class:grid-cols-[0.75rem_minmax(0,1fr)_auto]={displayedMarkerX !== null}
+				class:grid-cols-[0.75rem_minmax(0,1fr)]={displayedMarkerX === null}
 			>
 				<span class="size-2 rounded-full" style:background-color={view.color}></span>
-				<span class="flex min-w-0" title={view.label}>
-					<span class="shrink-0">{view.signalName}</span>
-					<span class="shrink-0 text-muted-foreground">&nbsp;(</span>
+				<span
+					class="grid min-w-0 items-center"
+					style:grid-template-columns="minmax(0,max-content) auto minmax(0,1fr) auto"
+					title={view.label}
+				>
+					<span class="min-w-0 truncate">{view.signalName}</span>
+					<span class="text-muted-foreground">&nbsp;(</span>
 					<span class="min-w-0 shrink truncate text-muted-foreground">{view.messageName}</span>
-					<span class="shrink-0 text-muted-foreground">)</span>
+					<span class="text-muted-foreground">)</span>
 				</span>
 				{#if displayedMarkerX !== null}
 					<span class="font-mono tabular-nums">{marker?.text}</span>
