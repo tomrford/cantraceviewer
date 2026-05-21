@@ -42,8 +42,10 @@ const Channel = struct {
 
 const Group = struct {
     kind: trace_frame.Kind,
+    record_id: u64,
     cycles: usize,
     sample_size: usize,
+    record_size: usize,
     data_addr: u64,
     time: ?Channel = null,
     id: ?Channel = null,
@@ -77,15 +79,27 @@ const Parser = struct {
         while (dg_addr != 0) {
             const dg = try readBlock(self.bytes, dg_addr);
             if (!std.mem.eql(u8, dg.id, "##DG") or dg.link_count < 3) return error.InvalidMf4DataGroup;
+            if (dg.data_end - dg.data_offset < 8) return error.InvalidMf4DataGroup;
 
+            var groups = std.ArrayList(Group).empty;
+            defer groups.deinit(self.allocator);
             var cg_addr = dg.link(self.bytes, 1);
             while (cg_addr != 0) {
                 const cg = try readBlock(self.bytes, cg_addr);
                 if (!std.mem.eql(u8, cg.id, "##CG") or cg.link_count < 4) return error.InvalidMf4ChannelGroup;
                 if (try self.groupFromChannelGroup(cg, dg.link(self.bytes, 2))) |group| {
-                    try self.parseRecords(group);
+                    try groups.append(self.allocator, group);
                 }
                 cg_addr = cg.link(self.bytes, 0);
+            }
+
+            const record_id_len = self.bytes[dg.data_offset];
+            if (record_id_len == 0) {
+                for (groups.items) |group| {
+                    try self.parseSortedRecords(group);
+                }
+            } else {
+                try self.parseUnsortedRecords(dg.link(self.bytes, 2), record_id_len, groups.items);
             }
 
             dg_addr = dg.link(self.bytes, 0);
@@ -104,8 +118,10 @@ const Parser = struct {
 
         var group = Group{
             .kind = .unknown,
+            .record_id = readU64(self.bytes, cg.data_offset),
             .cycles = @intCast(cycles),
             .sample_size = @intCast(sample_size),
+            .record_size = @intCast(sample_size + readU32(self.bytes, cg.data_offset + 28)),
             .data_addr = data_addr,
         };
 
@@ -129,17 +145,35 @@ const Parser = struct {
         return group;
     }
 
-    fn parseRecords(self: *Parser, group: Group) !void {
+    fn parseSortedRecords(self: *Parser, group: Group) !void {
         const data = try self.dataBytes(group.data_addr);
         defer if (data.owned) self.allocator.free(data.bytes);
 
-        const needed = try std.math.mul(usize, group.cycles, group.sample_size);
+        const needed = try std.math.mul(usize, group.cycles, group.record_size);
         if (needed > data.bytes.len) return error.TruncatedMf4DataBlock;
 
         var index: usize = 0;
         while (index < group.cycles) : (index += 1) {
-            const record = data.bytes[index * group.sample_size ..][0..group.sample_size];
+            const record = data.bytes[index * group.record_size ..][0..group.sample_size];
             try self.parseRecord(group, record);
+        }
+    }
+
+    fn parseUnsortedRecords(self: *Parser, data_addr: u64, record_id_len: u8, groups: []const Group) !void {
+        if (record_id_len != 1 and record_id_len != 2 and record_id_len != 4 and record_id_len != 8) return error.UnsupportedMf4RecordIdSize;
+
+        const data = try self.dataBytes(data_addr);
+        defer if (data.owned) self.allocator.free(data.bytes);
+
+        var pos: usize = 0;
+        while (pos < data.bytes.len) {
+            if (pos + record_id_len > data.bytes.len) return error.TruncatedMf4DataBlock;
+            const record_id = readRecordId(data.bytes[pos..], record_id_len);
+            pos += record_id_len;
+            const group = findGroup(groups, record_id) orelse return error.InvalidMf4RecordId;
+            if (pos + group.record_size > data.bytes.len) return error.TruncatedMf4DataBlock;
+            try self.parseRecord(group, data.bytes[pos..][0..group.sample_size]);
+            pos += group.record_size;
         }
     }
 
@@ -212,17 +246,25 @@ const Parser = struct {
         errdefer self.allocator.free(inflated);
 
         if (zip_type == 0) return inflated;
-        if (zip_type != 1 or zip_parameter == 0 or original_size % zip_parameter != 0) return error.UnsupportedMf4DzBlock;
+        if (zip_type != 1 or zip_parameter == 0) return error.UnsupportedMf4DzBlock;
+        return self.untransposeDz(inflated, @intCast(original_size), @intCast(zip_parameter));
+    }
 
-        const untransposed = try self.allocator.alloc(u8, @intCast(original_size));
+    fn untransposeDz(self: *Parser, inflated: []u8, original_size: usize, row_size: usize) ![]u8 {
+        errdefer self.allocator.free(inflated);
+        if (row_size == 0 or original_size != inflated.len) return error.InvalidMf4DzBlock;
+
+        const untransposed = try self.allocator.alloc(u8, original_size);
         errdefer self.allocator.free(untransposed);
-        const row_size: usize = @intCast(zip_parameter);
-        const row_count = untransposed.len / row_size;
+
+        const matrix_size = original_size - (original_size % row_size);
+        const row_count = matrix_size / row_size;
         for (0..row_size) |column| {
             for (0..row_count) |row| {
                 untransposed[row * row_size + column] = inflated[column * row_count + row];
             }
         }
+        @memcpy(untransposed[matrix_size..], inflated[matrix_size..]);
         self.allocator.free(inflated);
         return untransposed;
     }
@@ -255,6 +297,21 @@ fn applyChannel(group: *Group, cn: Channel) void {
     } else if (endsWith(cn.name, ".EDL")) {
         group.edl = cn;
     }
+}
+
+fn findGroup(groups: []const Group, record_id: u64) ?Group {
+    for (groups) |group| {
+        if (group.record_id == record_id) return group;
+    }
+    return null;
+}
+
+fn readRecordId(bytes: []const u8, len: u8) u64 {
+    var value: u64 = 0;
+    for (bytes[0..len], 0..) |byte, index| {
+        value |= @as(u64, byte) << @intCast(index * 8);
+    }
+    return value;
 }
 
 pub fn fromBytes(allocator: std.mem.Allocator, bytes: []const u8) !trace.Trace {
@@ -393,43 +450,6 @@ fn readU64(bytes: []const u8, offset: usize) u64 {
     return std.mem.readInt(u64, bytes[offset..][0..8], .little);
 }
 
-test "parses python-can MDF4 classic, FD, remote, and error records" {
-    const parsed = try fromBytes(std.testing.allocator, @embedFile("fixtures/python-can-classic-fd.mf4"));
-    defer {
-        var owned = parsed;
-        owned.deinit(std.testing.allocator);
-    }
-
-    try std.testing.expectEqual(@as(?i64, 1_704_164_645_122), parsed.measurement_start_ms);
-    try std.testing.expectEqual(@as(usize, 4), parsed.frames.len);
-    try std.testing.expectEqual(@as(usize, 2), parsed.data_frame_count);
-    try expectNearNs(200_000_000, parsed.last_data_timestamp_ns.?);
-
-    try expectNearNs(100_000_000, parsed.frames[0].timestamp_ns);
-    try std.testing.expectEqual(trace_frame.Kind.data, parsed.frames[0].kind);
-    try std.testing.expectEqual(trace_frame.Id.standard(0x123), parsed.frames[0].id.?);
-    try std.testing.expectEqual(@as(u8, 4), parsed.frames[0].dlc);
-    try std.testing.expectEqualSlices(u8, &.{ 1, 2, 3, 4 }, parsed.payloads[0..4]);
-
-    try expectNearNs(200_000_000, parsed.frames[1].timestamp_ns);
-    try std.testing.expectEqual(trace_frame.Id.extended(0x18fee900), parsed.frames[1].id.?);
-    try std.testing.expect(parsed.frames[1].is_fd);
-    try std.testing.expectEqual(@as(u8, 9), parsed.frames[1].dlc);
-    try std.testing.expectEqual(@as(u8, 12), parsed.frames[1].payload_len);
-    try std.testing.expectEqualSlices(u8, &.{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 }, parsed.payloads[4..16]);
-
-    try std.testing.expectEqual(trace_frame.Kind.error_frame, parsed.frames[2].kind);
-    try expectNearNs(300_000_000, parsed.frames[2].timestamp_ns);
-    try std.testing.expectEqual(trace_frame.Id.standard(0x456), parsed.frames[2].id.?);
-    try std.testing.expectEqualSlices(u8, &.{ 0xaa, 0xbb }, parsed.payloads[16..18]);
-
-    try std.testing.expectEqual(trace_frame.Kind.remote, parsed.frames[3].kind);
-    try expectNearNs(250_000_000, parsed.frames[3].timestamp_ns);
-    try std.testing.expectEqual(trace_frame.Id.standard(0x321), parsed.frames[3].id.?);
-    try std.testing.expectEqual(@as(u8, 8), parsed.frames[3].dlc);
-}
-
-fn expectNearNs(expected: u64, actual: u64) !void {
-    const delta = if (actual > expected) actual - expected else expected - actual;
-    try std.testing.expect(delta <= 128);
+test {
+    _ = @import("tests.zig");
 }
