@@ -225,6 +225,9 @@ function messageIdentities(entry: DbcFileEntry): IndexedDbcMessageIdentity[] {
 }
 
 function messageIdentityKey(message: DbcMessageIdentity): string {
+	// `isFd` is inferred from DBC message size, so <=8-byte FD messages are
+	// indistinguishable from classic definitions. Keep identity on the fields we
+	// can trust and reject overlapping IDs at DBC load time.
 	return `${message.isExtended ? 'extended' : 'standard'}:${message.canId}`;
 }
 

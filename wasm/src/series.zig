@@ -246,13 +246,11 @@ test "selects same-name messages by CAN identity" {
     try std.testing.expectEqualSlices(f64, &.{ 2.0, 34.0 }, bytes);
 }
 
-test "matches classic and CAN FD frames by ID, extended flag, and payload length" {
+test "does not require FD flag when ID, extended flag, and payload length match" {
     const allocator = std.testing.allocator;
     const dbc_text =
-        \\BO_ 291 ClassicExample: 8 ECU
-        \\ SG_ ClassicSpeed : 0|16@1+ (1,0) [0|65535] "" DASH
-        \\BO_ 291 FdExample: 12 ECU
-        \\ SG_ FdSpeed : 0|16@1+ (1,0) [0|65535] "" DASH
+        \\BO_ 291 Example: 8 ECU
+        \\ SG_ Speed : 0|16@1+ (1,0) [0|65535] "" DASH
     ;
     const asc_text =
         \\base hex timestamps absolute
@@ -266,27 +264,17 @@ test "matches classic and CAN FD frames by ID, extended flag, and payload length
     var parsed = try asc.fromString(allocator, asc_text);
     defer parsed.deinit(allocator);
 
-    const classic = try selectedSignalValues(
+    const bytes = try selectedSignalValues(
         allocator,
         dbc,
         parsed,
         0x123,
         false,
-        "ClassicSpeed",
+        "Speed",
     );
-    defer allocator.free(classic);
-    const fd = try selectedSignalValues(
-        allocator,
-        dbc,
-        parsed,
-        0x123,
-        false,
-        "FdSpeed",
-    );
-    defer allocator.free(fd);
+    defer allocator.free(bytes);
 
-    try std.testing.expectEqualSlices(f64, &.{ 1.0, 2.0, 1.0, 2.0 }, classic);
-    try std.testing.expectEqualSlices(f64, &.{ 3.0, 3.0 }, fd);
+    try std.testing.expectEqualSlices(f64, &.{ 1.0, 2.0, 1.0, 2.0 }, bytes);
 }
 
 test "extracts selected signal values from TRC" {
