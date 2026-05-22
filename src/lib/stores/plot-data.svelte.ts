@@ -1,5 +1,5 @@
 import { createSignalColorAssigner } from '$lib/plot-colors.js';
-import { dbcFiles, displayDbcName, signalKey } from '$lib/stores/dbc-files.svelte.js';
+import { dbcFiles, displayDbcName, signalIdentityKey } from '$lib/stores/dbc-files.svelte.js';
 import { traceFile } from '$lib/stores/trace-file.svelte.js';
 import {
 	getSignalValues,
@@ -111,7 +111,7 @@ class PlotDataStore {
 		const entry = dbcFiles.files.find((file) => file.id === dbcFileId);
 		const dbcSignalKeys = new Set(
 			entry?.catalog.messages.flatMap((message) =>
-				message.signals.map((signal) => signalKey(dbcFileId, message.name, signal.name))
+				message.signals.map((signal) => signalIdentityKey(dbcFileId, message, signal.name))
 			) ?? []
 		);
 
@@ -154,7 +154,7 @@ class PlotDataStore {
 			const series = await getSignalValues(
 				target.file.handle,
 				trace,
-				target.message.name,
+				{ canId: target.message.canId, isExtended: target.message.isExtended },
 				target.signal.name
 			);
 
@@ -196,7 +196,7 @@ function plotSignal(
 	data: PlotSignalData
 ): PlotSignal {
 	return {
-		key: signalKey(dbcFileId, message.name, signal.name),
+		key: signalIdentityKey(dbcFileId, message, signal.name),
 		color: data.color,
 		dbcFileId,
 		dbcName: displayDbcName(sourceFileName),

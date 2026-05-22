@@ -1,6 +1,6 @@
 //! Selected signal time-series extraction.
 //!
-//! The exported WASM boundary asks for one DBC message name and signal name,
+//! The exported WASM boundary asks for one DBC CAN identity and signal name,
 //! then receives parallel `f64` arrays of `(time_ms, value)` samples.
 
 const std = @import("std");
@@ -16,10 +16,11 @@ pub fn selectedSignalValues(
     allocator: std.mem.Allocator,
     dbc: *const dbc_handle.Handle,
     parsed_trace: trace.Trace,
-    message_name: []const u8,
+    can_id: u32,
+    is_extended: bool,
     signal_name: []const u8,
 ) ![]f64 {
-    const selection = try findSignal(dbc, message_name, signal_name);
+    const selection = try findSignal(dbc, can_id, is_extended, signal_name);
     const plan = try selection.signal.planDecode(selection.message.size_bytes);
 
     const sample_count = countMatchingSamples(parsed_trace, selection.message);
@@ -48,19 +49,19 @@ const SignalSelection = struct {
 
 fn findSignal(
     handle: *const dbc_handle.Handle,
-    message_name: []const u8,
+    can_id: u32,
+    is_extended: bool,
     signal_name: []const u8,
 ) !SignalSelection {
     for (handle.dbc.messages) |msg| {
-        if (!std.mem.eql(u8, msg.name, message_name)) continue;
+        if (msg.can_id != can_id or msg.is_extended != is_extended) continue;
 
         for (msg.signals) |sig| {
             if (!std.mem.eql(u8, sig.name, signal_name)) continue;
             return .{ .message = msg, .signal = sig };
         }
-        return error.SignalNotFound;
     }
-    return error.MessageNotFound;
+    return error.SignalNotFound;
 }
 
 fn matchesMessage(frame: trace_frame.Frame, msg: message.Message) bool {
@@ -114,7 +115,8 @@ test "extracts selected signal values as relative-millisecond/value series" {
         allocator,
         dbc,
         parsed,
-        "Example",
+        0x123,
+        false,
         "Speed",
     );
     defer allocator.free(bytes);
@@ -143,7 +145,8 @@ test "extracts selected float signal values as relative-millisecond/value series
         allocator,
         dbc,
         parsed,
-        "Example",
+        0x123,
+        false,
         "Temperature",
     );
     defer allocator.free(bytes);
@@ -172,7 +175,8 @@ test "extracts selected motorola float signal values as relative-millisecond/val
         allocator,
         dbc,
         parsed,
-        "Example",
+        0x123,
+        false,
         "Temperature",
     );
     defer allocator.free(bytes);
@@ -201,12 +205,45 @@ test "skips matching frames with unexpected payload length" {
         allocator,
         dbc,
         parsed,
-        "Example",
+        0x123,
+        false,
         "Speed",
     );
     defer allocator.free(bytes);
 
     try std.testing.expectEqualSlices(f64, &.{ 2.0, 4660.0 }, bytes);
+}
+
+test "selects same-name messages by CAN identity" {
+    const allocator = std.testing.allocator;
+    const dbc_text =
+        \\BO_ 256 Status: 1 ECU
+        \\ SG_ Value : 0|8@1+ (1,0) [0|255] "" DASH
+        \\BO_ 512 Status: 1 ECU
+        \\ SG_ Value : 0|8@1+ (1,0) [0|255] "" DASH
+    ;
+    const asc_text =
+        \\base hex timestamps absolute
+        \\0.001 1 100 Rx d 1 11
+        \\0.002 1 200 Rx d 1 22
+    ;
+
+    const dbc = try dbc_handle.Handle.parse(allocator, dbc_text);
+    defer dbc.deinit(allocator);
+    var parsed = try asc.fromString(allocator, asc_text);
+    defer parsed.deinit(allocator);
+
+    const bytes = try selectedSignalValues(
+        allocator,
+        dbc,
+        parsed,
+        0x200,
+        false,
+        "Value",
+    );
+    defer allocator.free(bytes);
+
+    try std.testing.expectEqualSlices(f64, &.{ 2.0, 34.0 }, bytes);
 }
 
 test "matches classic and CAN FD frames by ID, extended flag, and payload length" {
@@ -233,7 +270,8 @@ test "matches classic and CAN FD frames by ID, extended flag, and payload length
         allocator,
         dbc,
         parsed,
-        "ClassicExample",
+        0x123,
+        false,
         "ClassicSpeed",
     );
     defer allocator.free(classic);
@@ -241,7 +279,8 @@ test "matches classic and CAN FD frames by ID, extended flag, and payload length
         allocator,
         dbc,
         parsed,
-        "FdExample",
+        0x123,
+        false,
         "FdSpeed",
     );
     defer allocator.free(fd);
@@ -272,7 +311,8 @@ test "extracts selected signal values from TRC" {
         allocator,
         dbc,
         parsed,
-        "Example",
+        0x123,
+        false,
         "Speed",
     );
     defer allocator.free(bytes);

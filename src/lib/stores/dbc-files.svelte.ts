@@ -4,6 +4,7 @@ import {
 	openDbc,
 	type DbcHandle,
 	type DbcMessage,
+	type DbcMessageIdentity,
 	type DbcSignal,
 	type ParsedDbc
 } from '$lib/wasm.js';
@@ -49,16 +50,12 @@ export type DbcSignalTarget = {
 	signal: DbcSignal;
 };
 
-type DbcMessageIdentity = {
+type IndexedDbcMessageIdentity = {
 	key: string;
-	canId: number;
-	isExtended: boolean;
-	isFd: boolean;
 	fileName: string;
-	messageName: string;
 };
 
-type CanIdIndex = Record<string, DbcMessageIdentity>;
+type CanIdIndex = Record<string, IndexedDbcMessageIdentity>;
 type SignalTargetIndex = Record<string, DbcSignalTarget>;
 type DbcCandidate = {
 	entry: DbcFileEntry;
@@ -79,7 +76,7 @@ class DbcFilesStore {
 			id: entry.id,
 			name: displayDbcName(entry.name),
 			messages: entry.catalog.messages.map((message) => ({
-				key: messageKey(entry.id, message),
+				key: sidebarMessageKey(entry.id, message),
 				name: message.name,
 				signals: message.signals.map((signal) => sidebarSignal(entry.id, message, signal))
 			}))
@@ -220,19 +217,15 @@ function assertNoCanIdOverlaps(existingIndex: CanIdIndex, candidates: DbcFileEnt
 	}
 }
 
-function messageIdentities(entry: DbcFileEntry): DbcMessageIdentity[] {
+function messageIdentities(entry: DbcFileEntry): IndexedDbcMessageIdentity[] {
 	return entry.catalog.messages.map((message) => ({
-		key: canIdKey(message.canId, message.isExtended),
-		canId: message.canId,
-		isExtended: message.isExtended,
-		isFd: message.isFd,
-		fileName: entry.name,
-		messageName: message.name
+		key: messageIdentityKey(message),
+		fileName: entry.name
 	}));
 }
 
-function canIdKey(canId: number, isExtended: boolean): string {
-	return `${isExtended ? 'extended' : 'standard'}:${canId}`;
+function messageIdentityKey(message: DbcMessageIdentity): string {
+	return `${message.isExtended ? 'extended' : 'standard'}:${message.canId}`;
 }
 
 export function displayDbcName(fileName: string): string {
@@ -245,7 +238,7 @@ function buildSignalTargetIndex(files: DbcFileEntry[]): SignalTargetIndex {
 	for (const file of files) {
 		for (const message of file.catalog.messages) {
 			for (const signal of message.signals) {
-				index[signalKey(file.id, message.name, signal.name)] = { file, message, signal };
+				index[signalIdentityKey(file.id, message, signal.name)] = { file, message, signal };
 			}
 		}
 	}
@@ -253,12 +246,16 @@ function buildSignalTargetIndex(files: DbcFileEntry[]): SignalTargetIndex {
 	return index;
 }
 
-export function signalKey(dbcFileId: string, messageName: string, signalName: string): string {
-	return JSON.stringify([dbcFileId, messageName, signalName]);
+export function signalIdentityKey(
+	dbcFileId: string,
+	message: DbcMessageIdentity,
+	signalName: string
+): string {
+	return JSON.stringify([dbcFileId, messageIdentityKey(message), signalName]);
 }
 
-function messageKey(dbcFileId: string, message: DbcMessage): string {
-	return JSON.stringify([dbcFileId, canIdKey(message.canId, message.isExtended)]);
+function sidebarMessageKey(dbcFileId: string, message: DbcMessage): string {
+	return JSON.stringify([dbcFileId, messageIdentityKey(message)]);
 }
 
 function sidebarSignal(
@@ -267,7 +264,7 @@ function sidebarSignal(
 	signal: DbcSignal
 ): SidebarDbcSignal {
 	return {
-		key: signalKey(dbcFileId, message.name, signal.name),
+		key: signalIdentityKey(dbcFileId, message, signal.name),
 		label: `${message.name}.${signal.name}`,
 		messageName: message.name,
 		signalName: signal.name

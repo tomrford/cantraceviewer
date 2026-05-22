@@ -31,14 +31,12 @@
 				class:grid-cols-[0.75rem_minmax(0,1fr)]={displayedMarkerX === null}
 			>
 				<span class="size-2 rounded-full" style:background-color={view.color}></span>
-				<span
-					class="grid min-w-0 items-center"
-					style:grid-template-columns="minmax(0,max-content) auto minmax(0,1fr) auto"
-					title={view.label}
-				>
-					<span class="min-w-0 truncate">{view.signalName}</span>
+				<span class="flex min-w-0" title={view.label}>
+					<span class="min-w-0 truncate" style:flex="0 1 max-content">{view.signalName}</span>
 					<span class="text-muted-foreground">&nbsp;(</span>
-					<span class="min-w-0 shrink truncate text-muted-foreground">{view.messageName}</span>
+					<span class="min-w-0 truncate text-muted-foreground" style:flex="0 9999 auto"
+						>{view.messageName}</span
+					>
 					<span class="text-muted-foreground">)</span>
 				</span>
 				{#if displayedMarkerX !== null}
