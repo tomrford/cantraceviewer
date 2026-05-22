@@ -120,8 +120,6 @@ class PlotDataStore {
 			this.decodingSignalKeys.delete(key);
 			this.signalSeries.delete(key);
 			this.decodeErrors.delete(key);
-		}
-		for (const key of dbcSignalKeys) {
 			this.signalColors.release(key);
 		}
 	}

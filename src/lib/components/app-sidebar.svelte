@@ -7,7 +7,7 @@
 		hasDraggedFiles
 	} from '$lib/file-drop.js';
 	import { rankedFuzzySearch } from '$lib/fuzzy-match.js';
-	import { dbcFiles } from '$lib/stores/dbc-files.svelte.js';
+	import { dbcFiles, type SidebarDbcSignal } from '$lib/stores/dbc-files.svelte.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
 	import SearchForm from './search-form.svelte';
 	import * as Collapsible from '$lib/components/ui/collapsible/index.js';
@@ -15,8 +15,10 @@
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
+	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
 	import CircleHelpIcon from '@lucide/svelte/icons/circle-help';
 	import GithubIcon from '@lucide/svelte/icons/github';
+	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 	import { onMount } from 'svelte';
@@ -40,21 +42,32 @@
 	let isFiltering = $derived(isSignalSearchActive || showActiveOnly);
 	let visibleDbcFiles = $derived.by(() =>
 		dbcFiles.sidebarFiles
-			.map((dbc) => ({
-				...dbc,
-				messages: dbc.messages
-					.map((message) => ({
-						...message,
-						signals: rankedFuzzySearch(
-							message.signals.filter(
-								(signal) => !showActiveOnly || plotData.isSignalSelected(signal.key)
-							),
-							normalizedSignalSearch,
-							(signal) => signal.label
-						)
-					}))
-					.filter((message) => message.signals.length > 0)
-			}))
+			.map((dbc) => {
+				const signalsByMessage = new Map<string, SidebarDbcSignal[]>();
+				const visibleSignals = rankedFuzzySearch(
+					dbc.messages.flatMap((message) =>
+						message.signals
+							.filter((signal) => !showActiveOnly || plotData.isSignalSelected(signal.key))
+							.map((signal) => ({ messageKey: message.key, signal }))
+					),
+					normalizedSignalSearch,
+					({ signal }) => signal.label
+				);
+
+				for (const { messageKey, signal } of visibleSignals) {
+					signalsByMessage.set(messageKey, [...(signalsByMessage.get(messageKey) ?? []), signal]);
+				}
+
+				return {
+					...dbc,
+					messages: dbc.messages
+						.map((message) => ({
+							...message,
+							signals: signalsByMessage.get(message.key) ?? []
+						}))
+						.filter((message) => message.signals.length > 0)
+				};
+			})
 			.filter((dbc) => !isFiltering || dbc.messages.length > 0)
 	);
 
