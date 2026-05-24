@@ -27,3 +27,15 @@ Backlog lives in the Linear `cantraceviewer` project.
 ### Zig
 
 We are using Zig 0.16.0 for the WASM parts of the project. Docs can be found at https://ziglang.org/documentation/0.16.0/.
+
+## Cursor Cloud specific instructions
+
+The Cloud VM does not have Nix. Bun and Zig 0.16.0 are installed directly — the update script handles Bun via `~/.bun/bin/bun` and Zig at `/opt/zig-0.16.0/zig` (symlinked to `/usr/local/bin/zig`). Run all commands from the repo root without `nix develop -c` prefix — just `bun run dev`, `bun run test`, etc.
+
+- **Dev server**: `bun run dev` — Vite on `localhost:5173`. No backend services needed.
+- **Lint**: `bun run lint` (prettier + eslint).
+- **Typecheck**: `bun run check` (svelte-check).
+- **Tests**: `bun run test` (unit + WASM integration via vitest); `bun run wasm:test` (Zig-native tests).
+- **WASM build**: `bun run wasm:build:release` — only needed when Zig source changes.
+- **Plot rendering** uses WebGPU (`chartgpu`). The VM browser lacks GPU, so plots won't render visually, but all data-processing (DBC parse, trace decode, signal selection) works. Validate plot logic via unit tests.
+- Test fixtures live in `wasm/test/fixtures/` (`.dbc`, `.asc` files).
