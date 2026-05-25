@@ -85,10 +85,11 @@
 	}
 
 	function handleTraceDrag(event: DragEvent) {
-		if (traceFile.isLoading) return;
 		if (!hasDraggedFiles(event)) return;
 
 		event.preventDefault();
+		if (traceFile.isLoading) return;
+
 		traceDropActive = true;
 	}
 
