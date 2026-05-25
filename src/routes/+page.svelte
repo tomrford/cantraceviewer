@@ -17,29 +17,35 @@
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { Toggle } from '$lib/components/ui/toggle/index.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
-	import { applyTheme, sidebarOpen, themePreference } from '$lib/stores/preferences.svelte.js';
+	import { sidebarOpen } from '$lib/stores/preferences.svelte.js';
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
+	import { IsMobile } from '$lib/hooks/is-mobile.svelte.js';
 	import { TRACE_FILE_ACCEPT } from '$lib/trace-file-types.js';
 	import type { TraceMetadata } from '$lib/wasm.js';
+	import { MediaQuery } from 'svelte/reactivity';
 	import AudioWaveformIcon from '@lucide/svelte/icons/audio-waveform';
 	import BoxSelectIcon from '@lucide/svelte/icons/box-select';
 	import CogIcon from '@lucide/svelte/icons/cog';
 	import ExpandIcon from '@lucide/svelte/icons/expand';
 	import ListIcon from '@lucide/svelte/icons/list';
+	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
 	import MinusIcon from '@lucide/svelte/icons/minus';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SeparatorVerticalIcon from '@lucide/svelte/icons/separator-vertical';
 	import { onMount } from 'svelte';
 
 	let traceInput = $state<HTMLInputElement>();
+	let plot = $state<SignalPlot>();
 	let traceDropActive = $state(false);
+	const isMobileViewport = new IsMobile();
+	const coarsePointer = new MediaQuery('(pointer: coarse)');
 	let supportStatus = $state<'checking' | 'supported' | 'mobile' | 'webgpu'>('checking');
 	let markerEnabled = $state(false);
 	let markerX = $state<number | null>(null);
 	let boxZoomEnabled = $state(false);
 	let legendVisible = $state(true);
 	let canResetZoom = $state(false);
-	let plotCommand = $state<{ type: 'zoom-in' | 'zoom-out' | 'reset-zoom' } | null>(null);
+	const plotControlsDisabled = $derived(!plotData.hasPlottableSignals || traceFile.isLoading);
 	let traceMetadataTitle = $derived(
 		traceFile.entry ? formatTraceMetadata(traceFile.entry.metadata) : undefined
 	);
@@ -49,28 +55,18 @@
 	const toolbarIconButtonClass =
 		'border-input bg-transparent hover:bg-muted hover:text-foreground dark:bg-transparent dark:hover:bg-muted/50';
 
-	$effect(() => {
-		applyTheme(themePreference.current);
-	});
-
 	onMount(() => {
-		const colorSchemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
-		const applySystemTheme = () => applyTheme();
-		colorSchemeQuery.addEventListener('change', applySystemTheme);
-
-		const mobileQuery = window.matchMedia('(max-width: 767px), (pointer: coarse)');
-		if (mobileQuery.matches) {
+		if (isMobileViewport.current || coarsePointer.current) {
 			supportStatus = 'mobile';
-			return () => colorSchemeQuery.removeEventListener('change', applySystemTheme);
+			return;
 		}
 
 		if (!('gpu' in navigator)) {
 			supportStatus = 'webgpu';
-			return () => colorSchemeQuery.removeEventListener('change', applySystemTheme);
+			return;
 		}
 
 		supportStatus = 'supported';
-		return () => colorSchemeQuery.removeEventListener('change', applySystemTheme);
 	});
 
 	async function selectTrace(event: Event) {
@@ -82,13 +78,14 @@
 	}
 
 	async function openTraceFile(file: File | null) {
-		if (!file) return;
+		if (!file || traceFile.isLoading) return;
 		if (await traceFile.openFile(file)) {
 			plotData.clearSelectedSignals();
 		}
 	}
 
 	function handleTraceDrag(event: DragEvent) {
+		if (traceFile.isLoading) return;
 		if (!hasDraggedFiles(event)) return;
 
 		event.preventDefault();
@@ -133,10 +130,6 @@
 		const hours = Math.floor(minutes / 60);
 		return `${hours}h ${minutes % 60}m ${seconds.toFixed(3)}s`;
 	}
-
-	function sendPlotCommand(type: NonNullable<typeof plotCommand>['type']) {
-		plotCommand = { type };
-	}
 </script>
 
 <svelte:head>
@@ -164,7 +157,10 @@
 	>
 		<AppSidebar />
 		<Sidebar.Inset class="flex min-h-screen flex-col bg-background">
-			<header class="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+			<header
+				class="flex h-16 shrink-0 items-center gap-2 border-b px-4"
+				aria-busy={traceFile.isLoading}
+			>
 				<Sidebar.Trigger
 					class="-ms-1"
 					aria-label="Show/hide DBC and signal selector"
@@ -174,19 +170,28 @@
 				<span class="min-w-0 truncate text-sm font-medium" title={traceMetadataTitle}
 					>{traceFile.displayName}</span
 				>
+				{#if traceFile.isLoading}
+					<LoaderCircleIcon
+						class="size-4 shrink-0 animate-spin text-muted-foreground"
+						aria-hidden="true"
+					/>
+					<span class="sr-only">Loading trace</span>
+				{/if}
 				<input
 					bind:this={traceInput}
 					class="hidden"
 					type="file"
 					accept={TRACE_FILE_ACCEPT}
+					disabled={traceFile.isLoading}
 					onchange={selectTrace}
 				/>
 				{#if traceFile.entry}
 					<button
 						type="button"
-						class="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
-						aria-label="Load trace"
-						title="Load trace"
+						class="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50"
+						disabled={traceFile.isLoading}
+						aria-label={traceFile.isLoading ? 'Loading trace' : 'Load trace'}
+						title={traceFile.isLoading ? 'Loading trace' : 'Load trace'}
 						onclick={() => traceInput?.click()}
 					>
 						<AudioWaveformIcon class="size-4" />
@@ -201,7 +206,8 @@
 							class={toolbarIconButtonClass}
 							aria-label="Zoom in"
 							title="Zoom in"
-							onclick={() => sendPlotCommand('zoom-in')}
+							disabled={plotControlsDisabled}
+							onclick={() => plot?.plotZoomIn()}
 						>
 							<PlusIcon class="size-3.5" />
 						</Button>
@@ -211,7 +217,8 @@
 							class={toolbarIconButtonClass}
 							aria-label="Zoom out"
 							title="Zoom out"
-							onclick={() => sendPlotCommand('zoom-out')}
+							disabled={plotControlsDisabled}
+							onclick={() => plot?.plotZoomOut()}
 						>
 							<MinusIcon class="size-3.5" />
 						</Button>
@@ -221,8 +228,8 @@
 							class={toolbarIconButtonClass}
 							aria-label="Zoom to full extent"
 							title="Zoom to full extent"
-							onclick={() => sendPlotCommand('reset-zoom')}
-							disabled={!canResetZoom}
+							disabled={plotControlsDisabled || !canResetZoom}
+							onclick={() => plot?.plotResetZoom()}
 						>
 							<ExpandIcon class="size-3.5" />
 						</Button>
@@ -230,6 +237,7 @@
 					<ButtonGroup.Root aria-label="Plot display controls">
 						<Toggle
 							bind:pressed={boxZoomEnabled}
+							disabled={plotControlsDisabled}
 							variant="outline"
 							size="default"
 							aria-label={boxZoomEnabled ? 'Use drag pan' : 'Use box zoom'}
@@ -239,6 +247,7 @@
 						</Toggle>
 						<Toggle
 							bind:pressed={markerEnabled}
+							disabled={plotControlsDisabled}
 							variant="outline"
 							size="default"
 							aria-label={markerEnabled ? 'Hide x marker' : 'Show x marker'}
@@ -270,12 +279,12 @@
 			</header>
 			{#if traceFile.entry}
 				<SignalPlot
+					bind:this={plot}
 					bind:markerEnabled
 					bind:markerX
 					bind:boxZoomEnabled
 					bind:legendVisible
-					bind:canResetZoom
-					{plotCommand}
+					onCanResetZoomChange={(canReset) => (canResetZoom = canReset)}
 					dropActive={traceDropActive}
 					ondragenter={handleTraceDrag}
 					ondragover={handleTraceDrag}
@@ -286,6 +295,7 @@
 				<section
 					class="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-background p-6"
 					aria-label="Trace loading"
+					aria-busy={traceFile.isLoading}
 					ondragenter={handleTraceDrag}
 					ondragover={handleTraceDrag}
 					ondragleave={clearTraceDrag}
@@ -306,9 +316,14 @@
 							</Empty.Description>
 						</Empty.Header>
 						<Empty.Content>
-							<Button size="lg" onclick={() => traceInput?.click()}>
-								<AudioWaveformIcon data-icon="inline-start" class="size-4" />
-								Open trace
+							<Button size="lg" disabled={traceFile.isLoading} onclick={() => traceInput?.click()}>
+								{#if traceFile.isLoading}
+									<LoaderCircleIcon data-icon="inline-start" class="size-4 animate-spin" />
+									Loading trace...
+								{:else}
+									<AudioWaveformIcon data-icon="inline-start" class="size-4" />
+									Open trace
+								{/if}
 							</Button>
 						</Empty.Content>
 					</Empty.Root>

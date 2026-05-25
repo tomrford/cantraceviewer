@@ -16,6 +16,7 @@ import {
 	type StoredDbc
 } from './dbc-library.js';
 import { DBC_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '$lib/file-limits.js';
+import { SvelteMap } from 'svelte/reactivity';
 
 export type DbcFileEntry = {
 	id: string;
@@ -35,6 +36,12 @@ export type SidebarDbcSignal = {
 	label: string;
 	messageName: string;
 	signalName: string;
+};
+
+export type DbcSignalTarget = {
+	file: DbcFileEntry;
+	message: DbcMessage;
+	signal: DbcSignal;
 };
 
 type DbcMessageIdentity = {
@@ -59,6 +66,7 @@ class DbcFilesStore {
 	hasLoadedLibrary = $state(false);
 
 	canIdIndex = $derived.by(() => buildCanIdIndex(this.files));
+	signalTargetByKey = $derived.by(() => buildSignalTargetIndex(this.files));
 
 	sidebarFiles = $derived.by<SidebarDbcFile[]>(() =>
 		this.files.map((entry) => ({
@@ -219,8 +227,22 @@ function canIdKey(canId: number, isExtended: boolean): string {
 	return `${isExtended ? 'extended' : 'standard'}:${canId}`;
 }
 
-function displayDbcName(fileName: string): string {
+export function displayDbcName(fileName: string): string {
 	return fileName.replace(/\.dbc$/i, '');
+}
+
+function buildSignalTargetIndex(files: DbcFileEntry[]): SvelteMap<string, DbcSignalTarget> {
+	const index = new SvelteMap<string, DbcSignalTarget>();
+
+	for (const file of files) {
+		for (const message of file.catalog.messages) {
+			for (const signal of message.signals) {
+				index.set(signalKey(file.id, message.name, signal.name), { file, message, signal });
+			}
+		}
+	}
+
+	return index;
 }
 
 export function signalKey(dbcFileId: string, messageName: string, signalName: string): string {

@@ -1,4 +1,5 @@
 import { PersistedState } from 'runed';
+import { MediaQuery } from 'svelte/reactivity';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 export type TimestampMode = 'relative' | 'absolute';
@@ -18,18 +19,17 @@ export const sidebarOpen = new PersistedState('cantraceviewer:sidebar-open', tru
 	syncTabs: false
 });
 
-export const themeState = $state({ isDark: false });
+const systemDark = new MediaQuery('(prefers-color-scheme: dark)');
+
+export function isDark(): boolean {
+	return (
+		themePreference.current === 'dark' ||
+		(themePreference.current === 'system' && systemDark.current)
+	);
+}
 
 export function resetPreferences(): void {
 	themePreference.current = 'system';
 	timestampMode.current = 'relative';
 	sidebarOpen.current = true;
-}
-
-export function applyTheme(preference = themePreference.current): void {
-	if (typeof document === 'undefined' || typeof window === 'undefined') return;
-
-	const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-	themeState.isDark = preference === 'dark' || (preference === 'system' && prefersDark);
-	document.documentElement.classList.toggle('dark', themeState.isDark);
 }

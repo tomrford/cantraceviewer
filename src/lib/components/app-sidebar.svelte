@@ -15,8 +15,10 @@
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
+	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
 	import CircleHelpIcon from '@lucide/svelte/icons/circle-help';
 	import GithubIcon from '@lucide/svelte/icons/github';
+	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 	import { onMount } from 'svelte';
@@ -38,14 +40,16 @@
 	let isSignalSearchActive = $derived(normalizedSignalSearch.length > 0);
 	let isFiltering = $derived(isSignalSearchActive || showActiveOnly);
 	let visibleDbcFiles = $derived.by(() =>
-		dbcFiles.sidebarFiles.map((dbc) => ({
-			...dbc,
-			signals: rankedFuzzySearch(
-				dbc.signals.filter((signal) => !showActiveOnly || plotData.isSignalSelected(signal.key)),
-				normalizedSignalSearch,
-				(signal) => signal.label
-			)
-		}))
+		dbcFiles.sidebarFiles
+			.map((dbc) => ({
+				...dbc,
+				signals: rankedFuzzySearch(
+					dbc.signals.filter((signal) => !showActiveOnly || plotData.isSignalSelected(signal.key)),
+					normalizedSignalSearch,
+					(signal) => signal.label
+				)
+			}))
+			.filter((dbc) => !isFiltering || dbc.signals.length > 0)
 	);
 
 	onMount(() => {
@@ -201,18 +205,26 @@
 							<Collapsible.Content>
 								<Sidebar.MenuSub>
 									{#each dbc.signals as signal (signal.key)}
+										{@const isSelected = plotData.isSignalSelected(signal.key)}
+										{@const decodeStatus = plotData.signalDecodeStatus(signal.key)}
 										<Sidebar.MenuSubItem>
 											<button
 												type="button"
 												class="flex h-7 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
-												aria-pressed={plotData.isSignalSelected(signal.key)}
+												aria-pressed={isSelected}
 												onclick={() => plotData.toggleSignal(signal.key)}
 											>
 												<span
-													class="flex size-4 shrink-0 items-center justify-center rounded border border-sidebar-border bg-sidebar text-sidebar-foreground/45 data-[selected=true]:border-sidebar-foreground/40 data-[selected=true]:bg-sidebar-accent data-[selected=true]:text-sidebar-foreground"
-													data-selected={plotData.isSignalSelected(signal.key)}
+													class="flex size-4 shrink-0 items-center justify-center rounded border border-sidebar-border bg-sidebar text-sidebar-foreground/45 data-[selected=true]:border-sidebar-foreground/40 data-[selected=true]:bg-sidebar-accent data-[selected=true]:text-sidebar-foreground data-[selected=true]:data-[error=true]:border-destructive/50 data-[selected=true]:data-[error=true]:bg-destructive/10 data-[selected=true]:data-[error=true]:text-destructive"
+													data-selected={isSelected}
+													data-error={isSelected && decodeStatus.decodeError !== null}
+													title={decodeStatus.decodeError ?? undefined}
 												>
-													{#if plotData.isSignalSelected(signal.key)}
+													{#if isSelected && decodeStatus.decodeError}
+														<CircleAlertIcon class="size-3" />
+													{:else if isSelected && decodeStatus.isDecoding}
+														<LoaderCircleIcon class="size-3 animate-spin" />
+													{:else if isSelected}
 														<CheckIcon class="size-3" />
 													{/if}
 												</span>
