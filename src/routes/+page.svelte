@@ -38,7 +38,7 @@
 	let plot = $state<SignalPlot>();
 	let traceDropActive = $state(false);
 	const isMobileViewport = new IsMobile();
-	const coarsePointer = new MediaQuery('(pointer: coarse)');
+	const coarsePointer = new MediaQuery('pointer: coarse');
 	let supportStatus = $state<'checking' | 'supported' | 'mobile' | 'webgpu'>('checking');
 	let markerEnabled = $state(false);
 	let markerX = $state<number | null>(null);

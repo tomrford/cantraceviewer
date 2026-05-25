@@ -19,7 +19,7 @@ export const sidebarOpen = new PersistedState('cantraceviewer:sidebar-open', tru
 	syncTabs: false
 });
 
-const systemDark = new MediaQuery('(prefers-color-scheme: dark)');
+const systemDark = new MediaQuery('prefers-color-scheme: dark');
 
 export function isDark(): boolean {
 	return (
