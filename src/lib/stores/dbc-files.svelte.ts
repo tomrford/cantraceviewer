@@ -16,7 +16,6 @@ import {
 	type StoredDbc
 } from './dbc-library.js';
 import { DBC_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '$lib/file-limits.js';
-import { SvelteMap } from 'svelte/reactivity';
 
 export type DbcFileEntry = {
 	id: string;
@@ -54,6 +53,7 @@ type DbcMessageIdentity = {
 };
 
 type CanIdIndex = Record<string, DbcMessageIdentity>;
+type SignalTargetIndex = Record<string, DbcSignalTarget>;
 type DbcCandidate = {
 	entry: DbcFileEntry;
 	stored: StoredDbc;
@@ -231,13 +231,13 @@ export function displayDbcName(fileName: string): string {
 	return fileName.replace(/\.dbc$/i, '');
 }
 
-function buildSignalTargetIndex(files: DbcFileEntry[]): SvelteMap<string, DbcSignalTarget> {
-	const index = new SvelteMap<string, DbcSignalTarget>();
+function buildSignalTargetIndex(files: DbcFileEntry[]): SignalTargetIndex {
+	const index: SignalTargetIndex = {};
 
 	for (const file of files) {
 		for (const message of file.catalog.messages) {
 			for (const signal of message.signals) {
-				index.set(signalKey(file.id, message.name, signal.name), { file, message, signal });
+				index[signalKey(file.id, message.name, signal.name)] = { file, message, signal };
 			}
 		}
 	}

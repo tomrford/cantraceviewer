@@ -206,7 +206,9 @@
 								<Sidebar.MenuSub>
 									{#each dbc.signals as signal (signal.key)}
 										{@const isSelected = plotData.isSignalSelected(signal.key)}
-										{@const decodeStatus = plotData.signalDecodeStatus(signal.key)}
+										{@const decodeStatus = isSelected
+											? plotData.signalDecodeStatus(signal.key)
+											: null}
 										<Sidebar.MenuSubItem>
 											<button
 												type="button"
@@ -217,12 +219,12 @@
 												<span
 													class="flex size-4 shrink-0 items-center justify-center rounded border border-sidebar-border bg-sidebar text-sidebar-foreground/45 data-[selected=true]:border-sidebar-foreground/40 data-[selected=true]:bg-sidebar-accent data-[selected=true]:text-sidebar-foreground data-[selected=true]:data-[error=true]:border-destructive/50 data-[selected=true]:data-[error=true]:bg-destructive/10 data-[selected=true]:data-[error=true]:text-destructive"
 													data-selected={isSelected}
-													data-error={isSelected && decodeStatus.decodeError !== null}
-													title={decodeStatus.decodeError ?? undefined}
+													data-error={decodeStatus?.decodeError != null}
+													title={decodeStatus?.decodeError ?? undefined}
 												>
-													{#if isSelected && decodeStatus.decodeError}
+													{#if decodeStatus?.decodeError}
 														<CircleAlertIcon class="size-3" />
-													{:else if isSelected && decodeStatus.isDecoding}
+													{:else if decodeStatus?.isDecoding}
 														<LoaderCircleIcon class="size-3 animate-spin" />
 													{:else if isSelected}
 														<CheckIcon class="size-3" />

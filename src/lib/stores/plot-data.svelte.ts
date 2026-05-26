@@ -77,21 +77,19 @@ class PlotDataStore {
 
 	hasPlottableSignals = $derived(this.signals.some(isPlottableSignal));
 
-	selectedSignalsByKey = $derived.by(
-		() => new Map(this.signals.map((signal) => [signal.key, signal]))
-	);
-
 	isSignalSelected(key: PlotSignalKey): boolean {
 		return this.selectedSignalKeys.has(key);
 	}
 
 	signalDecodeStatus(key: PlotSignalKey): { isDecoding: boolean; decodeError: string | null } {
-		const signal = this.selectedSignalsByKey.get(key);
-		if (!signal) {
+		if (!this.selectedSignalKeys.has(key)) {
 			return { isDecoding: false, decodeError: null };
 		}
 
-		return { isDecoding: signal.isDecoding, decodeError: signal.decodeError };
+		return {
+			isDecoding: this.decodingSignalKeys.has(key),
+			decodeError: this.decodeErrors.get(key) ?? null
+		};
 	}
 
 	async toggleSignal(key: PlotSignalKey): Promise<void> {
@@ -230,7 +228,7 @@ function plotSignal(
 }
 
 function findSignalTarget(key: PlotSignalKey) {
-	return dbcFiles.signalTargetByKey.get(key) ?? null;
+	return dbcFiles.signalTargetByKey[key] ?? null;
 }
 
 export const plotData = new PlotDataStore();
