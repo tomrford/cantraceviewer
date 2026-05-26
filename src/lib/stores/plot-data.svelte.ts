@@ -152,7 +152,11 @@ class PlotDataStore {
 			const series = await getSignalValues(
 				target.file.handle,
 				trace,
-				{ canId: target.message.canId, isExtended: target.message.isExtended },
+				{
+					canId: target.message.canId,
+					isExtended: target.message.isExtended,
+					sizeBytes: target.message.sizeBytes
+				},
 				target.signal.name
 			);
 

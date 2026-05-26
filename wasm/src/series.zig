@@ -1,6 +1,6 @@
 //! Selected signal time-series extraction.
 //!
-//! The exported WASM boundary asks for one DBC CAN identity and signal name,
+//! The exported WASM boundary asks for one DBC frame identity and signal name,
 //! then receives parallel `f64` arrays of `(time_ms, value)` samples.
 
 const std = @import("std");
@@ -18,9 +18,10 @@ pub fn selectedSignalValues(
     parsed_trace: trace.Trace,
     can_id: u32,
     is_extended: bool,
+    size_bytes: u16,
     signal_name: []const u8,
 ) ![]f64 {
-    const selection = try findSignal(dbc, can_id, is_extended, signal_name);
+    const selection = try findSignal(dbc, can_id, is_extended, size_bytes, signal_name);
     const plan = try selection.signal.planDecode(selection.message.size_bytes);
 
     const sample_count = countMatchingSamples(parsed_trace, selection.message);
@@ -51,10 +52,11 @@ fn findSignal(
     handle: *const dbc_handle.Handle,
     can_id: u32,
     is_extended: bool,
+    size_bytes: u16,
     signal_name: []const u8,
 ) !SignalSelection {
     for (handle.dbc.messages) |msg| {
-        if (msg.can_id != can_id or msg.is_extended != is_extended) continue;
+        if (msg.can_id != can_id or msg.is_extended != is_extended or msg.size_bytes != size_bytes) continue;
 
         for (msg.signals) |sig| {
             if (!std.mem.eql(u8, sig.name, signal_name)) continue;
@@ -117,6 +119,7 @@ test "extracts selected signal values as relative-millisecond/value series" {
         parsed,
         0x123,
         false,
+        2,
         "Speed",
     );
     defer allocator.free(bytes);
@@ -147,6 +150,7 @@ test "extracts selected float signal values as relative-millisecond/value series
         parsed,
         0x123,
         false,
+        4,
         "Temperature",
     );
     defer allocator.free(bytes);
@@ -177,6 +181,7 @@ test "extracts selected motorola float signal values as relative-millisecond/val
         parsed,
         0x123,
         false,
+        4,
         "Temperature",
     );
     defer allocator.free(bytes);
@@ -207,6 +212,7 @@ test "skips matching frames with unexpected payload length" {
         parsed,
         0x123,
         false,
+        2,
         "Speed",
     );
     defer allocator.free(bytes);
@@ -239,11 +245,57 @@ test "selects same-name messages by CAN identity" {
         parsed,
         0x200,
         false,
+        1,
         "Value",
     );
     defer allocator.free(bytes);
 
     try std.testing.expectEqualSlices(f64, &.{ 2.0, 34.0 }, bytes);
+}
+
+test "selects classic and FD rows by payload length" {
+    const allocator = std.testing.allocator;
+    const dbc_text =
+        \\BO_ 291 ClassicExample: 8 ECU
+        \\ SG_ ClassicSpeed : 0|16@1+ (1,0) [0|65535] "" DASH
+        \\BO_ 291 FdExample: 12 ECU
+        \\ SG_ FdSpeed : 0|16@1+ (1,0) [0|65535] "" DASH
+    ;
+    const asc_text =
+        \\base hex timestamps absolute
+        \\0.001 1 123 Rx d 8 01 00 00 00 00 00 00 00
+        \\0.002 CANFD 1 Rx 123 - 1 0 8 8 02 00 00 00 00 00 00 00
+        \\0.003 CANFD 1 Rx 123 - 1 0 9 12 03 00 00 00 00 00 00 00 00 00 00 00
+    ;
+
+    const dbc = try dbc_handle.Handle.parse(allocator, dbc_text);
+    defer dbc.deinit(allocator);
+    var parsed = try asc.fromString(allocator, asc_text);
+    defer parsed.deinit(allocator);
+
+    const classic = try selectedSignalValues(
+        allocator,
+        dbc,
+        parsed,
+        0x123,
+        false,
+        8,
+        "ClassicSpeed",
+    );
+    defer allocator.free(classic);
+    const fd = try selectedSignalValues(
+        allocator,
+        dbc,
+        parsed,
+        0x123,
+        false,
+        12,
+        "FdSpeed",
+    );
+    defer allocator.free(fd);
+
+    try std.testing.expectEqualSlices(f64, &.{ 1.0, 2.0, 1.0, 2.0 }, classic);
+    try std.testing.expectEqualSlices(f64, &.{ 3.0, 3.0 }, fd);
 }
 
 test "does not require FD flag when ID, extended flag, and payload length match" {
@@ -270,6 +322,7 @@ test "does not require FD flag when ID, extended flag, and payload length match"
         parsed,
         0x123,
         false,
+        8,
         "Speed",
     );
     defer allocator.free(bytes);
@@ -301,6 +354,7 @@ test "extracts selected signal values from TRC" {
         parsed,
         0x123,
         false,
+        2,
         "Speed",
     );
     defer allocator.free(bytes);

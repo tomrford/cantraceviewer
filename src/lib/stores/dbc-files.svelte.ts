@@ -50,12 +50,6 @@ export type DbcSignalTarget = {
 	signal: DbcSignal;
 };
 
-type IndexedDbcMessageIdentity = {
-	key: string;
-	fileName: string;
-};
-
-type CanIdIndex = Record<string, IndexedDbcMessageIdentity>;
 type SignalTargetIndex = Record<string, DbcSignalTarget>;
 type DbcCandidate = {
 	entry: DbcFileEntry;
@@ -68,7 +62,6 @@ class DbcFilesStore {
 	error = $state<string | null>(null);
 	hasLoadedLibrary = $state(false);
 
-	canIdIndex = $derived.by(() => buildCanIdIndex(this.files));
 	signalTargetByKey = $derived.by(() => buildSignalTargetIndex(this.files));
 
 	sidebarFiles = $derived.by<SidebarDbcFile[]>(() =>
@@ -96,7 +89,6 @@ class DbcFilesStore {
 			}
 
 			const entries = candidates.map((candidate) => candidate.entry);
-			assertNoCanIdOverlaps(this.canIdIndex, entries);
 			await putStoredDbcs(candidates.map((candidate) => candidate.stored));
 			this.files = [...this.files, ...entries];
 		} catch (error) {
@@ -145,7 +137,6 @@ class DbcFilesStore {
 				candidates.push((await this.openStoredDbc(dbc)).entry);
 			}
 
-			assertNoCanIdOverlaps({}, candidates);
 			this.files = candidates;
 			this.hasLoadedLibrary = true;
 		} catch {
@@ -187,48 +178,8 @@ class DbcFilesStore {
 	}
 }
 
-function buildCanIdIndex(files: DbcFileEntry[]): CanIdIndex {
-	const index: CanIdIndex = {};
-
-	for (const entry of files) {
-		for (const identity of messageIdentities(entry)) {
-			index[identity.key] = identity;
-		}
-	}
-
-	return index;
-}
-
-function assertNoCanIdOverlaps(existingIndex: CanIdIndex, candidates: DbcFileEntry[]): void {
-	const candidateIndex: CanIdIndex = {};
-
-	for (const entry of candidates) {
-		for (const identity of messageIdentities(entry)) {
-			const existing = existingIndex[identity.key] ?? candidateIndex[identity.key];
-
-			if (existing) {
-				throw new Error(
-					`${displayDbcName(identity.fileName)} contains messages which overlap with those defined in existing files.`
-				);
-			}
-
-			candidateIndex[identity.key] = identity;
-		}
-	}
-}
-
-function messageIdentities(entry: DbcFileEntry): IndexedDbcMessageIdentity[] {
-	return entry.catalog.messages.map((message) => ({
-		key: messageIdentityKey(message),
-		fileName: entry.name
-	}));
-}
-
-function messageIdentityKey(message: DbcMessageIdentity): string {
-	// `isFd` is inferred from DBC message size, so <=8-byte FD messages are
-	// indistinguishable from classic definitions. Keep identity on the fields we
-	// can trust and reject overlapping IDs at DBC load time.
-	return `${message.isExtended ? 'extended' : 'standard'}:${message.canId}`;
+export function messageIdentityKey(message: DbcMessageIdentity): string {
+	return `${message.isExtended ? 'extended' : 'standard'}:${message.canId}:${message.sizeBytes}`;
 }
 
 export function displayDbcName(fileName: string): string {

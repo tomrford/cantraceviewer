@@ -97,6 +97,7 @@ export fn get_trace_signal_values(
     trace_handle_value: usize,
     can_id: u32,
     is_extended: bool,
+    size_bytes: u16,
     signal_name: *const abi.OwnedBytes,
 ) ?*abi.OwnedFloat64s {
     if (dbc_handle_value == 0 or trace_handle_value == 0) return null;
@@ -109,6 +110,7 @@ export fn get_trace_signal_values(
         trace_ptr.trace,
         can_id,
         is_extended,
+        size_bytes,
         signal_name.slice(),
     ) catch return null;
 

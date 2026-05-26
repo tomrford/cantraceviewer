@@ -86,6 +86,7 @@ type CanTraceViewerWasmExports = {
 		traceHandle: number,
 		canId: number,
 		isExtended: boolean,
+		sizeBytes: number,
 		signalName: number
 	): number;
 	owned_bytes_ptr(bytes: number): number;
@@ -201,7 +202,7 @@ export async function closeDbc(handle: DbcHandle): Promise<void> {
 	wasm.dbc_free(handle.ptr);
 }
 
-export type DbcMessageIdentity = Pick<DbcMessage, 'canId' | 'isExtended'>;
+export type DbcMessageIdentity = Pick<DbcMessage, 'canId' | 'isExtended' | 'sizeBytes'>;
 
 export async function getSignalValues(
 	dbcHandle: DbcHandle,
@@ -219,6 +220,7 @@ export async function getSignalValues(
 			trace.ptr,
 			messageIdentity.canId,
 			messageIdentity.isExtended,
+			messageIdentity.sizeBytes,
 			signalNameBytes
 		);
 		if (series === 0) {

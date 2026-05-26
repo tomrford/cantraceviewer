@@ -35,7 +35,7 @@ describe('plotData', () => {
 		expect(getSignalValuesMock).toHaveBeenCalledExactlyOnceWith(
 			{ ptr: 1 },
 			traceFile.entry,
-			{ canId: 291, isExtended: false },
+			{ canId: 291, isExtended: false, sizeBytes: 8 },
 			'VehicleSpeed'
 		);
 		expect(plotData.signals).toMatchObject([
@@ -91,7 +91,7 @@ describe('plotData', () => {
 		expect(getSignalValuesMock).toHaveBeenCalledExactlyOnceWith(
 			{ ptr: 1 },
 			traceFile.entry,
-			{ canId: 291, isExtended: false },
+			{ canId: 291, isExtended: false, sizeBytes: 8 },
 			'VehicleSpeed'
 		);
 	});
@@ -100,21 +100,21 @@ describe('plotData', () => {
 		dbcFiles.files = [
 			dbcEntry({
 				messages: [
-					message({ canId: 0x100, signals: [signal({ name: 'Value' })] }),
-					message({ canId: 0x200, signals: [signal({ name: 'Value' })] })
+					message({ canId: 0x100, sizeBytes: 1, signals: [signal({ name: 'Value' })] }),
+					message({ canId: 0x200, sizeBytes: 1, signals: [signal({ name: 'Value' })] })
 				]
 			})
 		];
 		getSignalValuesMock.mockResolvedValueOnce(signalSeries([0.001], [12.5]));
 
 		await plotData.toggleSignal(
-			signalIdentityKey('dbc-1', { canId: 0x200, isExtended: false }, 'Value')
+			signalIdentityKey('dbc-1', { canId: 0x200, isExtended: false, sizeBytes: 1 }, 'Value')
 		);
 
 		expect(getSignalValuesMock).toHaveBeenCalledExactlyOnceWith(
 			{ ptr: 1 },
 			traceFile.entry,
-			{ canId: 0x200, isExtended: false },
+			{ canId: 0x200, isExtended: false, sizeBytes: 1 },
 			'Value'
 		);
 		expect(plotData.signals[0]).toMatchObject({
