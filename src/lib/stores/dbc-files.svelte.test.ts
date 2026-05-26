@@ -36,7 +36,7 @@ describe('dbcFiles', () => {
 	});
 
 	it('closes a parsed handle when catalog export fails', async () => {
-		const handle = { ptr: 101 };
+		const handle = { id: '101' };
 		openDbcMock.mockResolvedValueOnce(handle);
 		getDbcCatalogMock.mockRejectedValueOnce(new Error('catalog failed'));
 
@@ -50,8 +50,8 @@ describe('dbcFiles', () => {
 	});
 
 	it('allows overlapping CAN IDs across DBC files', async () => {
-		const existingHandle = { ptr: 201 };
-		const duplicateHandle = { ptr: 202 };
+		const existingHandle = { id: '201' };
+		const duplicateHandle = { id: '202' };
 		openDbcMock.mockResolvedValueOnce(existingHandle).mockResolvedValueOnce(duplicateHandle);
 		getDbcCatalogMock
 			.mockResolvedValueOnce(catalog(message({ name: 'Existing', canId: 0x123 })))
@@ -68,7 +68,7 @@ describe('dbcFiles', () => {
 	});
 
 	it('keeps classic and CAN FD messages with the same numeric ID in one file', async () => {
-		const handle = { ptr: 301 };
+		const handle = { id: '301' };
 		openDbcMock.mockResolvedValueOnce(handle);
 		getDbcCatalogMock.mockResolvedValueOnce(
 			catalog(
@@ -86,7 +86,7 @@ describe('dbcFiles', () => {
 	});
 
 	it('rejects duplicate frame identities within one DBC file', async () => {
-		const handle = { ptr: 302 };
+		const handle = { id: '302' };
 		openDbcMock.mockResolvedValueOnce(handle);
 		getDbcCatalogMock.mockResolvedValueOnce(
 			catalog(
@@ -117,7 +117,7 @@ describe('dbcFiles', () => {
 	});
 
 	it('resets the stored DBC library after a library load failure', async () => {
-		const handle = { ptr: 401 };
+		const handle = { id: '401' };
 		listStoredDbcsMock.mockResolvedValueOnce([
 			{ id: 'stored-id', name: 'stored.dbc', text: 'stored' }
 		]);
@@ -135,7 +135,7 @@ describe('dbcFiles', () => {
 	});
 
 	it('resets loaded DBC handles and the stored DBC library', async () => {
-		const handle = { ptr: 501 };
+		const handle = { id: '501' };
 		dbcFiles.files = [
 			{
 				id: 'stored-id',

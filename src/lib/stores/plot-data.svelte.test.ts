@@ -20,7 +20,7 @@ describe('plotData', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		dbcFiles.files = [dbcEntry()];
-		traceFile.entry = traceEntry(2);
+		traceFile.entry = traceEntry('2');
 		traceFile.error = null;
 		traceFile.isLoading = false;
 		plotData.clearSelectedSignals();
@@ -33,7 +33,7 @@ describe('plotData', () => {
 		await plotData.toggleSignal(key());
 
 		expect(getSignalValuesMock).toHaveBeenCalledExactlyOnceWith(
-			{ ptr: 1 },
+			{ id: '1' },
 			traceFile.entry,
 			{ canId: 291, isExtended: false, sizeBytes: 8 },
 			'VehicleSpeed'
@@ -50,12 +50,34 @@ describe('plotData', () => {
 		expect(plotData.hasPlottableSignals).toBe(true);
 	});
 
+	it('re-decodes selected signals on refreshAllDecodes', async () => {
+		getSignalValuesMock.mockResolvedValueOnce(signalSeries([0.001], [12.5]));
+		await plotData.toggleSignal(key());
+
+		traceFile.entry = traceEntry('5');
+		getSignalValuesMock.mockResolvedValueOnce(signalSeries([0.002], [42]));
+
+		await plotData.refreshAllDecodes();
+
+		expect([...plotData.selectedSignalKeys]).toEqual([key()]);
+		expect(plotData.signals[0]?.series).toMatchObject({
+			timesMs: new Float64Array([0.002]),
+			values: new Float64Array([42])
+		});
+		expect(getSignalValuesMock).toHaveBeenLastCalledWith(
+			{ id: '1' },
+			traceFile.entry,
+			{ canId: 291, isExtended: false, sizeBytes: 8 },
+			'VehicleSpeed'
+		);
+	});
+
 	it('keeps a stale decode result out of state after the trace changes', async () => {
 		const deferred = createDeferred<DecodedSignalSeries>();
 		getSignalValuesMock.mockReturnValueOnce(deferred.promise);
 
 		const decode = plotData.toggleSignal(key());
-		traceFile.entry = traceEntry(3);
+		traceFile.entry = traceEntry('3');
 		deferred.resolve(signalSeries([0.001], [99]));
 		await decode;
 
@@ -83,13 +105,13 @@ describe('plotData', () => {
 	});
 
 	it('passes the selected trace through to signal decoding', async () => {
-		traceFile.entry = traceEntry(4);
+		traceFile.entry = traceEntry('4');
 		getSignalValuesMock.mockResolvedValueOnce(signalSeries([0.001], [12.5]));
 
 		await plotData.toggleSignal(key());
 
 		expect(getSignalValuesMock).toHaveBeenCalledExactlyOnceWith(
-			{ ptr: 1 },
+			{ id: '1' },
 			traceFile.entry,
 			{ canId: 291, isExtended: false, sizeBytes: 8 },
 			'VehicleSpeed'
@@ -112,7 +134,7 @@ describe('plotData', () => {
 		);
 
 		expect(getSignalValuesMock).toHaveBeenCalledExactlyOnceWith(
-			{ ptr: 1 },
+			{ id: '1' },
 			traceFile.entry,
 			{ canId: 0x200, isExtended: false, sizeBytes: 1 },
 			'Value'
@@ -134,16 +156,16 @@ function dbcEntry(overrides: { messages?: DbcMessage[] } = {}) {
 		id: 'dbc-1',
 		name: 'powertrain.dbc',
 		text: 'dbc',
-		handle: { ptr: 1 },
+		handle: { id: '1' },
 		catalog: {
 			messages: overrides.messages ?? [message()]
 		}
 	};
 }
 
-function traceEntry(ptr: number) {
+function traceEntry(id: string) {
 	return {
-		ptr,
+		id,
 		file: new File(['trace'], 'drive.asc'),
 		metadata: {
 			measurementStartMs: null,

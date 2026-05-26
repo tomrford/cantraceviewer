@@ -1,3 +1,4 @@
+import '@vitest/web-worker';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';

@@ -1,11 +1,5 @@
-import wasmUrl from '$lib/assets/cantraceviewer.wasm?url';
+import WasmWorker from './wasm.worker.ts?worker';
 import { z } from 'zod';
-
-export {
-	DBC_MAX_FILE_BYTES,
-	TRACE_MAX_FILE_BYTES,
-	assertFileSizeWithinLimit
-} from '$lib/file-limits.js';
 
 const DbcValueDescriptionSchema = z.object({
 	rawValue: z.number(),
@@ -62,147 +56,130 @@ export type DecodedSignalSeries = {
 export type TraceType = 'asc' | 'trc' | 'blf';
 
 export type DbcHandle = {
-	readonly ptr: number;
+	readonly id: string;
 };
 
 export type TraceHandle = {
-	readonly ptr: number;
+	readonly id: string;
 	readonly metadata: TraceMetadata;
 };
 
-type CanTraceViewerWasmExports = {
-	memory: WebAssembly.Memory;
-	owned_bytes_alloc(len: number): number;
-	dbc_parse(input: number): number;
-	dbc_to_json(handle: number): number;
-	dbc_free(handle: number): void;
-	asc_parse(input: number): number;
-	trc_parse(input: number): number;
-	blf_parse(input: number): number;
-	trace_to_metadata_json(handle: number): number;
-	trace_free(handle: number): void;
-	get_trace_signal_values(
-		dbcHandle: number,
-		traceHandle: number,
-		canId: number,
-		isExtended: boolean,
-		sizeBytes: number,
-		signalName: number
-	): number;
-	owned_bytes_ptr(bytes: number): number;
-	owned_bytes_len(bytes: number): number;
-	owned_bytes_free(bytes: number): void;
-	owned_float64s_ptr(values: number): number;
-	owned_float64s_len(values: number): number;
-	owned_float64s_free(values: number): void;
+export type DbcMessageIdentity = Pick<DbcMessage, 'canId' | 'isExtended' | 'sizeBytes'>;
+
+type WasmRpcPayload =
+	| { op: 'openDbc'; text: string }
+	| { op: 'getDbcCatalog'; handleId: string }
+	| { op: 'closeDbc'; handleId: string }
+	| { op: 'openTrace'; traceType: TraceType; bytes: Uint8Array }
+	| { op: 'getTraceMetadata'; handleId: string }
+	| { op: 'closeTrace'; handleId: string }
+	| {
+			op: 'getSignalValues';
+			dbcHandleId: string;
+			traceHandleId: string;
+			messageIdentity: DbcMessageIdentity;
+			signalName: string;
+	  };
+
+type WasmRpcRequest = WasmRpcPayload & { id: string };
+
+type WasmRpcSuccess = {
+	id: string;
+	ok: true;
+	result: unknown;
 };
 
-let wasmPromise: Promise<CanTraceViewerWasmExports> | null = null;
+type WasmRpcFailure = {
+	id: string;
+	ok: false;
+	error: string;
+};
 
-async function loadWasm() {
-	wasmPromise ??= WebAssembly.instantiateStreaming(fetch(wasmUrl), {}).then((result) => {
-		return result.instance.exports as CanTraceViewerWasmExports;
+type WasmWorkerReady = {
+	type: 'ready';
+};
+
+type PendingRequest = {
+	resolve: (value: unknown) => void;
+	reject: (error: Error) => void;
+};
+
+let worker: Worker | null = null;
+let resolveBoot: (() => void) | null = null;
+const bootPromise = new Promise<void>((resolve) => {
+	resolveBoot = resolve;
+});
+const pendingRequests = new Map<string, PendingRequest>();
+
+function getWorker(): Worker {
+	if (!worker) {
+		worker = new WasmWorker();
+		worker.addEventListener('message', handleWorkerMessage);
+	}
+	return worker;
+}
+
+function handleWorkerMessage(event: MessageEvent<WasmRpcSuccess | WasmRpcFailure | WasmWorkerReady>): void {
+	const message = event.data;
+
+	if ('type' in message && message.type === 'ready') {
+		resolveBoot?.();
+		resolveBoot = null;
+		return;
+	}
+
+	if (!('id' in message)) {
+		return;
+	}
+
+	const pending = pendingRequests.get(message.id);
+	if (!pending) {
+		return;
+	}
+
+	pendingRequests.delete(message.id);
+
+	if (message.ok) {
+		pending.resolve(message.result);
+		return;
+	}
+
+	pending.reject(new Error(message.error));
+}
+
+function bootWorker(): Promise<void> {
+	getWorker();
+	return bootPromise;
+}
+
+async function rpc<T>(request: WasmRpcPayload, transfer: Transferable[] = []): Promise<T> {
+	await bootWorker();
+
+	const id = crypto.randomUUID();
+
+	return new Promise<T>((resolve, reject) => {
+		pendingRequests.set(id, {
+			resolve: (value) => resolve(value as T),
+			reject
+		});
+
+		getWorker().postMessage({ ...request, id }, transfer);
 	});
-
-	return wasmPromise;
-}
-
-function copyTextToWasm(wasm: CanTraceViewerWasmExports, text: string): number {
-	const input = new TextEncoder().encode(text);
-	return copyBytesToWasm(wasm, input);
-}
-
-function copyBytesToWasm(wasm: CanTraceViewerWasmExports, input: Uint8Array): number {
-	const inputBytes = wasm.owned_bytes_alloc(input.byteLength);
-
-	if (inputBytes === 0) {
-		throw new Error('WASM allocation failed');
-	}
-
-	const inputPtr = wasm.owned_bytes_ptr(inputBytes);
-	new Uint8Array(wasm.memory.buffer, inputPtr, input.byteLength).set(input);
-
-	return inputBytes;
-}
-
-function readOwnedText(wasm: CanTraceViewerWasmExports, ownedBytes: number): string {
-	try {
-		const ptr = wasm.owned_bytes_ptr(ownedBytes);
-		const len = wasm.owned_bytes_len(ownedBytes);
-		const bytes = new Uint8Array(wasm.memory.buffer, ptr, len).slice();
-
-		return new TextDecoder().decode(bytes);
-	} finally {
-		wasm.owned_bytes_free(ownedBytes);
-	}
-}
-
-function readSignalSeries(
-	wasm: CanTraceViewerWasmExports,
-	ownedValues: number
-): DecodedSignalSeries {
-	try {
-		const ptr = wasm.owned_float64s_ptr(ownedValues);
-		const len = wasm.owned_float64s_len(ownedValues);
-
-		if (len % 2 !== 0) {
-			throw new Error('Signal values export returned an invalid length');
-		}
-
-		const count = len / 2;
-		if (count === 0) {
-			return {
-				timesMs: new Float64Array(0),
-				values: new Float64Array(0)
-			};
-		}
-
-		const valuesPtr = ptr + count * Float64Array.BYTES_PER_ELEMENT;
-
-		return {
-			timesMs: new Float64Array(wasm.memory.buffer, ptr, count).slice(),
-			values: new Float64Array(wasm.memory.buffer, valuesPtr, count).slice()
-		};
-	} finally {
-		wasm.owned_float64s_free(ownedValues);
-	}
 }
 
 export async function openDbc(text: string): Promise<DbcHandle> {
-	const wasm = await loadWasm();
-	const inputBytes = copyTextToWasm(wasm, text);
-
-	let handle: number;
-	try {
-		handle = wasm.dbc_parse(inputBytes);
-	} finally {
-		wasm.owned_bytes_free(inputBytes);
-	}
-
-	if (handle === 0) {
-		throw new Error('DBC parse failed');
-	}
-
-	return { ptr: handle };
+	const result = await rpc<{ handleId: string }>({ op: 'openDbc', text });
+	return { id: result.handleId };
 }
 
 export async function getDbcCatalog(handle: DbcHandle): Promise<ParsedDbc> {
-	const wasm = await loadWasm();
-	const jsonBytes = wasm.dbc_to_json(handle.ptr);
-
-	if (jsonBytes === 0) {
-		throw new Error('DBC JSON export failed');
-	}
-
-	return ParsedDbcSchema.parse(JSON.parse(readOwnedText(wasm, jsonBytes)));
+	const result = await rpc<{ json: string }>({ op: 'getDbcCatalog', handleId: handle.id });
+	return ParsedDbcSchema.parse(JSON.parse(result.json));
 }
 
 export async function closeDbc(handle: DbcHandle): Promise<void> {
-	const wasm = await loadWasm();
-	wasm.dbc_free(handle.ptr);
+	await rpc<null>({ op: 'closeDbc', handleId: handle.id });
 }
-
-export type DbcMessageIdentity = Pick<DbcMessage, 'canId' | 'isExtended' | 'sizeBytes'>;
 
 export async function getSignalValues(
 	dbcHandle: DbcHandle,
@@ -210,98 +187,38 @@ export async function getSignalValues(
 	messageIdentity: DbcMessageIdentity,
 	signalName: string
 ): Promise<DecodedSignalSeries> {
-	const wasm = await loadWasm();
-	let signalNameBytes = 0;
-	try {
-		signalNameBytes = copyTextToWasm(wasm, signalName);
+	const result = await rpc<{ timesMs: Float64Array; values: Float64Array }>({
+		op: 'getSignalValues',
+		dbcHandleId: dbcHandle.id,
+		traceHandleId: trace.id,
+		messageIdentity,
+		signalName
+	});
 
-		const series = wasm.get_trace_signal_values(
-			dbcHandle.ptr,
-			trace.ptr,
-			messageIdentity.canId,
-			messageIdentity.isExtended,
-			messageIdentity.sizeBytes,
-			signalNameBytes
-		);
-		if (series === 0) {
-			throw new Error('Signal decode failed');
-		}
-
-		return readSignalSeries(wasm, series);
-	} finally {
-		if (signalNameBytes !== 0) {
-			wasm.owned_bytes_free(signalNameBytes);
-		}
-	}
+	return {
+		timesMs: result.timesMs,
+		values: result.values
+	};
 }
 
-export async function getTraceMetadata(handle: Pick<TraceHandle, 'ptr'>): Promise<TraceMetadata> {
-	const wasm = await loadWasm();
-	const jsonBytes = wasm.trace_to_metadata_json(handle.ptr);
-
-	if (jsonBytes === 0) {
-		throw new Error('Trace metadata export failed');
-	}
-
-	return TraceMetadataSchema.parse(JSON.parse(readOwnedText(wasm, jsonBytes)));
+export async function getTraceMetadata(handle: Pick<TraceHandle, 'id'>): Promise<TraceMetadata> {
+	const result = await rpc<{ json: string }>({ op: 'getTraceMetadata', handleId: handle.id });
+	return TraceMetadataSchema.parse(JSON.parse(result.json));
 }
 
 export async function closeTrace(trace: TraceHandle): Promise<void> {
-	const wasm = await loadWasm();
-	wasm.trace_free(trace.ptr);
+	await rpc<null>({ op: 'closeTrace', handleId: trace.id });
 }
 
 export async function openTrace(traceType: TraceType, bytes: Uint8Array): Promise<TraceHandle> {
-	const wasm = await loadWasm();
-	const traceParser = parserForTraceType(wasm, traceType);
-	const ptr = parseTraceBytes(wasm, bytes, traceParser.parse, traceParser.label);
+	const payload = bytes.slice();
+	const result = await rpc<{ handleId: string; metadataJson: string }>(
+		{ op: 'openTrace', traceType, bytes: payload },
+		[payload.buffer]
+	);
 
-	const handle = { ptr };
-	try {
-		return {
-			ptr,
-			metadata: await getTraceMetadata(handle)
-		};
-	} catch (error) {
-		wasm.trace_free(ptr);
-		throw error;
-	}
+	return {
+		id: result.handleId,
+		metadata: TraceMetadataSchema.parse(JSON.parse(result.metadataJson))
+	};
 }
-
-function parseTraceBytes(
-	wasm: CanTraceViewerWasmExports,
-	bytes: Uint8Array,
-	parse: (input: number) => number,
-	formatLabel: TraceFormatLabel
-): number {
-	const inputBytes = copyBytesToWasm(wasm, bytes);
-
-	let handle: number;
-	try {
-		handle = parse(inputBytes);
-	} finally {
-		wasm.owned_bytes_free(inputBytes);
-	}
-
-	if (handle === 0) {
-		throw new Error(`${formatLabel} parse failed`);
-	}
-
-	return handle;
-}
-
-function parserForTraceType(
-	wasm: CanTraceViewerWasmExports,
-	traceType: TraceType
-): { parse: (input: number) => number; label: TraceFormatLabel } {
-	switch (traceType) {
-		case 'asc':
-			return { parse: wasm.asc_parse, label: 'ASC' };
-		case 'trc':
-			return { parse: wasm.trc_parse, label: 'TRC' };
-		case 'blf':
-			return { parse: wasm.blf_parse, label: 'BLF' };
-	}
-}
-
-type TraceFormatLabel = 'ASC' | 'TRC' | 'BLF';
