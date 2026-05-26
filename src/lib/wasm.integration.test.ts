@@ -18,8 +18,7 @@ const wasmAssetPath = resolve('src/lib/assets/cantraceviewer.wasm');
 
 beforeAll(() => {
 	globalThis.fetch = async (input: string | URL | Request) => {
-		const url =
-			typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+		const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
 		if (!url.includes('cantraceviewer.wasm')) {
 			throw new Error(`Unexpected fetch URL: ${url}`);
 		}

@@ -1,60 +1,26 @@
 import WasmWorker from './wasm.worker.ts?worker';
-import type { WasmRpcPayload, WasmWorkerMessage } from './wasm-rpc.types.js';
-import { z } from 'zod';
+import {
+	ParsedDbcSchema,
+	TraceMetadataSchema,
+	type DbcMessageIdentity,
+	type DecodedSignalSeries,
+	type ParsedDbc,
+	type TraceMetadata,
+	type TraceType,
+	type WasmRpcPayload,
+	type WasmWorkerMessage
+} from './wasm-rpc.types.js';
 
-const DbcValueDescriptionSchema = z.object({
-	rawValue: z.number(),
-	label: z.string()
-});
-
-const DbcSignalSchema = z.object({
-	name: z.string(),
-	startBit: z.number(),
-	bitLength: z.number(),
-	endianness: z.string(),
-	signedness: z.string(),
-	factor: z.number(),
-	offset: z.number(),
-	minimum: z.number(),
-	maximum: z.number(),
-	unit: z.string(),
-	valueType: z.string(),
-	unsupportedMux: z.boolean(),
-	receivers: z.array(z.string()),
-	valueDescriptions: z.array(DbcValueDescriptionSchema)
-});
-
-const DbcMessageSchema = z.object({
-	name: z.string(),
-	dbcId: z.number(),
-	canId: z.number(),
-	isExtended: z.boolean(),
-	isFd: z.boolean(),
-	sizeBytes: z.number(),
-	transmitter: z.string(),
-	signals: z.array(DbcSignalSchema)
-});
-
-const ParsedDbcSchema = z.object({
-	messages: z.array(DbcMessageSchema)
-});
-
-const TraceMetadataSchema = z.object({
-	measurementStartMs: z.number().nullable(),
-	validMessageCount: z.number(),
-	durationNs: z.number().nullable()
-});
-
-export type DbcValueDescription = z.infer<typeof DbcValueDescriptionSchema>;
-export type DbcSignal = z.infer<typeof DbcSignalSchema>;
-export type DbcMessage = z.infer<typeof DbcMessageSchema>;
-export type ParsedDbc = z.infer<typeof ParsedDbcSchema>;
-export type TraceMetadata = z.infer<typeof TraceMetadataSchema>;
-export type DecodedSignalSeries = {
-	timesMs: Float64Array;
-	values: Float64Array;
-};
-export type TraceType = 'asc' | 'trc' | 'blf';
+export type {
+	DbcMessage,
+	DbcMessageIdentity,
+	DbcSignal,
+	DbcValueDescription,
+	DecodedSignalSeries,
+	ParsedDbc,
+	TraceMetadata,
+	TraceType
+} from './wasm-rpc.types.js';
 
 export type DbcHandle = {
 	readonly id: string;
@@ -64,8 +30,6 @@ export type TraceHandle = {
 	readonly id: string;
 	readonly metadata: TraceMetadata;
 };
-
-export type DbcMessageIdentity = Pick<DbcMessage, 'canId' | 'isExtended' | 'sizeBytes'>;
 
 type PendingRequest = {
 	resolve: (value: unknown) => void;
@@ -242,10 +206,9 @@ export async function closeTrace(trace: TraceHandle): Promise<void> {
 }
 
 export async function openTrace(traceType: TraceType, bytes: Uint8Array): Promise<TraceHandle> {
-	const payload = bytes.slice();
 	const result = await rpc<{ handleId: string; metadataJson: string }>(
-		{ op: 'openTrace', traceType, bytes: payload },
-		[payload.buffer]
+		{ op: 'openTrace', traceType, bytes },
+		[bytes.buffer]
 	);
 
 	return {

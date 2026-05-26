@@ -80,7 +80,7 @@
 	async function openTraceFile(file: File | null) {
 		if (!file || traceFile.isLoading) return;
 		if (await traceFile.openFile(file)) {
-			await plotData.refreshAllDecodes();
+			plotData.clearSelectedSignals();
 		}
 	}
 

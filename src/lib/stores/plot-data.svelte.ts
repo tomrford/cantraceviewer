@@ -49,13 +49,12 @@ export function isPlottableSignal(signal: PlotSignal): boolean {
 }
 
 class PlotDataStore {
-	revision = $state(0);
+	seriesRevision = $state(0);
 	selectedSignalKeys = new SvelteSet<PlotSignalKey>();
 	signalSeries = new SvelteMap<PlotSignalKey, DecodedSignalSeries>();
 	decodingSignalKeys = new SvelteSet<PlotSignalKey>();
 	decodeErrors = new SvelteMap<PlotSignalKey, string>();
 	private signalColors = createSignalColorAssigner();
-	private decodeGeneration = 0;
 
 	signals = $derived.by<PlotSignal[]>(() => {
 		const signals: PlotSignal[] = [];
@@ -128,24 +127,12 @@ class PlotDataStore {
 	}
 
 	clearSelectedSignals(): void {
-		this.decodeGeneration = 0;
 		this.selectedSignalKeys.clear();
 		this.signalSeries.clear();
 		this.decodingSignalKeys.clear();
 		this.decodeErrors.clear();
 		this.signalColors.clear();
 		this.bumpRevision();
-	}
-
-	async refreshAllDecodes(): Promise<void> {
-		const generation = ++this.decodeGeneration;
-		this.signalSeries.clear();
-		this.decodingSignalKeys.clear();
-		this.decodeErrors.clear();
-		this.bumpRevision();
-
-		const keys = [...this.selectedSignalKeys];
-		await Promise.all(keys.map((key) => this.decodeSignal(key, generation)));
 	}
 
 	setSignalSeries(key: PlotSignalKey, series: DecodedSignalSeries | null): void {
@@ -158,13 +145,13 @@ class PlotDataStore {
 	}
 
 	private bumpRevision(): void {
-		this.revision += 1;
+		this.seriesRevision += 1;
 	}
 
-	private async decodeSignal(key: PlotSignalKey, generation = this.decodeGeneration): Promise<void> {
+	private async decodeSignal(key: PlotSignalKey): Promise<void> {
 		const trace = traceFile.entry;
 		const target = findSignalTarget(key);
-		if (!trace || !target || generation !== this.decodeGeneration) return;
+		if (!trace || !target) return;
 
 		this.setDecodeError(key, null);
 		this.decodingSignalKeys.add(key);
@@ -182,23 +169,13 @@ class PlotDataStore {
 				target.signal.name
 			);
 
-			if (
-				generation !== this.decodeGeneration ||
-				!this.isSignalSelected(key) ||
-				traceFile.entry !== trace ||
-				!findSignalTarget(key)
-			) {
+			if (!this.isSignalSelected(key) || traceFile.entry !== trace || !findSignalTarget(key)) {
 				return;
 			}
 
 			this.setSignalSeries(key, series);
 		} catch (error) {
-			if (
-				generation === this.decodeGeneration &&
-				this.isSignalSelected(key) &&
-				traceFile.entry === trace &&
-				findSignalTarget(key)
-			) {
+			if (this.isSignalSelected(key) && traceFile.entry === trace && findSignalTarget(key)) {
 				this.setDecodeError(key, error instanceof Error ? error.message : 'Signal decode failed');
 			}
 		} finally {

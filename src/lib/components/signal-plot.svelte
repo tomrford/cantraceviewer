@@ -196,12 +196,7 @@
 	});
 
 	$effect(() => {
-		plotData.revision;
-		measurementStartMs;
-		isDark();
-		timestampMode.current;
-		activeViewport;
-		visibleViews;
+		void plotData.seriesRevision;
 		chart?.setOption(chartOptions());
 	});
 

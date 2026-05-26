@@ -1,6 +1,6 @@
 import wasmUrl from '$lib/assets/cantraceviewer.wasm?url';
 import type {
-	WasmTraceType,
+	TraceType,
 	WasmWorkerBootFailed,
 	WasmWorkerMessage,
 	WasmWorkerReady,
@@ -146,7 +146,7 @@ function readSignalSeries(
 
 function parserForTraceType(
 	wasm: CanTraceViewerWasmExports,
-	traceType: WasmTraceType
+	traceType: TraceType
 ): { parse: (input: number) => number; label: TraceFormatLabel } {
 	switch (traceType) {
 		case 'asc':
@@ -180,7 +180,10 @@ function parseTraceBytes(
 	return handle;
 }
 
-async function handleRequest(wasm: CanTraceViewerWasmExports, request: WasmWorkerRequest): Promise<void> {
+async function handleRequest(
+	wasm: CanTraceViewerWasmExports,
+	request: WasmWorkerRequest
+): Promise<void> {
 	try {
 		switch (request.op) {
 			case 'openDbc': {
@@ -290,12 +293,15 @@ async function handleRequest(wasm: CanTraceViewerWasmExports, request: WasmWorke
 			}
 		}
 	} catch (error) {
-		respondFailure(request.id, error instanceof Error ? error.message : 'WASM worker request failed');
+		respondFailure(
+			request.id,
+			error instanceof Error ? error.message : 'WASM worker request failed'
+		);
 	}
 }
 
 function respondSuccess(id: string, result: unknown, transfer: Transferable[] = []): void {
-	const response: WasmWorkerSuccess = { id, ok: true, result, transfer: transfer as ArrayBuffer[] };
+	const response: WasmWorkerSuccess = { id, ok: true, result };
 	self.postMessage(response, { transfer });
 }
 
