@@ -95,7 +95,9 @@ export fn blf_parse(input: *const abi.OwnedBytes) usize {
 export fn get_trace_signal_values(
     dbc_handle_value: usize,
     trace_handle_value: usize,
-    message_name: *const abi.OwnedBytes,
+    can_id: u32,
+    is_extended: bool,
+    size_bytes: u16,
     signal_name: *const abi.OwnedBytes,
 ) ?*abi.OwnedFloat64s {
     if (dbc_handle_value == 0 or trace_handle_value == 0) return null;
@@ -106,7 +108,9 @@ export fn get_trace_signal_values(
         abi.allocator,
         dbc_ptr,
         trace_ptr.trace,
-        message_name.slice(),
+        can_id,
+        is_extended,
+        size_bytes,
         signal_name.slice(),
     ) catch return null;
 

@@ -78,8 +78,9 @@ describe('WASM adapter integration', () => {
 		const dbc = await openFixtureDbc();
 		const trace = await openFixtureTrace();
 		try {
-			const speed = await getSignalValues(dbc, trace, 'PowertrainStatus', 'vehicle_speed');
-			const coolant = await getSignalValues(dbc, trace, 'PowertrainStatus', 'coolant_temp');
+			const powertrainIdentity = { canId: 288, isExtended: false, sizeBytes: 8 };
+			const speed = await getSignalValues(dbc, trace, powertrainIdentity, 'vehicle_speed');
+			const coolant = await getSignalValues(dbc, trace, powertrainIdentity, 'coolant_temp');
 
 			expect(Array.from(speed.timesMs)).toEqual([10, 110, 210]);
 			expect(Array.from(speed.values)).toEqual([100, 123.4, 150]);
@@ -101,7 +102,12 @@ describe('WASM adapter integration', () => {
 				durationNs: 20_000_000
 			});
 
-			const speed = await getSignalValues(dbc, trace, 'PowertrainStatus', 'vehicle_speed');
+			const speed = await getSignalValues(
+				dbc,
+				trace,
+				{ canId: 288, isExtended: false, sizeBytes: 8 },
+				'vehicle_speed'
+			);
 			expect(Array.from(speed.timesMs)).toEqual([10, 20]);
 			expect(Array.from(speed.values)).toEqual([100, 123.4]);
 		} finally {
@@ -118,9 +124,9 @@ describe('WASM adapter integration', () => {
 			await expect(
 				openTrace('asc', new TextEncoder().encode('0.000000 1 100 Rx d 2 00'))
 			).rejects.toThrow('ASC parse failed');
-			await expect(getSignalValues(dbc, trace, 'PowertrainStatus', 'missing')).rejects.toThrow(
-				'Signal decode failed'
-			);
+			await expect(
+				getSignalValues(dbc, trace, { canId: 288, isExtended: false, sizeBytes: 8 }, 'missing')
+			).rejects.toThrow('Signal decode failed');
 		} finally {
 			await closeTrace(trace);
 			await closeDbc(dbc);
