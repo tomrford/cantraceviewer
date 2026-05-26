@@ -11,6 +11,7 @@
 		panViewport,
 		type PlotViewport,
 		viewportsAlmostEqual,
+		viewportCenterX,
 		zoomViewport
 	} from '$lib/plot-viewport.js';
 	import {
@@ -23,8 +24,8 @@
 		visibleSignalViews
 	} from '$lib/signal-plot-data.js';
 	import SignalPlotLegend from './signal-plot-legend.svelte';
-	import { plotData } from '$lib/stores/plot-data.svelte.js';
-	import { themeState, timestampMode } from '$lib/stores/preferences.svelte.js';
+	import { isPlottableSignal, plotData } from '$lib/stores/plot-data.svelte.js';
+	import { isDark, timestampMode } from '$lib/stores/preferences.svelte.js';
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
 	import { onDestroy, onMount, untrack } from 'svelte';
 	import type { HTMLAttributes } from 'svelte/elements';
@@ -36,8 +37,7 @@
 		markerX = $bindable<number | null>(null),
 		boxZoomEnabled = $bindable(false),
 		legendVisible = $bindable(true),
-		canResetZoom = $bindable(false),
-		plotCommand = null,
+		onCanResetZoomChange,
 		class: className,
 		...restProps
 	}: HTMLAttributes<HTMLElement> & {
@@ -46,8 +46,7 @@
 		markerX?: number | null;
 		boxZoomEnabled?: boolean;
 		legendVisible?: boolean;
-		canResetZoom?: boolean;
-		plotCommand?: { type: 'zoom-in' | 'zoom-out' | 'reset-zoom' } | null;
+		onCanResetZoomChange?: (canReset: boolean) => void;
 	} = $props();
 	let container: HTMLDivElement;
 	let chart: ChartGPUInstance | null = null;
@@ -60,7 +59,8 @@
 	let lastFullDomain: PlotViewport | null = null;
 	let dragState = $state<DragState | null>(null);
 	let lastSignature = '';
-	let handledPlotCommand: typeof plotCommand = null;
+	let markerDragRaf: number | null = null;
+	let pendingMarkerX: number | null = null;
 	let resizeObserver: ResizeObserver | null = null;
 
 	const PLOT_GRID = { left: 64, right: 24, top: 18, bottom: 44 };
@@ -85,28 +85,40 @@
 				current: PlotRatioPoint;
 		  };
 
-	const readySignals = $derived(
-		plotData.signals.filter((signal) => signal.series && signal.series.timesMs.length >= 2)
-	);
-	const waitingSignals = $derived(
-		plotData.signals.filter((signal) => signal.isDecoding || signal.decodeError || !signal.series)
-	);
+	const signalBuckets = $derived.by(() => {
+		const ready: (typeof plotData.signals)[number][] = [];
+		const waiting: (typeof plotData.signals)[number][] = [];
+
+		for (const signal of plotData.signals) {
+			if (isPlottableSignal(signal)) ready.push(signal);
+			else waiting.push(signal);
+		}
+
+		return { ready, waiting };
+	});
+	const readySignals = $derived(signalBuckets.ready);
+	const waitingSignals = $derived(signalBuckets.waiting);
+	const plotReady = $derived(plotData.hasPlottableSignals);
 	const signalViews = $derived(readySignals.map((signal) => signalView(signal)));
 	const measurementStartMs = $derived(traceFile.entry?.metadata.measurementStartMs);
 	const fullDomain = $derived.by(() => signalDomain(signalViews));
 	const activeViewport = $derived(viewport ?? fullDomain);
 	const visibleViews = $derived(visibleSignalViews(signalViews, activeViewport));
 	const isFitAll = $derived(viewportsAlmostEqual(activeViewport, fullDomain));
+	const displayedMarkerX = $derived.by(() => {
+		if (!plotReady || !markerEnabled || markerX === null) return null;
+		return markerX;
+	});
 	const markerPercent = $derived.by(() => {
-		if (markerX === null || activeViewport === null) return null;
+		if (displayedMarkerX === null || activeViewport === null) return null;
 		const span = activeViewport.xMax - activeViewport.xMin;
 		if (!(span > 0)) return null;
-		const percent = ((markerX - activeViewport.xMin) / span) * 100;
+		const percent = ((displayedMarkerX - activeViewport.xMin) / span) * 100;
 		if (percent < 0 || percent > 100) return null;
 		return percent;
 	});
 	const markerValues = $derived.by(() => {
-		const x = markerX;
+		const x = displayedMarkerX;
 		if (x === null) {
 			return signalViews.map((view) => ({
 				key: view.key,
@@ -136,37 +148,35 @@
 	});
 
 	onDestroy(() => {
+		cancelMarkerDragUpdate();
 		resizeObserver?.disconnect();
 		chart?.dispose();
 	});
 
+	let lastReportedCanReset: boolean | undefined;
+
 	$effect(() => {
-		const nextCanResetZoom = !isFitAll;
-		if (canResetZoom !== nextCanResetZoom) canResetZoom = nextCanResetZoom;
+		const canReset = plotReady && !isFitAll;
+		if (lastReportedCanReset === canReset) return;
+		lastReportedCanReset = canReset;
+		onCanResetZoomChange?.(canReset);
 	});
 
 	$effect(() => {
-		const command = plotCommand;
-		if (command === null || command === handledPlotCommand) return;
-		handledPlotCommand = command;
-
-		if (command.type === 'zoom-in') {
-			zoomBy(0.5);
-		} else if (command.type === 'zoom-out') {
-			zoomBy(2);
-		} else {
-			resetZoom();
-		}
-	});
-
-	$effect(() => {
-		if (!markerEnabled) {
-			if (markerX !== null) markerX = null;
+		if (!plotReady) {
+			markerEnabled = false;
+			markerX = null;
 			return;
 		}
 
-		if (markerX !== null || activeViewport === null) return;
-		markerX = activeViewport.xMin + (activeViewport.xMax - activeViewport.xMin) / 2;
+		if (!markerEnabled) {
+			markerX = null;
+			return;
+		}
+
+		if (markerX === null && activeViewport !== null) {
+			markerX = viewportCenterX(activeViewport);
+		}
 	});
 
 	$effect(() => {
@@ -185,9 +195,8 @@
 
 	$effect(() => {
 		const signature = JSON.stringify({
-			keys: signalViews.map((view) => [view.key, view.points]),
 			measurementStartMs,
-			isDark: themeState.isDark,
+			isDark: isDark(),
 			timestampMode: timestampMode.current,
 			viewport: activeViewport,
 			visible: visibleViews.map((view) => [view.key, view.points])
@@ -198,14 +207,64 @@
 		chart?.setOption(chartOptions());
 	});
 
+	function whenPlotReady(action: () => void) {
+		if (!plotReady) return;
+		action();
+	}
+
+	export function plotZoomIn() {
+		whenPlotReady(() => {
+			zoomBy(0.5);
+		});
+	}
+
+	export function plotZoomOut() {
+		whenPlotReady(() => {
+			zoomBy(2);
+		});
+	}
+
+	export function plotResetZoom() {
+		whenPlotReady(() => {
+			resetZoom();
+		});
+	}
+
+	function placeMarkerAt(x: number): void {
+		if (!plotReady) return;
+		if (!markerEnabled) markerEnabled = true;
+		markerX = x;
+	}
+
+	function cancelMarkerDragUpdate() {
+		if (markerDragRaf !== null) {
+			cancelAnimationFrame(markerDragRaf);
+			markerDragRaf = null;
+		}
+		pendingMarkerX = null;
+	}
+
+	function flushPendingMarkerUpdate() {
+		if (markerDragRaf !== null) {
+			cancelAnimationFrame(markerDragRaf);
+			markerDragRaf = null;
+		}
+
+		if (pendingMarkerX !== null) {
+			placeMarkerAt(pendingMarkerX);
+			pendingMarkerX = null;
+		}
+	}
+
 	function chartOptions(): ChartGPUOptions {
-		const gridLine = themeState.isDark ? GRID_LINE.dark : GRID_LINE.light;
+		const dark = isDark();
+		const gridLine = dark ? GRID_LINE.dark : GRID_LINE.light;
 
 		return {
 			theme: {
-				backgroundColor: themeState.isDark ? '#09090b' : '#ffffff',
-				textColor: themeState.isDark ? '#e4e4e7' : '#18181b',
-				axisLineColor: themeState.isDark ? '#3f3f46' : '#d4d4d8',
+				backgroundColor: dark ? '#09090b' : '#ffffff',
+				textColor: dark ? '#e4e4e7' : '#18181b',
+				axisLineColor: dark ? '#3f3f46' : '#d4d4d8',
 				axisTickColor: '#71717a',
 				gridLineColor: gridLine.color,
 				colorPalette: SIGNAL_COLORS,
@@ -270,16 +329,24 @@
 	function stopMarkerDrag(event: PointerEvent) {
 		if (markerDragPointerId !== event.pointerId) return;
 		markerDragPointerId = null;
+		flushPendingMarkerUpdate();
 		const target = event.currentTarget as HTMLElement;
 		if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
 	}
 
 	function updateMarkerFromPointer(event: PointerEvent) {
 		const x = pointerToDataX(event);
-		if (x !== null) {
-			markerEnabled = true;
-			markerX = x;
-		}
+		if (x === null) return;
+
+		pendingMarkerX = x;
+		if (markerDragRaf !== null) return;
+
+		markerDragRaf = requestAnimationFrame(() => {
+			markerDragRaf = null;
+			if (pendingMarkerX === null) return;
+			placeMarkerAt(pendingMarkerX);
+			pendingMarkerX = null;
+		});
 	}
 
 	function pointerToDataX(event: PointerEvent): number | null {
@@ -390,14 +457,14 @@
 >
 	{#if dropActive}
 		<div
-			class="pointer-events-none absolute inset-0 z-[60] flex items-center justify-center bg-background/25 text-sm font-medium text-foreground backdrop-blur-[1px]"
+			class="pointer-events-none absolute inset-0 z-60 flex items-center justify-center bg-background/25 text-sm font-medium text-foreground backdrop-blur-[1px]"
 		>
 			Drop trace to open
 		</div>
 	{/if}
 	<div bind:this={container} class="absolute inset-0" aria-label="Selected signal plot"></div>
 
-	{#if signalViews.length > 0}
+	{#if plotReady}
 		<button
 			type="button"
 			class={`absolute z-30 border-0 bg-transparent p-0 text-left outline-none ${
@@ -458,7 +525,7 @@
 		{#if legendVisible}
 			<SignalPlotLegend
 				views={signalViews}
-				{markerX}
+				{displayedMarkerX}
 				{markerValues}
 				{measurementStartMs}
 				timestampMode={timestampMode.current}

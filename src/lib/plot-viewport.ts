@@ -42,6 +42,10 @@ export function fitDomain(points: Iterable<PlotPoint>): PlotViewport | null {
 	};
 }
 
+export function viewportCenterX(viewport: Pick<PlotViewport, 'xMin' | 'xMax'>): number {
+	return viewport.xMin + (viewport.xMax - viewport.xMin) / 2;
+}
+
 export function viewportsAlmostEqual(a: PlotViewport | null, b: PlotViewport | null): boolean {
 	if (a === null || b === null) return a === b;
 	return (

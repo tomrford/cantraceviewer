@@ -4,17 +4,19 @@
 
 	let {
 		measurementStartMs,
-		markerX,
+		displayedMarkerX,
 		markerValues,
 		timestampMode,
 		views
 	}: {
 		measurementStartMs?: number | null;
-		markerX: number | null;
+		displayedMarkerX: number | null;
 		markerValues: ReturnType<typeof markerValue>[];
 		timestampMode: TimestampMode;
 		views: SignalView[];
 	} = $props();
+
+	const markerValuesByKey = $derived(new Map(markerValues.map((value) => [value.key, value])));
 </script>
 
 <div
@@ -22,11 +24,11 @@
 >
 	<div class="space-y-2">
 		{#each views as view (view.key)}
-			{@const marker = markerValues.find((value) => value.key === view.key)}
+			{@const marker = markerValuesByKey.get(view.key)}
 			<div
 				class="grid items-center gap-2 text-xs"
-				class:grid-cols-[0.75rem_1fr_auto]={markerX !== null}
-				class:grid-cols-[0.75rem_1fr]={markerX === null}
+				class:grid-cols-[0.75rem_1fr_auto]={displayedMarkerX !== null}
+				class:grid-cols-[0.75rem_1fr]={displayedMarkerX === null}
 			>
 				<span class="size-2 rounded-full" style:background-color={view.color}></span>
 				<span class="flex min-w-0 font-mono" title={view.label}>
@@ -34,15 +36,15 @@
 					<span class="shrink-0">.</span>
 					<span class="min-w-0 flex-[999_1_auto] truncate">{view.signalName}</span>
 				</span>
-				{#if markerX !== null}
+				{#if displayedMarkerX !== null}
 					<span class="font-mono tabular-nums">{marker?.text}</span>
 				{/if}
 			</div>
 		{/each}
 	</div>
-	{#if markerX !== null}
+	{#if displayedMarkerX !== null}
 		<div class="mt-2 text-xs text-muted-foreground">
-			{formatAxisTime(markerX, {
+			{formatAxisTime(displayedMarkerX, {
 				measurementStartMs,
 				mode: timestampMode
 			})}
