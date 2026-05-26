@@ -40,7 +40,7 @@ index 06da45a4fc726b9b9e976150fa9e525565fdeb94..0b6809dafb9bfb3be30f535f3192a0cb
 +            type: "scatter",
 +            data: v,
 +            color: x.lineStyle.color,
-+            symbolSize: 2
++            symbolSize: 1.5
 +          },
 +          v,
 +          r,
