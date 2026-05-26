@@ -30,7 +30,7 @@
 
 	const selectedTimestampMode = $derived(timestampMode.current);
 
-	async function resetBrowserData(): Promise<void> {
+	async function resetPersistentData(): Promise<void> {
 		plotData.clearSelectedSignals();
 		resetPreferences();
 		await dbcFiles.resetLibrary();
@@ -91,14 +91,18 @@
 	</label>
 
 	<div class="grid gap-2 border-t pt-4">
-		<div class="text-xs font-medium text-muted-foreground">Browser data</div>
+		<div class="text-xs font-medium text-muted-foreground">Persistent data</div>
+		<p class="text-xs text-muted-foreground">
+			Clears saved DBC files and browser preferences. Loaded traces stay in memory until you close
+			the tab.
+		</p>
 		<button
 			type="button"
 			class="flex h-10 items-center justify-center gap-2 rounded-md border border-destructive/40 px-3 text-sm text-destructive transition-colors hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
-			onclick={resetBrowserData}
+			onclick={resetPersistentData}
 		>
 			<RotateCcwIcon class="size-4" />
-			<span>Reset local data</span>
+			<span>Reset persistent data</span>
 		</button>
 	</div>
 </Popover.Content>

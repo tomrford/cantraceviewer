@@ -1,5 +1,5 @@
 import { createSignalColorAssigner } from '$lib/plot-colors.js';
-import { dbcFiles, signalKey, type DbcFileEntry } from '$lib/stores/dbc-files.svelte.js';
+import { dbcFiles, displayDbcName, signalKey } from '$lib/stores/dbc-files.svelte.js';
 import { traceFile } from '$lib/stores/trace-file.svelte.js';
 import {
 	getSignalValues,
@@ -44,6 +44,10 @@ export type PlotSignal = {
 	decodeError: string | null;
 };
 
+export function isPlottableSignal(signal: PlotSignal): boolean {
+	return Boolean(signal.series && signal.series.timesMs.length > 0);
+}
+
 class PlotDataStore {
 	selectedSignalKeys = new SvelteSet<PlotSignalKey>();
 	signalSeries = new SvelteMap<PlotSignalKey, DecodedSignalSeries>();
@@ -71,8 +75,21 @@ class PlotDataStore {
 		return signals;
 	});
 
+	hasPlottableSignals = $derived(this.signals.some(isPlottableSignal));
+
 	isSignalSelected(key: PlotSignalKey): boolean {
 		return this.selectedSignalKeys.has(key);
+	}
+
+	signalDecodeStatus(key: PlotSignalKey): { isDecoding: boolean; decodeError: string | null } {
+		if (!this.selectedSignalKeys.has(key)) {
+			return { isDecoding: false, decodeError: null };
+		}
+
+		return {
+			isDecoding: this.decodingSignalKeys.has(key),
+			decodeError: this.decodeErrors.get(key) ?? null
+		};
 	}
 
 	async toggleSignal(key: PlotSignalKey): Promise<void> {
@@ -210,28 +227,8 @@ function plotSignal(
 	};
 }
 
-type SignalTarget = {
-	file: DbcFileEntry;
-	message: DbcMessage;
-	signal: DbcSignal;
-};
-
-function findSignalTarget(key: PlotSignalKey): SignalTarget | null {
-	for (const file of dbcFiles.files) {
-		for (const message of file.catalog.messages) {
-			for (const signal of message.signals) {
-				if (signalKey(file.id, message.name, signal.name) === key) {
-					return { file, message, signal };
-				}
-			}
-		}
-	}
-
-	return null;
-}
-
-function displayDbcName(fileName: string): string {
-	return fileName.replace(/\.dbc$/i, '');
+function findSignalTarget(key: PlotSignalKey) {
+	return dbcFiles.signalTargetByKey[key] ?? null;
 }
 
 export const plotData = new PlotDataStore();

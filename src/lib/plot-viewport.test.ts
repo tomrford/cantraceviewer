@@ -3,6 +3,7 @@ import {
 	boxViewport,
 	fitDomain,
 	panViewport,
+	viewportCenterX,
 	viewportIndicator,
 	zoomViewport
 } from './plot-viewport';
@@ -54,5 +55,9 @@ describe('plot viewport math', () => {
 				{ xMin: 0, xMax: 100, yMin: 0, yMax: 200 }
 			)
 		).toEqual({ xLeft: 25, xWidth: 50, yTop: 25, yHeight: 50 });
+	});
+
+	it('returns the x-axis midpoint', () => {
+		expect(viewportCenterX({ xMin: 0, xMax: 100 })).toBe(50);
 	});
 });

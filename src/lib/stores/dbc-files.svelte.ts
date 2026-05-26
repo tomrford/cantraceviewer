@@ -37,6 +37,12 @@ export type SidebarDbcSignal = {
 	signalName: string;
 };
 
+export type DbcSignalTarget = {
+	file: DbcFileEntry;
+	message: DbcMessage;
+	signal: DbcSignal;
+};
+
 type DbcMessageIdentity = {
 	key: string;
 	canId: number;
@@ -47,6 +53,7 @@ type DbcMessageIdentity = {
 };
 
 type CanIdIndex = Record<string, DbcMessageIdentity>;
+type SignalTargetIndex = Record<string, DbcSignalTarget>;
 type DbcCandidate = {
 	entry: DbcFileEntry;
 	stored: StoredDbc;
@@ -59,6 +66,7 @@ class DbcFilesStore {
 	hasLoadedLibrary = $state(false);
 
 	canIdIndex = $derived.by(() => buildCanIdIndex(this.files));
+	signalTargetByKey = $derived.by(() => buildSignalTargetIndex(this.files));
 
 	sidebarFiles = $derived.by<SidebarDbcFile[]>(() =>
 		this.files.map((entry) => ({
@@ -219,8 +227,22 @@ function canIdKey(canId: number, isExtended: boolean): string {
 	return `${isExtended ? 'extended' : 'standard'}:${canId}`;
 }
 
-function displayDbcName(fileName: string): string {
+export function displayDbcName(fileName: string): string {
 	return fileName.replace(/\.dbc$/i, '');
+}
+
+function buildSignalTargetIndex(files: DbcFileEntry[]): SignalTargetIndex {
+	const index: SignalTargetIndex = {};
+
+	for (const file of files) {
+		for (const message of file.catalog.messages) {
+			for (const signal of message.signals) {
+				index[signalKey(file.id, message.name, signal.name)] = { file, message, signal };
+			}
+		}
+	}
+
+	return index;
 }
 
 export function signalKey(dbcFileId: string, messageName: string, signalName: string): string {
