@@ -1,5 +1,5 @@
 import { createSignalColorAssigner } from '$lib/plot-colors.js';
-import { dbcFiles, displayDbcName, signalKey } from '$lib/stores/dbc-files.svelte.js';
+import { dbcFiles, displayDbcName, signalIdentityKey } from '$lib/stores/dbc-files.svelte.js';
 import { traceFile } from '$lib/stores/trace-file.svelte.js';
 import {
 	getSignalValues,
@@ -108,10 +108,11 @@ class PlotDataStore {
 	}
 
 	deselectDbcFile(dbcFileId: string): void {
+		const entry = dbcFiles.files.find((file) => file.id === dbcFileId);
 		const dbcSignalKeys = new Set(
-			dbcFiles.sidebarFiles
-				.find((file) => file.id === dbcFileId)
-				?.signals.map((signal) => signal.key) ?? []
+			entry?.catalog.messages.flatMap((message) =>
+				message.signals.map((signal) => signalIdentityKey(dbcFileId, message, signal.name))
+			) ?? []
 		);
 
 		for (const key of dbcSignalKeys) {
@@ -119,8 +120,6 @@ class PlotDataStore {
 			this.decodingSignalKeys.delete(key);
 			this.signalSeries.delete(key);
 			this.decodeErrors.delete(key);
-		}
-		for (const key of dbcSignalKeys) {
 			this.signalColors.release(key);
 		}
 	}
@@ -153,7 +152,11 @@ class PlotDataStore {
 			const series = await getSignalValues(
 				target.file.handle,
 				trace,
-				target.message.name,
+				{
+					canId: target.message.canId,
+					isExtended: target.message.isExtended,
+					sizeBytes: target.message.sizeBytes
+				},
 				target.signal.name
 			);
 
@@ -195,7 +198,7 @@ function plotSignal(
 	data: PlotSignalData
 ): PlotSignal {
 	return {
-		key: signalKey(dbcFileId, message.name, signal.name),
+		key: signalIdentityKey(dbcFileId, message, signal.name),
 		color: data.color,
 		dbcFileId,
 		dbcName: displayDbcName(sourceFileName),

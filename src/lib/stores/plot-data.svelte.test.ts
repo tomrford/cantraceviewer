@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
-import { dbcFiles, signalKey } from './dbc-files.svelte';
+import { dbcFiles, signalIdentityKey } from './dbc-files.svelte';
 import { plotData } from './plot-data.svelte';
 import { traceFile } from './trace-file.svelte';
 import { getSignalValues } from '$lib/wasm.js';
@@ -35,7 +35,7 @@ describe('plotData', () => {
 		expect(getSignalValuesMock).toHaveBeenCalledExactlyOnceWith(
 			{ ptr: 1 },
 			traceFile.entry,
-			'SpeedMessage',
+			{ canId: 291, isExtended: false, sizeBytes: 8 },
 			'VehicleSpeed'
 		);
 		expect(plotData.signals).toMatchObject([
@@ -91,24 +91,52 @@ describe('plotData', () => {
 		expect(getSignalValuesMock).toHaveBeenCalledExactlyOnceWith(
 			{ ptr: 1 },
 			traceFile.entry,
-			'SpeedMessage',
+			{ canId: 291, isExtended: false, sizeBytes: 8 },
 			'VehicleSpeed'
 		);
+	});
+
+	it('keeps same-name messages separate by CAN identity', async () => {
+		dbcFiles.files = [
+			dbcEntry({
+				messages: [
+					message({ canId: 0x100, sizeBytes: 1, signals: [signal({ name: 'Value' })] }),
+					message({ canId: 0x200, sizeBytes: 1, signals: [signal({ name: 'Value' })] })
+				]
+			})
+		];
+		getSignalValuesMock.mockResolvedValueOnce(signalSeries([0.001], [12.5]));
+
+		await plotData.toggleSignal(
+			signalIdentityKey('dbc-1', { canId: 0x200, isExtended: false, sizeBytes: 1 }, 'Value')
+		);
+
+		expect(getSignalValuesMock).toHaveBeenCalledExactlyOnceWith(
+			{ ptr: 1 },
+			traceFile.entry,
+			{ canId: 0x200, isExtended: false, sizeBytes: 1 },
+			'Value'
+		);
+		expect(plotData.signals[0]).toMatchObject({
+			canId: 0x200,
+			messageName: 'SpeedMessage',
+			signalName: 'Value'
+		});
 	});
 });
 
 function key(): string {
-	return signalKey('dbc-1', 'SpeedMessage', 'VehicleSpeed');
+	return signalIdentityKey('dbc-1', message(), 'VehicleSpeed');
 }
 
-function dbcEntry() {
+function dbcEntry(overrides: { messages?: DbcMessage[] } = {}) {
 	return {
 		id: 'dbc-1',
 		name: 'powertrain.dbc',
 		text: 'dbc',
 		handle: { ptr: 1 },
 		catalog: {
-			messages: [message()]
+			messages: overrides.messages ?? [message()]
 		}
 	};
 }
@@ -125,20 +153,21 @@ function traceEntry(ptr: number) {
 	};
 }
 
-function message(): DbcMessage {
+function message(overrides: Partial<DbcMessage> = {}): DbcMessage {
 	return {
 		name: 'SpeedMessage',
-		dbcId: 291,
-		canId: 291,
+		dbcId: overrides.canId ?? 291,
+		canId: overrides.canId ?? 291,
 		isExtended: false,
 		isFd: false,
 		sizeBytes: 8,
 		transmitter: 'ECU',
-		signals: [signal()]
+		signals: [signal()],
+		...overrides
 	};
 }
 
-function signal(): DbcSignal {
+function signal(overrides: Partial<DbcSignal> = {}): DbcSignal {
 	return {
 		name: 'VehicleSpeed',
 		startBit: 0,
@@ -153,7 +182,8 @@ function signal(): DbcSignal {
 		valueType: 'integer',
 		unsupportedMux: false,
 		receivers: ['DASH'],
-		valueDescriptions: []
+		valueDescriptions: [],
+		...overrides
 	};
 }
 

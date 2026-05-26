@@ -49,7 +49,7 @@ describe('dbcFiles', () => {
 		expect(dbcFiles.isLoading).toBe(false);
 	});
 
-	it('rejects overlapping CAN IDs without dropping existing DBC handles', async () => {
+	it('allows overlapping CAN IDs across DBC files', async () => {
 		const existingHandle = { ptr: 201 };
 		const duplicateHandle = { ptr: 202 };
 		openDbcMock.mockResolvedValueOnce(existingHandle).mockResolvedValueOnce(duplicateHandle);
@@ -60,31 +60,49 @@ describe('dbcFiles', () => {
 		await dbcFiles.addFiles([file('existing.dbc', 'existing')]);
 		await dbcFiles.addFiles([file('duplicate.dbc', 'duplicate')]);
 
-		expect(dbcFiles.files).toHaveLength(1);
+		expect(dbcFiles.files).toHaveLength(2);
 		expect(dbcFiles.files[0]?.handle).toBe(existingHandle);
-		expect(closeDbcMock).toHaveBeenCalledExactlyOnceWith(duplicateHandle);
-		expect(dbcFiles.error).toBe(
-			'duplicate contains messages which overlap with those defined in existing files.'
-		);
+		expect(dbcFiles.files[1]?.handle).toBe(duplicateHandle);
+		expect(dbcFiles.error).toBe(null);
+		expect(closeDbcMock).not.toHaveBeenCalled();
 	});
 
-	it('rejects classic and CAN FD messages with the same numeric ID', async () => {
+	it('keeps classic and CAN FD messages with the same numeric ID in one file', async () => {
 		const handle = { ptr: 301 };
 		openDbcMock.mockResolvedValueOnce(handle);
 		getDbcCatalogMock.mockResolvedValueOnce(
 			catalog(
-				message({ name: 'ClassicMessage', canId: 0x123, isFd: false }),
-				message({ name: 'FdMessage', canId: 0x123, isFd: true })
+				message({ name: 'ClassicMessage', canId: 0x123, sizeBytes: 8, isFd: false }),
+				message({ name: 'FdMessage', canId: 0x123, sizeBytes: 12, isFd: true })
 			)
 		);
 
 		await dbcFiles.addFiles([file('mixed.dbc', 'mixed')]);
 
+		expect(dbcFiles.files).toHaveLength(1);
+		expect(dbcFiles.files[0]?.handle).toBe(handle);
+		expect(dbcFiles.error).toBe(null);
+		expect(dbcFiles.sidebarFiles[0]?.messages).toHaveLength(2);
+	});
+
+	it('rejects duplicate frame identities within one DBC file', async () => {
+		const handle = { ptr: 302 };
+		openDbcMock.mockResolvedValueOnce(handle);
+		getDbcCatalogMock.mockResolvedValueOnce(
+			catalog(
+				message({ name: 'FirstMessage', canId: 0x123, sizeBytes: 8 }),
+				message({ name: 'SecondMessage', canId: 0x123, sizeBytes: 8 })
+			)
+		);
+
+		await dbcFiles.addFiles([file('ambiguous.dbc', 'ambiguous')]);
+
 		expect(dbcFiles.files).toHaveLength(0);
 		expect(dbcFiles.error).toBe(
-			'mixed contains messages which overlap with those defined in existing files.'
+			'ambiguous contains multiple messages with the same CAN ID, frame format, and payload length.'
 		);
 		expect(closeDbcMock).toHaveBeenCalledExactlyOnceWith(handle);
+		expect(putStoredDbcsMock).not.toHaveBeenCalled();
 	});
 
 	it('ignores added files while another DBC operation is loading', async () => {

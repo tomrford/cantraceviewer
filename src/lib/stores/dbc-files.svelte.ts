@@ -4,6 +4,7 @@ import {
 	openDbc,
 	type DbcHandle,
 	type DbcMessage,
+	type DbcMessageIdentity,
 	type DbcSignal,
 	type ParsedDbc
 } from '$lib/wasm.js';
@@ -27,6 +28,12 @@ export type DbcFileEntry = {
 export type SidebarDbcFile = {
 	id: string;
 	name: string;
+	messages: SidebarDbcMessage[];
+};
+
+export type SidebarDbcMessage = {
+	key: string;
+	name: string;
 	signals: SidebarDbcSignal[];
 };
 
@@ -43,16 +50,6 @@ export type DbcSignalTarget = {
 	signal: DbcSignal;
 };
 
-type DbcMessageIdentity = {
-	key: string;
-	canId: number;
-	isExtended: boolean;
-	isFd: boolean;
-	fileName: string;
-	messageName: string;
-};
-
-type CanIdIndex = Record<string, DbcMessageIdentity>;
 type SignalTargetIndex = Record<string, DbcSignalTarget>;
 type DbcCandidate = {
 	entry: DbcFileEntry;
@@ -65,16 +62,17 @@ class DbcFilesStore {
 	error = $state<string | null>(null);
 	hasLoadedLibrary = $state(false);
 
-	canIdIndex = $derived.by(() => buildCanIdIndex(this.files));
 	signalTargetByKey = $derived.by(() => buildSignalTargetIndex(this.files));
 
 	sidebarFiles = $derived.by<SidebarDbcFile[]>(() =>
 		this.files.map((entry) => ({
 			id: entry.id,
 			name: displayDbcName(entry.name),
-			signals: entry.catalog.messages.flatMap((message) =>
-				message.signals.map((signal) => sidebarSignal(entry.id, message, signal))
-			)
+			messages: entry.catalog.messages.map((message) => ({
+				key: sidebarMessageKey(entry.id, message),
+				name: message.name,
+				signals: message.signals.map((signal) => sidebarSignal(entry.id, message, signal))
+			}))
 		}))
 	);
 
@@ -91,7 +89,6 @@ class DbcFilesStore {
 			}
 
 			const entries = candidates.map((candidate) => candidate.entry);
-			assertNoCanIdOverlaps(this.canIdIndex, entries);
 			await putStoredDbcs(candidates.map((candidate) => candidate.stored));
 			this.files = [...this.files, ...entries];
 		} catch (error) {
@@ -140,7 +137,6 @@ class DbcFilesStore {
 				candidates.push((await this.openStoredDbc(dbc)).entry);
 			}
 
-			assertNoCanIdOverlaps({}, candidates);
 			this.files = candidates;
 			this.hasLoadedLibrary = true;
 		} catch {
@@ -166,6 +162,7 @@ class DbcFilesStore {
 
 		try {
 			const catalog = await getDbcCatalog(handle);
+			assertUniqueMessageIdentities(dbc.name, catalog);
 			return {
 				entry: {
 					id: dbc.id,
@@ -182,49 +179,23 @@ class DbcFilesStore {
 	}
 }
 
-function buildCanIdIndex(files: DbcFileEntry[]): CanIdIndex {
-	const index: CanIdIndex = {};
+function assertUniqueMessageIdentities(fileName: string, catalog: ParsedDbc): void {
+	const seen: Record<string, true> = {};
 
-	for (const entry of files) {
-		for (const identity of messageIdentities(entry)) {
-			index[identity.key] = identity;
+	for (const message of catalog.messages) {
+		const key = messageIdentityKey(message);
+		if (seen[key]) {
+			throw new Error(
+				`${displayDbcName(fileName)} contains multiple messages with the same CAN ID, frame format, and payload length.`
+			);
 		}
-	}
 
-	return index;
-}
-
-function assertNoCanIdOverlaps(existingIndex: CanIdIndex, candidates: DbcFileEntry[]): void {
-	const candidateIndex: CanIdIndex = {};
-
-	for (const entry of candidates) {
-		for (const identity of messageIdentities(entry)) {
-			const existing = existingIndex[identity.key] ?? candidateIndex[identity.key];
-
-			if (existing) {
-				throw new Error(
-					`${displayDbcName(identity.fileName)} contains messages which overlap with those defined in existing files.`
-				);
-			}
-
-			candidateIndex[identity.key] = identity;
-		}
+		seen[key] = true;
 	}
 }
 
-function messageIdentities(entry: DbcFileEntry): DbcMessageIdentity[] {
-	return entry.catalog.messages.map((message) => ({
-		key: canIdKey(message.canId, message.isExtended),
-		canId: message.canId,
-		isExtended: message.isExtended,
-		isFd: message.isFd,
-		fileName: entry.name,
-		messageName: message.name
-	}));
-}
-
-function canIdKey(canId: number, isExtended: boolean): string {
-	return `${isExtended ? 'extended' : 'standard'}:${canId}`;
+export function messageIdentityKey(message: DbcMessageIdentity): string {
+	return `${message.isExtended ? 'extended' : 'standard'}:${message.canId}:${message.sizeBytes}`;
 }
 
 export function displayDbcName(fileName: string): string {
@@ -237,7 +208,7 @@ function buildSignalTargetIndex(files: DbcFileEntry[]): SignalTargetIndex {
 	for (const file of files) {
 		for (const message of file.catalog.messages) {
 			for (const signal of message.signals) {
-				index[signalKey(file.id, message.name, signal.name)] = { file, message, signal };
+				index[signalIdentityKey(file.id, message, signal.name)] = { file, message, signal };
 			}
 		}
 	}
@@ -245,8 +216,16 @@ function buildSignalTargetIndex(files: DbcFileEntry[]): SignalTargetIndex {
 	return index;
 }
 
-export function signalKey(dbcFileId: string, messageName: string, signalName: string): string {
-	return JSON.stringify([dbcFileId, messageName, signalName]);
+export function signalIdentityKey(
+	dbcFileId: string,
+	message: DbcMessageIdentity,
+	signalName: string
+): string {
+	return JSON.stringify([dbcFileId, messageIdentityKey(message), signalName]);
+}
+
+function sidebarMessageKey(dbcFileId: string, message: DbcMessage): string {
+	return JSON.stringify([dbcFileId, messageIdentityKey(message)]);
 }
 
 function sidebarSignal(
@@ -255,7 +234,7 @@ function sidebarSignal(
 	signal: DbcSignal
 ): SidebarDbcSignal {
 	return {
-		key: signalKey(dbcFileId, message.name, signal.name),
+		key: signalIdentityKey(dbcFileId, message, signal.name),
 		label: `${message.name}.${signal.name}`,
 		messageName: message.name,
 		signalName: signal.name
