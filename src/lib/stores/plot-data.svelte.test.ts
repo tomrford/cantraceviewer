@@ -72,6 +72,31 @@ describe('plotData', () => {
 		);
 	});
 
+	it('ignores stale decode results after overlapping refreshAllDecodes calls', async () => {
+		const first = createDeferred<DecodedSignalSeries>();
+		const second = createDeferred<DecodedSignalSeries>();
+		getSignalValuesMock
+			.mockResolvedValueOnce(signalSeries([0.001], [1]))
+			.mockReturnValueOnce(first.promise)
+			.mockReturnValueOnce(second.promise);
+
+		await plotData.toggleSignal(key());
+
+		const firstRefresh = plotData.refreshAllDecodes();
+		const secondRefresh = plotData.refreshAllDecodes();
+
+		second.resolve(signalSeries([0.003], [7]));
+		await secondRefresh;
+
+		first.resolve(signalSeries([0.001], [99]));
+		await firstRefresh;
+
+		expect(plotData.signals[0]?.series).toMatchObject({
+			timesMs: new Float64Array([0.003]),
+			values: new Float64Array([7])
+		});
+	});
+
 	it('keeps a stale decode result out of state after the trace changes', async () => {
 		const deferred = createDeferred<DecodedSignalSeries>();
 		getSignalValuesMock.mockReturnValueOnce(deferred.promise);

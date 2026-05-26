@@ -1,45 +1,16 @@
 import wasmUrl from '$lib/assets/cantraceviewer.wasm?url';
+import type {
+	WasmTraceType,
+	WasmWorkerBootFailed,
+	WasmWorkerMessage,
+	WasmWorkerReady,
+	WasmWorkerRequest,
+	WasmWorkerSuccess
+} from '$lib/wasm-rpc.types.js';
 
-type TraceType = 'asc' | 'trc' | 'blf';
+type BootState = { status: 'loading' } | { status: 'ready' } | { status: 'failed'; error: string };
 
-type DbcMessageIdentity = {
-	canId: number;
-	isExtended: boolean;
-	sizeBytes: number;
-};
-
-type WasmWorkerRequest =
-	| { id: string; op: 'openDbc'; text: string }
-	| { id: string; op: 'getDbcCatalog'; handleId: string }
-	| { id: string; op: 'closeDbc'; handleId: string }
-	| { id: string; op: 'openTrace'; traceType: TraceType; bytes: Uint8Array }
-	| { id: string; op: 'getTraceMetadata'; handleId: string }
-	| { id: string; op: 'closeTrace'; handleId: string }
-	| {
-			id: string;
-			op: 'getSignalValues';
-			dbcHandleId: string;
-			traceHandleId: string;
-			messageIdentity: DbcMessageIdentity;
-			signalName: string;
-	  };
-
-type WasmWorkerSuccess = {
-	id: string;
-	ok: true;
-	result: unknown;
-	transfer?: ArrayBuffer[];
-};
-
-type WasmWorkerFailure = {
-	id: string;
-	ok: false;
-	error: string;
-};
-
-type WasmWorkerReady = {
-	type: 'ready';
-};
+let bootState: BootState = { status: 'loading' };
 
 type CanTraceViewerWasmExports = {
 	memory: WebAssembly.Memory;
@@ -175,7 +146,7 @@ function readSignalSeries(
 
 function parserForTraceType(
 	wasm: CanTraceViewerWasmExports,
-	traceType: TraceType
+	traceType: WasmTraceType
 ): { parse: (input: number) => number; label: TraceFormatLabel } {
 	switch (traceType) {
 		case 'asc':
@@ -329,12 +300,53 @@ function respondSuccess(id: string, result: unknown, transfer: Transferable[] = 
 }
 
 function respondFailure(id: string, error: string): void {
-	const response: WasmWorkerFailure = { id, ok: false, error };
+	const response = { id, ok: false, error } as const;
 	self.postMessage(response);
 }
 
-self.onmessage = (event: MessageEvent<WasmWorkerRequest>) => {
-	const request = event.data;
+function postBootStatus(): void {
+	if (bootState.status === 'ready') {
+		const ready: WasmWorkerReady = { type: 'ready' };
+		self.postMessage(ready);
+		return;
+	}
+
+	if (bootState.status === 'failed') {
+		const failed: WasmWorkerBootFailed = { type: 'boot-failed', error: bootState.error };
+		self.postMessage(failed);
+	}
+}
+
+function markBootReady(): void {
+	if (bootState.status === 'ready') {
+		return;
+	}
+
+	bootState = { status: 'ready' };
+	const ready: WasmWorkerReady = { type: 'ready' };
+	self.postMessage(ready);
+}
+
+function markBootFailed(error: unknown): void {
+	if (bootState.status === 'failed') {
+		return;
+	}
+
+	const message = error instanceof Error ? error.message : 'WASM worker boot failed';
+	bootState = { status: 'failed', error: message };
+	const failed: WasmWorkerBootFailed = { type: 'boot-failed', error: message };
+	self.postMessage(failed);
+}
+
+self.onmessage = (event: MessageEvent<WasmWorkerMessage | WasmWorkerRequest>) => {
+	const message = event.data;
+
+	if ('type' in message && message.type === 'sync') {
+		postBootStatus();
+		return;
+	}
+
+	const request = message as WasmWorkerRequest;
 	void (async () => {
 		try {
 			const wasm = await loadWasm();
@@ -348,7 +360,4 @@ self.onmessage = (event: MessageEvent<WasmWorkerRequest>) => {
 	})();
 };
 
-void loadWasm().then(() => {
-	const ready: WasmWorkerReady = { type: 'ready' };
-	self.postMessage(ready);
-});
+void loadWasm().then(markBootReady).catch(markBootFailed);

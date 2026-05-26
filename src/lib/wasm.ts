@@ -1,4 +1,5 @@
 import WasmWorker from './wasm.worker.ts?worker';
+import type { WasmRpcPayload, WasmWorkerMessage } from './wasm-rpc.types.js';
 import { z } from 'zod';
 
 const DbcValueDescriptionSchema = z.object({
@@ -66,66 +67,51 @@ export type TraceHandle = {
 
 export type DbcMessageIdentity = Pick<DbcMessage, 'canId' | 'isExtended' | 'sizeBytes'>;
 
-type WasmRpcPayload =
-	| { op: 'openDbc'; text: string }
-	| { op: 'getDbcCatalog'; handleId: string }
-	| { op: 'closeDbc'; handleId: string }
-	| { op: 'openTrace'; traceType: TraceType; bytes: Uint8Array }
-	| { op: 'getTraceMetadata'; handleId: string }
-	| { op: 'closeTrace'; handleId: string }
-	| {
-			op: 'getSignalValues';
-			dbcHandleId: string;
-			traceHandleId: string;
-			messageIdentity: DbcMessageIdentity;
-			signalName: string;
-	  };
-
-type WasmRpcRequest = WasmRpcPayload & { id: string };
-
-type WasmRpcSuccess = {
-	id: string;
-	ok: true;
-	result: unknown;
-};
-
-type WasmRpcFailure = {
-	id: string;
-	ok: false;
-	error: string;
-};
-
-type WasmWorkerReady = {
-	type: 'ready';
-};
-
 type PendingRequest = {
 	resolve: (value: unknown) => void;
 	reject: (error: Error) => void;
 };
 
 let worker: Worker | null = null;
+let bootPromise: Promise<void> | null = null;
+let bootReady = false;
 let resolveBoot: (() => void) | null = null;
-const bootPromise = new Promise<void>((resolve) => {
-	resolveBoot = resolve;
-});
+let rejectBoot: ((error: Error) => void) | null = null;
 const pendingRequests = new Map<string, PendingRequest>();
 
-function getWorker(): Worker {
-	if (!worker) {
-		worker = new WasmWorker();
-		worker.addEventListener('message', handleWorkerMessage);
+function ensureWorker(): Worker {
+	if (worker) {
+		return worker;
 	}
+
+	bootPromise ??= new Promise<void>((resolve, reject) => {
+		resolveBoot = resolve;
+		rejectBoot = reject;
+	});
+
+	worker = new WasmWorker();
+	worker.addEventListener('message', handleWorkerMessage);
+	worker.addEventListener('error', handleWorkerError);
+	worker.addEventListener('messageerror', handleWorkerMessageError);
+	worker.postMessage({ type: 'sync' });
+
 	return worker;
 }
 
-function handleWorkerMessage(event: MessageEvent<WasmRpcSuccess | WasmRpcFailure | WasmWorkerReady>): void {
+function handleWorkerMessage(event: MessageEvent<WasmWorkerMessage>): void {
 	const message = event.data;
 
-	if ('type' in message && message.type === 'ready') {
-		resolveBoot?.();
-		resolveBoot = null;
-		return;
+	if ('type' in message) {
+		switch (message.type) {
+			case 'ready':
+				resolveBootOnce();
+				return;
+			case 'boot-failed':
+				failWorker(new Error(message.error));
+				return;
+			case 'sync':
+				return;
+		}
 	}
 
 	if (!('id' in message)) {
@@ -147,9 +133,54 @@ function handleWorkerMessage(event: MessageEvent<WasmRpcSuccess | WasmRpcFailure
 	pending.reject(new Error(message.error));
 }
 
-function bootWorker(): Promise<void> {
-	getWorker();
-	return bootPromise;
+function handleWorkerError(event: ErrorEvent): void {
+	failWorker(new Error(event.message || 'WASM worker failed'));
+}
+
+function handleWorkerMessageError(): void {
+	failWorker(new Error('WASM worker message failed'));
+}
+
+function resolveBootOnce(): void {
+	if (bootReady) {
+		return;
+	}
+
+	bootReady = true;
+	resolveBoot?.();
+	resolveBoot = null;
+	rejectBoot = null;
+}
+
+function rejectAllPending(error: Error): void {
+	for (const pending of pendingRequests.values()) {
+		pending.reject(error);
+	}
+	pendingRequests.clear();
+}
+
+function resetWorkerState(): void {
+	worker = null;
+	bootPromise = null;
+	bootReady = false;
+	resolveBoot = null;
+	rejectBoot = null;
+}
+
+function failWorker(error: Error): void {
+	rejectBoot?.(error);
+	rejectAllPending(error);
+	worker?.terminate();
+	resetWorkerState();
+}
+
+async function bootWorker(): Promise<void> {
+	if (bootReady) {
+		return;
+	}
+
+	await ensureWorker();
+	await bootPromise;
 }
 
 async function rpc<T>(request: WasmRpcPayload, transfer: Transferable[] = []): Promise<T> {
@@ -163,7 +194,7 @@ async function rpc<T>(request: WasmRpcPayload, transfer: Transferable[] = []): P
 			reject
 		});
 
-		getWorker().postMessage({ ...request, id }, transfer);
+		ensureWorker().postMessage({ ...request, id }, transfer);
 	});
 }
 
