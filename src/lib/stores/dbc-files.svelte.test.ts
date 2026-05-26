@@ -85,6 +85,26 @@ describe('dbcFiles', () => {
 		expect(dbcFiles.sidebarFiles[0]?.messages).toHaveLength(2);
 	});
 
+	it('rejects duplicate frame identities within one DBC file', async () => {
+		const handle = { ptr: 302 };
+		openDbcMock.mockResolvedValueOnce(handle);
+		getDbcCatalogMock.mockResolvedValueOnce(
+			catalog(
+				message({ name: 'FirstMessage', canId: 0x123, sizeBytes: 8 }),
+				message({ name: 'SecondMessage', canId: 0x123, sizeBytes: 8 })
+			)
+		);
+
+		await dbcFiles.addFiles([file('ambiguous.dbc', 'ambiguous')]);
+
+		expect(dbcFiles.files).toHaveLength(0);
+		expect(dbcFiles.error).toBe(
+			'ambiguous contains multiple messages with the same CAN ID, frame format, and payload length.'
+		);
+		expect(closeDbcMock).toHaveBeenCalledExactlyOnceWith(handle);
+		expect(putStoredDbcsMock).not.toHaveBeenCalled();
+	});
+
 	it('ignores added files while another DBC operation is loading', async () => {
 		dbcFiles.isLoading = true;
 

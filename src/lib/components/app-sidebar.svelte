@@ -22,7 +22,7 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 	import { onMount } from 'svelte';
-	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
+	import { SvelteSet } from 'svelte/reactivity';
 	import type { ComponentProps } from 'svelte';
 
 	let {
@@ -43,7 +43,7 @@
 	let visibleDbcFiles = $derived.by(() =>
 		dbcFiles.sidebarFiles
 			.map((dbc) => {
-				const signalsByMessage = new SvelteMap<string, SidebarDbcSignal[]>();
+				const signalsByMessage: Record<string, SidebarDbcSignal[]> = {};
 				const visibleSignals = rankedFuzzySearch(
 					dbc.messages.flatMap((message) =>
 						message.signals
@@ -55,7 +55,8 @@
 				);
 
 				for (const { messageKey, signal } of visibleSignals) {
-					signalsByMessage.set(messageKey, [...(signalsByMessage.get(messageKey) ?? []), signal]);
+					signalsByMessage[messageKey] ??= [];
+					signalsByMessage[messageKey].push(signal);
 				}
 
 				return {
@@ -63,7 +64,7 @@
 					messages: dbc.messages
 						.map((message) => ({
 							...message,
-							signals: signalsByMessage.get(message.key) ?? []
+							signals: signalsByMessage[message.key] ?? []
 						}))
 						.filter((message) => message.signals.length > 0)
 				};

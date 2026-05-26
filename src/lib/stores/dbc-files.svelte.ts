@@ -162,6 +162,7 @@ class DbcFilesStore {
 
 		try {
 			const catalog = await getDbcCatalog(handle);
+			assertUniqueMessageIdentities(dbc.name, catalog);
 			return {
 				entry: {
 					id: dbc.id,
@@ -175,6 +176,21 @@ class DbcFilesStore {
 			await closeDbc(handle);
 			throw error;
 		}
+	}
+}
+
+function assertUniqueMessageIdentities(fileName: string, catalog: ParsedDbc): void {
+	const seen: Record<string, true> = {};
+
+	for (const message of catalog.messages) {
+		const key = messageIdentityKey(message);
+		if (seen[key]) {
+			throw new Error(
+				`${displayDbcName(fileName)} contains multiple messages with the same CAN ID, frame format, and payload length.`
+			);
+		}
+
+		seen[key] = true;
 	}
 }
 

@@ -32,9 +32,9 @@
 			>
 				<span class="size-2 rounded-full" style:background-color={view.color}></span>
 				<span class="flex min-w-0" title={view.label}>
-					<span class="signal-label-primary min-w-0 truncate">{view.signalName}</span>
+					<span class="min-w-0 flex-[0_1_max-content] truncate">{view.signalName}</span>
 					<span class="text-muted-foreground">&nbsp;(</span>
-					<span class="signal-label-context min-w-0 truncate text-muted-foreground">
+					<span class="min-w-0 flex-[0_9999_auto] truncate text-muted-foreground">
 						{view.messageName}
 					</span>
 					<span class="text-muted-foreground">)</span>
@@ -54,13 +54,3 @@
 		</div>
 	{/if}
 </div>
-
-<style>
-	.signal-label-primary {
-		flex: 0 1 max-content;
-	}
-
-	.signal-label-context {
-		flex: 0 9999 auto;
-	}
-</style>
