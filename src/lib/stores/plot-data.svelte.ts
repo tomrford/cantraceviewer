@@ -45,7 +45,7 @@ export type PlotSignal = {
 };
 
 export function isPlottableSignal(signal: PlotSignal): boolean {
-	return Boolean(signal.series && signal.series.timesMs.length >= 2);
+	return Boolean(signal.series && signal.series.timesMs.length > 0);
 }
 
 class PlotDataStore {

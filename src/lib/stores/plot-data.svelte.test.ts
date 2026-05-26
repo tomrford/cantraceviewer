@@ -47,6 +47,7 @@ describe('plotData', () => {
 				decodeError: null
 			}
 		]);
+		expect(plotData.hasPlottableSignals).toBe(true);
 	});
 
 	it('keeps a stale decode result out of state after the trace changes', async () => {
