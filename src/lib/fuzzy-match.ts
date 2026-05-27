@@ -1,8 +1,7 @@
 import MiniSearch from 'minisearch';
 
-type SearchDocument<T> = {
+type SearchDocument = {
 	id: number;
-	item: T;
 	searchText: string;
 };
 
@@ -14,14 +13,12 @@ export function rankedFuzzySearch<T>(
 	const trimmedQuery = query.trim();
 	if (trimmedQuery.length === 0) return items;
 
-	const documents = items.map<SearchDocument<T>>((item, id) => ({
+	const documents = items.map<SearchDocument>((item, id) => ({
 		id,
-		item,
-		searchText: normalizeSearchText(getSearchText(item))
+		searchText: getSearchText(item)
 	}));
-	const miniSearch = new MiniSearch<SearchDocument<T>>({
+	const miniSearch = new MiniSearch<SearchDocument>({
 		fields: ['searchText'],
-		storeFields: ['item'],
 		tokenize: tokenizeSearchText,
 		processTerm: normalizeSearchTerm
 	});
@@ -34,22 +31,19 @@ export function rankedFuzzySearch<T>(
 			fuzzy: (term) => (term.length >= 3 ? 0.3 : false),
 			combineWith: 'AND'
 		})
-		.map((result) => documents[result.id as number].item);
-}
-
-function normalizeSearchText(text: string): string {
-	return text
-		.normalize('NFKD')
-		.replace(/[\u0300-\u036f]/g, '')
-		.trim()
-		.replace(/\s+/g, ' ');
+		.map((result) => items[result.id as number]);
 }
 
 function tokenizeSearchText(text: string): string[] {
-	return text
-		.split(/[\s\p{P}]+/u)
-		.flatMap((term) => [term, ...camelCaseTerms(term)])
-		.filter(Boolean);
+	return Array.from(
+		new Set(
+			text
+				.trim()
+				.split(/[\s\p{P}]+/u)
+				.flatMap((term) => [term, ...camelCaseTerms(term)])
+				.filter(Boolean)
+		)
+	);
 }
 
 function camelCaseTerms(term: string): string[] {
