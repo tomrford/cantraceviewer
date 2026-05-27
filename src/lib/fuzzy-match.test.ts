@@ -11,11 +11,11 @@ const signals = [
 ];
 
 function search(query: string): string[] {
-	return rankedFuzzySearch(signals, query, (signal) => [
-		signal.messageName,
-		signal.signalName,
-		`${signal.messageName}.${signal.signalName}`
-	]).map((signal) => `${signal.messageName}.${signal.signalName}`);
+	return rankedFuzzySearch(
+		signals,
+		query,
+		(signal) => `${signal.messageName}.${signal.signalName}`
+	).map((signal) => `${signal.messageName}.${signal.signalName}`);
 }
 
 describe('rankedFuzzySearch', () => {
@@ -23,6 +23,7 @@ describe('rankedFuzzySearch', () => {
 		expect(search('vehicle speed')).toEqual(
 			expect.arrayContaining(['SpeedMessage.VehicleSpeed', 'PowertrainStatus.vehicle_speed'])
 		);
+		expect(search('status')).toEqual([]);
 	});
 
 	it('keeps partial fuzzy searches useful', () => {
@@ -30,8 +31,7 @@ describe('rankedFuzzySearch', () => {
 			expect.arrayContaining([
 				'Message.Signal',
 				'SpeedMessage.VehicleSpeed',
-				'PowertrainStatus.vehicle_speed',
-				'EngineStatus.EngineRpm'
+				'PowertrainStatus.vehicle_speed'
 			])
 		);
 		expect(search('veh')).toEqual(
@@ -47,12 +47,6 @@ describe('rankedFuzzySearch', () => {
 	it('supports full label searches across message and signal names', () => {
 		expect(search('message.sign')[0]).toBe('Message.Signal');
 		expect(search('age.sign')).toEqual([]);
-	});
-
-	it('matches substrings in the middle of message names', () => {
-		expect(search('status')).toEqual(
-			expect.arrayContaining(['PowertrainStatus.vehicle_speed', 'EngineStatus.EngineRpm'])
-		);
 	});
 
 	it('keeps a little typo tolerance without broadening short abbreviations', () => {

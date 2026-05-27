@@ -52,7 +52,7 @@
 							.map((signal) => ({ messageKey: message.key, signal }))
 					),
 					normalizedSignalSearch,
-					({ signal }) => [signal.messageName, signal.signalName, signal.label]
+					({ signal }) => signal.label
 				);
 
 				for (const { messageKey, signal } of visibleSignals) {
