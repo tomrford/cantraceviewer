@@ -23,6 +23,7 @@
 		signalView,
 		visibleSignalViews
 	} from '$lib/signal-plot-data.js';
+	import * as ContextMenu from '$lib/components/ui/context-menu/index.js';
 	import SignalPlotLegend from './signal-plot-legend.svelte';
 	import { isPlottableSignal, plotData } from '$lib/stores/plot-data.svelte.js';
 	import { isDark, timestampMode } from '$lib/stores/preferences.svelte.js';
@@ -58,6 +59,7 @@
 	let viewport = $state<PlotViewport | null>(null);
 	let lastFullDomain: PlotViewport | null = null;
 	let dragState = $state<DragState | null>(null);
+	let contextMenuX = $state<number | null>(null);
 	let lastSignature = '';
 	let markerDragRaf: number | null = null;
 	let pendingMarkerX: number | null = null;
@@ -230,6 +232,16 @@
 		});
 	}
 
+	function toggleMarker() {
+		if (!plotReady) return;
+		markerEnabled = !markerEnabled;
+	}
+
+	function toggleBoxZoom() {
+		if (!plotReady) return;
+		boxZoomEnabled = !boxZoomEnabled;
+	}
+
 	function placeMarkerAt(x: number): void {
 		if (!plotReady) return;
 		if (!markerEnabled) markerEnabled = true;
@@ -350,10 +362,18 @@
 	}
 
 	function pointerToDataX(event: PointerEvent): number | null {
+		return clientToDataX(event);
+	}
+
+	function clientToDataX(event: Pick<MouseEvent, 'clientX' | 'clientY'>): number | null {
 		if (activeViewport === null) return null;
 		const point = currentPlotRatio(event);
 		if (point === null) return null;
 		return activeViewport.xMin + point.xRatio * (activeViewport.xMax - activeViewport.xMin);
+	}
+
+	function rememberContextMenuPoint(event: MouseEvent) {
+		contextMenuX = clientToDataX(event);
 	}
 
 	function handlePlotWheel(event: WheelEvent) {
@@ -465,62 +485,100 @@
 	<div bind:this={container} class="absolute inset-0" aria-label="Selected signal plot"></div>
 
 	{#if plotReady}
-		<button
-			type="button"
-			class={`absolute z-30 border-0 bg-transparent p-0 text-left outline-none ${
-				boxZoomEnabled
-					? 'cursor-crosshair'
-					: dragState?.type === 'pan'
-						? 'cursor-grabbing'
-						: 'cursor-grab'
-			}`}
-			style:top={`${PLOT_GRID.top}px`}
-			style:bottom={`${PLOT_GRID.bottom}px`}
-			style:left={`${PLOT_GRID.left}px`}
-			style:right={`${PLOT_GRID.right}px`}
-			aria-label="Plot viewport interaction"
-			onwheel={handlePlotWheel}
-			onpointerdown={startPlotDrag}
-			onpointermove={dragPlot}
-			onpointerup={stopPlotDrag}
-			onpointercancel={stopPlotDrag}
-			onkeydown={cancelBoxZoom}
-		>
-			{#if dragState?.type === 'box'}
-				<div
-					class="absolute border border-current bg-current/10 text-foreground"
-					style:left={`${Math.min(dragState.start.xRatio, dragState.current.xRatio) * 100}%`}
-					style:top={`${Math.min(dragState.start.yRatio, dragState.current.yRatio) * 100}%`}
-					style:width={`${Math.abs(dragState.current.xRatio - dragState.start.xRatio) * 100}%`}
-					style:height={`${Math.abs(dragState.current.yRatio - dragState.start.yRatio) * 100}%`}
-				></div>
-			{/if}
-		</button>
-
-		{#if markerPercent !== null}
-			<div
-				class="pointer-events-none absolute z-40 text-foreground"
-				style:top={`${PLOT_GRID.top}px`}
-				style:bottom={`${PLOT_GRID.bottom}px`}
-				style:left={`${PLOT_GRID.left}px`}
-				style:right={`${PLOT_GRID.right}px`}
+		<ContextMenu.Root>
+			<ContextMenu.Trigger
+				class="contents"
+				disabled={!plotReady}
+				oncontextmenu={rememberContextMenuPoint}
 			>
-				<div
-					class="pointer-events-auto absolute inset-y-0 w-5 -translate-x-1/2 cursor-ew-resize"
-					style:left={`${markerPercent}%`}
-					role="separator"
-					aria-label="X marker"
-					aria-orientation="vertical"
-					tabindex="-1"
-					onpointerdown={startMarkerDrag}
-					onpointermove={dragMarker}
-					onpointerup={stopMarkerDrag}
-					onpointercancel={stopMarkerDrag}
+				<button
+					type="button"
+					class={`absolute z-30 border-0 bg-transparent p-0 text-left outline-none ${
+						boxZoomEnabled
+							? 'cursor-crosshair'
+							: dragState?.type === 'pan'
+								? 'cursor-grabbing'
+								: 'cursor-grab'
+					}`}
+					style:top={`${PLOT_GRID.top}px`}
+					style:bottom={`${PLOT_GRID.bottom}px`}
+					style:left={`${PLOT_GRID.left}px`}
+					style:right={`${PLOT_GRID.right}px`}
+					aria-label="Plot viewport interaction"
+					onwheel={handlePlotWheel}
+					onpointerdown={startPlotDrag}
+					onpointermove={dragPlot}
+					onpointerup={stopPlotDrag}
+					onpointercancel={stopPlotDrag}
+					onkeydown={cancelBoxZoom}
 				>
-					<span class="absolute inset-y-0 left-1/2 border-l border-current"></span>
-				</div>
-			</div>
-		{/if}
+					{#if dragState?.type === 'box'}
+						<div
+							class="absolute border border-current bg-current/10 text-foreground"
+							style:left={`${Math.min(dragState.start.xRatio, dragState.current.xRatio) * 100}%`}
+							style:top={`${Math.min(dragState.start.yRatio, dragState.current.yRatio) * 100}%`}
+							style:width={`${Math.abs(dragState.current.xRatio - dragState.start.xRatio) * 100}%`}
+							style:height={`${Math.abs(dragState.current.yRatio - dragState.start.yRatio) * 100}%`}
+						></div>
+					{/if}
+				</button>
+
+				{#if markerPercent !== null}
+					<div
+						class="pointer-events-none absolute z-40 text-foreground"
+						style:top={`${PLOT_GRID.top}px`}
+						style:bottom={`${PLOT_GRID.bottom}px`}
+						style:left={`${PLOT_GRID.left}px`}
+						style:right={`${PLOT_GRID.right}px`}
+					>
+						<div
+							class="pointer-events-auto absolute inset-y-0 w-5 -translate-x-1/2 cursor-ew-resize"
+							style:left={`${markerPercent}%`}
+							role="separator"
+							aria-label="X marker"
+							aria-orientation="vertical"
+							tabindex="-1"
+							onpointerdown={startMarkerDrag}
+							onpointermove={dragMarker}
+							onpointerup={stopMarkerDrag}
+							onpointercancel={stopMarkerDrag}
+						>
+							<span class="absolute inset-y-0 left-1/2 border-l border-current"></span>
+						</div>
+					</div>
+				{/if}
+			</ContextMenu.Trigger>
+			<ContextMenu.Content class="w-48">
+				<ContextMenu.Item onSelect={() => zoomBy(0.5)}>Zoom in</ContextMenu.Item>
+				<ContextMenu.Item onSelect={() => zoomBy(2)}>Zoom out</ContextMenu.Item>
+				<ContextMenu.Item disabled={isFitAll} onSelect={resetZoom}
+					>Zoom to full extent</ContextMenu.Item
+				>
+				<ContextMenu.Separator />
+				<ContextMenu.Item
+					disabled={contextMenuX === null}
+					onSelect={() => {
+						if (contextMenuX !== null) placeMarkerAt(contextMenuX);
+					}}
+				>
+					Place marker here
+				</ContextMenu.Item>
+				<ContextMenu.Item onSelect={toggleMarker}>
+					{markerEnabled ? 'Hide x marker' : 'Show x marker'}
+				</ContextMenu.Item>
+				<ContextMenu.Item onSelect={toggleBoxZoom}>
+					{boxZoomEnabled ? 'Use drag pan' : 'Use box zoom'}
+				</ContextMenu.Item>
+				<ContextMenu.Separator />
+				<ContextMenu.Item
+					disabled={plotData.selectedSignalKeys.size === 0}
+					variant="destructive"
+					onSelect={() => plotData.clearSelectedSignals()}
+				>
+					Clear selected signals
+				</ContextMenu.Item>
+			</ContextMenu.Content>
+		</ContextMenu.Root>
 
 		{#if legendVisible}
 			<SignalPlotLegend
