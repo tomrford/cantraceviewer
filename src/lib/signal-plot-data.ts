@@ -103,6 +103,19 @@ export function signalDomain(views: SignalView[]): PlotViewport | null {
 	return fitDomain(plotPoints(views));
 }
 
+export function traceDomain(durationNs: number | null | undefined): PlotViewport | null {
+	if (durationNs === null || durationNs === undefined || !Number.isFinite(durationNs)) return null;
+	const durationMs = durationNs / 1_000_000;
+	if (!(durationMs > 0)) return null;
+
+	return {
+		xMin: 0,
+		xMax: durationMs,
+		yMin: 0,
+		yMax: 1
+	};
+}
+
 export function formatAxisTime(
 	value: number,
 	options: { measurementStartMs?: number | null; mode: TimestampMode }

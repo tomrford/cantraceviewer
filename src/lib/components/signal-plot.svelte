@@ -21,6 +21,7 @@
 		markerValue,
 		signalDomain,
 		signalView,
+		traceDomain,
 		visibleSignalViews
 	} from '$lib/signal-plot-data.js';
 	import * as ContextMenu from '$lib/components/ui/context-menu/index.js';
@@ -106,15 +107,17 @@
 	});
 	const readySignals = $derived(signalBuckets.ready);
 	const waitingSignals = $derived(signalBuckets.waiting);
-	const plotReady = $derived(plotData.hasPlottableSignals);
+	const hasSignals = $derived(plotData.hasPlottableSignals);
 	const signalViews = $derived(readySignals.map((signal) => signalView(signal)));
 	const measurementStartMs = $derived(traceFile.entry?.metadata.measurementStartMs);
-	const fullDomain = $derived.by(() => signalDomain(signalViews));
+	const traceDurationNs = $derived(traceFile.entry?.metadata.durationNs);
+	const fullDomain = $derived.by(() => signalDomain(signalViews) ?? traceDomain(traceDurationNs));
+	const plotReady = $derived(fullDomain !== null);
 	const activeViewport = $derived(viewport ?? fullDomain);
 	const visibleViews = $derived(visibleSignalViews(signalViews, activeViewport));
 	const isFitAll = $derived(viewportsAlmostEqual(activeViewport, fullDomain));
 	const displayedMarkerX = $derived.by(() => {
-		if (!plotReady || !markerEnabled || markerX === null) return null;
+		if (!hasSignals || !markerEnabled || markerX === null) return null;
 		return markerX;
 	});
 	const markerPercent = $derived.by(() => {
@@ -164,14 +167,14 @@
 	let lastReportedCanReset: boolean | undefined;
 
 	$effect(() => {
-		const canReset = plotReady && !isFitAll;
+		const canReset = hasSignals && !isFitAll;
 		if (lastReportedCanReset === canReset) return;
 		lastReportedCanReset = canReset;
 		onCanResetZoomChange?.(canReset);
 	});
 
 	$effect(() => {
-		if (!plotReady) {
+		if (!hasSignals) {
 			markerEnabled = false;
 			markerX = null;
 			return;
@@ -204,6 +207,7 @@
 	$effect(() => {
 		const signature = JSON.stringify({
 			measurementStartMs,
+			hasSignals,
 			isDark: isDark(),
 			timestampMode: timestampMode.current,
 			viewport: activeViewport,
@@ -216,7 +220,7 @@
 	});
 
 	function whenPlotReady(action: () => void) {
-		if (!plotReady) return;
+		if (!hasSignals) return;
 		action();
 	}
 
@@ -490,11 +494,11 @@
 	{/if}
 	<div bind:this={container} class="absolute inset-0" aria-label="Selected signal plot"></div>
 
-	{#if plotReady}
+	{#if hasSignals}
 		<ContextMenu.Root>
 			<ContextMenu.Trigger
 				class="contents"
-				disabled={!plotReady}
+				disabled={!hasSignals}
 				oncontextmenu={rememberContextMenuPoint}
 			>
 				<button
@@ -598,7 +602,15 @@
 			</ContextMenu.Content>
 		</ContextMenu.Root>
 
-		{#if legendVisible}
+		{#if !hasSignals}
+			<div
+				class="pointer-events-none absolute inset-x-6 top-4 z-30 text-center text-sm text-muted-foreground"
+			>
+				Select signals from the DBC side panel to view them.
+			</div>
+		{/if}
+
+		{#if hasSignals && legendVisible}
 			<SignalPlotLegend
 				views={signalViews}
 				{displayedMarkerX}

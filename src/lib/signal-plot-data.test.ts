@@ -3,6 +3,7 @@ import {
 	formatAxisValue,
 	lineSeries,
 	lineSeriesForViews,
+	traceDomain,
 	visibleSignalViews,
 	type SignalView
 } from './signal-plot-data';
@@ -69,5 +70,19 @@ describe('signal plot data', () => {
 		expect(formatAxisValue(12.3456789)).toBe('12.3');
 		expect(formatAxisValue(1.23456789)).toBe('1.235');
 		expect(formatAxisValue(0.000012345)).toBe('1.23e-5');
+	});
+
+	it('builds a fallback domain from trace duration metadata', () => {
+		expect(traceDomain(1_500_000_000)).toEqual({
+			xMin: 0,
+			xMax: 1500,
+			yMin: 0,
+			yMax: 1
+		});
+	});
+
+	it('does not build a fallback domain without positive trace duration metadata', () => {
+		expect(traceDomain(null)).toBeNull();
+		expect(traceDomain(0)).toBeNull();
 	});
 });
