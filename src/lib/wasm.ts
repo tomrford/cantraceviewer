@@ -1,5 +1,11 @@
 import wasmUrl from '$lib/assets/cantraceviewer.wasm?url';
-import { z } from 'zod';
+import type {
+	DbcMessage,
+	DbcSignal,
+	DbcValueDescription,
+	ParsedDbc,
+	TraceMetadata
+} from '$lib/wasm-schemas.js';
 
 export {
 	DBC_MAX_FILE_BYTES,
@@ -7,54 +13,7 @@ export {
 	assertFileSizeWithinLimit
 } from '$lib/file-limits.js';
 
-const DbcValueDescriptionSchema = z.object({
-	rawValue: z.number(),
-	label: z.string()
-});
-
-const DbcSignalSchema = z.object({
-	name: z.string(),
-	startBit: z.number(),
-	bitLength: z.number(),
-	endianness: z.string(),
-	signedness: z.string(),
-	factor: z.number(),
-	offset: z.number(),
-	minimum: z.number(),
-	maximum: z.number(),
-	unit: z.string(),
-	valueType: z.string(),
-	unsupportedMux: z.boolean(),
-	receivers: z.array(z.string()),
-	valueDescriptions: z.array(DbcValueDescriptionSchema)
-});
-
-const DbcMessageSchema = z.object({
-	name: z.string(),
-	dbcId: z.number(),
-	canId: z.number(),
-	isExtended: z.boolean(),
-	isFd: z.boolean(),
-	sizeBytes: z.number(),
-	transmitter: z.string(),
-	signals: z.array(DbcSignalSchema)
-});
-
-const ParsedDbcSchema = z.object({
-	messages: z.array(DbcMessageSchema)
-});
-
-const TraceMetadataSchema = z.object({
-	measurementStartMs: z.number().nullable(),
-	validMessageCount: z.number(),
-	durationNs: z.number().nullable()
-});
-
-export type DbcValueDescription = z.infer<typeof DbcValueDescriptionSchema>;
-export type DbcSignal = z.infer<typeof DbcSignalSchema>;
-export type DbcMessage = z.infer<typeof DbcMessageSchema>;
-export type ParsedDbc = z.infer<typeof ParsedDbcSchema>;
-export type TraceMetadata = z.infer<typeof TraceMetadataSchema>;
+export type { DbcMessage, DbcSignal, DbcValueDescription, ParsedDbc, TraceMetadata };
 export type DecodedSignalSeries = {
 	timesMs: Float64Array;
 	values: Float64Array;
@@ -98,6 +57,11 @@ type CanTraceViewerWasmExports = {
 };
 
 let wasmPromise: Promise<CanTraceViewerWasmExports> | null = null;
+let wasmSchemasPromise: Promise<typeof import('$lib/wasm-schemas.js')> | null = null;
+
+export function preloadWasmValidation(): void {
+	void loadWasmSchemas();
+}
 
 async function loadWasm() {
 	wasmPromise ??= WebAssembly.instantiateStreaming(fetch(wasmUrl), {}).then((result) => {
@@ -105,6 +69,11 @@ async function loadWasm() {
 	});
 
 	return wasmPromise;
+}
+
+function loadWasmSchemas(): Promise<typeof import('$lib/wasm-schemas.js')> {
+	wasmSchemasPromise ??= import('$lib/wasm-schemas.js');
+	return wasmSchemasPromise;
 }
 
 function copyTextToWasm(wasm: CanTraceViewerWasmExports, text: string): number {
@@ -194,7 +163,8 @@ export async function getDbcCatalog(handle: DbcHandle): Promise<ParsedDbc> {
 		throw new Error('DBC JSON export failed');
 	}
 
-	return ParsedDbcSchema.parse(JSON.parse(readOwnedText(wasm, jsonBytes)));
+	const { parseParsedDbc } = await loadWasmSchemas();
+	return parseParsedDbc(JSON.parse(readOwnedText(wasm, jsonBytes)));
 }
 
 export async function closeDbc(handle: DbcHandle): Promise<void> {
@@ -243,7 +213,8 @@ export async function getTraceMetadata(handle: Pick<TraceHandle, 'ptr'>): Promis
 		throw new Error('Trace metadata export failed');
 	}
 
-	return TraceMetadataSchema.parse(JSON.parse(readOwnedText(wasm, jsonBytes)));
+	const { parseTraceMetadata } = await loadWasmSchemas();
+	return parseTraceMetadata(JSON.parse(readOwnedText(wasm, jsonBytes)));
 }
 
 export async function closeTrace(trace: TraceHandle): Promise<void> {

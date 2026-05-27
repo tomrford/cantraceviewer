@@ -1,18 +1,23 @@
-import MiniSearch from 'minisearch';
-
 type SearchDocument = {
 	id: number;
 	searchText: string;
 };
 
-export function rankedFuzzySearch<T>(
+let miniSearchPromise: Promise<typeof import('minisearch')> | null = null;
+
+export function preloadFuzzySearch(): void {
+	void loadMiniSearch();
+}
+
+export async function rankedFuzzySearch<T>(
 	items: T[],
 	query: string,
 	getSearchText: (item: T) => string
-): T[] {
+): Promise<T[]> {
 	const trimmedQuery = query.trim();
 	if (trimmedQuery.length === 0) return items;
 
+	const { default: MiniSearch } = await loadMiniSearch();
 	const documents = items.map<SearchDocument>((item, id) => ({
 		id,
 		searchText: getSearchText(item)
@@ -32,6 +37,11 @@ export function rankedFuzzySearch<T>(
 			combineWith: 'AND'
 		})
 		.map((result) => items[result.id as number]);
+}
+
+function loadMiniSearch(): Promise<typeof import('minisearch')> {
+	miniSearchPromise ??= import('minisearch');
+	return miniSearchPromise;
 }
 
 function tokenizeSearchText(text: string): string[] {

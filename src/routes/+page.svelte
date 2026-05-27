@@ -20,8 +20,9 @@
 	import { sidebarOpen } from '$lib/stores/preferences.svelte.js';
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte.js';
+	import { preloadAfterIdle } from '$lib/preload.js';
 	import { TRACE_FILE_ACCEPT } from '$lib/trace-file-types.js';
-	import type { TraceMetadata } from '$lib/wasm.js';
+	import { preloadWasmValidation, type TraceMetadata } from '$lib/wasm.js';
 	import { MediaQuery } from 'svelte/reactivity';
 	import AudioWaveformIcon from '@lucide/svelte/icons/audio-waveform';
 	import BoxSelectIcon from '@lucide/svelte/icons/box-select';
@@ -67,6 +68,7 @@
 		}
 
 		supportStatus = 'supported';
+		preloadAfterIdle(preloadWasmValidation);
 	});
 
 	async function selectTrace(event: Event) {

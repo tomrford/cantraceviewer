@@ -7,7 +7,8 @@
 		filesFromDrop,
 		hasDraggedFiles
 	} from '$lib/file-drop.js';
-	import { rankedFuzzySearch } from '$lib/fuzzy-match.js';
+	import { preloadFuzzySearch, rankedFuzzySearch } from '$lib/fuzzy-match.js';
+	import { preloadAfterIdle } from '$lib/preload.js';
 	import { dbcFiles, type SidebarDbcSignal } from '$lib/stores/dbc-files.svelte.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
 	import SearchForm from './search-form.svelte';
@@ -27,6 +28,11 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { ComponentProps } from 'svelte';
 
+	type SignalSearchRow = {
+		messageKey: string;
+		signal: SidebarDbcSignal;
+	};
+
 	let {
 		ref = $bindable(null),
 		class: className,
@@ -42,21 +48,29 @@
 	let normalizedSignalSearch = $derived(signalSearch.trim().toLowerCase());
 	let isSignalSearchActive = $derived(normalizedSignalSearch.length > 0);
 	let isFiltering = $derived(isSignalSearchActive || showActiveOnly);
-	let visibleDbcFiles = $derived.by(() =>
-		dbcFiles.sidebarFiles
-			.map((dbc) => {
-				const signalsByMessage: Record<string, SidebarDbcSignal[]> = {};
-				const visibleSignals = rankedFuzzySearch(
-					dbc.messages.flatMap((message) =>
-						message.signals
-							.filter((signal) => !showActiveOnly || plotData.isSignalSelected(signal.key))
-							.map((signal) => ({ messageKey: message.key, signal }))
-					),
-					normalizedSignalSearch,
-					({ signal }) => signal.label
-				);
+	let candidateSignalsByDbc = $derived.by(() =>
+		dbcFiles.sidebarFiles.map((dbc) => ({
+			dbcId: dbc.id,
+			rows: dbc.messages.flatMap((message) =>
+				message.signals
+					.filter((signal) => !showActiveOnly || plotData.isSignalSelected(signal.key))
+					.map((signal) => ({ messageKey: message.key, signal }))
+			)
+		}))
+	);
+	let searchRowsByDbc = $state<Record<string, SignalSearchRow[]> | null>(null);
+	let visibleDbcFiles = $derived.by(() => {
+		const candidateRowsByDbc = Object.fromEntries(
+			candidateSignalsByDbc.map(({ dbcId, rows }) => [dbcId, rows])
+		);
+		const rowsByDbc = isSignalSearchActive ? searchRowsByDbc : candidateRowsByDbc;
 
-				for (const { messageKey, signal } of visibleSignals) {
+		return dbcFiles.sidebarFiles
+			.map((dbc) => {
+				const visibleRows = rowsByDbc?.[dbc.id] ?? [];
+				const signalsByMessage: Record<string, SidebarDbcSignal[]> = {};
+
+				for (const { messageKey, signal } of visibleRows) {
 					signalsByMessage[messageKey] ??= [];
 					signalsByMessage[messageKey].push(signal);
 				}
@@ -71,11 +85,38 @@
 						.filter((message) => message.signals.length > 0)
 				};
 			})
-			.filter((dbc) => !isFiltering || dbc.messages.length > 0)
-	);
+			.filter((dbc) => !isFiltering || dbc.messages.length > 0);
+	});
+
+	$effect(() => {
+		const query = normalizedSignalSearch;
+		const candidateGroups = candidateSignalsByDbc;
+		let cancelled = false;
+
+		if (!isSignalSearchActive) {
+			searchRowsByDbc = null;
+			return;
+		}
+
+		searchRowsByDbc = null;
+		void Promise.all(
+			candidateGroups.map(async ({ dbcId, rows }) => [
+				dbcId,
+				await rankedFuzzySearch(rows, query, ({ signal }) => signal.label)
+			])
+		).then((results) => {
+			if (cancelled) return;
+			searchRowsByDbc = Object.fromEntries(results);
+		});
+
+		return () => {
+			cancelled = true;
+		};
+	});
 
 	onMount(() => {
 		void dbcFiles.loadLibrary();
+		preloadAfterIdle(preloadFuzzySearch);
 	});
 
 	async function selectDbcs(event: Event) {
