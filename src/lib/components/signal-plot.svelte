@@ -31,6 +31,12 @@
 	import { onDestroy, onMount, untrack } from 'svelte';
 	import type { HTMLAttributes } from 'svelte/elements';
 	import type { ChartGPUInstance, ChartGPUOptions } from 'chartgpu';
+	import BoxSelectIcon from '@lucide/svelte/icons/box-select';
+	import ExpandIcon from '@lucide/svelte/icons/expand';
+	import MinusIcon from '@lucide/svelte/icons/minus';
+	import PlusIcon from '@lucide/svelte/icons/plus';
+	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
+	import SeparatorVerticalIcon from '@lucide/svelte/icons/separator-vertical';
 
 	let {
 		dropActive = false,
@@ -548,12 +554,19 @@
 					</div>
 				{/if}
 			</ContextMenu.Trigger>
-			<ContextMenu.Content class="w-48">
-				<ContextMenu.Item onSelect={() => zoomBy(0.5)}>Zoom in</ContextMenu.Item>
-				<ContextMenu.Item onSelect={() => zoomBy(2)}>Zoom out</ContextMenu.Item>
-				<ContextMenu.Item disabled={isFitAll} onSelect={resetZoom}
-					>Zoom to full extent</ContextMenu.Item
-				>
+			<ContextMenu.Content class="w-52">
+				<ContextMenu.Item onSelect={() => zoomBy(0.5)}>
+					<PlusIcon />
+					Zoom in
+				</ContextMenu.Item>
+				<ContextMenu.Item onSelect={() => zoomBy(2)}>
+					<MinusIcon />
+					Zoom out
+				</ContextMenu.Item>
+				<ContextMenu.Item disabled={isFitAll} onSelect={resetZoom}>
+					<ExpandIcon />
+					Zoom to full extent
+				</ContextMenu.Item>
 				<ContextMenu.Separator />
 				<ContextMenu.Item
 					disabled={contextMenuX === null}
@@ -561,20 +574,25 @@
 						if (contextMenuX !== null) placeMarkerAt(contextMenuX);
 					}}
 				>
+					<SeparatorVerticalIcon />
 					Place marker here
 				</ContextMenu.Item>
 				<ContextMenu.Item onSelect={toggleMarker}>
+					<SeparatorVerticalIcon />
 					{markerEnabled ? 'Hide x marker' : 'Show x marker'}
 				</ContextMenu.Item>
 				<ContextMenu.Item onSelect={toggleBoxZoom}>
+					<BoxSelectIcon />
 					{boxZoomEnabled ? 'Use drag pan' : 'Use box zoom'}
 				</ContextMenu.Item>
 				<ContextMenu.Separator />
 				<ContextMenu.Item
 					disabled={plotData.selectedSignalKeys.size === 0}
 					variant="destructive"
+					class="!text-destructive focus:!bg-destructive/10 focus:!text-destructive data-highlighted:!text-destructive dark:focus:!bg-destructive/20 [&_svg]:!text-destructive"
 					onSelect={() => plotData.clearSelectedSignals()}
 				>
+					<RotateCcwIcon />
 					Clear selected signals
 				</ContextMenu.Item>
 			</ContextMenu.Content>
