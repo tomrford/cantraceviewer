@@ -1,5 +1,6 @@
 <script lang="ts">
 	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
+	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import {
 		dbcFilesFromDrop,
 		dragLeftCurrentTarget,
@@ -11,6 +12,7 @@
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
 	import SearchForm from './search-form.svelte';
 	import * as Collapsible from '$lib/components/ui/collapsible/index.js';
+	import { Label } from '$lib/components/ui/label/index.js';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
@@ -278,31 +280,38 @@
 															{@const decodeStatus = isSelected
 																? plotData.signalDecodeStatus(signal.key)
 																: null}
+															{@const signalToggleId = `signal-toggle-${signal.key}`}
 															<Sidebar.MenuSubItem>
-																<button
-																	type="button"
-																	class="flex h-7 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
-																	aria-pressed={isSelected}
-																	onclick={() => plotData.toggleSignal(signal.key)}
+																<Label
+																	for={signalToggleId}
+																	class="flex h-7 w-full min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 text-left text-xs font-normal text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
 																>
-																	<span
-																		class="flex size-4 shrink-0 items-center justify-center rounded border border-sidebar-border bg-sidebar text-sidebar-foreground/45 data-[selected=true]:border-sidebar-foreground/40 data-[selected=true]:bg-sidebar-accent data-[selected=true]:text-sidebar-foreground data-[selected=true]:data-[error=true]:border-destructive/50 data-[selected=true]:data-[error=true]:bg-destructive/10 data-[selected=true]:data-[error=true]:text-destructive"
-																		data-selected={isSelected}
-																		data-error={decodeStatus?.decodeError != null}
+																	<Checkbox
+																		id={signalToggleId}
+																		checked={isSelected}
+																		aria-label={`Plot ${signal.label}`}
 																		title={decodeStatus?.decodeError ?? undefined}
-																	>
+																		class="data-[error=true]:border-destructive/50 data-[error=true]:bg-destructive/10 data-[error=true]:text-destructive"
+																		data-error={decodeStatus?.decodeError != null}
+																		onCheckedChange={() => plotData.toggleSignal(signal.key)}
+																	/>
+																	<span class="flex min-w-0 flex-1 items-center gap-2">
+																		<span class="truncate font-mono" title={signal.label}>
+																			{signal.signalName}
+																		</span>
 																		{#if decodeStatus?.decodeError}
-																			<CircleAlertIcon class="size-3" />
+																			<CircleAlertIcon
+																				class="size-3 shrink-0 text-destructive"
+																				aria-label={decodeStatus.decodeError}
+																			/>
 																		{:else if decodeStatus?.isDecoding}
-																			<LoaderCircleIcon class="size-3 animate-spin" />
-																		{:else if isSelected}
-																			<CheckIcon class="size-3" />
+																			<LoaderCircleIcon
+																				class="size-3 shrink-0 animate-spin text-sidebar-foreground/60"
+																				aria-label="Decoding signal"
+																			/>
 																		{/if}
 																	</span>
-																	<span class="truncate font-mono" title={signal.label}>
-																		{signal.signalName}
-																	</span>
-																</button>
+																</Label>
 															</Sidebar.MenuSubItem>
 														{/each}
 													</Sidebar.MenuSub>
