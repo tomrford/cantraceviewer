@@ -41,6 +41,12 @@ describe('rankedFuzzySearch', () => {
 		expect(search('message.sign')[0]).toBe('Message.Signal');
 	});
 
+	it('matches substrings in the middle of message names', () => {
+		expect(search('status')).toEqual(
+			expect.arrayContaining(['PowertrainStatus.vehicle_speed', 'EngineStatus.EngineRpm'])
+		);
+	});
+
 	it('keeps a little typo tolerance without broadening short abbreviations', () => {
 		expect(search('vehcile')).toEqual(
 			expect.arrayContaining([

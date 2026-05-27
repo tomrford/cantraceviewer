@@ -20,7 +20,7 @@ export function rankedFuzzySearch<T>(
 		includeScore: true,
 		minMatchCharLength: 2,
 		threshold: 0.3,
-		distance: 36,
+		distance: 100,
 		fieldNormWeight: 1.5
 	})
 		.search(normalizedQuery)
