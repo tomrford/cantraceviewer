@@ -1,40 +1,58 @@
-import Fuse from 'fuse.js';
+import MiniSearch from 'minisearch';
+
+type SearchDocument = {
+	id: number;
+	searchText: string;
+};
 
 export function rankedFuzzySearch<T>(
 	items: T[],
 	query: string,
 	getSearchText: (item: T) => string
 ): T[] {
-	const normalizedQuery = query.trim();
-	if (normalizedQuery.length === 0) return items;
+	const trimmedQuery = query.trim();
+	if (trimmedQuery.length === 0) return items;
 
-	const indexedItems = items.map((item) => ({
-		item,
+	const documents = items.map<SearchDocument>((item, id) => ({
+		id,
 		searchText: getSearchText(item)
 	}));
+	const miniSearch = new MiniSearch<SearchDocument>({
+		fields: ['searchText'],
+		tokenize: tokenizeSearchText,
+		processTerm: normalizeSearchTerm
+	});
 
-	return new Fuse(indexedItems, {
-		keys: ['searchText'],
-		ignoreLocation: true,
-		includeScore: true,
-		threshold: 0.35
-	})
-		.search(normalizedQuery)
-		.sort(
-			(left, right) =>
-				searchRank(left.item.searchText, normalizedQuery) -
-					searchRank(right.item.searchText, normalizedQuery) ||
-				(left.score ?? 0) - (right.score ?? 0)
-		)
-		.map((result) => result.item.item);
+	miniSearch.addAll(documents);
+
+	return miniSearch
+		.search(trimmedQuery, {
+			prefix: true,
+			fuzzy: (term) => (term.length >= 3 ? 0.3 : false),
+			combineWith: 'AND'
+		})
+		.map((result) => items[result.id as number]);
 }
 
-function searchRank(searchText: string, query: string): number {
-	const normalizedQuery = query.toLowerCase();
-	const normalizedText = searchText.toLowerCase();
+function tokenizeSearchText(text: string): string[] {
+	return Array.from(
+		new Set(
+			text
+				.trim()
+				.split(/[\s\p{P}]+/u)
+				.flatMap((term) => [term, ...camelCaseTerms(term)])
+				.filter(Boolean)
+		)
+	);
+}
 
-	if (normalizedText === normalizedQuery) return 0;
-	if (normalizedText.startsWith(normalizedQuery)) return 1;
-	if (normalizedText.includes(normalizedQuery)) return 2;
-	return 3;
+function camelCaseTerms(term: string): string[] {
+	return term.split(/(?<=[\p{Ll}\p{Nd}])(?=\p{Lu})|(?<=\p{Lu})(?=\p{Lu}\p{Ll})/u);
+}
+
+function normalizeSearchTerm(term: string): string {
+	return term
+		.normalize('NFKD')
+		.replace(/[\u0300-\u036f]/g, '')
+		.toLowerCase();
 }
