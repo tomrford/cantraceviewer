@@ -12,6 +12,7 @@
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
 	import SearchForm from './search-form.svelte';
 	import * as Collapsible from '$lib/components/ui/collapsible/index.js';
+	import { Label } from '$lib/components/ui/label/index.js';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
@@ -279,11 +280,14 @@
 															{@const decodeStatus = isSelected
 																? plotData.signalDecodeStatus(signal.key)
 																: null}
+															{@const signalToggleId = `signal-toggle-${signal.key}`}
 															<Sidebar.MenuSubItem>
-																<div
-																	class="flex h-7 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+																<Label
+																	for={signalToggleId}
+																	class="flex h-7 w-full min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 text-left text-xs font-normal text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
 																>
 																	<Checkbox
+																		id={signalToggleId}
 																		checked={isSelected}
 																		aria-label={`Plot ${signal.label}`}
 																		title={decodeStatus?.decodeError ?? undefined}
@@ -291,12 +295,7 @@
 																		data-error={decodeStatus?.decodeError != null}
 																		onCheckedChange={() => plotData.toggleSignal(signal.key)}
 																	/>
-																	<button
-																		type="button"
-																		class="flex min-w-0 flex-1 items-center gap-2 text-left"
-																		aria-pressed={isSelected}
-																		onclick={() => plotData.toggleSignal(signal.key)}
-																	>
+																	<span class="flex min-w-0 flex-1 items-center gap-2">
 																		<span class="truncate font-mono" title={signal.label}>
 																			{signal.signalName}
 																		</span>
@@ -311,8 +310,8 @@
 																				aria-label="Decoding signal"
 																			/>
 																		{/if}
-																	</button>
-																</div>
+																	</span>
+																</Label>
 															</Sidebar.MenuSubItem>
 														{/each}
 													</Sidebar.MenuSub>
