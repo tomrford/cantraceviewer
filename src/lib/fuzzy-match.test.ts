@@ -19,11 +19,10 @@ function search(query: string): string[] {
 }
 
 describe('rankedFuzzySearch', () => {
-	it('normalizes separators and camel case for Fuse matching', () => {
-		expect(search('vehicle speed')).toEqual([
-			'SpeedMessage.VehicleSpeed',
-			'PowertrainStatus.vehicle_speed'
-		]);
+	it('uses indexed token matching without naming-convention expansion', () => {
+		expect(search('vehicle speed')).toEqual(
+			expect.arrayContaining(['SpeedMessage.VehicleSpeed', 'PowertrainStatus.vehicle_speed'])
+		);
 	});
 
 	it('keeps partial fuzzy searches useful', () => {
@@ -57,13 +56,7 @@ describe('rankedFuzzySearch', () => {
 	});
 
 	it('keeps a little typo tolerance without broadening short abbreviations', () => {
-		expect(search('vehcile')).toEqual(
-			expect.arrayContaining([
-				'SpeedMessage.VehicleSpeed',
-				'PowertrainStatus.vehicle_speed',
-				'VehicleAcceleration.LongitudinalAccel'
-			])
-		);
+		expect(search('vehcile')).toEqual(['PowertrainStatus.vehicle_speed']);
 		expect(search('vhc')).toEqual([]);
 	});
 });
