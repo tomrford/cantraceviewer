@@ -27,6 +27,14 @@ describe('rankedFuzzySearch', () => {
 	});
 
 	it('keeps partial fuzzy searches useful', () => {
+		expect(search('s')).toEqual(
+			expect.arrayContaining([
+				'Message.Signal',
+				'SpeedMessage.VehicleSpeed',
+				'PowertrainStatus.vehicle_speed',
+				'EngineStatus.EngineRpm'
+			])
+		);
 		expect(search('veh')).toEqual(
 			expect.arrayContaining([
 				'SpeedMessage.VehicleSpeed',
@@ -39,6 +47,7 @@ describe('rankedFuzzySearch', () => {
 
 	it('supports full label searches across message and signal names', () => {
 		expect(search('message.sign')[0]).toBe('Message.Signal');
+		expect(search('age.sign')).toEqual([]);
 	});
 
 	it('matches substrings in the middle of message names', () => {
