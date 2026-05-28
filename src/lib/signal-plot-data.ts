@@ -72,7 +72,16 @@ export function decimalPlacesFromFactor(factor: number): number {
 	return dotIndex === -1 ? 0 : stepText.length - dotIndex - 1;
 }
 
-export function formatLegendNumericValue(value: number, factor: number): string {
+function decimalPlacesFromOffset(offset: number): number {
+	if (!Number.isFinite(offset)) return 0;
+	const offsetText = Math.abs(offset)
+		.toFixed(12)
+		.replace(/\.?0+$/, '');
+	const dotIndex = offsetText.indexOf('.');
+	return dotIndex === -1 ? 0 : offsetText.length - dotIndex - 1;
+}
+
+export function formatLegendNumericValue(value: number, factor: number, offset = 0): string {
 	if (!Number.isFinite(value)) return '-';
 	if (Object.is(value, -0) || Math.abs(value) < 1e-12) return '0';
 
@@ -81,7 +90,7 @@ export function formatLegendNumericValue(value: number, factor: number): string 
 		return value.toExponential(LEGEND_MAX_SIGNIFICANT_DIGITS - 1);
 	}
 
-	const factorDecimals = decimalPlacesFromFactor(factor);
+	const factorDecimals = Math.max(decimalPlacesFromFactor(factor), decimalPlacesFromOffset(offset));
 	const integerDigits = magnitude >= 1 ? Math.floor(Math.log10(magnitude)) + 1 : 1;
 	const maxFractionDigits = Math.min(
 		factorDecimals,
@@ -104,7 +113,7 @@ export function formatDecodedValue(
 	}
 
 	const outOfRange = isOutsideDbcRange(value, context.minimum, context.maximum);
-	const formatted = formatLegendNumericValue(value, context.factor);
+	const formatted = formatLegendNumericValue(value, context.factor, context.offset);
 	const rawValue = physicalToRaw(value, context.factor, context.offset);
 	const description =
 		rawValue === null

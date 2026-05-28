@@ -150,6 +150,20 @@ describe('signal plot data', () => {
 		expect(formatLegendNumericValue(0.1234567, 0.0001)).toBe('0.1235');
 	});
 
+	it('preserves fractional offsets in legend values', () => {
+		expect(formatLegendNumericValue(12.5, 1, 0.5)).toBe('12.5');
+		expect(
+			formatDecodedValue(12.5, {
+				...formatContext,
+				factor: 1,
+				offset: 0.5
+			})
+		).toEqual({
+			text: '12.5 km/h',
+			outOfRange: false
+		});
+	});
+
 	it('formats decoded legend values with units and out-of-range state', () => {
 		expect(formatDecodedValue(42.37, formatContext)).toEqual({
 			text: '42.4 km/h',
