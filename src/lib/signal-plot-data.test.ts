@@ -25,7 +25,6 @@ function view(x: number[], y: number[] = x): SignalView {
 		y: new Float64Array(y),
 		points: x.length,
 		latestText: '-',
-		latestOutOfRange: false,
 		factor: 1,
 		offset: 0,
 		minimum: 0,

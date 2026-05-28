@@ -24,7 +24,6 @@ export type SignalView = {
 	y: Float64Array;
 	points: number;
 	latestText: string;
-	latestOutOfRange: boolean;
 	factor: number;
 	offset: number;
 	minimum: number;
@@ -83,8 +82,7 @@ export function formatLegendNumericValue(value: number, factor: number): string 
 	}
 
 	const factorDecimals = decimalPlacesFromFactor(factor);
-	const integerDigits =
-		magnitude >= 1 ? Math.floor(Math.log10(magnitude)) + 1 : 1;
+	const integerDigits = magnitude >= 1 ? Math.floor(Math.log10(magnitude)) + 1 : 1;
 	const maxFractionDigits = Math.min(
 		factorDecimals,
 		Math.max(0, LEGEND_MAX_SIGNIFICANT_DIGITS - integerDigits)
@@ -137,7 +135,6 @@ export function signalView(signal: PlotSignal): SignalView {
 		y: sourceValues,
 		points: sourceTimes.length,
 		latestText: latest.text,
-		latestOutOfRange: latest.outOfRange,
 		factor: signal.factor,
 		offset: signal.offset,
 		minimum: signal.minimum,
