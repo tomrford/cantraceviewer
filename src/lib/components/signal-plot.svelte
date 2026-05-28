@@ -93,28 +93,20 @@
 				current: PlotRatioPoint;
 		  };
 
-	const signalBuckets = $derived.by(() => {
-		const ready: (typeof plotData.signals)[number][] = [];
-		const waiting: (typeof plotData.signals)[number][] = [];
-
-		for (const signal of plotData.signals) {
-			if (isPlottableSignal(signal)) ready.push(signal);
-			else waiting.push(signal);
-		}
-
-		return { ready, waiting };
-	});
-	const readySignals = $derived(signalBuckets.ready);
-	const waitingSignals = $derived(signalBuckets.waiting);
-	const plotReady = $derived(plotData.hasPlottableSignals);
-	const signalViews = $derived(readySignals.map((signal) => signalView(signal)));
+	const plottableSignals = $derived(plotData.signals.filter(isPlottableSignal));
+	const hasPlottableSignals = $derived(plottableSignals.length > 0);
+	const signalViews = $derived(plottableSignals.map((signal) => signalView(signal)));
 	const measurementStartMs = $derived(traceFile.entry?.metadata.measurementStartMs);
-	const fullDomain = $derived.by(() => signalDomain(signalViews));
+	const traceDurationNs = $derived(traceFile.entry?.metadata.durationNs);
+	const fullDomain = $derived.by(
+		() => signalDomain(signalViews) ?? traceDurationDomain(traceDurationNs)
+	);
+	const plotReady = $derived(fullDomain !== null);
 	const activeViewport = $derived(viewport ?? fullDomain);
 	const visibleViews = $derived(visibleSignalViews(signalViews, activeViewport));
 	const isFitAll = $derived(viewportsAlmostEqual(activeViewport, fullDomain));
 	const displayedMarkerX = $derived.by(() => {
-		if (!plotReady || !markerEnabled || markerX === null) return null;
+		if (!hasPlottableSignals || !markerEnabled || markerX === null) return null;
 		return markerX;
 	});
 	const markerPercent = $derived.by(() => {
@@ -136,7 +128,6 @@
 
 		return signalViews.map((view) => markerValue(view, x));
 	});
-
 	onMount(async () => {
 		if (!('gpu' in navigator)) {
 			chartError = 'WebGPU is not available in this browser.';
@@ -164,16 +155,20 @@
 	let lastReportedCanReset: boolean | undefined;
 
 	$effect(() => {
-		const canReset = plotReady && !isFitAll;
+		const canReset = hasPlottableSignals && !isFitAll;
 		if (lastReportedCanReset === canReset) return;
 		lastReportedCanReset = canReset;
 		onCanResetZoomChange?.(canReset);
 	});
 
 	$effect(() => {
-		if (!plotReady) {
+		if (!hasPlottableSignals) {
 			markerEnabled = false;
 			markerX = null;
+			boxZoomEnabled = false;
+			dragState = null;
+			contextMenuX = null;
+			if (viewport !== null) viewport = null;
 			return;
 		}
 
@@ -204,6 +199,7 @@
 	$effect(() => {
 		const signature = JSON.stringify({
 			measurementStartMs,
+			hasPlottableSignals,
 			isDark: isDark(),
 			timestampMode: timestampMode.current,
 			viewport: activeViewport,
@@ -215,41 +211,41 @@
 		chart?.setOption(chartOptions());
 	});
 
-	function whenPlotReady(action: () => void) {
-		if (!plotReady) return;
+	function whenPlotInteractive(action: () => void) {
+		if (!hasPlottableSignals) return;
 		action();
 	}
 
 	export function plotZoomIn() {
-		whenPlotReady(() => {
+		whenPlotInteractive(() => {
 			zoomBy(0.5);
 		});
 	}
 
 	export function plotZoomOut() {
-		whenPlotReady(() => {
+		whenPlotInteractive(() => {
 			zoomBy(2);
 		});
 	}
 
 	export function plotResetZoom() {
-		whenPlotReady(() => {
+		whenPlotInteractive(() => {
 			resetZoom();
 		});
 	}
 
 	function toggleMarker() {
-		if (!plotReady) return;
+		if (!hasPlottableSignals) return;
 		markerEnabled = !markerEnabled;
 	}
 
 	function toggleBoxZoom() {
-		if (!plotReady) return;
+		if (!hasPlottableSignals) return;
 		boxZoomEnabled = !boxZoomEnabled;
 	}
 
 	function placeMarkerAt(x: number): void {
-		if (!plotReady) return;
+		if (!hasPlottableSignals) return;
 		if (!markerEnabled) markerEnabled = true;
 		markerX = x;
 	}
@@ -316,6 +312,20 @@
 			palette: SIGNAL_COLORS,
 			annotations: [],
 			series: lineSeriesForViews(visibleViews)
+		};
+	}
+
+	function traceDurationDomain(durationNs: number | null | undefined): PlotViewport | null {
+		if (durationNs === null || durationNs === undefined || !Number.isFinite(durationNs))
+			return null;
+		const durationMs = durationNs / 1_000_000;
+		if (!(durationMs > 0)) return null;
+
+		return {
+			xMin: 0,
+			xMax: durationMs,
+			yMin: 0,
+			yMax: 1
 		};
 	}
 
@@ -490,11 +500,11 @@
 	{/if}
 	<div bind:this={container} class="absolute inset-0" aria-label="Selected signal plot"></div>
 
-	{#if plotReady}
+	{#if hasPlottableSignals}
 		<ContextMenu.Root>
 			<ContextMenu.Trigger
 				class="contents"
-				disabled={!plotReady}
+				disabled={!hasPlottableSignals}
 				oncontextmenu={rememberContextMenuPoint}
 			>
 				<button
@@ -597,8 +607,18 @@
 				</ContextMenu.Item>
 			</ContextMenu.Content>
 		</ContextMenu.Root>
+	{/if}
 
-		{#if legendVisible}
+	{#if plotReady}
+		{#if !hasPlottableSignals}
+			<div
+				class="pointer-events-none absolute inset-0 z-30 flex items-center justify-center px-6 text-center text-sm text-muted-foreground"
+			>
+				Select signals from the DBC side panel to view them.
+			</div>
+		{/if}
+
+		{#if hasPlottableSignals && legendVisible}
 			<SignalPlotLegend
 				views={signalViews}
 				{displayedMarkerX}
@@ -613,8 +633,6 @@
 		>
 			{#if chartError}
 				{chartError}
-			{:else if waitingSignals.length > 0}
-				Decode selected signals to plot them.
 			{:else}
 				Select signals from the DBC side panel to view them.
 			{/if}
