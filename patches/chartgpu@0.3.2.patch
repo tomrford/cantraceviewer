@@ -1,7 +1,25 @@
 diff --git a/dist/index.js b/dist/index.js
-index 06da45a4fc726b9b9e976150fa9e525565fdeb94..0b6809dafb9bfb3be30f535f3192a0cb3c201adf 100644
+index 06da45a4fc726b9b9e976150fa9e525565fdeb94..3698ba071c116257e6d3d27f70d82d239afe1a6a 100644
 --- a/dist/index.js
 +++ b/dist/index.js
+@@ -1160,7 +1160,7 @@ function _i(e, t, n) {
+ function oc(e, t, n) {
+   var Y, j, q;
+   const { gpuContext: i, currentOptions: r, xScale: o, yScale: s, xTickValues: a, plotClipRect: c, visibleXRangeMs: f } = n;
+-  if (!r.series.some((Z) => Z.type !== "pie") || !e || !t)
++  if (!r.series.some((Z) => Z.type !== "pie") && (Li(r.xAxis.min) === void 0 || Li(r.xAxis.max) === void 0 || Li(r.yAxis.min) === void 0 || Li(r.yAxis.max) === void 0) || !e || !t)
+     return;
+   const g = i.canvas;
+   if (!g) return;
+@@ -1266,7 +1266,7 @@ function lc(e, t, n) {
+     plotHeightCss: g,
+     canvas: u
+   } = n;
+-  if (!i.series.some((b) => b.type !== "pie") || !e || !t)
++  if (!i.series.some((b) => b.type !== "pie") && (Li(i.xAxis.min) === void 0 || Li(i.xAxis.max) === void 0 || Li(i.yAxis.min) === void 0 || Li(i.yAxis.max) === void 0) || !e || !t)
+     return;
+   if (!u || s <= 0 || a <= 0 || l <= 0 || g <= 0) {
+     e.clear();
 @@ -1673,7 +1673,7 @@ function Ic(e, t) {
      interactionScales: f,
      seriesForRender: l,
@@ -86,3 +104,12 @@ index 06da45a4fc726b9b9e976150fa9e525565fdeb94..0b6809dafb9bfb3be30f535f3192a0cb
  }
  function Uc(e, t) {
    const {
+@@ -7897,7 +7927,7 @@ function Of(e, t, n) {
+       var bo, vo, wo;
+       if (cn(), !e.canvasContext || !e.canvas) return;
+       ($.size > 0 || L) && (Et(), vn({ requestRenderAfter: !1 })), X && (X = !1, an());
+-      const k = p.series.some((Ve) => Ve.type !== "pie"), O = U;
++      const k = p.series.some((Ve) => Ve.type !== "pie") || gn(p.xAxis.min) !== void 0 && gn(p.xAxis.max) !== void 0 && gn(p.yAxis.min) !== void 0 && gn(p.yAxis.max) !== void 0, O = U;
+       if (R !== "done") {
+         const Ve = Gf(p.animation), Ze = (() => {
+           for (let Gt = 0; Gt < O.length; Gt++) {
