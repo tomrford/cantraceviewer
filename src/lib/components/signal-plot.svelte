@@ -93,21 +93,9 @@
 				current: PlotRatioPoint;
 		  };
 
-	const signalBuckets = $derived.by(() => {
-		const ready: (typeof plotData.signals)[number][] = [];
-		const waiting: (typeof plotData.signals)[number][] = [];
-
-		for (const signal of plotData.signals) {
-			if (isPlottableSignal(signal)) ready.push(signal);
-			else waiting.push(signal);
-		}
-
-		return { ready, waiting };
-	});
-	const readySignals = $derived(signalBuckets.ready);
-	const waitingSignals = $derived(signalBuckets.waiting);
-	const hasSignals = $derived(plotData.hasPlottableSignals);
-	const signalViews = $derived(readySignals.map((signal) => signalView(signal)));
+	const plottableSignals = $derived(plotData.signals.filter(isPlottableSignal));
+	const hasPlottableSignals = $derived(plottableSignals.length > 0);
+	const signalViews = $derived(plottableSignals.map((signal) => signalView(signal)));
 	const measurementStartMs = $derived(traceFile.entry?.metadata.measurementStartMs);
 	const traceDurationNs = $derived(traceFile.entry?.metadata.durationNs);
 	const fullDomain = $derived.by(
@@ -118,7 +106,7 @@
 	const visibleViews = $derived(visibleSignalViews(signalViews, activeViewport));
 	const isFitAll = $derived(viewportsAlmostEqual(activeViewport, fullDomain));
 	const displayedMarkerX = $derived.by(() => {
-		if (!hasSignals || !markerEnabled || markerX === null) return null;
+		if (!hasPlottableSignals || !markerEnabled || markerX === null) return null;
 		return markerX;
 	});
 	const markerPercent = $derived.by(() => {
@@ -167,14 +155,14 @@
 	let lastReportedCanReset: boolean | undefined;
 
 	$effect(() => {
-		const canReset = hasSignals && !isFitAll;
+		const canReset = hasPlottableSignals && !isFitAll;
 		if (lastReportedCanReset === canReset) return;
 		lastReportedCanReset = canReset;
 		onCanResetZoomChange?.(canReset);
 	});
 
 	$effect(() => {
-		if (!hasSignals) {
+		if (!hasPlottableSignals) {
 			markerEnabled = false;
 			markerX = null;
 			boxZoomEnabled = false;
@@ -211,7 +199,7 @@
 	$effect(() => {
 		const signature = JSON.stringify({
 			measurementStartMs,
-			hasSignals,
+			hasPlottableSignals,
 			isDark: isDark(),
 			timestampMode: timestampMode.current,
 			viewport: activeViewport,
@@ -224,7 +212,7 @@
 	});
 
 	function whenPlotInteractive(action: () => void) {
-		if (!hasSignals) return;
+		if (!hasPlottableSignals) return;
 		action();
 	}
 
@@ -247,17 +235,17 @@
 	}
 
 	function toggleMarker() {
-		if (!hasSignals) return;
+		if (!hasPlottableSignals) return;
 		markerEnabled = !markerEnabled;
 	}
 
 	function toggleBoxZoom() {
-		if (!hasSignals) return;
+		if (!hasPlottableSignals) return;
 		boxZoomEnabled = !boxZoomEnabled;
 	}
 
 	function placeMarkerAt(x: number): void {
-		if (!hasSignals) return;
+		if (!hasPlottableSignals) return;
 		if (!markerEnabled) markerEnabled = true;
 		markerX = x;
 	}
@@ -512,11 +500,11 @@
 	{/if}
 	<div bind:this={container} class="absolute inset-0" aria-label="Selected signal plot"></div>
 
-	{#if hasSignals}
+	{#if hasPlottableSignals}
 		<ContextMenu.Root>
 			<ContextMenu.Trigger
 				class="contents"
-				disabled={!hasSignals}
+				disabled={!hasPlottableSignals}
 				oncontextmenu={rememberContextMenuPoint}
 			>
 				<button
@@ -622,17 +610,15 @@
 	{/if}
 
 	{#if plotReady}
-		{#if !hasSignals}
+		{#if !hasPlottableSignals}
 			<div
 				class="pointer-events-none absolute inset-0 z-30 flex items-center justify-center px-6 text-center text-sm text-muted-foreground"
 			>
-				{waitingSignals.length > 0
-					? 'Decode selected signals to plot them.'
-					: 'Select signals from the DBC side panel to view them.'}
+				Select signals from the DBC side panel to view them.
 			</div>
 		{/if}
 
-		{#if hasSignals && legendVisible}
+		{#if hasPlottableSignals && legendVisible}
 			<SignalPlotLegend
 				views={signalViews}
 				{displayedMarkerX}
@@ -647,8 +633,6 @@
 		>
 			{#if chartError}
 				{chartError}
-			{:else if waitingSignals.length > 0}
-				Decode selected signals to plot them.
 			{:else}
 				Select signals from the DBC side panel to view them.
 			{/if}
