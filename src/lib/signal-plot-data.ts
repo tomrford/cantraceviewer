@@ -83,7 +83,7 @@ function decimalPlacesFromOffset(offset: number): number {
 
 export function formatLegendNumericValue(value: number, factor: number, offset = 0): string {
 	if (!Number.isFinite(value)) return '-';
-	if (Object.is(value, -0) || Math.abs(value) < 1e-12) return '0';
+	if (Object.is(value, -0) || value === 0) return '0';
 
 	const magnitude = Math.abs(value);
 	if (magnitude >= 1_000_000 || (magnitude > 0 && magnitude < 1e-6)) {

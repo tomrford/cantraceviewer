@@ -164,6 +164,12 @@ describe('signal plot data', () => {
 		});
 	});
 
+	it('preserves nonzero tiny legend values', () => {
+		expect(formatLegendNumericValue(1e-13, 1e-13)).toBe('1.000000e-13');
+		expect(formatLegendNumericValue(0, 1e-13)).toBe('0');
+		expect(formatLegendNumericValue(-0, 1e-13)).toBe('0');
+	});
+
 	it('formats decoded legend values with units and out-of-range state', () => {
 		expect(formatDecodedValue(42.37, formatContext)).toEqual({
 			text: '42.4 km/h',
