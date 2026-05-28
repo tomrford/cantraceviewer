@@ -121,7 +121,8 @@
 		if (x === null) {
 			return signalViews.map((view) => ({
 				key: view.key,
-				text: view.latestText
+				text: view.latestText,
+				outOfRange: view.latestOutOfRange
 			}));
 		}
 

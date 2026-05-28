@@ -1,5 +1,9 @@
 <script lang="ts">
-	import { formatAxisTime, type SignalView, type markerValue } from '$lib/signal-plot-data.js';
+	import {
+		formatAxisTime,
+		type LegendMarkerValue,
+		type SignalView
+	} from '$lib/signal-plot-data.js';
 	import type { TimestampMode } from '$lib/stores/preferences.svelte.js';
 
 	let {
@@ -11,7 +15,7 @@
 	}: {
 		measurementStartMs?: number | null;
 		displayedMarkerX: number | null;
-		markerValues: ReturnType<typeof markerValue>[];
+		markerValues: LegendMarkerValue[];
 		timestampMode: TimestampMode;
 		views: SignalView[];
 	} = $props();
@@ -25,6 +29,7 @@
 	<div class="space-y-2">
 		{#each views as view (view.key)}
 			{@const marker = markerValuesByKey.get(view.key)}
+			{@const outOfRange = marker?.outOfRange ?? false}
 			<div
 				class="grid min-w-0 items-center gap-2 text-xs"
 				class:grid-cols-[0.75rem_minmax(0,1fr)_auto]={displayedMarkerX !== null}
@@ -32,15 +37,29 @@
 			>
 				<span class="size-2 rounded-full" style:background-color={view.color}></span>
 				<span class="flex min-w-0" title={view.label}>
-					<span class="min-w-0 flex-[0_1_max-content] truncate">{view.signalName}</span>
-					<span class="text-muted-foreground">&nbsp;(</span>
-					<span class="min-w-0 flex-[0_9999_auto] truncate text-muted-foreground">
+					<span
+						class="min-w-0 flex-[0_1_max-content] truncate"
+						class:text-destructive={outOfRange}
+					>
+						{view.signalName}
+					</span>
+					<span class="text-muted-foreground" class:text-destructive={outOfRange}>&nbsp;(</span>
+					<span
+						class="min-w-0 flex-[0_9999_auto] truncate text-muted-foreground"
+						class:!text-destructive={outOfRange}
+					>
 						{view.messageName}
 					</span>
-					<span class="text-muted-foreground">)</span>
+					<span class="text-muted-foreground" class:text-destructive={outOfRange}>)</span>
 				</span>
 				{#if displayedMarkerX !== null}
-					<span class="font-mono tabular-nums">{marker?.text}</span>
+					<span
+						class="font-mono tabular-nums"
+						class:text-destructive={outOfRange}
+						title={outOfRange ? `Outside DBC range [${view.minimum}, ${view.maximum}]` : undefined}
+					>
+						{marker?.text}
+					</span>
 				{/if}
 			</div>
 		{/each}

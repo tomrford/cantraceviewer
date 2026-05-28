@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+	dbcLimitsAreSpecified,
+	decimalPlacesFromFactor,
 	formatAxisValue,
+	formatDecodedValue,
+	formatLegendNumericValue,
+	isOutsideDbcRange,
 	lineSeries,
 	lineSeriesForViews,
 	signalDomain,
@@ -20,11 +25,23 @@ function view(x: number[], y: number[] = x): SignalView {
 		y: new Float64Array(y),
 		points: x.length,
 		latestText: '-',
+		latestOutOfRange: false,
 		factor: 1,
 		offset: 0,
+		minimum: 0,
+		maximum: 0,
 		valueDescriptions: []
 	};
 }
+
+const formatContext = {
+	unit: 'km/h',
+	factor: 0.1,
+	offset: 0,
+	minimum: 0,
+	maximum: 250,
+	valueDescriptions: [] as { rawValue: number; label: string }[]
+};
 
 describe('signal plot data', () => {
 	it('keeps line data constrained to the active x viewport', () => {
@@ -110,5 +127,42 @@ describe('signal plot data', () => {
 		expect(formatAxisValue(12.3456789)).toBe('12.3');
 		expect(formatAxisValue(1.23456789)).toBe('1.235');
 		expect(formatAxisValue(0.000012345)).toBe('1.23e-5');
+	});
+
+	it('treats [0|0] DBC limits as unspecified', () => {
+		expect(dbcLimitsAreSpecified(0, 0)).toBe(false);
+		expect(isOutsideDbcRange(999, 0, 0)).toBe(false);
+	});
+
+	it('flags values outside specified DBC limits', () => {
+		expect(isOutsideDbcRange(251, 0, 250)).toBe(true);
+		expect(isOutsideDbcRange(250, 0, 250)).toBe(false);
+	});
+
+	it('derives legend decimals from factor resolution', () => {
+		expect(decimalPlacesFromFactor(0.1)).toBe(1);
+		expect(decimalPlacesFromFactor(0.01)).toBe(2);
+		expect(decimalPlacesFromFactor(1)).toBe(0);
+	});
+
+	it('caps legend numeric width at seven significant digits', () => {
+		expect(formatLegendNumericValue(12345.678, 1)).toBe('12346');
+		expect(formatLegendNumericValue(12.34567, 0.01)).toBe('12.35');
+		expect(formatLegendNumericValue(0.1234567, 0.0001)).toBe('0.1235');
+	});
+
+	it('formats decoded legend values with units and out-of-range state', () => {
+		expect(formatDecodedValue(42.37, formatContext)).toEqual({
+			text: '42.4 km/h',
+			outOfRange: false
+		});
+		expect(formatDecodedValue(300, formatContext)).toEqual({
+			text: '300 km/h',
+			outOfRange: true
+		});
+		expect(formatDecodedValue(42.37, { ...formatContext, minimum: 0, maximum: 0 })).toEqual({
+			text: '42.4 km/h',
+			outOfRange: false
+		});
 	});
 });
