@@ -624,7 +624,7 @@
 	{#if plotReady}
 		{#if !hasSignals}
 			<div
-				class="pointer-events-none absolute inset-x-6 top-4 z-30 text-center text-sm text-muted-foreground"
+				class="pointer-events-none absolute inset-0 z-30 flex items-center justify-center px-6 text-center text-sm text-muted-foreground"
 			>
 				{waitingSignals.length > 0
 					? 'Decode selected signals to plot them.'
