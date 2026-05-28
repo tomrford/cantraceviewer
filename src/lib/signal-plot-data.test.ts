@@ -3,8 +3,6 @@ import {
 	formatAxisValue,
 	lineSeries,
 	lineSeriesForViews,
-	traceDomain,
-	traceDomainSeries,
 	visibleSignalViews,
 	type SignalView
 } from './signal-plot-data';
@@ -66,37 +64,10 @@ describe('signal plot data', () => {
 		expect(series.samplingThreshold).toBe(25_000);
 	});
 
-	it('builds an invisible trace-domain line for axis-only charts', () => {
-		const series = traceDomainSeries({ xMin: 0, xMax: 220, yMin: 0, yMax: 1 });
-
-		expect(series.type).toBe('line');
-		if (series.type !== 'line') throw new Error('expected line series');
-		if (!('x' in series.data) || !('y' in series.data)) {
-			throw new Error('expected columnar line data');
-		}
-		expect(Array.from(series.data.x)).toEqual([0, 220]);
-		expect(Array.from(series.data.y)).toEqual([0, 0]);
-		expect(series.lineStyle?.opacity).toBe(0);
-	});
-
 	it('keeps y-axis tick labels compact', () => {
 		expect(formatAxisValue(123.456789)).toBe('123');
 		expect(formatAxisValue(12.3456789)).toBe('12.3');
 		expect(formatAxisValue(1.23456789)).toBe('1.235');
 		expect(formatAxisValue(0.000012345)).toBe('1.23e-5');
-	});
-
-	it('builds a fallback domain from trace duration metadata', () => {
-		expect(traceDomain(1_500_000_000)).toEqual({
-			xMin: 0,
-			xMax: 1500,
-			yMin: 0,
-			yMax: 1
-		});
-	});
-
-	it('does not build a fallback domain without positive trace duration metadata', () => {
-		expect(traceDomain(null)).toBeNull();
-		expect(traceDomain(0)).toBeNull();
 	});
 });

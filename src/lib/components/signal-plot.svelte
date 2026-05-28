@@ -21,8 +21,6 @@
 		markerValue,
 		signalDomain,
 		signalView,
-		traceDomain,
-		traceDomainSeries,
 		visibleSignalViews
 	} from '$lib/signal-plot-data.js';
 	import * as ContextMenu from '$lib/components/ui/context-menu/index.js';
@@ -112,7 +110,9 @@
 	const signalViews = $derived(readySignals.map((signal) => signalView(signal)));
 	const measurementStartMs = $derived(traceFile.entry?.metadata.measurementStartMs);
 	const traceDurationNs = $derived(traceFile.entry?.metadata.durationNs);
-	const fullDomain = $derived.by(() => signalDomain(signalViews) ?? traceDomain(traceDurationNs));
+	const fullDomain = $derived.by(
+		() => signalDomain(signalViews) ?? traceDurationDomain(traceDurationNs)
+	);
 	const plotReady = $derived(fullDomain !== null);
 	const activeViewport = $derived(viewport ?? fullDomain);
 	const visibleViews = $derived(visibleSignalViews(signalViews, activeViewport));
@@ -177,6 +177,10 @@
 		if (!hasSignals) {
 			markerEnabled = false;
 			markerX = null;
+			boxZoomEnabled = false;
+			dragState = null;
+			contextMenuX = null;
+			if (viewport !== null) viewport = null;
 			return;
 		}
 
@@ -219,41 +223,41 @@
 		chart?.setOption(chartOptions());
 	});
 
-	function whenPlotReady(action: () => void) {
+	function whenPlotInteractive(action: () => void) {
 		if (!hasSignals) return;
 		action();
 	}
 
 	export function plotZoomIn() {
-		whenPlotReady(() => {
+		whenPlotInteractive(() => {
 			zoomBy(0.5);
 		});
 	}
 
 	export function plotZoomOut() {
-		whenPlotReady(() => {
+		whenPlotInteractive(() => {
 			zoomBy(2);
 		});
 	}
 
 	export function plotResetZoom() {
-		whenPlotReady(() => {
+		whenPlotInteractive(() => {
 			resetZoom();
 		});
 	}
 
 	function toggleMarker() {
-		if (!plotReady) return;
+		if (!hasSignals) return;
 		markerEnabled = !markerEnabled;
 	}
 
 	function toggleBoxZoom() {
-		if (!plotReady) return;
+		if (!hasSignals) return;
 		boxZoomEnabled = !boxZoomEnabled;
 	}
 
 	function placeMarkerAt(x: number): void {
-		if (!plotReady) return;
+		if (!hasSignals) return;
 		if (!markerEnabled) markerEnabled = true;
 		markerX = x;
 	}
@@ -319,14 +323,22 @@
 			animation: false,
 			palette: SIGNAL_COLORS,
 			annotations: [],
-			series: chartSeries()
+			series: lineSeriesForViews(visibleViews)
 		};
 	}
 
-	function chartSeries() {
-		if (visibleViews.length > 0) return lineSeriesForViews(visibleViews);
-		if (activeViewport === null) return [];
-		return [traceDomainSeries(activeViewport)];
+	function traceDurationDomain(durationNs: number | null | undefined): PlotViewport | null {
+		if (durationNs === null || durationNs === undefined || !Number.isFinite(durationNs))
+			return null;
+		const durationMs = durationNs / 1_000_000;
+		if (!(durationMs > 0)) return null;
+
+		return {
+			xMin: 0,
+			xMax: durationMs,
+			yMin: 0,
+			yMax: 1
+		};
 	}
 
 	function zoomBy(factor: number) {
@@ -607,12 +619,16 @@
 				</ContextMenu.Item>
 			</ContextMenu.Content>
 		</ContextMenu.Root>
+	{/if}
 
+	{#if plotReady}
 		{#if !hasSignals}
 			<div
 				class="pointer-events-none absolute inset-x-6 top-4 z-30 text-center text-sm text-muted-foreground"
 			>
-				Select signals from the DBC side panel to view them.
+				{waitingSignals.length > 0
+					? 'Decode selected signals to plot them.'
+					: 'Select signals from the DBC side panel to view them.'}
 			</div>
 		{/if}
 
