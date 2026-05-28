@@ -92,6 +92,21 @@ export function lineSeriesForViews(views: SignalView[]): SeriesConfig[] {
 	return plottedViews.map((view) => lineSeries(view, plottedViews.length));
 }
 
+export function traceDomainSeries(viewport: PlotViewport): SeriesConfig {
+	return {
+		type: 'line',
+		name: 'Trace domain',
+		data: {
+			x: new Float64Array([viewport.xMin, viewport.xMax]),
+			y: new Float64Array([viewport.yMin, viewport.yMin])
+		},
+		color: '#000000',
+		lineStyle: { color: '#000000', width: 1, opacity: 0 },
+		sampling: 'none',
+		samplingThreshold: 2
+	};
+}
+
 export function markerValue(view: SignalView, x: number) {
 	return {
 		key: view.key,

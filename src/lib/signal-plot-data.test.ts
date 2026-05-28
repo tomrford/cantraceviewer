@@ -4,6 +4,7 @@ import {
 	lineSeries,
 	lineSeriesForViews,
 	traceDomain,
+	traceDomainSeries,
 	visibleSignalViews,
 	type SignalView
 } from './signal-plot-data';
@@ -63,6 +64,19 @@ describe('signal plot data', () => {
 		expect(series.type).toBe('line');
 		if (series.type !== 'line') throw new Error('expected line series');
 		expect(series.samplingThreshold).toBe(25_000);
+	});
+
+	it('builds an invisible trace-domain line for axis-only charts', () => {
+		const series = traceDomainSeries({ xMin: 0, xMax: 220, yMin: 0, yMax: 1 });
+
+		expect(series.type).toBe('line');
+		if (series.type !== 'line') throw new Error('expected line series');
+		if (!('x' in series.data) || !('y' in series.data)) {
+			throw new Error('expected columnar line data');
+		}
+		expect(Array.from(series.data.x)).toEqual([0, 220]);
+		expect(Array.from(series.data.y)).toEqual([0, 0]);
+		expect(series.lineStyle?.opacity).toBe(0);
 	});
 
 	it('keeps y-axis tick labels compact', () => {

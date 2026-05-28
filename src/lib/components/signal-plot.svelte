@@ -22,6 +22,7 @@
 		signalDomain,
 		signalView,
 		traceDomain,
+		traceDomainSeries,
 		visibleSignalViews
 	} from '$lib/signal-plot-data.js';
 	import * as ContextMenu from '$lib/components/ui/context-menu/index.js';
@@ -139,7 +140,6 @@
 
 		return signalViews.map((view) => markerValue(view, x));
 	});
-
 	onMount(async () => {
 		if (!('gpu' in navigator)) {
 			chartError = 'WebGPU is not available in this browser.';
@@ -319,8 +319,14 @@
 			animation: false,
 			palette: SIGNAL_COLORS,
 			annotations: [],
-			series: lineSeriesForViews(visibleViews)
+			series: chartSeries()
 		};
+	}
+
+	function chartSeries() {
+		if (visibleViews.length > 0) return lineSeriesForViews(visibleViews);
+		if (activeViewport === null) return [];
+		return [traceDomainSeries(activeViewport)];
 	}
 
 	function zoomBy(factor: number) {
