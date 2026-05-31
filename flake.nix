@@ -1,7 +1,7 @@
 {
   inputs = {
     # Non-strict version packages come from here
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
 
     # Utility for building this flake
     flake-utils.url = "github:numtide/flake-utils";

@@ -1,16 +1,16 @@
 # CAN Trace Viewer
 
-Client-side CAN trace viewer for plotting DBC-decoded signal values from ASC, PCAN TRC 1.x/2.x, and BLF logs. The app uses SvelteKit for the browser UI and Zig compiled to WebAssembly for DBC parsing, trace parsing, and signal decode work.
+https://cantraceviewer.com
 
-The browser opens directly into the plotter. Load one ASC, PCAN TRC 1.x/2.x, or BLF trace, save one or more DBC files to the local browser library, filter/select signals from the sidebar, and inspect decoded values on a shared time plot.
+CAN Trace Viewer is a quick and simple browser-based trace viewer for CAN logs that runs completely on your machine. load a trace file, add the matching DBCs, choose the signals you care about, and inspect decoded values on a shared time axis.
 
-The WASM boundary exposes opaque DBC and trace-format handles, JSON exports for DBC catalogs and trace metadata, and selected-signal sample exports as parallel `f64` arrays for relative milliseconds and decoded values. TypeScript owns browser file handling and copies parsed data into normal UI state; the UI does not depend on raw WASM pointers.
+I built this for all those times I wanted to "just see quickly what the 3 or 4 important signals were doing" and didn't have time to wait minutes to open large, licence-requiring, slow and old automotive grade desktop apps. It's free for anyone to use since it's purely static and costs me nothing to host on Cloudflare Workers. Feel free to put feature requests in the GitHub issues, but I can't promise I'll add everything as the point of this isn't to become a desktop-grade graphing tool but a convenient alternative for at least 3/4 of my usage.
 
-Files stay local and are processed in the browser. Saved DBC files, theme, timestamp, and sidebar settings are stored only in browser storage on the current device; they are not uploaded to a server. Loaded traces and derived signal series stay in memory for the current browser session.
-
-Browser file inputs enforce per-file size caps before reading contents: DBC files are capped at 1 MiB, and trace files are capped at 500 MiB.
+Trace files and decoded series stay in the current browser session. Saved DBCs and display preferences live in the browser storage (via IndexedDB) on the current device, so repeat analysis does not require re-uploading databases. Supported trace inputs are ASC, PCAN TRC 1.x/2.x, and BLF. There are currently (relatively generous) file size limits for traces and dbc files; let me know if you hit these and we can see whether larger files still perform well enough.
 
 ## Development
+
+The UI is SvelteKit/Svelte 5 with Bun, Tailwind, and shadcn-svelte style components. Zig code under `wasm/` compiles to WebAssembly for DBC parsing, trace parsing, and signal decode work.
 
 ```sh
 nix develop -c bun install
