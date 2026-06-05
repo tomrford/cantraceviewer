@@ -91,6 +91,12 @@ const Parser = struct {
                 try self.tail.appendSlice(self.allocator, buffer.items[search_start..]);
                 return;
             }
+            const object_padding = objectPaddingSize(object_size, object_type);
+            const padded_object_end = object_end + object_padding;
+            if (padded_object_end > buffer.items.len) {
+                try self.tail.appendSlice(self.allocator, buffer.items[search_start..]);
+                return;
+            }
 
             var cursor = object_start + obj_header_base_size;
             const timestamp = switch (header_version) {
@@ -109,8 +115,7 @@ const Parser = struct {
                     break :timestamp try timestampToNs(flags, raw_timestamp);
                 },
                 else => {
-                    pos = object_end + paddingSize(object_size);
-                    if (pos > buffer.items.len) return error.TruncatedBlfObjectPadding;
+                    pos = padded_object_end;
                     continue;
                 },
             };
@@ -122,8 +127,7 @@ const Parser = struct {
                 can_fd_message_64 => try self.parseCanFdMessage64(buffer.items[cursor..object_end], header_size, object_size, timestamp),
                 else => {},
             }
-            pos = object_end + paddingSize(object_size);
-            if (pos > buffer.items.len) return error.TruncatedBlfObjectPadding;
+            pos = padded_object_end;
         }
     }
 
@@ -340,6 +344,13 @@ fn paddingSize(size: usize) usize {
     return size % 4;
 }
 
+fn objectPaddingSize(size: usize, object_type: u32) usize {
+    return switch (object_type) {
+        can_fd_message_64 => 0,
+        else => paddingSize(size),
+    };
+}
+
 fn readU16(bytes: []const u8, offset: usize) u16 {
     return std.mem.readInt(u16, bytes[offset..][0..2], .little);
 }
@@ -489,6 +500,14 @@ fn appendCanFdMessage64Object(bytes: *std.ArrayList(u8), allocator: std.mem.Allo
     try bytes.append(allocator, 0);
     try appendU32(bytes, allocator, 0);
     try bytes.appendSlice(allocator, payload);
+}
+
+fn appendUnknownTimedObject(bytes: *std.ArrayList(u8), allocator: std.mem.Allocator, object_type: u32, timestamp_ns: u64, body_len: usize) !void {
+    const header_size = obj_header_base_size + obj_header_v1_size;
+    const object_size = header_size + body_len;
+    try appendObjectBase(bytes, allocator, object_size, object_type, header_size);
+    try appendObjectTimestampV1(bytes, allocator, timestamp_ns);
+    try bytes.appendNTimes(allocator, 0, body_len);
     try bytes.appendNTimes(allocator, 0, paddingSize(object_size));
 }
 
@@ -567,6 +586,27 @@ test "carries an inner object split across containers" {
     try std.testing.expectEqual(@as(u8, 0xcc), parsed.payloads[0]);
 }
 
+test "carries inner object padding split across containers" {
+    const allocator = std.testing.allocator;
+    var inner: std.ArrayList(u8) = .empty;
+    defer inner.deinit(allocator);
+    try appendUnknownTimedObject(&inner, allocator, 72, 10_000, 66);
+    try appendClassicCanObject(&inner, allocator, 20_000, 0x123, &.{0xdd});
+
+    var file: std.ArrayList(u8) = .empty;
+    defer file.deinit(allocator);
+    try appendFileHeader(&file, allocator);
+    try appendOuterContainer(&file, allocator, inner.items[0..98]);
+    try appendOuterContainer(&file, allocator, inner.items[98..]);
+
+    var parsed = try fromBytes(allocator, file.items);
+    defer parsed.deinit(allocator);
+
+    try std.testing.expectEqual(@as(usize, 1), parsed.frames.len);
+    try std.testing.expectEqual(trace_frame.Id.standard(0x123), parsed.frames[0].id.?);
+    try std.testing.expectEqual(@as(u8, 0xdd), parsed.payloads[0]);
+}
+
 test "rejects unsupported container compression" {
     const allocator = std.testing.allocator;
     var file: std.ArrayList(u8) = .empty;
@@ -614,7 +654,27 @@ test "parses remaining BLF CAN frame object types" {
     try std.testing.expectEqual(@as(u8, 0), fd64_payload[63]);
 }
 
-test "ignores trailing inner object padding" {
+test "parses unpadded CAN FD 64 object before another object" {
+    const allocator = std.testing.allocator;
+    var inner: std.ArrayList(u8) = .empty;
+    defer inner.deinit(allocator);
+    try appendCanFdMessage64Object(&inner, allocator, 4_000, 0x456, 9, 9, &.{ 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x11, 0x22, 0x33 });
+    try appendClassicCanObject(&inner, allocator, 5_000, 0x123, &.{0xdd});
+
+    var file: std.ArrayList(u8) = .empty;
+    defer file.deinit(allocator);
+    try appendFileHeader(&file, allocator);
+    try appendOuterContainer(&file, allocator, inner.items);
+
+    var parsed = try fromBytes(allocator, file.items);
+    defer parsed.deinit(allocator);
+
+    try std.testing.expectEqual(@as(usize, 2), parsed.frames.len);
+    try std.testing.expectEqual(trace_frame.Id.standard(0x456), parsed.frames[0].id.?);
+    try std.testing.expectEqual(trace_frame.Id.standard(0x123), parsed.frames[1].id.?);
+}
+
+test "pads short CAN FD 64 payloads to valid byte length" {
     const allocator = std.testing.allocator;
     var inner: std.ArrayList(u8) = .empty;
     defer inner.deinit(allocator);
