@@ -211,8 +211,16 @@ export async function openTrace(traceType: TraceType, bytes: Uint8Array): Promis
 		[bytes.buffer]
 	);
 
+	let metadata: TraceMetadata;
+	try {
+		metadata = TraceMetadataSchema.parse(JSON.parse(result.metadataJson));
+	} catch (error) {
+		await rpc<null>({ op: 'closeTrace', handleId: result.handleId }).catch(() => undefined);
+		throw error;
+	}
+
 	return {
 		id: result.handleId,
-		metadata: TraceMetadataSchema.parse(JSON.parse(result.metadataJson))
+		metadata
 	};
 }

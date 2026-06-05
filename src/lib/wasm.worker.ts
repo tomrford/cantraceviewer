@@ -47,7 +47,6 @@ type HandleEntry = {
 type TraceFormatLabel = 'ASC' | 'TRC' | 'BLF';
 
 const handles = new Map<string, HandleEntry>();
-let nextHandleId = 0;
 
 let wasmPromise: Promise<CanTraceViewerWasmExports> | null = null;
 
@@ -60,7 +59,7 @@ async function loadWasm(): Promise<CanTraceViewerWasmExports> {
 }
 
 function allocHandle(type: HandleEntry['type'], ptr: number): string {
-	const handleId = String(nextHandleId++);
+	const handleId = crypto.randomUUID();
 	handles.set(handleId, { type, ptr });
 	return handleId;
 }
