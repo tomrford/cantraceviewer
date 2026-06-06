@@ -1,0 +1,21 @@
+VERSION ""
+
+NS_ :
+  NS_DESC_
+  CM_
+  BA_DEF_
+  BA_
+  VAL_
+
+BS_:
+
+BU_: Agent Dashboard
+
+BO_ 896 DecimalLegend: 8 Agent
+ SG_ speed_tenths : 0|16@1+ (0.1,0) [0|250] "km/h" Dashboard
+ SG_ pressure_hundredths : 16|16@1+ (0.01,0) [0|100] "bar" Dashboard
+ SG_ offset_half : 32|8@1+ (1,0.5) [0|20] "V" Dashboard
+ SG_ status : 40|8@1+ (1,0) [0|3] "" Dashboard
+ SG_ tiny_current : 48|16@1+ (0.0000000000001,0) [0|0] "A" Dashboard
+
+VAL_ 896 status 0 "Off" 1 "On";

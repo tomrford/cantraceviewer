@@ -11,6 +11,7 @@ import {
 	type DbcHandle,
 	type TraceHandle
 } from '$lib/wasm.js';
+import { formatDecodedValue } from '$lib/signal-plot-data.js';
 
 const fixturesDir = resolve('wasm/test/fixtures');
 const wasmAssetPath = resolve('src/lib/assets/cantraceviewer.wasm');
@@ -120,6 +121,62 @@ describe('WASM adapter integration', () => {
 		}
 	});
 
+	it('decodes fixture values that exercise legend number formatting', async () => {
+		const dbc = await openFixtureDbc('decimal-legend.dbc');
+		const trace = await openFixtureTrace('decimal-legend.asc');
+		try {
+			const catalog = await getDbcCatalog(dbc);
+			const message = catalog.messages.find((item) => item.name === 'DecimalLegend');
+			if (!message) throw new Error('DecimalLegend fixture message missing');
+
+			const identity = { canId: 896, isExtended: false, sizeBytes: 8 };
+			const signal = (name: string) => {
+				const match = message.signals.find((item) => item.name === name);
+				if (!match) throw new Error(`${name} fixture signal missing`);
+				return match;
+			};
+			const latestFormatted = async (name: string) => {
+				const series = await getSignalValues(dbc, trace, identity, name);
+				return formatDecodedValue(series.values.at(-1) ?? null, signal(name));
+			};
+
+			const speed = await getSignalValues(dbc, trace, identity, 'speed_tenths');
+			const pressure = await getSignalValues(dbc, trace, identity, 'pressure_hundredths');
+			const offset = await getSignalValues(dbc, trace, identity, 'offset_half');
+			const tiny = await getSignalValues(dbc, trace, identity, 'tiny_current');
+
+			expect(Array.from(speed.values)).toEqual([100, 300]);
+			expect(Array.from(pressure.values)).toEqual([12.34, 0.01]);
+			expect(Array.from(offset.values)).toEqual([12.5, 0.5]);
+			expect(tiny.values[0]).toBeCloseTo(1e-13);
+			expect(tiny.values[1]).toBeCloseTo(2e-13);
+
+			await expect(latestFormatted('speed_tenths')).resolves.toEqual({
+				text: '300 km/h',
+				outOfRange: true
+			});
+			await expect(latestFormatted('pressure_hundredths')).resolves.toEqual({
+				text: '0.01 bar',
+				outOfRange: false
+			});
+			await expect(latestFormatted('offset_half')).resolves.toEqual({
+				text: '0.5 V',
+				outOfRange: false
+			});
+			await expect(latestFormatted('status')).resolves.toEqual({
+				text: 'Off',
+				outOfRange: false
+			});
+			await expect(latestFormatted('tiny_current')).resolves.toEqual({
+				text: '2.000000e-13 A',
+				outOfRange: false
+			});
+		} finally {
+			await closeTrace(trace);
+			await closeDbc(dbc);
+		}
+	});
+
 	it('normalizes parse and decode failures', async () => {
 		const trace = await openFixtureTrace();
 		const dbc = await openFixtureDbc();
@@ -138,13 +195,13 @@ describe('WASM adapter integration', () => {
 	});
 });
 
-async function openFixtureDbc(): Promise<DbcHandle> {
-	const text = await readFile(resolve(fixturesDir, 'agentic-demo.dbc'), 'utf8');
+async function openFixtureDbc(name = 'agentic-demo.dbc'): Promise<DbcHandle> {
+	const text = await readFile(resolve(fixturesDir, name), 'utf8');
 	return openDbc(text);
 }
 
-async function openFixtureTrace(): Promise<TraceHandle> {
-	const bytes = await readFile(resolve(fixturesDir, 'agentic-demo.asc'));
+async function openFixtureTrace(name = 'agentic-demo.asc'): Promise<TraceHandle> {
+	const bytes = await readFile(resolve(fixturesDir, name));
 	return openTrace('asc', bytes);
 }
 
