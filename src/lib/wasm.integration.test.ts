@@ -152,7 +152,7 @@ describe('WASM adapter integration', () => {
 			expect(tiny.values[1]).toBeCloseTo(2e-13);
 
 			await expect(latestFormatted('speed_tenths')).resolves.toEqual({
-				text: '300 km/h',
+				text: '300.0 km/h',
 				outOfRange: true
 			});
 			await expect(latestFormatted('pressure_hundredths')).resolves.toEqual({

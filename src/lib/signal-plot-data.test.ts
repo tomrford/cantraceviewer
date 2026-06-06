@@ -150,6 +150,11 @@ describe('signal plot data', () => {
 		expect(formatLegendNumericValue(0.1234567, 0.0001)).toBe('0.1235');
 	});
 
+	it('pads legend decimals to the chosen resolution', () => {
+		expect(formatLegendNumericValue(12, 0.01)).toBe('12.00');
+		expect(formatLegendNumericValue(300, 0.1)).toBe('300.0');
+	});
+
 	it('preserves fractional offsets in legend values', () => {
 		expect(formatLegendNumericValue(12.5, 1, 0.5)).toBe('12.5');
 		expect(
@@ -176,7 +181,7 @@ describe('signal plot data', () => {
 			outOfRange: false
 		});
 		expect(formatDecodedValue(300, formatContext)).toEqual({
-			text: '300 km/h',
+			text: '300.0 km/h',
 			outOfRange: true
 		});
 		expect(formatDecodedValue(42.37, { ...formatContext, minimum: 0, maximum: 0 })).toEqual({

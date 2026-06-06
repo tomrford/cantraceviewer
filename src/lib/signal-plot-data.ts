@@ -98,7 +98,7 @@ export function formatLegendNumericValue(value: number, factor: number, offset =
 	);
 
 	return new Intl.NumberFormat('en-US', {
-		minimumFractionDigits: 0,
+		minimumFractionDigits: maxFractionDigits,
 		maximumFractionDigits: maxFractionDigits,
 		useGrouping: false
 	}).format(value);
