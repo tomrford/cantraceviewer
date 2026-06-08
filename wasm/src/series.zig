@@ -32,9 +32,8 @@ pub fn selectedSignalValues(
     var sample_index: usize = 0;
     for (parsed_trace.frames) |frame| {
         if (!matchesMessage(frame, selection.message)) continue;
-        if (@as(u16, frame.payload_len) != selection.message.size_bytes) continue;
 
-        const payload = payloadForFrame(parsed_trace.payloads, frame) orelse continue;
+        const payload = payloadPrefixForMessage(parsed_trace.payloads, frame, selection.message) orelse continue;
         out[sample_index] = timestampNsToMs(frame.timestamp_ns);
         out[values_offset + sample_index] = try plan.decode(payload);
         sample_index += 1;
@@ -77,11 +76,23 @@ fn countMatchingSamples(parsed_trace: trace.Trace, msg: message.Message) usize {
     var count: usize = 0;
     for (parsed_trace.frames) |frame| {
         if (!matchesMessage(frame, msg)) continue;
-        if (@as(u16, frame.payload_len) != msg.size_bytes) continue;
-        if (payloadForFrame(parsed_trace.payloads, frame) == null) continue;
+        if (payloadPrefixForMessage(parsed_trace.payloads, frame, msg) == null) continue;
         count += 1;
     }
     return count;
+}
+
+fn payloadPrefixForMessage(payloads: []const u8, frame: trace_frame.Frame, msg: message.Message) ?[]const u8 {
+    if (!frameCanCarryMessage(frame, msg)) return null;
+    const payload = payloadForFrame(payloads, frame) orelse return null;
+    return payload[0..@as(usize, msg.size_bytes)];
+}
+
+fn frameCanCarryMessage(frame: trace_frame.Frame, msg: message.Message) bool {
+    const payload_len = @as(u16, frame.payload_len);
+    if (payload_len < msg.size_bytes) return false;
+    if (!msg.is_fd and payload_len > 8) return false;
+    return true;
 }
 
 fn payloadForFrame(payloads: []const u8, frame: trace_frame.Frame) ?[]const u8 {
@@ -189,7 +200,7 @@ test "extracts selected motorola float signal values as relative-millisecond/val
     try std.testing.expectEqualSlices(f64, &.{ 1.0, 1.5 }, bytes);
 }
 
-test "skips matching frames with unexpected payload length" {
+test "skips short frames and decodes DBC-sized prefix from padded classic frames" {
     const allocator = std.testing.allocator;
     const dbc_text =
         \\BO_ 291 Example: 2 ECU
@@ -199,6 +210,7 @@ test "skips matching frames with unexpected payload length" {
         \\base hex timestamps absolute
         \\0.001 1 123 Rx d 1 10
         \\0.002 1 123 Rx d 2 34 12
+        \\0.003 1 123 Rx d 8 78 56 aa bb cc dd ee ff
     ;
 
     const dbc = try dbc_handle.Handle.parse(allocator, dbc_text);
@@ -217,7 +229,7 @@ test "skips matching frames with unexpected payload length" {
     );
     defer allocator.free(bytes);
 
-    try std.testing.expectEqualSlices(f64, &.{ 2.0, 4660.0 }, bytes);
+    try std.testing.expectEqualSlices(f64, &.{ 2.0, 3.0, 4660.0, 22136.0 }, bytes);
 }
 
 test "selects same-name messages by CAN identity" {
