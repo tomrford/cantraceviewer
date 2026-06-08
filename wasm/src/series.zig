@@ -90,6 +90,7 @@ fn payloadPrefixForMessage(payloads: []const u8, frame: trace_frame.Frame, msg: 
 
 fn frameCanCarryMessage(frame: trace_frame.Frame, msg: message.Message) bool {
     const payload_len = @as(u16, frame.payload_len);
+    if (frame.is_fd) return payload_len == msg.size_bytes;
     if (payload_len < msg.size_bytes) return false;
     if (!msg.is_fd and payload_len > 8) return false;
     return true;
@@ -211,6 +212,7 @@ test "skips short frames and decodes DBC-sized prefix from padded classic frames
         \\0.001 1 123 Rx d 1 10
         \\0.002 1 123 Rx d 2 34 12
         \\0.003 1 123 Rx d 8 78 56 aa bb cc dd ee ff
+        \\0.004 CANFD 1 Rx 123 - 1 0 8 8 9a bc aa bb cc dd ee ff
     ;
 
     const dbc = try dbc_handle.Handle.parse(allocator, dbc_text);
