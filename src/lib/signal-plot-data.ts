@@ -56,6 +56,16 @@ function decimalPlaces(value: number): number {
 }
 
 /**
+ * Snap a decoded value to the signal resolution so float noise from
+ * `raw * factor + offset` cannot push boundary samples across DBC limits.
+ */
+function roundToResolution(value: number, factor: number, offset: number): number {
+	const decimals = Math.max(decimalPlaces(factor), decimalPlaces(offset));
+	if (decimals > 100) return value;
+	return Number(value.toFixed(decimals));
+}
+
+/**
  * Legend precision policy: decimal places follow the signal resolution
  * (factor/offset), padded so a signal's values keep a stable width, capped to a
  * seven-significant-digit budget. Extreme magnitudes fall back to scientific
@@ -87,7 +97,13 @@ export function formatDecodedValue(
 		return { text: '-', outOfRange: false };
 	}
 
-	const outOfRange = isOutsideDbcRange(value, context.minimum, context.maximum);
+	// Range-check the resolution-rounded value so the warning agrees with the
+	// displayed text instead of raw float noise.
+	const outOfRange = isOutsideDbcRange(
+		roundToResolution(value, context.factor, context.offset),
+		context.minimum,
+		context.maximum
+	);
 	const formatted = formatLegendNumericValue(value, context.factor, context.offset);
 	const rawValue = physicalToRaw(value, context.factor, context.offset);
 	const description =
