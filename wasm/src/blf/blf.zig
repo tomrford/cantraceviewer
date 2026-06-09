@@ -54,49 +54,55 @@ const Parser = struct {
     }
 
     fn parseContainer(self: *Parser, container: []const u8) !void {
-        var buffer = std.ArrayList(u8).empty;
-        defer buffer.deinit(self.allocator);
+        var stitch_buffer = std.ArrayList(u8).empty;
+        defer stitch_buffer.deinit(self.allocator);
 
-        try buffer.ensureTotalCapacity(self.allocator, self.tail.items.len + container.len);
-        try buffer.appendSlice(self.allocator, self.tail.items);
-        try buffer.appendSlice(self.allocator, container);
-        self.tail.clearRetainingCapacity();
+        const data: []const u8 = if (self.tail.items.len == 0)
+            container
+        else
+            blk: {
+                try stitch_buffer.ensureTotalCapacity(self.allocator, self.tail.items.len + container.len);
+                try stitch_buffer.appendSlice(self.allocator, self.tail.items);
+                try stitch_buffer.appendSlice(self.allocator, container);
+                self.tail.clearRetainingCapacity();
+                break :blk stitch_buffer.items;
+            };
 
         var pos: usize = 0;
-        while (pos < buffer.items.len) {
+        while (pos < data.len) {
             const search_start = pos;
-            const object_start = findNextObject(buffer.items, pos) orelse {
-                if (pos + 8 > buffer.items.len) {
-                    try self.tail.appendSlice(self.allocator, buffer.items[search_start..]);
+            const object_start = findNextObject(data, pos) orelse {
+                if (pos + 8 > data.len) {
+                    try self.tail.appendSlice(self.allocator, data[search_start..]);
                     return;
                 }
                 return error.InvalidBlfObject;
             };
 
-            if (object_start + obj_header_base_size > buffer.items.len) {
-                try self.tail.appendSlice(self.allocator, buffer.items[search_start..]);
+            if (object_start + obj_header_base_size > data.len) {
+                try self.tail.appendSlice(self.allocator, data[search_start..]);
                 return;
             }
 
-            const header_size = readU16(buffer.items, object_start + 4);
-            const header_version = readU16(buffer.items, object_start + 6);
-            const object_size = readU32(buffer.items, object_start + 8);
-            const object_type = readU32(buffer.items, object_start + 12);
+            const header_size = readU16(data, object_start + 4);
+            const header_version = readU16(data, object_start + 6);
+            const object_size = readU32(data, object_start + 8);
+            const object_type = readU32(data, object_start + 12);
             if (object_size < obj_header_base_size or header_size < obj_header_base_size) {
                 return error.InvalidBlfObjectSize;
             }
 
             // Widen to u64 so untrusted object_size cannot wrap usize on wasm32.
             const object_end_wide = @as(u64, object_start) + object_size;
-            if (object_end_wide > buffer.items.len) {
-                try self.tail.appendSlice(self.allocator, buffer.items[search_start..]);
+            if (object_end_wide > data.len) {
+                try self.tail.appendSlice(self.allocator, data[search_start..]);
                 return;
             }
             const object_end: usize = @intCast(object_end_wide);
             const object_padding = objectPaddingSize(object_size, object_type);
             const padded_object_end_wide = object_end_wide + object_padding;
-            if (padded_object_end_wide > buffer.items.len) {
-                try self.tail.appendSlice(self.allocator, buffer.items[search_start..]);
+            if (padded_object_end_wide > data.len) {
+                try self.tail.appendSlice(self.allocator, data[search_start..]);
                 return;
             }
             const padded_object_end: usize = @intCast(padded_object_end_wide);
@@ -105,15 +111,15 @@ const Parser = struct {
             const timestamp = switch (header_version) {
                 1 => timestamp: {
                     if (cursor + obj_header_v1_size > object_end) return error.InvalidBlfObjectHeader;
-                    const flags = readU32(buffer.items, cursor);
-                    const raw_timestamp = readU64(buffer.items, cursor + 8);
+                    const flags = readU32(data, cursor);
+                    const raw_timestamp = readU64(data, cursor + 8);
                     cursor += obj_header_v1_size;
                     break :timestamp try timestampToNs(flags, raw_timestamp);
                 },
                 2 => timestamp: {
                     if (cursor + obj_header_v2_size > object_end) return error.InvalidBlfObjectHeader;
-                    const flags = readU32(buffer.items, cursor);
-                    const raw_timestamp = readU64(buffer.items, cursor + 8);
+                    const flags = readU32(data, cursor);
+                    const raw_timestamp = readU64(data, cursor + 8);
                     cursor += obj_header_v2_size;
                     break :timestamp try timestampToNs(flags, raw_timestamp);
                 },
@@ -124,10 +130,10 @@ const Parser = struct {
             };
 
             switch (object_type) {
-                can_message, can_message2 => try self.parseCanMessage(buffer.items[cursor..object_end], timestamp),
-                can_error_ext => try self.parseCanErrorExt(buffer.items[cursor..object_end], timestamp),
-                can_fd_message => try self.parseCanFdMessage(buffer.items[cursor..object_end], timestamp),
-                can_fd_message_64 => try self.parseCanFdMessage64(buffer.items[cursor..object_end], header_size, object_size, timestamp),
+                can_message, can_message2 => try self.parseCanMessage(data[cursor..object_end], timestamp),
+                can_error_ext => try self.parseCanErrorExt(data[cursor..object_end], timestamp),
+                can_fd_message => try self.parseCanFdMessage(data[cursor..object_end], timestamp),
+                can_fd_message_64 => try self.parseCanFdMessage64(data[cursor..object_end], header_size, object_size, timestamp),
                 else => {},
             }
             pos = padded_object_end;
