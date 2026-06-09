@@ -86,17 +86,20 @@ const Parser = struct {
                 return error.InvalidBlfObjectSize;
             }
 
-            const object_end = object_start + object_size;
-            if (object_end > buffer.items.len) {
+            // Widen to u64 so untrusted object_size cannot wrap usize on wasm32.
+            const object_end_wide = @as(u64, object_start) + object_size;
+            if (object_end_wide > buffer.items.len) {
                 try self.tail.appendSlice(self.allocator, buffer.items[search_start..]);
                 return;
             }
+            const object_end: usize = @intCast(object_end_wide);
             const object_padding = objectPaddingSize(object_size, object_type);
-            const padded_object_end = object_end + object_padding;
-            if (padded_object_end > buffer.items.len) {
+            const padded_object_end_wide = object_end_wide + object_padding;
+            if (padded_object_end_wide > buffer.items.len) {
                 try self.tail.appendSlice(self.allocator, buffer.items[search_start..]);
                 return;
             }
+            const padded_object_end: usize = @intCast(padded_object_end_wide);
 
             var cursor = object_start + obj_header_base_size;
             const timestamp = switch (header_version) {
@@ -274,8 +277,10 @@ pub fn fromBytes(allocator: std.mem.Allocator, bytes: []const u8) !trace.Trace {
         const object_size = readU32(bytes, pos + 8);
         const object_type = readU32(bytes, pos + 12);
         if (object_size < obj_header_base_size) return error.InvalidBlfObjectSize;
-        const object_end = pos + object_size;
-        if (object_end > bytes.len) return error.TruncatedBlfObject;
+        // Widen to u64 so untrusted object_size cannot wrap usize on wasm32.
+        const object_end_wide = @as(u64, pos) + object_size;
+        if (object_end_wide > bytes.len) return error.TruncatedBlfObject;
+        const object_end: usize = @intCast(object_end_wide);
 
         if (object_type == log_container) {
             const object_body = bytes[pos + obj_header_base_size .. object_end];
@@ -284,8 +289,9 @@ pub fn fromBytes(allocator: std.mem.Allocator, bytes: []const u8) !trace.Trace {
             try parser.parseContainer(container.bytes);
         }
 
-        pos = object_end + paddingSize(object_size);
-        if (pos > bytes.len) return error.TruncatedBlfObjectPadding;
+        const next_pos_wide = object_end_wide + paddingSize(object_size);
+        if (next_pos_wide > bytes.len) return error.TruncatedBlfObjectPadding;
+        pos = @intCast(next_pos_wide);
     }
 
     if (parser.tail.items.len != 0) return error.TruncatedBlfObject;
@@ -605,6 +611,32 @@ test "carries inner object padding split across containers" {
     try std.testing.expectEqual(@as(usize, 1), parsed.frames.len);
     try std.testing.expectEqual(trace_frame.Id.standard(0x123), parsed.frames[0].id.?);
     try std.testing.expectEqual(@as(u8, 0xdd), parsed.payloads[0]);
+}
+
+test "rejects top-level object size that would wrap position arithmetic" {
+    const allocator = std.testing.allocator;
+    var file: std.ArrayList(u8) = .empty;
+    defer file.deinit(allocator);
+    try appendFileHeader(&file, allocator);
+    // object_size near maxInt(u32): pos + object_size would wrap a 32-bit usize.
+    try appendObjectBase(&file, allocator, 0xffff_fff0, can_message, obj_header_base_size);
+
+    try std.testing.expectError(error.TruncatedBlfObject, fromBytes(allocator, file.items));
+}
+
+test "rejects in-container object size that would wrap position arithmetic" {
+    const allocator = std.testing.allocator;
+    var inner: std.ArrayList(u8) = .empty;
+    defer inner.deinit(allocator);
+    try appendObjectBase(&inner, allocator, 0xffff_fff0, can_message, obj_header_base_size);
+
+    var file: std.ArrayList(u8) = .empty;
+    defer file.deinit(allocator);
+    try appendFileHeader(&file, allocator);
+    try appendOuterContainer(&file, allocator, inner.items);
+
+    // The oversized object can never complete, so it ends up as a dangling tail.
+    try std.testing.expectError(error.TruncatedBlfObject, fromBytes(allocator, file.items));
 }
 
 test "rejects unsupported container compression" {
