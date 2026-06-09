@@ -328,6 +328,8 @@ fn inflateZlib(allocator: std.mem.Allocator, compressed: []const u8, expected_le
 fn timestampToNs(flags: u32, raw_timestamp: u64) !u64 {
     if ((flags & time_one_nans) != 0) return raw_timestamp;
     if ((flags & time_ten_mics) != 0) return std.math.mul(u64, raw_timestamp, 10_000);
+    // Vector BLF ObjectHeader defaults objectFlags to TimeOneNans; keep
+    // flagless/unknown units as nanoseconds rather than multiplying silently.
     return raw_timestamp;
 }
 
@@ -426,13 +428,17 @@ fn appendOuterContainer(bytes: *std.ArrayList(u8), allocator: std.mem.Allocator,
 }
 
 fn appendClassicCanObject(bytes: *std.ArrayList(u8), allocator: std.mem.Allocator, timestamp_ns: u64, can_id: u32, payload: []const u8) !void {
+    try appendClassicCanObjectWithTimestampFlags(bytes, allocator, time_one_nans, timestamp_ns, can_id, payload);
+}
+
+fn appendClassicCanObjectWithTimestampFlags(bytes: *std.ArrayList(u8), allocator: std.mem.Allocator, timestamp_flags: u32, raw_timestamp: u64, can_id: u32, payload: []const u8) !void {
     const header_size = obj_header_base_size + obj_header_v1_size;
     const object_size = header_size + can_message_size;
     try appendObjectBase(bytes, allocator, object_size, can_message, header_size);
-    try appendU32(bytes, allocator, time_one_nans);
+    try appendU32(bytes, allocator, timestamp_flags);
     try appendU16(bytes, allocator, 0);
     try appendU16(bytes, allocator, 0);
-    try appendU64(bytes, allocator, timestamp_ns);
+    try appendU64(bytes, allocator, raw_timestamp);
     try appendU16(bytes, allocator, 1);
     try bytes.append(allocator, 0);
     try bytes.append(allocator, @intCast(payload.len));
@@ -564,6 +570,24 @@ test "parses uncompressed classic CAN BLF container" {
     try std.testing.expectEqual(@as(u64, 123_456_789), parsed.frames[0].timestamp_ns);
     try std.testing.expectEqual(trace_frame.Id.standard(0x123), parsed.frames[0].id.?);
     try std.testing.expectEqualSlices(u8, &.{ 0xaa, 0xbb }, parsed.payloads);
+}
+
+test "treats flagless BLF timestamps as nanoseconds" {
+    const allocator = std.testing.allocator;
+    var inner: std.ArrayList(u8) = .empty;
+    defer inner.deinit(allocator);
+    try appendClassicCanObjectWithTimestampFlags(&inner, allocator, 0, 123, 0x123, &.{0xaa});
+
+    var file: std.ArrayList(u8) = .empty;
+    defer file.deinit(allocator);
+    try appendFileHeader(&file, allocator);
+    try appendOuterContainer(&file, allocator, inner.items);
+
+    var parsed = try fromBytes(allocator, file.items);
+    defer parsed.deinit(allocator);
+
+    try std.testing.expectEqual(@as(usize, 1), parsed.frames.len);
+    try std.testing.expectEqual(@as(u64, 123), parsed.frames[0].timestamp_ns);
 }
 
 test "carries an inner object split across containers" {
