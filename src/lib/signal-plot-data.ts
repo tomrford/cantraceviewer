@@ -8,11 +8,6 @@ export type DecodedValueFormatContext = Pick<
 	'unit' | 'factor' | 'offset' | 'minimum' | 'maximum' | 'valueDescriptions'
 >;
 
-export type FormattedDecodedValue = {
-	text: string;
-	outOfRange: boolean;
-};
-
 export type SignalView = {
 	key: string;
 	label: string;
@@ -45,69 +40,49 @@ export type VisibleSignalView = SignalView & {
 const DEFAULT_TOTAL_SAMPLING_THRESHOLD = 25_000;
 const LEGEND_MAX_SIGNIFICANT_DIGITS = 7;
 
-/** DBC `[0|0]` is treated as unspecified limits in most files. */
-export function dbcLimitsAreSpecified(minimum: number, maximum: number): boolean {
-	return minimum !== 0 || maximum !== 0;
-}
-
 export function isOutsideDbcRange(value: number, minimum: number, maximum: number): boolean {
-	if (!dbcLimitsAreSpecified(minimum, maximum)) return false;
-	const lower = Math.min(minimum, maximum);
-	const upper = Math.max(minimum, maximum);
-	return value < lower || value > upper;
+	// DBC `[0|0]` is the conventional placeholder for unspecified limits.
+	if (minimum === 0 && maximum === 0) return false;
+	return value < minimum || value > maximum;
 }
 
-/** Decimal places implied by factor step (resolution 1/n → n decimal places when factor is 1/n). */
-export function decimalPlacesFromFactor(factor: number): number {
-	if (!Number.isFinite(factor) || factor === 0) return 0;
-	const step = Math.abs(factor);
-	if (step >= 1) return 0;
-
-	const logStep = -Math.log10(step);
-	const roundedLog = Math.round(logStep);
-	if (Math.abs(logStep - roundedLog) < 1e-9) return roundedLog;
-
-	const stepText = step.toFixed(12).replace(/\.?0+$/, '');
-	const dotIndex = stepText.indexOf('.');
-	return dotIndex === -1 ? 0 : stepText.length - dotIndex - 1;
+/** Decimal places of a finite number, e.g. 0.01 → 2, 0.5 → 1, 1e-13 → 13. */
+function decimalPlaces(value: number): number {
+	if (!Number.isFinite(value) || value === 0) return 0;
+	const [mantissa, exponent] = Math.abs(value).toExponential().split('e');
+	const dotIndex = mantissa.indexOf('.');
+	const mantissaDecimals = dotIndex === -1 ? 0 : mantissa.length - dotIndex - 1;
+	return Math.max(0, mantissaDecimals - Number(exponent));
 }
 
-function decimalPlacesFromOffset(offset: number): number {
-	if (!Number.isFinite(offset)) return 0;
-	const offsetText = Math.abs(offset)
-		.toFixed(12)
-		.replace(/\.?0+$/, '');
-	const dotIndex = offsetText.indexOf('.');
-	return dotIndex === -1 ? 0 : offsetText.length - dotIndex - 1;
-}
-
+/**
+ * Legend precision policy: decimal places follow the signal resolution
+ * (factor/offset), padded so a signal's values keep a stable width, capped to a
+ * seven-significant-digit budget. Extreme magnitudes fall back to scientific
+ * notation like the axis labels.
+ */
 export function formatLegendNumericValue(value: number, factor: number, offset = 0): string {
 	if (!Number.isFinite(value)) return '-';
-	if (Object.is(value, -0) || value === 0) return '0';
+	if (value === 0) return '0';
 
 	const magnitude = Math.abs(value);
-	if (magnitude >= 1_000_000 || (magnitude > 0 && magnitude < 1e-6)) {
+	if (magnitude >= 1_000_000 || magnitude < 1e-6) {
 		return value.toExponential(LEGEND_MAX_SIGNIFICANT_DIGITS - 1);
 	}
 
-	const factorDecimals = Math.max(decimalPlacesFromFactor(factor), decimalPlacesFromOffset(offset));
+	const resolutionDecimals = Math.max(decimalPlaces(factor), decimalPlaces(offset));
 	const integerDigits = magnitude >= 1 ? Math.floor(Math.log10(magnitude)) + 1 : 1;
-	const maxFractionDigits = Math.min(
-		factorDecimals,
+	const fractionDigits = Math.min(
+		resolutionDecimals,
 		Math.max(0, LEGEND_MAX_SIGNIFICANT_DIGITS - integerDigits)
 	);
-
-	return new Intl.NumberFormat('en-US', {
-		minimumFractionDigits: maxFractionDigits,
-		maximumFractionDigits: maxFractionDigits,
-		useGrouping: false
-	}).format(value);
+	return value.toFixed(fractionDigits);
 }
 
 export function formatDecodedValue(
 	value: number | null,
 	context: DecodedValueFormatContext
-): FormattedDecodedValue {
+): { text: string; outOfRange: boolean } {
 	if (value === null || !Number.isFinite(value)) {
 		return { text: '-', outOfRange: false };
 	}

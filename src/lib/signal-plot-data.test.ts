@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-	dbcLimitsAreSpecified,
-	decimalPlacesFromFactor,
 	formatAxisValue,
 	formatDecodedValue,
 	formatLegendNumericValue,
@@ -128,20 +126,10 @@ describe('signal plot data', () => {
 		expect(formatAxisValue(0.000012345)).toBe('1.23e-5');
 	});
 
-	it('treats [0|0] DBC limits as unspecified', () => {
-		expect(dbcLimitsAreSpecified(0, 0)).toBe(false);
-		expect(isOutsideDbcRange(999, 0, 0)).toBe(false);
-	});
-
-	it('flags values outside specified DBC limits', () => {
+	it('flags values outside specified DBC limits, treating [0|0] as unspecified', () => {
 		expect(isOutsideDbcRange(251, 0, 250)).toBe(true);
 		expect(isOutsideDbcRange(250, 0, 250)).toBe(false);
-	});
-
-	it('derives legend decimals from factor resolution', () => {
-		expect(decimalPlacesFromFactor(0.1)).toBe(1);
-		expect(decimalPlacesFromFactor(0.01)).toBe(2);
-		expect(decimalPlacesFromFactor(1)).toBe(0);
+		expect(isOutsideDbcRange(999, 0, 0)).toBe(false);
 	});
 
 	it('caps legend numeric width at seven significant digits', () => {
