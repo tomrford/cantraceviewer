@@ -15,29 +15,6 @@ pub const ValueType = enum { integer, float32, float64 };
 /// One raw numeric value and its display label.
 pub const ValueDescription = struct { raw_value: i64, label: []const u8 };
 
-/// Duplicates value descriptions so a signal can own a copy of a named table.
-pub fn dupeValueDescriptions(allocator: std.mem.Allocator, descriptions: []const ValueDescription) ![]ValueDescription {
-    const copy = try allocator.alloc(ValueDescription, descriptions.len);
-    errdefer allocator.free(copy);
-
-    var copied_labels: usize = 0;
-    errdefer {
-        for (copy[0..copied_labels]) |description| {
-            allocator.free(description.label);
-        }
-    }
-
-    for (descriptions, copy) |description, *target| {
-        target.* = .{
-            .raw_value = description.raw_value,
-            .label = try allocator.dupe(u8, description.label),
-        };
-        copied_labels += 1;
-    }
-
-    return copy;
-}
-
 /// Releases only labels inside a value-description slice.
 pub fn freeValueDescriptionLabels(allocator: std.mem.Allocator, descriptions: []const ValueDescription) void {
     for (descriptions) |description| {
