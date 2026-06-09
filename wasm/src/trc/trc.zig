@@ -51,6 +51,7 @@ pub fn fromString(allocator: std.mem.Allocator, text: []const u8) !trace.Trace {
     if (state.version.isV2() and state.columns == null) return error.InvalidTrcColumns;
 
     parsed_trace.measurement_start_ms = state.measurement_start_ms;
+    errdefer parsed_trace.deinit(allocator);
     parsed_trace.frames = try frames.toOwnedSlice(allocator);
     parsed_trace.payloads = try payloads.toOwnedSlice(allocator);
     return parsed_trace;
@@ -197,4 +198,17 @@ test "rejects unsupported TRC 3.0" {
     ;
 
     try std.testing.expectError(error.UnsupportedTrcVersion, fromString(allocator, text));
+}
+
+test "cleans up owned frames when payload finalization fails" {
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, struct {
+        pub fn f(allocator: std.mem.Allocator) !void {
+            var parsed = try fromString(allocator,
+                \\;$FILEVERSION=1.1
+                \\1 0.100 Rx 0123 2 AA BB
+                \\
+            );
+            defer parsed.deinit(allocator);
+        }
+    }.f, .{});
 }
