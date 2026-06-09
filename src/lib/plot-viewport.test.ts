@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	boxViewport,
-	fitDomain,
+	paddedViewport,
 	panViewport,
 	viewportCenterX,
 	viewportIndicator,
@@ -9,14 +9,17 @@ import {
 } from './plot-viewport';
 
 describe('plot viewport math', () => {
-	it('fits finite points and pads the y axis', () => {
-		expect(
-			fitDomain([
-				{ x: 0, y: 10 },
-				{ x: 100, y: 20 },
-				{ x: Number.NaN, y: 30 }
-			])
-		).toEqual({ xMin: 0, xMax: 100, yMin: 9.5, yMax: 20.5 });
+	it('pads the y axis and keeps the x axis tight', () => {
+		expect(paddedViewport(0, 100, 10, 20)).toEqual({ xMin: 0, xMax: 100, yMin: 9.5, yMax: 20.5 });
+	});
+
+	it('pads equal extents around the shared value', () => {
+		expect(paddedViewport(5, 5, 100, 100)).toEqual({ xMin: 4, xMax: 6, yMin: 95, yMax: 105 });
+	});
+
+	it('rejects non-finite extents', () => {
+		expect(paddedViewport(0, Number.POSITIVE_INFINITY, 0, 1)).toBeNull();
+		expect(paddedViewport(Number.NaN, 1, 0, 1)).toBeNull();
 	});
 
 	it('pans in data units from pixel movement', () => {

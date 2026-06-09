@@ -3,6 +3,7 @@ import {
 	formatAxisValue,
 	lineSeries,
 	lineSeriesForViews,
+	signalDomain,
 	visibleSignalViews,
 	type SignalView
 } from './signal-plot-data';
@@ -62,6 +63,46 @@ describe('signal plot data', () => {
 		expect(series.type).toBe('line');
 		if (series.type !== 'line') throw new Error('expected line series');
 		expect(series.samplingThreshold).toBe(25_000);
+	});
+
+	it('fits the domain across views from min/max scans', () => {
+		expect(signalDomain([view([0, 50, 100], [10, 15, 20]), view([25, 75], [-10, 0])])).toEqual({
+			xMin: 0,
+			xMax: 100,
+			yMin: -11.5,
+			yMax: 21.5
+		});
+	});
+
+	it('fits x domain from min/max scan when timestamps are non-monotonic', () => {
+		expect(signalDomain([view([5, 1, 9, 3], [10, 20, 30, 40])])).toEqual({
+			xMin: 1,
+			xMax: 9,
+			yMin: 8.5,
+			yMax: 41.5
+		});
+	});
+
+	it('skips samples with non-finite coordinates', () => {
+		expect(
+			signalDomain([view([Number.NaN, 10, 20, 30], [5, 10, Number.POSITIVE_INFINITY, 20])])
+		).toEqual({ xMin: 10, xMax: 30, yMin: 9.5, yMax: 20.5 });
+	});
+
+	it('returns null when no view has finite points', () => {
+		expect(signalDomain([])).toBeNull();
+		expect(signalDomain([view([])])).toBeNull();
+		expect(signalDomain([view([0, 1], [Number.NaN, Number.NaN])])).toBeNull();
+	});
+
+	it('recomputes the domain when the value series changes for the same time series', () => {
+		const x = new Float64Array([0, 100]);
+		const base = view([], []);
+		const first = { ...base, x, y: new Float64Array([0, 10]), points: 2 };
+		const second = { ...base, x, y: new Float64Array([0, 40]), points: 2 };
+
+		expect(signalDomain([first])).toEqual({ xMin: 0, xMax: 100, yMin: -0.5, yMax: 10.5 });
+		expect(signalDomain([second])).toEqual({ xMin: 0, xMax: 100, yMin: -2, yMax: 42 });
 	});
 
 	it('keeps y-axis tick labels compact', () => {

@@ -1,5 +1,5 @@
 import type { SeriesConfig } from 'chartgpu';
-import { fitDomain, type PlotPoint, type PlotViewport } from './plot-viewport';
+import { paddedViewport, type PlotViewport } from './plot-viewport';
 import type { PlotSignal } from './stores/plot-data.svelte.js';
 import type { TimestampMode } from './stores/preferences.svelte.js';
 
@@ -100,7 +100,21 @@ export function markerValue(view: SignalView, x: number) {
 }
 
 export function signalDomain(views: SignalView[]): PlotViewport | null {
-	return fitDomain(plotPoints(views));
+	let xMin = Number.POSITIVE_INFINITY;
+	let xMax = Number.NEGATIVE_INFINITY;
+	let yMin = Number.POSITIVE_INFINITY;
+	let yMax = Number.NEGATIVE_INFINITY;
+
+	for (const view of views) {
+		const domain = viewDomain(view);
+		if (domain === null) continue;
+		xMin = Math.min(xMin, domain.xMin);
+		xMax = Math.max(xMax, domain.xMax);
+		yMin = Math.min(yMin, domain.yMin);
+		yMax = Math.max(yMax, domain.yMax);
+	}
+
+	return paddedViewport(xMin, xMax, yMin, yMax);
 }
 
 export function formatAxisTime(
@@ -144,12 +158,53 @@ export function formatAxisValue(value: number): string | null {
 	}).format(value);
 }
 
-function* plotPoints(views: SignalView[]): Iterable<PlotPoint> {
-	for (const view of views) {
-		for (let index = 0; index < view.points; index += 1) {
-			yield { x: view.x[index], y: view.y[index] };
-		}
+type ViewDomain = { xMin: number; xMax: number; yMin: number; yMax: number };
+
+// Keyed on the underlying immutable series arrays so the per-view scan survives
+// view objects being rebuilt on every derived tick.
+const viewDomainCache = new WeakMap<
+	Float64Array<ArrayBufferLike>,
+	{ y: Float64Array<ArrayBufferLike>; domain: ViewDomain | null }
+>();
+
+function viewDomain(view: SignalView): ViewDomain | null {
+	const cached = viewDomainCache.get(view.x);
+	if (cached !== undefined && cached.y === view.y) return cached.domain;
+
+	const domain = scanViewDomain(view.x, view.y, view.points);
+	viewDomainCache.set(view.x, { y: view.y, domain });
+	return domain;
+}
+
+function scanViewDomain(
+	x: Float64Array<ArrayBufferLike>,
+	y: Float64Array<ArrayBufferLike>,
+	points: number
+): ViewDomain | null {
+	let xMin = Number.POSITIVE_INFINITY;
+	let xMax = Number.NEGATIVE_INFINITY;
+	let yMin = Number.POSITIVE_INFINITY;
+	let yMax = Number.NEGATIVE_INFINITY;
+
+	for (let index = 0; index < points; index += 1) {
+		const xValue = x[index];
+		const yValue = y[index];
+		if (!Number.isFinite(xValue) || !Number.isFinite(yValue)) continue;
+		if (xValue < xMin) xMin = xValue;
+		if (xValue > xMax) xMax = xValue;
+		if (yValue < yMin) yMin = yValue;
+		if (yValue > yMax) yMax = yValue;
 	}
+
+	if (
+		!Number.isFinite(xMin) ||
+		!Number.isFinite(xMax) ||
+		!Number.isFinite(yMin) ||
+		!Number.isFinite(yMax)
+	) {
+		return null;
+	}
+	return { xMin, xMax, yMin, yMax };
 }
 
 function nearestValue(view: SignalView, x: number): number | null {
