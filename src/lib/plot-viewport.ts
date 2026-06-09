@@ -5,28 +5,15 @@ export type PlotViewport = {
 	yMax: number;
 };
 
-export type PlotPoint = {
-	x: number;
-	y: number;
-};
-
 const MIN_SPAN = 1e-9;
 const EQUAL_TOLERANCE = 1e-6;
 
-export function fitDomain(points: Iterable<PlotPoint>): PlotViewport | null {
-	let xMin = Number.POSITIVE_INFINITY;
-	let xMax = Number.NEGATIVE_INFINITY;
-	let yMin = Number.POSITIVE_INFINITY;
-	let yMax = Number.NEGATIVE_INFINITY;
-
-	for (const point of points) {
-		if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) continue;
-		xMin = Math.min(xMin, point.x);
-		xMax = Math.max(xMax, point.x);
-		yMin = Math.min(yMin, point.y);
-		yMax = Math.max(yMax, point.y);
-	}
-
+export function paddedViewport(
+	xMin: number,
+	xMax: number,
+	yMin: number,
+	yMax: number
+): PlotViewport | null {
 	if (
 		!Number.isFinite(xMin) ||
 		!Number.isFinite(xMax) ||
