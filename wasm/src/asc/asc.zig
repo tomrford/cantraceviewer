@@ -58,6 +58,7 @@ pub fn fromString(allocator: std.mem.Allocator, text: []const u8) !trace.Trace {
     }
 
     parsed_trace.measurement_start_ms = state.measurement_start_ms;
+    errdefer parsed_trace.deinit(allocator);
     parsed_trace.frames = try frames.toOwnedSlice(allocator);
     parsed_trace.payloads = try payloads.toOwnedSlice(allocator);
     return parsed_trace;
@@ -321,6 +322,19 @@ test "duration is null when no data frames are present" {
 
     try std.testing.expectEqual(@as(usize, 0), parsed.data_frame_count);
     try std.testing.expectEqual(@as(?u64, null), parsed.last_data_timestamp_ns);
+}
+
+test "cleans up owned frames when payload finalization fails" {
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, struct {
+        pub fn f(allocator: std.mem.Allocator) !void {
+            var parsed = try fromString(allocator,
+                \\base hex timestamps absolute
+                \\0.100000 1 123 Rx d 2 aa bb
+                \\
+            );
+            defer parsed.deinit(allocator);
+        }
+    }.f, .{});
 }
 
 test "parses vector date to unix milliseconds" {
