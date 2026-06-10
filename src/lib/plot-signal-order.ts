@@ -2,22 +2,15 @@ import type { PlotSignal } from './stores/plot-data.svelte.js';
 
 export type LegendOrderMode = 'selection' | 'alphabetical' | 'grouped';
 
-export function orderPlotSignals(
-	signals: PlotSignal[],
-	mode: LegendOrderMode,
-	selectionOrder: ReadonlyMap<string, number>
-): PlotSignal[] {
+export function orderPlotSignals(signals: PlotSignal[], mode: LegendOrderMode): PlotSignal[] {
 	switch (mode) {
-		case 'selection':
-			return signals;
 		case 'alphabetical':
 			return [...signals].sort(compareAlphabetical);
 		case 'grouped':
 			return [...signals].sort(compareGrouped);
-		default: {
-			const unhandledMode: never = mode;
-			throw new Error(`Unhandled legend order mode: ${unhandledMode}`);
-		}
+		case 'selection':
+		default:
+			return signals;
 	}
 }
 

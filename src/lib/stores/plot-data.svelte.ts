@@ -59,13 +59,11 @@ class PlotDataStore {
 
 	signals = $derived.by<PlotSignal[]>(() => {
 		const signals: PlotSignal[] = [];
-		const selectionOrder = new Map<PlotSignalKey, number>();
 
-		for (const [index, key] of [...this.selectedSignalKeys].entries()) {
+		for (const key of this.selectedSignalKeys) {
 			const target = findSignalTarget(key);
 			if (!target) continue;
 
-			selectionOrder.set(key, index);
 			signals.push(
 				plotSignal(target.file.id, target.file.name, target.message, target.signal, {
 					color: this.signalColors.colorFor(key),
@@ -76,7 +74,7 @@ class PlotDataStore {
 			);
 		}
 
-		return orderPlotSignals(signals, legendOrderMode.current, selectionOrder);
+		return orderPlotSignals(signals, legendOrderMode.current);
 	});
 
 	hasPlottableSignals = $derived(this.signals.some(isPlottableSignal));

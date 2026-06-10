@@ -1,19 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { orderPlotSignals } from './plot-signal-order.js';
+import { orderPlotSignals, type LegendOrderMode } from './plot-signal-order.js';
 import type { PlotSignal } from './stores/plot-data.svelte.js';
 
 describe('orderPlotSignals', () => {
 	it('preserves selection order by default', () => {
 		const signals = [plotSignal('b', 'Msg.B'), plotSignal('a', 'Msg.A')];
-		const selectionOrder = new Map([
-			['b', 0],
-			['a', 1]
-		]);
 
-		expect(orderPlotSignals(signals, 'selection', selectionOrder).map((signal) => signal.key)).toEqual([
-			'b',
-			'a'
-		]);
+		expect(orderPlotSignals(signals, 'selection').map((signal) => signal.key)).toEqual(['b', 'a']);
+	});
+
+	it('falls back to selection order for an unknown persisted mode', () => {
+		const signals = [plotSignal('b', 'Msg.B'), plotSignal('a', 'Msg.A')];
+
+		expect(
+			orderPlotSignals(signals, 'stale-mode' as LegendOrderMode).map((signal) => signal.key)
+		).toEqual(['b', 'a']);
 	});
 
 	it('sorts alphabetically by label', () => {
@@ -23,7 +24,7 @@ describe('orderPlotSignals', () => {
 			plotSignal('m', 'Middle.M')
 		];
 
-		expect(orderPlotSignals(signals, 'alphabetical', new Map()).map((signal) => signal.label)).toEqual([
+		expect(orderPlotSignals(signals, 'alphabetical').map((signal) => signal.label)).toEqual([
 			'Alpha.A',
 			'Middle.M',
 			'Zeta.Z'
@@ -39,7 +40,7 @@ describe('orderPlotSignals', () => {
 			plotSignal('rpm-a', 'Engine.RpmA', { unit: 'rpm', factor: 1, offset: 0 })
 		];
 
-		expect(orderPlotSignals(signals, 'grouped', new Map()).map((signal) => signal.key)).toEqual([
+		expect(orderPlotSignals(signals, 'grouped').map((signal) => signal.key)).toEqual([
 			'temp-a',
 			'temp-b',
 			'speed',
@@ -54,7 +55,7 @@ describe('orderPlotSignals', () => {
 			plotSignal('coarse', 'Msg.Coarse', { unit: 'V', factor: 0.1, offset: 0 })
 		];
 
-		expect(orderPlotSignals(signals, 'grouped', new Map()).map((signal) => signal.key)).toEqual([
+		expect(orderPlotSignals(signals, 'grouped').map((signal) => signal.key)).toEqual([
 			'fine',
 			'coarse'
 		]);
