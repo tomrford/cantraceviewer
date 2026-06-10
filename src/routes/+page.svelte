@@ -144,10 +144,14 @@
 	<meta property="og:title" content={siteTitle} />
 	<meta property="og:description" content={siteDescription} />
 	<meta property="og:url" content={siteUrl} />
+	<meta property="og:image" content="https://cantraceviewer.com/og-image.png" />
+	<meta property="og:image:width" content="1200" />
+	<meta property="og:image:height" content="630" />
 
-	<meta name="twitter:card" content="summary" />
+	<meta name="twitter:card" content="summary_large_image" />
 	<meta name="twitter:title" content={siteTitle} />
 	<meta name="twitter:description" content={siteDescription} />
+	<meta name="twitter:image" content="https://cantraceviewer.com/og-image.png" />
 </svelte:head>
 
 {#if supportStatus === 'supported'}
