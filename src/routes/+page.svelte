@@ -19,10 +19,8 @@
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
 	import { sidebarOpen } from '$lib/stores/preferences.svelte.js';
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
-	import { IsMobile } from '$lib/hooks/is-mobile.svelte.js';
 	import { TRACE_FILE_ACCEPT } from '$lib/trace-file-types.js';
 	import type { TraceMetadata } from '$lib/wasm.js';
-	import { MediaQuery } from 'svelte/reactivity';
 	import AudioWaveformIcon from '@lucide/svelte/icons/audio-waveform';
 	import BoxSelectIcon from '@lucide/svelte/icons/box-select';
 	import CogIcon from '@lucide/svelte/icons/cog';
@@ -32,14 +30,10 @@
 	import MinusIcon from '@lucide/svelte/icons/minus';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SeparatorVerticalIcon from '@lucide/svelte/icons/separator-vertical';
-	import { onMount } from 'svelte';
 
 	let traceInput = $state<HTMLInputElement>();
 	let plot = $state<SignalPlot>();
 	let traceDropActive = $state(false);
-	const isMobileViewport = new IsMobile();
-	const coarsePointer = new MediaQuery('pointer: coarse');
-	let supportStatus = $state<'checking' | 'supported' | 'mobile' | 'webgpu'>('checking');
 	let markerEnabled = $state(false);
 	let markerX = $state<number | null>(null);
 	let boxZoomEnabled = $state(false);
@@ -54,20 +48,6 @@
 	const siteUrl = 'https://cantraceviewer.com/';
 	const toolbarIconButtonClass =
 		'border-input bg-transparent hover:bg-muted hover:text-foreground dark:bg-transparent dark:hover:bg-muted/50';
-
-	onMount(() => {
-		if (isMobileViewport.current || coarsePointer.current) {
-			supportStatus = 'mobile';
-			return;
-		}
-
-		if (!('gpu' in navigator)) {
-			supportStatus = 'webgpu';
-			return;
-		}
-
-		supportStatus = 'supported';
-	});
 
 	async function selectTrace(event: Event) {
 		const input = event.currentTarget as HTMLInputElement;
@@ -150,7 +130,19 @@
 	<meta name="twitter:description" content={siteDescription} />
 </svelte:head>
 
-{#if supportStatus === 'supported'}
+<main
+	class="viewport-gate flex min-h-screen items-center justify-center bg-background px-6 text-center"
+>
+	<div class="max-w-sm space-y-2">
+		<h1 class="text-base font-medium text-foreground">Screen too small</h1>
+		<p class="text-sm text-muted-foreground">
+			CAN Trace Viewer needs a viewport of at least 600 px in both width and height. It works best
+			on desktop or tablet.
+		</p>
+	</div>
+</main>
+
+<div class="app-shell">
 	<Sidebar.Provider
 		style="--sidebar-width: 24rem;"
 		open={sidebarOpen.current}
@@ -348,16 +340,20 @@
 			</AlertDialog.Content>
 		{/if}
 	</AlertDialog.Root>
-{:else if supportStatus === 'mobile'}
-	<main class="flex min-h-screen items-center justify-center bg-background px-6 text-center">
-		<h1 class="text-base font-medium text-foreground">Not supported on mobile</h1>
-	</main>
-{:else if supportStatus === 'webgpu'}
-	<main class="flex min-h-screen items-center justify-center bg-background px-6 text-center">
-		<h1 class="text-base font-medium text-foreground">WebGPU is not supported in this browser</h1>
-	</main>
-{:else}
-	<main class="min-h-screen bg-background" aria-label="Checking browser support">
-		<span class="sr-only">Checking browser support</span>
-	</main>
-{/if}
+</div>
+
+<style>
+	.viewport-gate {
+		display: none;
+	}
+
+	@media (max-width: 599px), (max-height: 599px) {
+		.viewport-gate {
+			display: flex;
+		}
+
+		.app-shell {
+			display: none;
+		}
+	}
+</style>

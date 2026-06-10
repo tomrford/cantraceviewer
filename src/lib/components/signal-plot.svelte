@@ -130,7 +130,8 @@
 	});
 	onMount(async () => {
 		if (!('gpu' in navigator)) {
-			chartError = 'WebGPU is not available in this browser.';
+			chartError =
+				'This browser does not support WebGPU, so the plot cannot render. Try a recent desktop browser with WebGPU enabled.';
 			return;
 		}
 
