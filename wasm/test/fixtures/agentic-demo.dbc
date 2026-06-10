@@ -21,7 +21,24 @@ BO_ 288 PowertrainStatus: 8 Agent
  SG_ throttle : 32|8@1+ (0.5,0) [0|100] "%" Dashboard
  SG_ coolant_temp : 40|8@1+ (1,-40) [-40|215] "degC" Dashboard
 
-BO_ 304 BodyStatus: 3 Agent
- SG_ left_signal : 0|8@1+ (1,0) [0|1] "" Dashboard
- SG_ right_signal : 8|8@1+ (1,0) [0|1] "" Dashboard
- SG_ battery_voltage : 16|8@1+ (0.1,0) [0|25.5] "V" Dashboard
+BO_ 512 BatteryStatus: 8 Agent
+ SG_ soc : 0|8@1+ (0.5,0) [0|100] "%" Dashboard
+ SG_ pack_voltage : 8|16@1+ (0.01,0) [0|655] "V" Dashboard
+ SG_ pack_current : 24|16@1- (0.1,0) [-3276|3276] "A" Dashboard
+ SG_ cell_temp_max : 40|8@1+ (1,-40) [-40|215] "degC" Dashboard
+
+BO_ 544 BrakeSystem: 6 Agent
+ SG_ brake_pressure_front : 0|16@1+ (0.01,0) [0|250] "bar" Dashboard
+ SG_ brake_pressure_rear : 16|16@1+ (0.01,0) [0|250] "bar" Dashboard
+ SG_ abs_active : 32|1@1+ (1,0) [0|1] "" Dashboard
+ SG_ brake_pedal : 40|8@1+ (0.5,0) [0|100] "%" Dashboard
+
+BO_ 576 SteeringAngle: 4 Agent
+ SG_ steering_angle : 0|16@1- (0.1,0) [-780|780] "deg" Dashboard
+ SG_ steering_rate : 16|16@1- (0.01,0) [-327|327] "deg/s" Dashboard
+
+BO_ 608 VehicleDynamics: 8 Agent
+ SG_ lateral_accel : 0|16@1- (0.001,0) [-32|32] "g" Dashboard
+ SG_ longitudinal_accel : 16|16@1- (0.001,0) [-32|32] "g" Dashboard
+ SG_ yaw_rate : 32|16@1- (0.01,0) [-327|327] "deg/s" Dashboard
+ SG_ road_grade : 48|8@1- (0.5,0) [-64|64] "%" Dashboard
