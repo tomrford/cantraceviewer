@@ -39,7 +39,7 @@
 		{
 			value: 'alphabetical',
 			label: 'Alphabetical',
-			description: 'Sort signals alphabetically by message and name'
+			description: 'Sort signals alphabetically by signal, then message'
 		},
 		{
 			value: 'grouped',

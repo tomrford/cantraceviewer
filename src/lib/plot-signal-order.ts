@@ -15,7 +15,12 @@ export function orderPlotSignals(signals: PlotSignal[], mode: LegendOrderMode): 
 }
 
 function compareAlphabetical(a: PlotSignal, b: PlotSignal): number {
-	return a.label.localeCompare(b.label);
+	return (
+		a.signalName.localeCompare(b.signalName) ||
+		a.messageName.localeCompare(b.messageName) ||
+		a.label.localeCompare(b.label) ||
+		a.key.localeCompare(b.key)
+	);
 }
 
 function compareGrouped(a: PlotSignal, b: PlotSignal): number {

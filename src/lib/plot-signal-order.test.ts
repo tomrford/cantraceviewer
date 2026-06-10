@@ -17,17 +17,17 @@ describe('orderPlotSignals', () => {
 		).toEqual(['b', 'a']);
 	});
 
-	it('sorts alphabetically by label', () => {
+	it('sorts alphabetically by visible signal then message', () => {
 		const signals = [
-			plotSignal('z', 'Zeta.Z'),
-			plotSignal('a', 'Alpha.A'),
-			plotSignal('m', 'Middle.M')
+			plotSignal('engine-speed', 'Engine.Speed'),
+			plotSignal('body-amps', 'Body.Amps'),
+			plotSignal('powertrain-speed', 'Powertrain.Speed')
 		];
 
-		expect(orderPlotSignals(signals, 'alphabetical').map((signal) => signal.label)).toEqual([
-			'Alpha.A',
-			'Middle.M',
-			'Zeta.Z'
+		expect(orderPlotSignals(signals, 'alphabetical').map((signal) => signal.key)).toEqual([
+			'body-amps',
+			'engine-speed',
+			'powertrain-speed'
 		]);
 	});
 
