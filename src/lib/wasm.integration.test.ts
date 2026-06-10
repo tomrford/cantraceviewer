@@ -37,7 +37,7 @@ describe('WASM adapter integration', () => {
 			const powertrain = catalog.messages.find((message) => message.name === 'PowertrainStatus');
 			const vehicleSpeed = powertrain?.signals.find((signal) => signal.name === 'vehicle_speed');
 
-			expect(catalog.messages).toHaveLength(3);
+			expect(catalog.messages).toHaveLength(6);
 			expect(powertrain).toMatchObject({
 				dbcId: 288,
 				canId: 288,
@@ -66,8 +66,8 @@ describe('WASM adapter integration', () => {
 		try {
 			expect(trace.metadata).toEqual({
 				measurementStartMs: 1777550400000,
-				validMessageCount: 9,
-				durationNs: 220_000_000
+				validMessageCount: 1506,
+				durationNs: 25_050_000_000
 			});
 		} finally {
 			await closeTrace(trace);
@@ -79,13 +79,18 @@ describe('WASM adapter integration', () => {
 		const trace = await openFixtureTrace();
 		try {
 			const powertrainIdentity = { canId: 288, isExtended: false, sizeBytes: 8 };
+			const batteryIdentity = { canId: 512, isExtended: false, sizeBytes: 8 };
 			const speed = await getSignalValues(dbc, trace, powertrainIdentity, 'vehicle_speed');
 			const coolant = await getSignalValues(dbc, trace, powertrainIdentity, 'coolant_temp');
+			const soc = await getSignalValues(dbc, trace, batteryIdentity, 'soc');
 
-			expect(Array.from(speed.timesMs)).toEqual([10, 110, 210]);
-			expect(Array.from(speed.values)).toEqual([100, 123.4, 150]);
-			expect(Array.from(coolant.timesMs)).toEqual([10, 110, 210]);
-			expect(Array.from(coolant.values)).toEqual([80, 90, 100]);
+			expect(Array.from(speed.timesMs).slice(0, 3)).toEqual([10, 110, 210]);
+			expect(Array.from(speed.values).slice(0, 3)).toEqual([100, 123.4, 150]);
+			expect(Array.from(coolant.timesMs).slice(0, 3)).toEqual([10, 110, 210]);
+			expect(Array.from(coolant.values).slice(0, 3)).toEqual([80, 90, 100]);
+			expect(speed.timesMs.length).toBe(251);
+			expect(soc.timesMs.length).toBe(251);
+			expect(soc.values[0]).toBeCloseTo(82, 1);
 		} finally {
 			await closeTrace(trace);
 			await closeDbc(dbc);
