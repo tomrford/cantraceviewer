@@ -1,11 +1,6 @@
+/** WASM parse/decode adapter. File size limits: import from '$lib/file-limits.js'. */
 import wasmUrl from '$lib/assets/cantraceviewer.wasm?url';
 import { z } from 'zod';
-
-export {
-	DBC_MAX_FILE_BYTES,
-	TRACE_MAX_FILE_BYTES,
-	assertFileSizeWithinLimit
-} from '$lib/file-limits.js';
 
 const DbcValueDescriptionSchema = z.object({
 	rawValue: z.number(),
@@ -61,12 +56,19 @@ export type DecodedSignalSeries = {
 };
 export type TraceType = 'asc' | 'trc' | 'blf';
 
+declare const DbcHandleBrand: unique symbol;
+declare const TraceHandleBrand: unique symbol;
+
+/** Opaque DBC handle. Only this module constructs handles or reads their ids. */
 export type DbcHandle = {
-	readonly ptr: number;
+	readonly [DbcHandleBrand]: true;
+	readonly id: number;
 };
 
+/** Opaque trace handle. Only this module constructs handles or reads their ids. */
 export type TraceHandle = {
-	readonly ptr: number;
+	readonly [TraceHandleBrand]: true;
+	readonly id: number;
 	readonly metadata: TraceMetadata;
 };
 
@@ -183,12 +185,12 @@ export async function openDbc(text: string): Promise<DbcHandle> {
 		throw new Error('DBC parse failed');
 	}
 
-	return { ptr: handle };
+	return { id: handle } as DbcHandle;
 }
 
 export async function getDbcCatalog(handle: DbcHandle): Promise<ParsedDbc> {
 	const wasm = await loadWasm();
-	const jsonBytes = wasm.dbc_to_json(handle.ptr);
+	const jsonBytes = wasm.dbc_to_json(handle.id);
 
 	if (jsonBytes === 0) {
 		throw new Error('DBC JSON export failed');
@@ -199,7 +201,7 @@ export async function getDbcCatalog(handle: DbcHandle): Promise<ParsedDbc> {
 
 export async function closeDbc(handle: DbcHandle): Promise<void> {
 	const wasm = await loadWasm();
-	wasm.dbc_free(handle.ptr);
+	wasm.dbc_free(handle.id);
 }
 
 export type DbcMessageIdentity = Pick<DbcMessage, 'canId' | 'isExtended' | 'sizeBytes'>;
@@ -216,8 +218,8 @@ export async function getSignalValues(
 		signalNameBytes = copyTextToWasm(wasm, signalName);
 
 		const series = wasm.get_trace_signal_values(
-			dbcHandle.ptr,
-			trace.ptr,
+			dbcHandle.id,
+			trace.id,
 			messageIdentity.canId,
 			messageIdentity.isExtended,
 			messageIdentity.sizeBytes,
@@ -235,9 +237,9 @@ export async function getSignalValues(
 	}
 }
 
-export async function getTraceMetadata(handle: Pick<TraceHandle, 'ptr'>): Promise<TraceMetadata> {
+async function getTraceMetadata(id: number): Promise<TraceMetadata> {
 	const wasm = await loadWasm();
-	const jsonBytes = wasm.trace_to_metadata_json(handle.ptr);
+	const jsonBytes = wasm.trace_to_metadata_json(id);
 
 	if (jsonBytes === 0) {
 		throw new Error('Trace metadata export failed');
@@ -248,22 +250,21 @@ export async function getTraceMetadata(handle: Pick<TraceHandle, 'ptr'>): Promis
 
 export async function closeTrace(trace: TraceHandle): Promise<void> {
 	const wasm = await loadWasm();
-	wasm.trace_free(trace.ptr);
+	wasm.trace_free(trace.id);
 }
 
 export async function openTrace(traceType: TraceType, bytes: Uint8Array): Promise<TraceHandle> {
 	const wasm = await loadWasm();
 	const traceParser = parserForTraceType(wasm, traceType);
-	const ptr = parseTraceBytes(wasm, bytes, traceParser.parse, traceParser.label);
+	const id = parseTraceBytes(wasm, bytes, traceParser.parse, traceParser.label);
 
-	const handle = { ptr };
 	try {
 		return {
-			ptr,
-			metadata: await getTraceMetadata(handle)
-		};
+			id,
+			metadata: await getTraceMetadata(id)
+		} as TraceHandle;
 	} catch (error) {
-		wasm.trace_free(ptr);
+		wasm.trace_free(id);
 		throw error;
 	}
 }

@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
 import { dbcFiles, signalIdentityKey } from './dbc-files.svelte';
 import { plotData } from './plot-data.svelte';
-import { traceFile } from './trace-file.svelte';
+import { traceFile, type TraceFileEntry } from './trace-file.svelte';
 import { getSignalValues } from '$lib/wasm.js';
-import type { DbcMessage, DbcSignal, DecodedSignalSeries } from '$lib/wasm.js';
+import type { DbcHandle, DbcMessage, DbcSignal, DecodedSignalSeries } from '$lib/wasm.js';
 
 vi.mock('$lib/wasm.js', () => ({
 	closeDbc: vi.fn(() => Promise.resolve()),
@@ -33,7 +33,7 @@ describe('plotData', () => {
 		await plotData.toggleSignal(key());
 
 		expect(getSignalValuesMock).toHaveBeenCalledExactlyOnceWith(
-			{ ptr: 1 },
+			{ id: 1 },
 			traceFile.entry,
 			{ canId: 291, isExtended: false, sizeBytes: 8 },
 			'VehicleSpeed'
@@ -89,7 +89,7 @@ describe('plotData', () => {
 		await plotData.toggleSignal(key());
 
 		expect(getSignalValuesMock).toHaveBeenCalledExactlyOnceWith(
-			{ ptr: 1 },
+			{ id: 1 },
 			traceFile.entry,
 			{ canId: 291, isExtended: false, sizeBytes: 8 },
 			'VehicleSpeed'
@@ -112,7 +112,7 @@ describe('plotData', () => {
 		);
 
 		expect(getSignalValuesMock).toHaveBeenCalledExactlyOnceWith(
-			{ ptr: 1 },
+			{ id: 1 },
 			traceFile.entry,
 			{ canId: 0x200, isExtended: false, sizeBytes: 1 },
 			'Value'
@@ -134,23 +134,23 @@ function dbcEntry(overrides: { messages?: DbcMessage[] } = {}) {
 		id: 'dbc-1',
 		name: 'powertrain.dbc',
 		text: 'dbc',
-		handle: { ptr: 1 },
+		handle: { id: 1 } as DbcHandle,
 		catalog: {
 			messages: overrides.messages ?? [message()]
 		}
 	};
 }
 
-function traceEntry(ptr: number) {
+function traceEntry(id: number): TraceFileEntry {
 	return {
-		ptr,
+		id,
 		file: new File(['trace'], 'drive.asc'),
 		metadata: {
 			measurementStartMs: null,
 			validMessageCount: 1,
 			durationNs: 1_000_000
 		}
-	};
+	} as TraceFileEntry;
 }
 
 function message(overrides: Partial<DbcMessage> = {}): DbcMessage {
