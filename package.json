@@ -5,7 +5,7 @@
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev",
-		"build": "vite build",
+		"build": "bun --bun vite build",
 		"wasm:build": "cd wasm && zig build",
 		"wasm:build:release": "cd wasm && zig build -Doptimize=ReleaseSmall && cp zig-out/bin/cantraceviewer.wasm ../src/lib/assets/cantraceviewer.wasm",
 		"wasm:test": "cd wasm && zig build test",
