@@ -1,8 +1,11 @@
 import { PersistedState } from 'runed';
 import { MediaQuery } from 'svelte/reactivity';
 
+import type { LegendOrderMode } from '$lib/plot-signal-order.js';
+
 export type ThemePreference = 'system' | 'light' | 'dark';
 export type TimestampMode = 'relative' | 'absolute';
+export type { LegendOrderMode };
 
 export const themePreference = new PersistedState(
 	'cantraceviewer:theme',
@@ -19,6 +22,12 @@ export const sidebarOpen = new PersistedState('cantraceviewer:sidebar-open', tru
 	syncTabs: false
 });
 
+export const legendOrderMode = new PersistedState<LegendOrderMode>(
+	'cantraceviewer:legend-order',
+	'selection',
+	{ syncTabs: false }
+);
+
 const systemDark = new MediaQuery('prefers-color-scheme: dark');
 
 export function isDark(): boolean {
@@ -32,4 +41,5 @@ export function resetPreferences(): void {
 	themePreference.current = 'system';
 	timestampMode.current = 'relative';
 	sidebarOpen.current = true;
+	legendOrderMode.current = 'selection';
 }
