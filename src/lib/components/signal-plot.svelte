@@ -130,7 +130,6 @@
 	});
 	onMount(async () => {
 		if (!('gpu' in navigator)) {
-			chartError = 'WebGPU is not available in this browser.';
 			return;
 		}
 
