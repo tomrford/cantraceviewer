@@ -30,10 +30,12 @@
 	import MinusIcon from '@lucide/svelte/icons/minus';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SeparatorVerticalIcon from '@lucide/svelte/icons/separator-vertical';
+	import { onMount } from 'svelte';
 
 	let traceInput = $state<HTMLInputElement>();
 	let plot = $state<SignalPlot>();
 	let traceDropActive = $state(false);
+	let webgpuSupported = $state<boolean | null>(null);
 	let markerEnabled = $state(false);
 	let markerX = $state<number | null>(null);
 	let boxZoomEnabled = $state(false);
@@ -48,6 +50,10 @@
 	const siteUrl = 'https://cantraceviewer.com/';
 	const toolbarIconButtonClass =
 		'border-input bg-transparent hover:bg-muted hover:text-foreground dark:bg-transparent dark:hover:bg-muted/50';
+
+	onMount(() => {
+		webgpuSupported = 'gpu' in navigator;
+	});
 
 	async function selectTrace(event: Event) {
 		const input = event.currentTarget as HTMLInputElement;
@@ -142,205 +148,223 @@
 	</div>
 </main>
 
-<div class="app-shell">
-	<Sidebar.Provider
-		style="--sidebar-width: 24rem;"
-		open={sidebarOpen.current}
-		onOpenChange={(open) => (sidebarOpen.current = open)}
+{#if webgpuSupported === false}
+	<main
+		class="webgpu-gate flex min-h-screen items-center justify-center bg-background px-6 text-center"
 	>
-		<AppSidebar />
-		<Sidebar.Inset class="flex min-h-screen flex-col bg-background">
-			<header
-				class="flex h-16 shrink-0 items-center gap-2 border-b px-4"
-				aria-busy={traceFile.isLoading}
-			>
-				<Sidebar.Trigger
-					class="-ms-1"
-					aria-label="Show/hide DBC and signal selector"
-					title="Show/hide DBC and signal selector"
-				/>
-				<Separator orientation="vertical" class="me-2 data-[orientation=vertical]:h-4" />
-				<span class="min-w-0 truncate text-sm font-medium" title={traceMetadataTitle}
-					>{traceFile.displayName}</span
-				>
-				{#if traceFile.isLoading}
-					<LoaderCircleIcon
-						class="size-4 shrink-0 animate-spin text-muted-foreground"
-						aria-hidden="true"
-					/>
-					<span class="sr-only">Loading trace</span>
-				{/if}
-				<input
-					bind:this={traceInput}
-					class="hidden"
-					type="file"
-					accept={TRACE_FILE_ACCEPT}
-					disabled={traceFile.isLoading}
-					onchange={selectTrace}
-				/>
-				{#if traceFile.entry}
-					<button
-						type="button"
-						class="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50"
-						disabled={traceFile.isLoading}
-						aria-label={traceFile.isLoading ? 'Loading trace' : 'Load trace'}
-						title={traceFile.isLoading ? 'Loading trace' : 'Load trace'}
-						onclick={() => traceInput?.click()}
-					>
-						<AudioWaveformIcon class="size-4" />
-					</button>
-				{/if}
-				<span class="ms-auto"></span>
-				{#if traceFile.entry}
-					<ButtonGroup.Root aria-label="Plot zoom controls">
-						<Button
-							variant="outline"
-							size="icon"
-							class={toolbarIconButtonClass}
-							aria-label="Zoom in"
-							title="Zoom in"
-							disabled={plotControlsDisabled}
-							onclick={() => plot?.plotZoomIn()}
-						>
-							<PlusIcon class="size-3.5" />
-						</Button>
-						<Button
-							variant="outline"
-							size="icon"
-							class={toolbarIconButtonClass}
-							aria-label="Zoom out"
-							title="Zoom out"
-							disabled={plotControlsDisabled}
-							onclick={() => plot?.plotZoomOut()}
-						>
-							<MinusIcon class="size-3.5" />
-						</Button>
-						<Button
-							variant="outline"
-							size="icon"
-							class={toolbarIconButtonClass}
-							aria-label="Zoom to full extent"
-							title="Zoom to full extent"
-							disabled={plotControlsDisabled || !canResetZoom}
-							onclick={() => plot?.plotResetZoom()}
-						>
-							<ExpandIcon class="size-3.5" />
-						</Button>
-					</ButtonGroup.Root>
-					<ButtonGroup.Root aria-label="Plot display controls">
-						<Toggle
-							bind:pressed={boxZoomEnabled}
-							disabled={plotControlsDisabled}
-							variant="outline"
-							size="default"
-							aria-label={boxZoomEnabled ? 'Use drag pan' : 'Use box zoom'}
-							title={boxZoomEnabled ? 'Use drag pan' : 'Use box zoom'}
-						>
-							<BoxSelectIcon class="size-3.5" />
-						</Toggle>
-						<Toggle
-							bind:pressed={markerEnabled}
-							disabled={plotControlsDisabled}
-							variant="outline"
-							size="default"
-							aria-label={markerEnabled ? 'Hide x marker' : 'Show x marker'}
-							title={markerEnabled ? 'Hide x marker' : 'Show x marker'}
-						>
-							<SeparatorVerticalIcon class="size-3.5" />
-						</Toggle>
-						<Toggle
-							bind:pressed={legendVisible}
-							variant="outline"
-							size="default"
-							aria-label={legendVisible ? 'Hide legend' : 'Show legend'}
-							title={legendVisible ? 'Hide legend' : 'Show legend'}
-						>
-							<ListIcon class="size-3.5" />
-						</Toggle>
-					</ButtonGroup.Root>
-				{/if}
-				<Popover.Root>
-					<Popover.Trigger
-						class="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
-						aria-label="Open settings"
-						title="Settings"
-					>
-						<CogIcon class="size-4" />
-					</Popover.Trigger>
-					<SettingsDialog />
-				</Popover.Root>
-			</header>
-			{#if traceFile.entry}
-				<SignalPlot
-					bind:this={plot}
-					bind:markerEnabled
-					bind:markerX
-					bind:boxZoomEnabled
-					bind:legendVisible
-					onCanResetZoomChange={(canReset) => (canResetZoom = canReset)}
-					dropActive={traceDropActive}
-					ondragenter={handleTraceDrag}
-					ondragover={handleTraceDrag}
-					ondragleave={clearTraceDrag}
-					ondrop={dropTrace}
-				/>
-			{:else}
-				<section
-					class="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-background p-6"
-					aria-label="Trace loading"
+		<div class="max-w-sm space-y-2">
+			<h1 class="text-base font-medium text-foreground">WebGPU required</h1>
+			<p class="text-sm text-muted-foreground">
+				This browser does not support WebGPU, so CAN Trace Viewer cannot render plots. Try a recent
+				desktop browser with WebGPU enabled.
+			</p>
+		</div>
+	</main>
+{:else}
+	<div class="app-shell">
+		<Sidebar.Provider
+			style="--sidebar-width: 24rem;"
+			open={sidebarOpen.current}
+			onOpenChange={(open) => (sidebarOpen.current = open)}
+		>
+			<AppSidebar />
+			<Sidebar.Inset class="flex min-h-screen flex-col bg-background">
+				<header
+					class="flex h-16 shrink-0 items-center gap-2 border-b px-4"
 					aria-busy={traceFile.isLoading}
-					ondragenter={handleTraceDrag}
-					ondragover={handleTraceDrag}
-					ondragleave={clearTraceDrag}
-					ondrop={dropTrace}
 				>
-					{#if traceDropActive}
-						<div
-							class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-background/25 text-sm font-medium text-foreground backdrop-blur-[1px]"
-						>
-							Drop trace to open
-						</div>
+					<Sidebar.Trigger
+						class="-ms-1"
+						aria-label="Show/hide DBC and signal selector"
+						title="Show/hide DBC and signal selector"
+					/>
+					<Separator orientation="vertical" class="me-2 data-[orientation=vertical]:h-4" />
+					<span class="min-w-0 truncate text-sm font-medium" title={traceMetadataTitle}
+						>{traceFile.displayName}</span
+					>
+					{#if traceFile.isLoading}
+						<LoaderCircleIcon
+							class="size-4 shrink-0 animate-spin text-muted-foreground"
+							aria-hidden="true"
+						/>
+						<span class="sr-only">Loading trace</span>
 					{/if}
-					<Empty.Root class="max-w-md border-0">
-						<Empty.Header>
-							<Empty.Title>Open a trace</Empty.Title>
-							<Empty.Description>
-								Load an ASC, TRC, or BLF file to start plotting decoded CAN signals.
-							</Empty.Description>
-						</Empty.Header>
-						<Empty.Content>
-							<Button size="lg" disabled={traceFile.isLoading} onclick={() => traceInput?.click()}>
-								{#if traceFile.isLoading}
-									<LoaderCircleIcon data-icon="inline-start" class="size-4 animate-spin" />
-									Loading trace...
-								{:else}
-									<AudioWaveformIcon data-icon="inline-start" class="size-4" />
-									Open trace
-								{/if}
+					<input
+						bind:this={traceInput}
+						class="hidden"
+						type="file"
+						accept={TRACE_FILE_ACCEPT}
+						disabled={traceFile.isLoading}
+						onchange={selectTrace}
+					/>
+					{#if traceFile.entry}
+						<button
+							type="button"
+							class="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50"
+							disabled={traceFile.isLoading}
+							aria-label={traceFile.isLoading ? 'Loading trace' : 'Load trace'}
+							title={traceFile.isLoading ? 'Loading trace' : 'Load trace'}
+							onclick={() => traceInput?.click()}
+						>
+							<AudioWaveformIcon class="size-4" />
+						</button>
+					{/if}
+					<span class="ms-auto"></span>
+					{#if traceFile.entry}
+						<ButtonGroup.Root aria-label="Plot zoom controls">
+							<Button
+								variant="outline"
+								size="icon"
+								class={toolbarIconButtonClass}
+								aria-label="Zoom in"
+								title="Zoom in"
+								disabled={plotControlsDisabled}
+								onclick={() => plot?.plotZoomIn()}
+							>
+								<PlusIcon class="size-3.5" />
 							</Button>
-						</Empty.Content>
-					</Empty.Root>
-				</section>
-			{/if}
-		</Sidebar.Inset>
-	</Sidebar.Provider>
+							<Button
+								variant="outline"
+								size="icon"
+								class={toolbarIconButtonClass}
+								aria-label="Zoom out"
+								title="Zoom out"
+								disabled={plotControlsDisabled}
+								onclick={() => plot?.plotZoomOut()}
+							>
+								<MinusIcon class="size-3.5" />
+							</Button>
+							<Button
+								variant="outline"
+								size="icon"
+								class={toolbarIconButtonClass}
+								aria-label="Zoom to full extent"
+								title="Zoom to full extent"
+								disabled={plotControlsDisabled || !canResetZoom}
+								onclick={() => plot?.plotResetZoom()}
+							>
+								<ExpandIcon class="size-3.5" />
+							</Button>
+						</ButtonGroup.Root>
+						<ButtonGroup.Root aria-label="Plot display controls">
+							<Toggle
+								bind:pressed={boxZoomEnabled}
+								disabled={plotControlsDisabled}
+								variant="outline"
+								size="default"
+								aria-label={boxZoomEnabled ? 'Use drag pan' : 'Use box zoom'}
+								title={boxZoomEnabled ? 'Use drag pan' : 'Use box zoom'}
+							>
+								<BoxSelectIcon class="size-3.5" />
+							</Toggle>
+							<Toggle
+								bind:pressed={markerEnabled}
+								disabled={plotControlsDisabled}
+								variant="outline"
+								size="default"
+								aria-label={markerEnabled ? 'Hide x marker' : 'Show x marker'}
+								title={markerEnabled ? 'Hide x marker' : 'Show x marker'}
+							>
+								<SeparatorVerticalIcon class="size-3.5" />
+							</Toggle>
+							<Toggle
+								bind:pressed={legendVisible}
+								variant="outline"
+								size="default"
+								aria-label={legendVisible ? 'Hide legend' : 'Show legend'}
+								title={legendVisible ? 'Hide legend' : 'Show legend'}
+							>
+								<ListIcon class="size-3.5" />
+							</Toggle>
+						</ButtonGroup.Root>
+					{/if}
+					<Popover.Root>
+						<Popover.Trigger
+							class="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
+							aria-label="Open settings"
+							title="Settings"
+						>
+							<CogIcon class="size-4" />
+						</Popover.Trigger>
+						<SettingsDialog />
+					</Popover.Root>
+				</header>
+				{#if traceFile.entry}
+					<SignalPlot
+						bind:this={plot}
+						bind:markerEnabled
+						bind:markerX
+						bind:boxZoomEnabled
+						bind:legendVisible
+						onCanResetZoomChange={(canReset) => (canResetZoom = canReset)}
+						dropActive={traceDropActive}
+						ondragenter={handleTraceDrag}
+						ondragover={handleTraceDrag}
+						ondragleave={clearTraceDrag}
+						ondrop={dropTrace}
+					/>
+				{:else}
+					<section
+						class="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-background p-6"
+						aria-label="Trace loading"
+						aria-busy={traceFile.isLoading}
+						ondragenter={handleTraceDrag}
+						ondragover={handleTraceDrag}
+						ondragleave={clearTraceDrag}
+						ondrop={dropTrace}
+					>
+						{#if traceDropActive}
+							<div
+								class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-background/25 text-sm font-medium text-foreground backdrop-blur-[1px]"
+							>
+								Drop trace to open
+							</div>
+						{/if}
+						<Empty.Root class="max-w-md border-0">
+							<Empty.Header>
+								<Empty.Title>Open a trace</Empty.Title>
+								<Empty.Description>
+									Load an ASC, TRC, or BLF file to start plotting decoded CAN signals.
+								</Empty.Description>
+							</Empty.Header>
+							<Empty.Content>
+								<Button
+									size="lg"
+									disabled={traceFile.isLoading}
+									onclick={() => traceInput?.click()}
+								>
+									{#if traceFile.isLoading}
+										<LoaderCircleIcon data-icon="inline-start" class="size-4 animate-spin" />
+										Loading trace...
+									{:else}
+										<AudioWaveformIcon data-icon="inline-start" class="size-4" />
+										Open trace
+									{/if}
+								</Button>
+							</Empty.Content>
+						</Empty.Root>
+					</section>
+				{/if}
+			</Sidebar.Inset>
+		</Sidebar.Provider>
 
-	<AlertDialog.Root
-		bind:open={() => traceFile.error !== null, (open) => !open && traceFile.clearError()}
-	>
-		{#if traceFile.error}
-			<AlertDialog.Content>
-				<AlertDialog.Header>
-					<AlertDialog.Title>Trace failed to open</AlertDialog.Title>
-					<AlertDialog.Description>{traceFile.error}</AlertDialog.Description>
-				</AlertDialog.Header>
-				<AlertDialog.Footer>
-					<AlertDialog.Action onclick={() => traceFile.clearError()}>OK</AlertDialog.Action>
-				</AlertDialog.Footer>
-			</AlertDialog.Content>
-		{/if}
-	</AlertDialog.Root>
-</div>
+		<AlertDialog.Root
+			bind:open={() => traceFile.error !== null, (open) => !open && traceFile.clearError()}
+		>
+			{#if traceFile.error}
+				<AlertDialog.Content>
+					<AlertDialog.Header>
+						<AlertDialog.Title>Trace failed to open</AlertDialog.Title>
+						<AlertDialog.Description>{traceFile.error}</AlertDialog.Description>
+					</AlertDialog.Header>
+					<AlertDialog.Footer>
+						<AlertDialog.Action onclick={() => traceFile.clearError()}>OK</AlertDialog.Action>
+					</AlertDialog.Footer>
+				</AlertDialog.Content>
+			{/if}
+		</AlertDialog.Root>
+	</div>
+{/if}
 
 <style>
 	.viewport-gate {
@@ -352,6 +376,7 @@
 			display: flex;
 		}
 
+		.webgpu-gate,
 		.app-shell {
 			display: none;
 		}
