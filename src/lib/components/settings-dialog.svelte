@@ -2,9 +2,11 @@
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import * as Select from '$lib/components/ui/select/index.js';
 	import {
+		legendOrderMode,
 		resetPreferences,
 		themePreference,
 		timestampMode,
+		type LegendOrderMode,
 		type ThemePreference,
 		type TimestampMode
 	} from '$lib/stores/preferences.svelte.js';
@@ -28,7 +30,30 @@
 		{ value: 'absolute', label: 'Absolute' }
 	];
 
+	const legendOrderOptions: { value: LegendOrderMode; label: string; description: string }[] = [
+		{
+			value: 'selection',
+			label: 'Selection order',
+			description: 'Keep signals in the order you selected them'
+		},
+		{
+			value: 'alphabetical',
+			label: 'Alphabetical',
+			description: 'Sort signals alphabetically by message and name'
+		},
+		{
+			value: 'grouped',
+			label: 'Grouped',
+			description: 'Group by unit, then scale, then alphabetically'
+		}
+	];
+
 	const selectedTimestampMode = $derived(timestampMode.current);
+	const selectedLegendOrderMode = $derived(legendOrderMode.current);
+	const selectedLegendOrderOption = $derived(
+		legendOrderOptions.find((option) => option.value === selectedLegendOrderMode) ??
+			legendOrderOptions[0]
+	);
 
 	async function resetPersistentData(): Promise<void> {
 		plotData.clearSelectedSignals();
@@ -88,6 +113,25 @@
 				{/each}
 			</Select.Content>
 		</Select.Root>
+	</label>
+
+	<label class="grid gap-2">
+		<span class="text-xs font-medium text-muted-foreground">Legend order</span>
+		<Select.Root
+			type="single"
+			value={selectedLegendOrderMode}
+			onValueChange={(value: string) => (legendOrderMode.current = value as LegendOrderMode)}
+		>
+			<Select.Trigger class="w-full">
+				<span>{selectedLegendOrderOption.label}</span>
+			</Select.Trigger>
+			<Select.Content>
+				{#each legendOrderOptions as option (option.value)}
+					<Select.Item value={option.value} label={option.label} />
+				{/each}
+			</Select.Content>
+		</Select.Root>
+		<p class="text-xs text-muted-foreground">{selectedLegendOrderOption.description}</p>
 	</label>
 
 	<div class="grid gap-2 border-t pt-4">
