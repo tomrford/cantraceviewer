@@ -26,7 +26,7 @@ bun run wasm:test
 
 The repo commits the release WASM binary for git-based deployment on Cloudflare Workers. If you change Zig code, run `bun run wasm:build:release` before committing so the bundle is updated.
 
-Backlog lives in GitHub issues on this repo.
+Backlog lives in the Linear `cantraceviewer` project.
 
 ### Zig
 
