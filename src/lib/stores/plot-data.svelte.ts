@@ -1,5 +1,7 @@
 import { createSignalColorAssigner } from '$lib/plot-colors.js';
+import { orderPlotSignals } from '$lib/plot-signal-order.js';
 import { dbcFiles, displayDbcName, signalIdentityKey } from '$lib/stores/dbc-files.svelte.js';
+import { legendOrderMode } from '$lib/stores/preferences.svelte.js';
 import { traceFile } from '$lib/stores/trace-file.svelte.js';
 import {
 	getSignalValues,
@@ -72,7 +74,7 @@ class PlotDataStore {
 			);
 		}
 
-		return signals;
+		return orderPlotSignals(signals, legendOrderMode.current);
 	});
 
 	hasPlottableSignals = $derived(this.signals.some(isPlottableSignal));
