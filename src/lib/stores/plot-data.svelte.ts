@@ -51,6 +51,7 @@ export function isPlottableSignal(signal: PlotSignal): boolean {
 }
 
 class PlotDataStore {
+	seriesRevision = $state(0);
 	selectedSignalKeys = new SvelteSet<PlotSignalKey>();
 	signalSeries = new SvelteMap<PlotSignalKey, DecodedSignalSeries>();
 	decodingSignalKeys = new SvelteSet<PlotSignalKey>();
@@ -124,6 +125,7 @@ class PlotDataStore {
 			this.decodeErrors.delete(key);
 			this.signalColors.release(key);
 		}
+		this.bumpRevision();
 	}
 
 	clearSelectedSignals(): void {
@@ -132,6 +134,7 @@ class PlotDataStore {
 		this.decodingSignalKeys.clear();
 		this.decodeErrors.clear();
 		this.signalColors.clear();
+		this.bumpRevision();
 	}
 
 	setSignalSeries(key: PlotSignalKey, series: DecodedSignalSeries | null): void {
@@ -140,6 +143,11 @@ class PlotDataStore {
 		} else {
 			this.signalSeries.delete(key);
 		}
+		this.bumpRevision();
+	}
+
+	private bumpRevision(): void {
+		this.seriesRevision += 1;
 	}
 
 	private async decodeSignal(key: PlotSignalKey): Promise<void> {
@@ -149,6 +157,7 @@ class PlotDataStore {
 
 		this.setDecodeError(key, null);
 		this.decodingSignalKeys.add(key);
+		this.bumpRevision();
 
 		try {
 			const series = await getSignalValues(
@@ -173,6 +182,7 @@ class PlotDataStore {
 			}
 		} finally {
 			this.decodingSignalKeys.delete(key);
+			this.bumpRevision();
 		}
 	}
 
@@ -182,6 +192,7 @@ class PlotDataStore {
 		} else {
 			this.decodeErrors.delete(key);
 		}
+		this.bumpRevision();
 	}
 }
 
