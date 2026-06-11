@@ -66,7 +66,6 @@
 	let lastFullDomain: PlotViewport | null = null;
 	let dragState = $state<DragState | null>(null);
 	let contextMenuX = $state<number | null>(null);
-	let lastSignature = '';
 	let markerDragRaf: number | null = null;
 	let pendingMarkerX: number | null = null;
 	let resizeObserver: ResizeObserver | null = null;
@@ -196,17 +195,7 @@
 	});
 
 	$effect(() => {
-		const signature = JSON.stringify({
-			measurementStartMs,
-			hasPlottableSignals,
-			isDark: isDark(),
-			timestampMode: timestampMode.current,
-			viewport: activeViewport,
-			visible: visibleViews.map((view) => [view.key, view.points])
-		});
-
-		if (signature === lastSignature) return;
-		lastSignature = signature;
+		void plotData.seriesRevision;
 		chart?.setOption(chartOptions());
 	});
 
