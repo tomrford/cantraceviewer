@@ -1,5 +1,9 @@
 <script lang="ts">
-	import { formatAxisTime, type SignalView, type markerValue } from '$lib/signal-plot-data.js';
+	import {
+		formatAxisTime,
+		type LegendMarkerValue,
+		type SignalView
+	} from '$lib/signal-plot-data.js';
 	import type { TimestampMode } from '$lib/stores/preferences.svelte.js';
 
 	let {
@@ -11,7 +15,7 @@
 	}: {
 		measurementStartMs?: number | null;
 		displayedMarkerX: number | null;
-		markerValues: ReturnType<typeof markerValue>[];
+		markerValues: LegendMarkerValue[];
 		timestampMode: TimestampMode;
 		views: SignalView[];
 	} = $props();
@@ -40,7 +44,15 @@
 					<span class="text-muted-foreground">)</span>
 				</span>
 				{#if displayedMarkerX !== null}
-					<span class="font-mono tabular-nums">{marker?.text}</span>
+					<span
+						class="font-mono tabular-nums"
+						class:text-destructive={marker?.outOfRange}
+						title={marker?.outOfRange
+							? `Outside DBC range [${view.minimum}, ${view.maximum}]`
+							: undefined}
+					>
+						{marker?.text}
+					</span>
 				{/if}
 			</div>
 		{/each}

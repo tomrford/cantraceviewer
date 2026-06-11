@@ -3,6 +3,11 @@ import { paddedViewport, type PlotViewport } from './plot-viewport';
 import type { PlotSignal } from './stores/plot-data.svelte.js';
 import type { TimestampMode } from './stores/preferences.svelte.js';
 
+export type DecodedValueFormatContext = Pick<
+	PlotSignal,
+	'unit' | 'factor' | 'offset' | 'minimum' | 'maximum' | 'valueDescriptions'
+>;
+
 export type SignalView = {
 	key: string;
 	label: string;
@@ -16,7 +21,15 @@ export type SignalView = {
 	latestText: string;
 	factor: number;
 	offset: number;
+	minimum: number;
+	maximum: number;
 	valueDescriptions: PlotSignal['valueDescriptions'];
+};
+
+export type LegendMarkerValue = {
+	key: string;
+	text: string;
+	outOfRange: boolean;
 };
 
 export type VisibleSignalView = SignalView & {
@@ -25,11 +38,91 @@ export type VisibleSignalView = SignalView & {
 };
 
 const DEFAULT_TOTAL_SAMPLING_THRESHOLD = 25_000;
+const LEGEND_MAX_SIGNIFICANT_DIGITS = 7;
+
+export function isOutsideDbcRange(value: number, minimum: number, maximum: number): boolean {
+	// DBC `[0|0]` is the conventional placeholder for unspecified limits.
+	if (minimum === 0 && maximum === 0) return false;
+	return value < minimum || value > maximum;
+}
+
+/** Decimal places of a finite number, e.g. 0.01 → 2, 0.5 → 1, 1e-13 → 13. */
+function decimalPlaces(value: number): number {
+	if (!Number.isFinite(value) || value === 0) return 0;
+	const [mantissa, exponent] = Math.abs(value).toExponential().split('e');
+	const dotIndex = mantissa.indexOf('.');
+	const mantissaDecimals = dotIndex === -1 ? 0 : mantissa.length - dotIndex - 1;
+	return Math.max(0, mantissaDecimals - Number(exponent));
+}
+
+/**
+ * Snap a decoded value to the signal resolution so float noise from
+ * `raw * factor + offset` cannot push boundary samples across DBC limits.
+ */
+function roundToResolution(value: number, factor: number, offset: number): number {
+	const decimals = Math.max(decimalPlaces(factor), decimalPlaces(offset));
+	if (decimals > 100) return value;
+	return Number(value.toFixed(decimals));
+}
+
+/**
+ * Legend precision policy: decimal places follow the signal resolution
+ * (factor/offset), padded so a signal's values keep a stable width, capped to a
+ * seven-significant-digit budget. Extreme magnitudes fall back to scientific
+ * notation like the axis labels.
+ */
+export function formatLegendNumericValue(value: number, factor: number, offset = 0): string {
+	if (!Number.isFinite(value)) return '-';
+	if (value === 0) return '0';
+
+	const magnitude = Math.abs(value);
+	if (magnitude >= 1_000_000 || magnitude < 1e-6) {
+		return value.toExponential(LEGEND_MAX_SIGNIFICANT_DIGITS - 1);
+	}
+
+	const resolutionDecimals = Math.max(decimalPlaces(factor), decimalPlaces(offset));
+	const integerDigits = magnitude >= 1 ? Math.floor(Math.log10(magnitude)) + 1 : 1;
+	const fractionDigits = Math.min(
+		resolutionDecimals,
+		Math.max(0, LEGEND_MAX_SIGNIFICANT_DIGITS - integerDigits)
+	);
+	return value.toFixed(fractionDigits);
+}
+
+export function formatDecodedValue(
+	value: number | null,
+	context: DecodedValueFormatContext
+): { text: string; outOfRange: boolean } {
+	if (value === null || !Number.isFinite(value)) {
+		return { text: '-', outOfRange: false };
+	}
+
+	// Range-check the resolution-rounded value so the warning agrees with the
+	// displayed text instead of raw float noise.
+	const outOfRange = isOutsideDbcRange(
+		roundToResolution(value, context.factor, context.offset),
+		context.minimum,
+		context.maximum
+	);
+	const formatted = formatLegendNumericValue(value, context.factor, context.offset);
+	const rawValue = physicalToRaw(value, context.factor, context.offset);
+	const description =
+		rawValue === null
+			? undefined
+			: context.valueDescriptions.find((item) => item.rawValue === rawValue)?.label;
+	const withUnit = context.unit ? `${formatted} ${context.unit}` : formatted;
+
+	return {
+		text: description ?? withUnit,
+		outOfRange
+	};
+}
 
 export function signalView(signal: PlotSignal): SignalView {
 	const series = signal.series;
 	const sourceTimes = series?.timesMs ?? new Float64Array(0);
 	const sourceValues = series?.values ?? new Float64Array(0);
+	const latest = formatDecodedValue(sourceValues.at(-1) ?? null, signal);
 
 	return {
 		key: signal.key,
@@ -41,9 +134,11 @@ export function signalView(signal: PlotSignal): SignalView {
 		x: sourceTimes,
 		y: sourceValues,
 		points: sourceTimes.length,
-		latestText: formatDecodedValue(sourceValues.at(-1) ?? null, signal),
+		latestText: latest.text,
 		factor: signal.factor,
 		offset: signal.offset,
+		minimum: signal.minimum,
+		maximum: signal.maximum,
 		valueDescriptions: signal.valueDescriptions
 	};
 }
@@ -92,10 +187,12 @@ export function lineSeriesForViews(views: SignalView[]): SeriesConfig[] {
 	return plottedViews.map((view) => lineSeries(view, plottedViews.length));
 }
 
-export function markerValue(view: SignalView, x: number) {
+export function markerValue(view: SignalView, x: number): LegendMarkerValue {
+	const formatted = formatDecodedValue(nearestValue(view, x), view);
 	return {
 		key: view.key,
-		text: formatDecodedValue(nearestValue(view, x), view)
+		text: formatted.text,
+		outOfRange: formatted.outOfRange
 	};
 }
 
@@ -260,21 +357,6 @@ function upperBound(values: Float64Array<ArrayBufferLike>, target: number): numb
 		else high = mid;
 	}
 	return low;
-}
-
-function formatDecodedValue(
-	value: number | null,
-	context: Pick<PlotSignal, 'unit' | 'factor' | 'offset' | 'valueDescriptions'>
-): string {
-	if (value === null || !Number.isFinite(value)) return '-';
-	const formatted = Math.abs(value) >= 1000 ? value.toFixed(0) : value.toPrecision(4);
-	const rawValue = physicalToRaw(value, context.factor, context.offset);
-	const description =
-		rawValue === null
-			? undefined
-			: context.valueDescriptions.find((item) => item.rawValue === rawValue)?.label;
-	const withUnit = context.unit ? `${formatted} ${context.unit}` : formatted;
-	return description ?? withUnit;
 }
 
 function physicalToRaw(value: number, factor: number, offset: number): number | null {
