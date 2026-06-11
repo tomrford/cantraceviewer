@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
 	formatAxisValue,
+	formatDecodedValue,
+	formatLegendNumericValue,
+	isOutsideDbcRange,
 	lineSeries,
 	lineSeriesForViews,
 	signalDomain,
@@ -22,9 +25,20 @@ function view(x: number[], y: number[] = x): SignalView {
 		latestText: '-',
 		factor: 1,
 		offset: 0,
+		minimum: 0,
+		maximum: 0,
 		valueDescriptions: []
 	};
 }
+
+const formatContext = {
+	unit: 'km/h',
+	factor: 0.1,
+	offset: 0,
+	minimum: 0,
+	maximum: 250,
+	valueDescriptions: [] as { rawValue: number; label: string }[]
+};
 
 describe('signal plot data', () => {
 	it('keeps line data constrained to the active x viewport', () => {
@@ -110,5 +124,65 @@ describe('signal plot data', () => {
 		expect(formatAxisValue(12.3456789)).toBe('12.3');
 		expect(formatAxisValue(1.23456789)).toBe('1.235');
 		expect(formatAxisValue(0.000012345)).toBe('1.23e-5');
+	});
+
+	it('flags values outside specified DBC limits, treating [0|0] as unspecified', () => {
+		expect(isOutsideDbcRange(251, 0, 250)).toBe(true);
+		expect(isOutsideDbcRange(250, 0, 250)).toBe(false);
+		expect(isOutsideDbcRange(999, 0, 0)).toBe(false);
+	});
+
+	it('caps legend numeric width at seven significant digits', () => {
+		expect(formatLegendNumericValue(12345.678, 1)).toBe('12346');
+		expect(formatLegendNumericValue(12.34567, 0.01)).toBe('12.35');
+		expect(formatLegendNumericValue(0.1234567, 0.0001)).toBe('0.1235');
+	});
+
+	it('pads legend decimals to the chosen resolution', () => {
+		expect(formatLegendNumericValue(12, 0.01)).toBe('12.00');
+		expect(formatLegendNumericValue(300, 0.1)).toBe('300.0');
+	});
+
+	it('preserves fractional offsets in legend values', () => {
+		expect(formatLegendNumericValue(12.5, 1, 0.5)).toBe('12.5');
+		expect(
+			formatDecodedValue(12.5, {
+				...formatContext,
+				factor: 1,
+				offset: 0.5
+			})
+		).toEqual({
+			text: '12.5 km/h',
+			outOfRange: false
+		});
+	});
+
+	it('preserves nonzero tiny legend values', () => {
+		expect(formatLegendNumericValue(1e-13, 1e-13)).toBe('1.000000e-13');
+		expect(formatLegendNumericValue(0, 1e-13)).toBe('0');
+		expect(formatLegendNumericValue(-0, 1e-13)).toBe('0');
+	});
+
+	it('does not flag float noise at DBC range boundaries', () => {
+		// 3 * 0.1 === 0.30000000000000004; the displayed 0.3 is exactly at the limit.
+		expect(formatDecodedValue(3 * 0.1, { ...formatContext, maximum: 0.3 })).toEqual({
+			text: '0.3 km/h',
+			outOfRange: false
+		});
+	});
+
+	it('formats decoded legend values with units and out-of-range state', () => {
+		expect(formatDecodedValue(42.37, formatContext)).toEqual({
+			text: '42.4 km/h',
+			outOfRange: false
+		});
+		expect(formatDecodedValue(300, formatContext)).toEqual({
+			text: '300.0 km/h',
+			outOfRange: true
+		});
+		expect(formatDecodedValue(42.37, { ...formatContext, minimum: 0, maximum: 0 })).toEqual({
+			text: '42.4 km/h',
+			outOfRange: false
+		});
 	});
 });
