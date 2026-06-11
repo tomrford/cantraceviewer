@@ -72,7 +72,7 @@
 	class="grid w-[min(22rem,calc(100vw-1rem))] -translate-y-2 gap-4 rounded-lg border border-border/70 bg-popover/90 p-4 text-popover-foreground shadow-sm backdrop-blur-md"
 >
 	<Popover.Close
-		class="absolute top-2 right-2 flex size-10 items-center justify-center rounded-md text-sidebar-foreground/60 transition-[background-color,color,box-shadow,scale] hover:bg-accent hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden active:scale-[0.96]"
+		class="absolute top-[6.5px] right-[7px] flex size-8 items-center justify-center rounded-md text-sidebar-foreground/60 transition-[background-color,color,box-shadow,scale] hover:bg-accent hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden active:scale-[0.96]"
 		aria-label="Close settings"
 	>
 		<XIcon class="size-4" />
@@ -107,7 +107,7 @@
 			value={selectedTimestampMode}
 			onValueChange={(value: string) => (timestampMode.current = value as TimestampMode)}
 		>
-			<Select.Trigger class="h-10 w-full rounded-md">
+			<Select.Trigger class="w-full">
 				<span>{timestampMode.current === 'absolute' ? 'Absolute' : 'Relative'}</span>
 			</Select.Trigger>
 			<Select.Content>
@@ -125,7 +125,7 @@
 			value={selectedLegendOrderMode}
 			onValueChange={(value: string) => (legendOrderMode.current = value as LegendOrderMode)}
 		>
-			<Select.Trigger class="h-10 w-full rounded-md">
+			<Select.Trigger class="w-full">
 				<span>{selectedLegendOrderOption.label}</span>
 			</Select.Trigger>
 			<Select.Content>

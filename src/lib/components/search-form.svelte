@@ -17,12 +17,12 @@
 </script>
 
 <form bind:this={ref} onsubmit={(event) => event.preventDefault()} {...restProps}>
-	<Sidebar.Group class="p-0">
+	<Sidebar.Group class="py-0">
 		<Sidebar.GroupContent class="relative">
 			<Label for="search" class="sr-only">Search</Label>
-			<Sidebar.Input id="search" bind:value {placeholder} class="h-10 rounded-md ps-9" />
+			<Sidebar.Input id="search" bind:value {placeholder} class="ps-8" />
 			<SearchIcon
-				class="pointer-events-none absolute inset-s-3 top-1/2 size-4 -translate-y-1/2 opacity-50 select-none"
+				class="pointer-events-none absolute inset-s-2 top-1/2 size-4 -translate-y-1/2 opacity-50 select-none"
 			/>
 		</Sidebar.GroupContent>
 	</Sidebar.Group>
