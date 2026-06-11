@@ -24,7 +24,7 @@
 </script>
 
 <div
-	class="absolute top-3 right-3 z-50 max-h-[calc(100%-1.5rem)] w-80 overflow-auto rounded-md border bg-background/90 p-3 shadow-sm backdrop-blur"
+	class="absolute top-3 right-3 z-50 max-h-[calc(100%-1.5rem)] w-80 overflow-auto rounded-lg border border-border/70 bg-popover/90 p-3 text-popover-foreground shadow-sm backdrop-blur"
 >
 	<div class="space-y-2">
 		{#each views as view (view.key)}

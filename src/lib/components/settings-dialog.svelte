@@ -54,6 +54,10 @@
 		legendOrderOptions.find((option) => option.value === selectedLegendOrderMode) ??
 			legendOrderOptions[0]
 	);
+	const selectedButtonClass =
+		'data-[selected=true]:border-sidebar-primary/60 data-[selected=true]:bg-sidebar-primary/15 data-[selected=true]:text-sidebar-primary';
+	const tactileButtonClass =
+		'transition-[background-color,border-color,color,box-shadow,scale] active:scale-[0.96]';
 
 	async function resetPersistentData(): Promise<void> {
 		plotData.clearSelectedSignals();
@@ -65,11 +69,10 @@
 <Popover.Content
 	align="end"
 	sideOffset={-32}
-	class="grid w-[min(22rem,calc(100vw-1rem))] translate-x-2 -translate-y-2 gap-4 rounded-lg border bg-popover/90 p-4 text-popover-foreground backdrop-blur-md"
-	style="box-shadow: 0 1px 2px rgb(0 0 0 / 0.08)"
+	class="grid w-[min(22rem,calc(100vw-1rem))] -translate-y-2 gap-4 rounded-lg border border-border/70 bg-popover/90 p-4 text-popover-foreground shadow-sm backdrop-blur-md"
 >
 	<Popover.Close
-		class="absolute top-[6.5px] right-[7px] flex size-8 items-center justify-center text-sidebar-foreground/60 transition-colors hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
+		class="absolute top-2 right-2 flex size-10 items-center justify-center rounded-md text-sidebar-foreground/60 transition-[background-color,color,box-shadow,scale] hover:bg-accent hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden active:scale-[0.96]"
 		aria-label="Close settings"
 	>
 		<XIcon class="size-4" />
@@ -85,7 +88,7 @@
 				{@const Icon = option.icon}
 				<button
 					type="button"
-					class="flex h-16 flex-col items-center justify-center gap-1 rounded-md border text-xs transition-colors hover:bg-accent hover:text-accent-foreground data-[selected=true]:border-emerald-500/60 data-[selected=true]:bg-emerald-500/15 data-[selected=true]:text-emerald-500"
+					class={`flex h-16 flex-col items-center justify-center gap-1 rounded-md border border-border/70 text-xs hover:bg-accent hover:text-accent-foreground ${selectedButtonClass} ${tactileButtonClass}`}
 					data-selected={themePreference.current === option.value}
 					aria-pressed={themePreference.current === option.value}
 					onclick={() => (themePreference.current = option.value)}
@@ -104,7 +107,7 @@
 			value={selectedTimestampMode}
 			onValueChange={(value: string) => (timestampMode.current = value as TimestampMode)}
 		>
-			<Select.Trigger class="w-full">
+			<Select.Trigger class="h-10 w-full rounded-md">
 				<span>{timestampMode.current === 'absolute' ? 'Absolute' : 'Relative'}</span>
 			</Select.Trigger>
 			<Select.Content>
@@ -122,7 +125,7 @@
 			value={selectedLegendOrderMode}
 			onValueChange={(value: string) => (legendOrderMode.current = value as LegendOrderMode)}
 		>
-			<Select.Trigger class="w-full">
+			<Select.Trigger class="h-10 w-full rounded-md">
 				<span>{selectedLegendOrderOption.label}</span>
 			</Select.Trigger>
 			<Select.Content>
@@ -142,7 +145,7 @@
 		</p>
 		<button
 			type="button"
-			class="flex h-10 items-center justify-center gap-2 rounded-md border border-destructive/40 px-3 text-sm text-destructive transition-colors hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
+			class={`flex h-10 items-center justify-center gap-2 rounded-md border border-destructive/40 px-3 text-sm text-destructive hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden ${tactileButtonClass}`}
 			onclick={resetPersistentData}
 		>
 			<RotateCcwIcon class="size-4" />

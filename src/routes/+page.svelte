@@ -48,8 +48,11 @@
 	const siteTitle = 'CAN Trace Viewer';
 	const siteDescription = 'Lightweight browser-based CAN trace plotting and analysis GUI.';
 	const siteUrl = 'https://cantraceviewer.com/';
+	const iconButtonBaseClass =
+		'flex size-10 shrink-0 items-center justify-center rounded-md transition-[background-color,border-color,color,box-shadow,opacity,scale] focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden active:scale-[0.96] disabled:pointer-events-none disabled:opacity-50';
+	const primaryIconButtonClass = `${iconButtonBaseClass} bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90`;
 	const toolbarIconButtonClass =
-		'border-input bg-transparent hover:bg-muted hover:text-foreground dark:bg-transparent dark:hover:bg-muted/50';
+		'size-10 rounded-md border-input bg-background/70 text-foreground/70 transition-[background-color,border-color,color,box-shadow,opacity,scale] hover:bg-muted hover:text-foreground active:scale-[0.96] dark:bg-input/20 dark:hover:bg-muted/50';
 
 	onMount(() => {
 		webgpuSupported = 'gpu' in navigator;
@@ -171,19 +174,19 @@
 			open={sidebarOpen.current}
 			onOpenChange={(open) => (sidebarOpen.current = open)}
 		>
-			<AppSidebar />
+			<AppSidebar variant="inset" />
 			<Sidebar.Inset class="flex min-h-screen flex-col bg-background">
 				<header
-					class="flex h-16 shrink-0 items-center gap-2 border-b px-4"
+					class="flex h-16 shrink-0 items-center gap-2 border-b border-border/70 px-3"
 					aria-busy={traceFile.isLoading}
 				>
 					<Sidebar.Trigger
-						class="-ms-1"
+						class="-ms-1 size-10 rounded-md transition-[background-color,border-color,color,box-shadow,opacity,scale] active:scale-[0.96]"
 						aria-label="Show/hide DBC and signal selector"
 						title="Show/hide DBC and signal selector"
 					/>
 					<Separator orientation="vertical" class="me-2 data-[orientation=vertical]:h-4" />
-					<span class="min-w-0 truncate text-sm font-medium" title={traceMetadataTitle}
+					<span class="min-w-0 flex-1 truncate text-sm font-medium" title={traceMetadataTitle}
 						>{traceFile.displayName}</span
 					>
 					{#if traceFile.isLoading}
@@ -204,7 +207,7 @@
 					{#if traceFile.entry}
 						<button
 							type="button"
-							class="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50"
+							class={primaryIconButtonClass}
 							disabled={traceFile.isLoading}
 							aria-label={traceFile.isLoading ? 'Loading trace' : 'Load trace'}
 							title={traceFile.isLoading ? 'Loading trace' : 'Load trace'}
@@ -213,7 +216,6 @@
 							<AudioWaveformIcon class="size-4" />
 						</button>
 					{/if}
-					<span class="ms-auto"></span>
 					{#if traceFile.entry}
 						<ButtonGroup.Root aria-label="Plot zoom controls">
 							<Button
@@ -225,7 +227,7 @@
 								disabled={plotControlsDisabled}
 								onclick={() => plot?.plotZoomIn()}
 							>
-								<PlusIcon class="size-3.5" />
+								<PlusIcon class="size-4" />
 							</Button>
 							<Button
 								variant="outline"
@@ -236,7 +238,7 @@
 								disabled={plotControlsDisabled}
 								onclick={() => plot?.plotZoomOut()}
 							>
-								<MinusIcon class="size-3.5" />
+								<MinusIcon class="size-4" />
 							</Button>
 							<Button
 								variant="outline"
@@ -247,7 +249,7 @@
 								disabled={plotControlsDisabled || !canResetZoom}
 								onclick={() => plot?.plotResetZoom()}
 							>
-								<ExpandIcon class="size-3.5" />
+								<ExpandIcon class="size-4" />
 							</Button>
 						</ButtonGroup.Root>
 						<ButtonGroup.Root aria-label="Plot display controls">
@@ -256,35 +258,38 @@
 								disabled={plotControlsDisabled}
 								variant="outline"
 								size="default"
+								class={toolbarIconButtonClass}
 								aria-label={boxZoomEnabled ? 'Use drag pan' : 'Use box zoom'}
 								title={boxZoomEnabled ? 'Use drag pan' : 'Use box zoom'}
 							>
-								<BoxSelectIcon class="size-3.5" />
+								<BoxSelectIcon class="size-4" />
 							</Toggle>
 							<Toggle
 								bind:pressed={markerEnabled}
 								disabled={plotControlsDisabled}
 								variant="outline"
 								size="default"
+								class={toolbarIconButtonClass}
 								aria-label={markerEnabled ? 'Hide x marker' : 'Show x marker'}
 								title={markerEnabled ? 'Hide x marker' : 'Show x marker'}
 							>
-								<SeparatorVerticalIcon class="size-3.5" />
+								<SeparatorVerticalIcon class="size-4" />
 							</Toggle>
 							<Toggle
 								bind:pressed={legendVisible}
 								variant="outline"
 								size="default"
+								class={toolbarIconButtonClass}
 								aria-label={legendVisible ? 'Hide legend' : 'Show legend'}
 								title={legendVisible ? 'Hide legend' : 'Show legend'}
 							>
-								<ListIcon class="size-3.5" />
+								<ListIcon class="size-4" />
 							</Toggle>
 						</ButtonGroup.Root>
 					{/if}
 					<Popover.Root>
 						<Popover.Trigger
-							class="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
+							class={primaryIconButtonClass}
 							aria-label="Open settings"
 							title="Settings"
 						>

@@ -44,6 +44,13 @@
 		isSignalSelected: (key: string) => plotData.isSignalSelected(key)
 	});
 	let isFiltering = $derived(dbcFiles.isSidebarFilterActive(sidebarFilter));
+	const iconButtonBaseClass =
+		'flex size-10 shrink-0 items-center justify-center rounded-md transition-[background-color,border-color,color,box-shadow,opacity,scale] focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden active:scale-[0.96] disabled:pointer-events-none disabled:opacity-50';
+	const primaryIconButtonClass = `${iconButtonBaseClass} bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90`;
+	const secondaryIconButtonClass = `${iconButtonBaseClass} border border-sidebar-border text-sidebar-foreground/65 hover:bg-sidebar-accent hover:text-sidebar-foreground`;
+	const utilityIconButtonClass = `${iconButtonBaseClass} text-sidebar-foreground/55 hover:bg-sidebar-accent hover:text-sidebar-foreground`;
+	const selectedStateClass =
+		'data-[selected=true]:border-sidebar-primary/60 data-[selected=true]:bg-sidebar-primary/15 data-[selected=true]:text-sidebar-foreground';
 	let visibleDbcFiles = $derived(dbcFiles.visibleSidebarTree(sidebarFilter));
 
 	onMount(() => {
@@ -135,7 +142,7 @@
 			Drop DBC files to add
 		</div>
 	{/if}
-	<Sidebar.Header class="px-4 pt-4">
+	<Sidebar.Header class="border-b border-sidebar-border/70 px-3 py-3">
 		<input
 			bind:this={dbcInput}
 			class="hidden"
@@ -147,7 +154,7 @@
 		<div class="flex items-center gap-2">
 			<button
 				type="button"
-				class="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50"
+				class={primaryIconButtonClass}
 				disabled={dbcFiles.isLoading}
 				aria-label={dbcFiles.isLoading ? 'Loading DBC' : 'Add DBC'}
 				title={dbcFiles.isLoading ? 'Loading DBC' : 'Add DBC'}
@@ -162,7 +169,7 @@
 			/>
 			<button
 				type="button"
-				class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-sidebar-border text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden data-[active=true]:border-emerald-500/40 data-[active=true]:bg-emerald-500/15 data-[active=true]:text-emerald-400"
+				class={`${secondaryIconButtonClass} data-[active=true]:border-sidebar-primary/60 data-[active=true]:bg-sidebar-primary/15 data-[active=true]:text-sidebar-primary`}
 				data-active={showActiveOnly}
 				aria-pressed={showActiveOnly}
 				aria-label={showActiveOnly ? 'Show all DBC signals' : 'Show selected DBC signals only'}
@@ -173,9 +180,9 @@
 			</button>
 		</div>
 	</Sidebar.Header>
-	<Sidebar.Content>
-		<Sidebar.Group class="px-4">
-			<Sidebar.Menu>
+	<Sidebar.Content class="px-3 py-3">
+		<Sidebar.Group class="p-0">
+			<Sidebar.Menu class="gap-1">
 				{#each visibleDbcFiles as dbc (dbc.id)}
 					<Collapsible.Root
 						open={isDbcExpanded(dbc.id)}
@@ -188,7 +195,7 @@
 									{#snippet child({ props })}
 										<Sidebar.MenuButton
 											{...props}
-											class="min-w-0 flex-1"
+											class="h-9 min-w-0 flex-1 rounded-md px-2 transition-[background-color,color,box-shadow]"
 											aria-label={isDbcExpanded(dbc.id)
 												? `Collapse ${dbc.name}`
 												: `Expand ${dbc.name}`}
@@ -205,7 +212,7 @@
 								</Collapsible.Trigger>
 								<button
 									type="button"
-									class="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/50 opacity-70 hover:bg-sidebar-accent hover:text-destructive hover:opacity-100 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
+									class="flex size-9 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/50 opacity-70 transition-[background-color,color,box-shadow,opacity,scale] hover:bg-sidebar-accent hover:text-destructive hover:opacity-100 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden active:scale-[0.96]"
 									aria-label={`Delete ${dbc.name}`}
 									onclick={() => removeDbc(dbc.id)}
 								>
@@ -213,7 +220,7 @@
 								</button>
 							</div>
 							<Collapsible.Content>
-								<Sidebar.MenuSub>
+								<Sidebar.MenuSub class="mx-0 border-l-0 px-0 py-1 pl-3">
 									{#each dbc.messages as message (message.key)}
 										<Sidebar.MenuSubItem>
 											<Collapsible.Root
@@ -226,7 +233,7 @@
 														<button
 															{...props}
 															type="button"
-															class="flex h-7 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
+															class="flex h-8 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs text-sidebar-foreground transition-[background-color,color,box-shadow] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
 															aria-label={isMessageExpanded(message.key)
 																? `Collapse ${message.name}`
 																: `Expand ${message.name}`}
@@ -246,7 +253,7 @@
 													{/snippet}
 												</Collapsible.Trigger>
 												<Collapsible.Content>
-													<Sidebar.MenuSub>
+													<Sidebar.MenuSub class="mx-0 border-l-0 px-0 py-1 pl-3">
 														{#each message.signals as signal (signal.key)}
 															{@const isSelected = plotData.isSignalSelected(signal.key)}
 															{@const decodeStatus = isSelected
@@ -256,14 +263,15 @@
 															<Sidebar.MenuSubItem>
 																<Label
 																	for={signalToggleId}
-																	class="flex h-7 w-full min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 text-left text-xs font-normal text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+																	class={`flex h-8 w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border border-transparent px-2 text-left text-xs font-normal text-sidebar-foreground transition-[background-color,border-color,color,box-shadow] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ${selectedStateClass}`}
+																	data-selected={isSelected}
 																>
 																	<Checkbox
 																		id={signalToggleId}
 																		checked={isSelected}
 																		aria-label={`Plot ${signal.label}`}
 																		title={decodeStatus?.decodeError ?? undefined}
-																		class="data-[error=true]:border-destructive/50 data-[error=true]:bg-destructive/10 data-[error=true]:text-destructive"
+																		class="data-[error=true]:border-destructive/50 data-[error=true]:bg-destructive/10 data-[error=true]:text-destructive data-checked:border-sidebar-primary data-checked:bg-sidebar-primary data-checked:text-sidebar-primary-foreground"
 																		data-error={decodeStatus?.decodeError != null}
 																		onCheckedChange={() => plotData.toggleSignal(signal.key)}
 																	/>
@@ -299,10 +307,10 @@
 			</Sidebar.Menu>
 		</Sidebar.Group>
 	</Sidebar.Content>
-	<Sidebar.Footer class="flex-row items-center gap-1 px-4 pb-4">
+	<Sidebar.Footer class="flex-row items-center gap-1 border-t border-sidebar-border/70 px-3 py-3">
 		<button
 			type="button"
-			class="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
+			class={utilityIconButtonClass}
 			aria-label="Open help"
 			title="Help"
 			onclick={() => (helpOpen = true)}
@@ -313,7 +321,7 @@
 			href="https://github.com/tomrford/cantraceviewer"
 			target="_blank"
 			rel="noreferrer"
-			class="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
+			class={utilityIconButtonClass}
 			aria-label="Open source code on GitHub"
 			title="Source code"
 		>
