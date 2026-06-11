@@ -2,6 +2,8 @@ const std = @import("std");
 pub const frame = @import("frame.zig");
 const line_v1 = @import("line_v1.zig");
 const line_v2 = @import("line_v2.zig");
+const trace_text = @import("../trace/text.zig");
+const trace_time = @import("../trace/time.zig");
 const trace = @import("../trace/trace.zig");
 
 const ParserState = struct {
@@ -61,25 +63,20 @@ fn parseHeaderLine(parsed: *ParserState, line: []const u8) !bool {
     if (!std.mem.startsWith(u8, line, ";")) return false;
     const body = std.mem.trim(u8, line[1..], " \t\r");
 
-    if (stripPrefix(body, "$FILEVERSION=")) |version_text| {
+    if (trace_text.stripPrefix(body, "$FILEVERSION=")) |version_text| {
         parsed.version = try frame.Version.fromText(std.mem.trim(u8, version_text, " \t\r"));
         return true;
     }
-    if (stripPrefix(body, "$STARTTIME=")) |start_time| {
+    if (trace_text.stripPrefix(body, "$STARTTIME=")) |start_time| {
         parsed.measurement_start_ms = parseOleAutomationDaysToUnixMs(trimHeaderValue(start_time)) catch null;
         return true;
     }
-    if (stripPrefix(body, "$COLUMNS=")) |columns_text| {
+    if (trace_text.stripPrefix(body, "$COLUMNS=")) |columns_text| {
         parsed.columns = try frame.ColumnMap.fromText(columns_text);
         return true;
     }
 
     return true;
-}
-
-fn stripPrefix(text: []const u8, prefix: []const u8) ?[]const u8 {
-    if (!std.mem.startsWith(u8, text, prefix)) return null;
-    return text[prefix.len..];
 }
 
 fn trimHeaderValue(text: []const u8) []const u8 {
@@ -98,11 +95,7 @@ fn parseOleAutomationDaysToUnixMs(text: []const u8) !i64 {
     var ms = try std.math.mul(i64, days - 25_569, std.time.ms_per_day);
 
     if (fraction_text) |fraction| {
-        const retained_len = @min(fraction.len, 9);
-        const retained_fraction = fraction[0..retained_len];
-        const fraction_value = try std.fmt.parseInt(i64, retained_fraction, 10);
-        const scale = std.math.pow(i64, 10, @intCast(retained_len));
-        const fraction_ms = @divTrunc(try std.math.mul(i64, fraction_value, std.time.ms_per_day), scale);
+        const fraction_ms: i64 = @intCast(try trace_time.decimalFractionToUnits(fraction, std.time.ms_per_day, 9, .truncate));
         ms = try std.math.add(i64, ms, fraction_ms);
     }
 
