@@ -175,7 +175,7 @@
 			onOpenChange={(open) => (sidebarOpen.current = open)}
 		>
 			<AppSidebar variant="inset" />
-			<Sidebar.Inset class="flex min-h-screen flex-col bg-background">
+			<Sidebar.Inset class="flex min-h-svh flex-col bg-background md:min-h-[calc(100svh-1rem)]">
 				<header
 					class="flex h-16 shrink-0 items-center gap-2 border-b border-border/70 px-3"
 					aria-busy={traceFile.isLoading}
