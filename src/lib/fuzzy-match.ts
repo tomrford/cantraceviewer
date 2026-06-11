@@ -5,14 +5,23 @@ type SearchDocument = {
 	searchText: string;
 };
 
+export type FuzzySearchIndex<T> = {
+	items: T[];
+	miniSearch: MiniSearch<SearchDocument>;
+};
+
 export function rankedFuzzySearch<T>(
 	items: T[],
 	query: string,
 	getSearchText: (item: T) => string
 ): T[] {
-	const trimmedQuery = query.trim();
-	if (trimmedQuery.length === 0) return items;
+	return searchFuzzyIndex(createFuzzySearchIndex(items, getSearchText), query);
+}
 
+export function createFuzzySearchIndex<T>(
+	items: T[],
+	getSearchText: (item: T) => string
+): FuzzySearchIndex<T> {
 	const documents = items.map<SearchDocument>((item, id) => ({
 		id,
 		searchText: getSearchText(item)
@@ -25,13 +34,20 @@ export function rankedFuzzySearch<T>(
 
 	miniSearch.addAll(documents);
 
-	return miniSearch
+	return { items, miniSearch };
+}
+
+export function searchFuzzyIndex<T>(index: FuzzySearchIndex<T>, query: string): T[] {
+	const trimmedQuery = query.trim();
+	if (trimmedQuery.length === 0) return index.items;
+
+	return index.miniSearch
 		.search(trimmedQuery, {
 			prefix: true,
 			fuzzy: (term) => (term.length >= 3 ? 0.3 : false),
 			combineWith: 'AND'
 		})
-		.map((result) => items[result.id as number]);
+		.map((result) => index.items[result.id as number]);
 }
 
 function tokenizeSearchText(text: string): string[] {
