@@ -54,11 +54,6 @@
 		legendOrderOptions.find((option) => option.value === selectedLegendOrderMode) ??
 			legendOrderOptions[0]
 	);
-	const selectedButtonClass =
-		'data-[selected=true]:border-sidebar-primary/60 data-[selected=true]:bg-sidebar-primary/15 data-[selected=true]:text-sidebar-primary';
-	const tactileButtonClass =
-		'transition-[background-color,border-color,color,box-shadow,scale] active:scale-[0.96]';
-
 	async function resetPersistentData(): Promise<void> {
 		plotData.clearSelectedSignals();
 		resetPreferences();
@@ -89,7 +84,7 @@
 				{@const Icon = option.icon}
 				<button
 					type="button"
-					class={`flex h-16 flex-col items-center justify-center gap-1 rounded-md border border-border/70 text-xs hover:bg-accent hover:text-accent-foreground ${selectedButtonClass} ${tactileButtonClass}`}
+					class="flex h-16 flex-col items-center justify-center gap-1 rounded-md border border-border/70 text-xs transition-[background-color,border-color,color,box-shadow,scale] hover:bg-accent hover:text-accent-foreground active:scale-[0.96] data-[selected=true]:border-sidebar-primary/60 data-[selected=true]:bg-sidebar-primary/15 data-[selected=true]:text-sidebar-primary"
 					data-selected={themePreference.current === option.value}
 					aria-pressed={themePreference.current === option.value}
 					onclick={() => (themePreference.current = option.value)}
@@ -146,7 +141,7 @@
 		</p>
 		<button
 			type="button"
-			class={`flex h-10 items-center justify-center gap-2 rounded-md border border-destructive/40 px-3 text-sm text-destructive hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden ${tactileButtonClass}`}
+			class="flex h-10 items-center justify-center gap-2 rounded-md border border-destructive/40 px-3 text-sm text-destructive transition-[background-color,border-color,color,box-shadow,scale] hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden active:scale-[0.96]"
 			onclick={resetPersistentData}
 		>
 			<RotateCcwIcon class="size-4" />
