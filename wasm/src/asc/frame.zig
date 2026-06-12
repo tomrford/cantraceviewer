@@ -1,5 +1,7 @@
 const std = @import("std");
+const trace_dlc = @import("../trace/dlc.zig");
 const trace_frame = @import("../trace/frame.zig");
+const trace_time = @import("../trace/time.zig");
 
 /// .asc files can store messages in either decimal or hexadecimal format.
 /// This base is parsed from the file header.
@@ -181,31 +183,14 @@ pub fn parseDecimalSecondsToNs(text: []const u8) !u64 {
     var ns = try std.math.mul(u64, seconds, std.time.ns_per_s);
 
     if (fraction_text) |fraction| {
-        if (fraction.len > 9) return error.TimestampTooPrecise;
-
-        const fraction_value = try std.fmt.parseUnsigned(u64, fraction, 10);
-        const scale = std.math.pow(u64, 10, 9 - fraction.len);
-        const fraction_ns = try std.math.mul(u64, fraction_value, scale);
+        const fraction_ns = try trace_time.decimalFractionToUnits(fraction, std.time.ns_per_s, 9, .reject);
         ns = try std.math.add(u64, ns, fraction_ns);
     }
 
     return ns;
 }
 
-/// returns the payload length based on the stated dlc in the frame.
-pub fn fdPayloadLengthFromDlc(dlc: u8) !u8 {
-    return switch (dlc) {
-        0...8 => dlc,
-        9 => 12,
-        10 => 16,
-        11 => 20,
-        12 => 24,
-        13 => 32,
-        14 => 48,
-        15 => 64,
-        else => error.InvalidDlc,
-    };
-}
+pub const fdPayloadLengthFromDlc = trace_dlc.fdPayloadLengthFromDlc;
 
 test "parses classic data frame" {
     var payload: [64]u8 = undefined;
