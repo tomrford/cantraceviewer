@@ -314,7 +314,10 @@
 			</ul>
 		</div>
 		<div
-			class="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-linear-to-b from-transparent to-popover"
+			class="pointer-events-none absolute inset-x-0 top-0 h-12 bg-linear-to-b from-popover via-popover/85 to-transparent"
+		></div>
+		<div
+			class="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-linear-to-b from-transparent via-popover/85 to-popover"
 		></div>
 	</div>
 </Popover.Content>
