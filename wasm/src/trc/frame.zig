@@ -1,5 +1,7 @@
 const std = @import("std");
+const trace_dlc = @import("../trace/dlc.zig");
 const trace_frame = @import("../trace/frame.zig");
+const trace_time = @import("../trace/time.zig");
 
 pub const Version = enum {
     v10,
@@ -107,10 +109,8 @@ pub fn parseTimestampMsToNs(text: []const u8) !u64 {
     var ns = try std.math.mul(u64, milliseconds, std.time.ns_per_ms);
 
     if (fraction_text) |fraction| {
-        if (fraction.len > 6) return error.TimestampTooPrecise;
-        const fraction_value = try std.fmt.parseUnsigned(u64, fraction, 10);
-        const scale = std.math.pow(u64, 10, 6 - fraction.len);
-        ns = try std.math.add(u64, ns, try std.math.mul(u64, fraction_value, scale));
+        const fraction_ns = try trace_time.decimalFractionToUnits(fraction, std.time.ns_per_ms, 6, .reject);
+        ns = try std.math.add(u64, ns, fraction_ns);
     }
 
     return ns;
@@ -132,19 +132,7 @@ pub fn parseByte(text: []const u8) !u8 {
     return std.fmt.parseUnsigned(u8, text, 16);
 }
 
-pub fn fdPayloadLengthFromDlc(dlc: u8) !u8 {
-    return switch (dlc) {
-        0...8 => dlc,
-        9 => 12,
-        10 => 16,
-        11 => 20,
-        12 => 24,
-        13 => 32,
-        14 => 48,
-        15 => 64,
-        else => error.InvalidDlc,
-    };
-}
+pub const fdPayloadLengthFromDlc = trace_dlc.fdPayloadLengthFromDlc;
 
 test "parses TRC millisecond timestamps into nanoseconds" {
     try std.testing.expectEqual(@as(u64, 0), try parseTimestampMsToNs("0"));

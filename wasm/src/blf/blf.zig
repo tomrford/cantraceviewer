@@ -1,6 +1,8 @@
 const std = @import("std");
 const trace = @import("../trace/trace.zig");
 const trace_frame = @import("../trace/frame.zig");
+const trace_time = @import("../trace/time.zig");
+const fixture = @import("test_fixture.zig");
 
 const file_header_parsed_size = 72;
 const min_file_header_size = 144;
@@ -390,188 +392,21 @@ fn parseSystemTimeToUnixMs(bytes: []const u8) !i64 {
         return error.InvalidSystemTime;
     }
 
-    const days = daysFromCivil(@intCast(year), @intCast(month), @intCast(day));
+    const days = trace_time.daysFromCivil(@intCast(year), @intCast(month), @intCast(day));
     const seconds = try std.math.add(i64, try std.math.mul(i64, days, std.time.s_per_day), @as(i64, hour) * std.time.s_per_hour + @as(i64, minute) * std.time.s_per_min + @as(i64, second));
     return try std.math.add(i64, try std.math.mul(i64, seconds, std.time.ms_per_s), millisecond);
-}
-
-fn daysFromCivil(year_value: i32, month_value: u8, day_value: u8) i64 {
-    var year = @as(i64, year_value);
-    const month = @as(i64, month_value);
-    const day = @as(i64, day_value);
-
-    year -= if (month <= 2) 1 else 0;
-    const era = @divFloor(year, 400);
-    const year_of_era = year - era * 400;
-    const month_prime = month + if (month > 2) @as(i64, -3) else @as(i64, 9);
-    const day_of_year = @divFloor(153 * month_prime + 2, 5) + day - 1;
-    const day_of_era = year_of_era * 365 + @divFloor(year_of_era, 4) - @divFloor(year_of_era, 100) + day_of_year;
-    return era * 146097 + day_of_era - 719468;
-}
-
-fn appendFileHeader(bytes: *std.ArrayList(u8), allocator: std.mem.Allocator) !void {
-    try bytes.appendSlice(allocator, "LOGG");
-    try appendU32(bytes, allocator, min_file_header_size);
-    try bytes.appendNTimes(allocator, 0, 32);
-    try appendSystemTime(bytes, allocator, 2026, 5, 11, 10, 20, 30, 400);
-    try bytes.appendNTimes(allocator, 0, min_file_header_size - bytes.items.len);
-}
-
-fn appendSystemTime(bytes: *std.ArrayList(u8), allocator: std.mem.Allocator, year: u16, month: u16, day: u16, hour: u16, minute: u16, second: u16, millisecond: u16) !void {
-    try appendU16(bytes, allocator, year);
-    try appendU16(bytes, allocator, month);
-    try appendU16(bytes, allocator, 0);
-    try appendU16(bytes, allocator, day);
-    try appendU16(bytes, allocator, hour);
-    try appendU16(bytes, allocator, minute);
-    try appendU16(bytes, allocator, second);
-    try appendU16(bytes, allocator, millisecond);
-}
-
-fn appendOuterContainer(bytes: *std.ArrayList(u8), allocator: std.mem.Allocator, payload: []const u8) !void {
-    const object_size = obj_header_base_size + log_container_size + payload.len;
-    try appendObjectBase(bytes, allocator, object_size, log_container, obj_header_base_size);
-    try appendU16(bytes, allocator, no_compression);
-    try bytes.appendNTimes(allocator, 0, 6);
-    try appendU32(bytes, allocator, @intCast(payload.len));
-    try bytes.appendNTimes(allocator, 0, 4);
-    try bytes.appendSlice(allocator, payload);
-    try bytes.appendNTimes(allocator, 0, paddingSize(object_size));
-}
-
-fn appendClassicCanObject(bytes: *std.ArrayList(u8), allocator: std.mem.Allocator, timestamp_ns: u64, can_id: u32, payload: []const u8) !void {
-    try appendClassicCanObjectWithTimestampFlags(bytes, allocator, time_one_nans, timestamp_ns, can_id, payload);
-}
-
-fn appendClassicCanObjectWithTimestampFlags(bytes: *std.ArrayList(u8), allocator: std.mem.Allocator, timestamp_flags: u32, raw_timestamp: u64, can_id: u32, payload: []const u8) !void {
-    const header_size = obj_header_base_size + obj_header_v1_size;
-    const object_size = header_size + can_message_size;
-    try appendObjectBase(bytes, allocator, object_size, can_message, header_size);
-    try appendU32(bytes, allocator, timestamp_flags);
-    try appendU16(bytes, allocator, 0);
-    try appendU16(bytes, allocator, 0);
-    try appendU64(bytes, allocator, raw_timestamp);
-    try appendU16(bytes, allocator, 1);
-    try bytes.append(allocator, 0);
-    try bytes.append(allocator, @intCast(payload.len));
-    try appendU32(bytes, allocator, can_id);
-    try bytes.appendSlice(allocator, payload);
-    try bytes.appendNTimes(allocator, 0, 8 - payload.len);
-}
-
-fn appendCanErrorExtObject(bytes: *std.ArrayList(u8), allocator: std.mem.Allocator, timestamp_ns: u64, can_id: u32, payload: []const u8) !void {
-    const header_size = obj_header_base_size + obj_header_v1_size;
-    const object_size = header_size + can_error_ext_size;
-    try appendObjectBase(bytes, allocator, object_size, can_error_ext, header_size);
-    try appendObjectTimestampV1(bytes, allocator, timestamp_ns);
-    try appendU16(bytes, allocator, 1);
-    try appendU16(bytes, allocator, 0);
-    try appendU32(bytes, allocator, 0);
-    try bytes.append(allocator, 0);
-    try bytes.append(allocator, 0);
-    try bytes.append(allocator, @intCast(payload.len));
-    try bytes.append(allocator, 0);
-    try appendU32(bytes, allocator, 0);
-    try appendU32(bytes, allocator, can_id);
-    try appendU16(bytes, allocator, 0);
-    try bytes.appendNTimes(allocator, 0, 2);
-    try bytes.appendSlice(allocator, payload);
-    try bytes.appendNTimes(allocator, 0, 8 - payload.len);
-}
-
-fn appendCanFdMessageObject(bytes: *std.ArrayList(u8), allocator: std.mem.Allocator, timestamp_ns: u64, can_id: u32, dlc: u8, payload: []const u8) !void {
-    const header_size = obj_header_base_size + obj_header_v1_size;
-    const object_size = header_size + can_fd_message_size;
-    try appendObjectBase(bytes, allocator, object_size, can_fd_message, header_size);
-    try appendObjectTimestampV1(bytes, allocator, timestamp_ns);
-    try appendU16(bytes, allocator, 1);
-    try bytes.append(allocator, 0);
-    try bytes.append(allocator, dlc);
-    try appendU32(bytes, allocator, can_id);
-    try appendU32(bytes, allocator, 0);
-    try bytes.append(allocator, 0);
-    try bytes.append(allocator, 0x07);
-    try bytes.append(allocator, @intCast(payload.len));
-    try bytes.appendNTimes(allocator, 0, 5);
-    try bytes.appendSlice(allocator, payload);
-    try bytes.appendNTimes(allocator, 0, 64 - payload.len);
-}
-
-fn appendCanFdMessage64Object(bytes: *std.ArrayList(u8), allocator: std.mem.Allocator, timestamp_ns: u64, can_id: u32, dlc: u8, valid_bytes: u8, payload: []const u8) !void {
-    const header_size = obj_header_base_size + obj_header_v1_size;
-    const object_size = header_size + can_fd_message_64_size + payload.len;
-    try appendObjectBase(bytes, allocator, object_size, can_fd_message_64, header_size);
-    try appendObjectTimestampV1(bytes, allocator, timestamp_ns);
-    try bytes.append(allocator, 1);
-    try bytes.append(allocator, dlc);
-    try bytes.append(allocator, valid_bytes);
-    try bytes.append(allocator, 0);
-    try appendU32(bytes, allocator, can_id);
-    try appendU32(bytes, allocator, 0);
-    try appendU32(bytes, allocator, fd64_edl_flag);
-    try appendU32(bytes, allocator, 0);
-    try appendU32(bytes, allocator, 0);
-    try appendU32(bytes, allocator, 0);
-    try appendU32(bytes, allocator, 0);
-    try appendU16(bytes, allocator, 0);
-    try bytes.append(allocator, 0);
-    try bytes.append(allocator, 0);
-    try appendU32(bytes, allocator, 0);
-    try bytes.appendSlice(allocator, payload);
-}
-
-fn appendUnknownTimedObject(bytes: *std.ArrayList(u8), allocator: std.mem.Allocator, object_type: u32, timestamp_ns: u64, body_len: usize) !void {
-    const header_size = obj_header_base_size + obj_header_v1_size;
-    const object_size = header_size + body_len;
-    try appendObjectBase(bytes, allocator, object_size, object_type, header_size);
-    try appendObjectTimestampV1(bytes, allocator, timestamp_ns);
-    try bytes.appendNTimes(allocator, 0, body_len);
-    try bytes.appendNTimes(allocator, 0, paddingSize(object_size));
-}
-
-fn appendObjectTimestampV1(bytes: *std.ArrayList(u8), allocator: std.mem.Allocator, timestamp_ns: u64) !void {
-    try appendU32(bytes, allocator, time_one_nans);
-    try appendU16(bytes, allocator, 0);
-    try appendU16(bytes, allocator, 0);
-    try appendU64(bytes, allocator, timestamp_ns);
-}
-
-fn appendObjectBase(bytes: *std.ArrayList(u8), allocator: std.mem.Allocator, object_size: usize, object_type: u32, header_size: usize) !void {
-    try bytes.appendSlice(allocator, "LOBJ");
-    try appendU16(bytes, allocator, @intCast(header_size));
-    try appendU16(bytes, allocator, 1);
-    try appendU32(bytes, allocator, @intCast(object_size));
-    try appendU32(bytes, allocator, object_type);
-}
-
-fn appendU16(bytes: *std.ArrayList(u8), allocator: std.mem.Allocator, value: u16) !void {
-    var raw: [2]u8 = undefined;
-    std.mem.writeInt(u16, &raw, value, .little);
-    try bytes.appendSlice(allocator, &raw);
-}
-
-fn appendU32(bytes: *std.ArrayList(u8), allocator: std.mem.Allocator, value: u32) !void {
-    var raw: [4]u8 = undefined;
-    std.mem.writeInt(u32, &raw, value, .little);
-    try bytes.appendSlice(allocator, &raw);
-}
-
-fn appendU64(bytes: *std.ArrayList(u8), allocator: std.mem.Allocator, value: u64) !void {
-    var raw: [8]u8 = undefined;
-    std.mem.writeInt(u64, &raw, value, .little);
-    try bytes.appendSlice(allocator, &raw);
 }
 
 test "parses uncompressed classic CAN BLF container" {
     const allocator = std.testing.allocator;
     var inner: std.ArrayList(u8) = .empty;
     defer inner.deinit(allocator);
-    try appendClassicCanObject(&inner, allocator, 123_456_789, 0x123, &.{ 0xaa, 0xbb });
+    try fixture.appendClassicCanObject(&inner, allocator, 123_456_789, 0x123, &.{ 0xaa, 0xbb });
 
     var file: std.ArrayList(u8) = .empty;
     defer file.deinit(allocator);
-    try appendFileHeader(&file, allocator);
-    try appendOuterContainer(&file, allocator, inner.items);
+    try fixture.appendFileHeader(&file, allocator);
+    try fixture.appendOuterContainer(&file, allocator, inner.items);
 
     var parsed = try fromBytes(allocator, file.items);
     defer parsed.deinit(allocator);
@@ -588,12 +423,12 @@ test "treats flagless BLF timestamps as nanoseconds" {
     const allocator = std.testing.allocator;
     var inner: std.ArrayList(u8) = .empty;
     defer inner.deinit(allocator);
-    try appendClassicCanObjectWithTimestampFlags(&inner, allocator, 0, 123, 0x123, &.{0xaa});
+    try fixture.appendClassicCanObjectWithTimestampFlags(&inner, allocator, 0, 123, 0x123, &.{0xaa});
 
     var file: std.ArrayList(u8) = .empty;
     defer file.deinit(allocator);
-    try appendFileHeader(&file, allocator);
-    try appendOuterContainer(&file, allocator, inner.items);
+    try fixture.appendFileHeader(&file, allocator);
+    try fixture.appendOuterContainer(&file, allocator, inner.items);
 
     var parsed = try fromBytes(allocator, file.items);
     defer parsed.deinit(allocator);
@@ -606,13 +441,13 @@ test "carries an inner object split across containers" {
     const allocator = std.testing.allocator;
     var inner: std.ArrayList(u8) = .empty;
     defer inner.deinit(allocator);
-    try appendClassicCanObject(&inner, allocator, 10_000, can_msg_ext | 0x18fee900, &.{0xcc});
+    try fixture.appendClassicCanObject(&inner, allocator, 10_000, can_msg_ext | 0x18fee900, &.{0xcc});
 
     var file: std.ArrayList(u8) = .empty;
     defer file.deinit(allocator);
-    try appendFileHeader(&file, allocator);
-    try appendOuterContainer(&file, allocator, inner.items[0..20]);
-    try appendOuterContainer(&file, allocator, inner.items[20..]);
+    try fixture.appendFileHeader(&file, allocator);
+    try fixture.appendOuterContainer(&file, allocator, inner.items[0..20]);
+    try fixture.appendOuterContainer(&file, allocator, inner.items[20..]);
 
     var parsed = try fromBytes(allocator, file.items);
     defer parsed.deinit(allocator);
@@ -626,14 +461,14 @@ test "carries inner object padding split across containers" {
     const allocator = std.testing.allocator;
     var inner: std.ArrayList(u8) = .empty;
     defer inner.deinit(allocator);
-    try appendUnknownTimedObject(&inner, allocator, 72, 10_000, 66);
-    try appendClassicCanObject(&inner, allocator, 20_000, 0x123, &.{0xdd});
+    try fixture.appendUnknownTimedObject(&inner, allocator, 72, 10_000, 66);
+    try fixture.appendClassicCanObject(&inner, allocator, 20_000, 0x123, &.{0xdd});
 
     var file: std.ArrayList(u8) = .empty;
     defer file.deinit(allocator);
-    try appendFileHeader(&file, allocator);
-    try appendOuterContainer(&file, allocator, inner.items[0..98]);
-    try appendOuterContainer(&file, allocator, inner.items[98..]);
+    try fixture.appendFileHeader(&file, allocator);
+    try fixture.appendOuterContainer(&file, allocator, inner.items[0..98]);
+    try fixture.appendOuterContainer(&file, allocator, inner.items[98..]);
 
     var parsed = try fromBytes(allocator, file.items);
     defer parsed.deinit(allocator);
@@ -647,9 +482,9 @@ test "rejects top-level object size that would wrap position arithmetic" {
     const allocator = std.testing.allocator;
     var file: std.ArrayList(u8) = .empty;
     defer file.deinit(allocator);
-    try appendFileHeader(&file, allocator);
+    try fixture.appendFileHeader(&file, allocator);
     // object_size near maxInt(u32): pos + object_size would wrap a 32-bit usize.
-    try appendObjectBase(&file, allocator, 0xffff_fff0, can_message, obj_header_base_size);
+    try fixture.appendObjectBase(&file, allocator, 0xffff_fff0, can_message, obj_header_base_size);
 
     try std.testing.expectError(error.TruncatedBlfObject, fromBytes(allocator, file.items));
 }
@@ -658,12 +493,12 @@ test "rejects in-container object size that would wrap position arithmetic" {
     const allocator = std.testing.allocator;
     var inner: std.ArrayList(u8) = .empty;
     defer inner.deinit(allocator);
-    try appendObjectBase(&inner, allocator, 0xffff_fff0, can_message, obj_header_base_size);
+    try fixture.appendObjectBase(&inner, allocator, 0xffff_fff0, can_message, obj_header_base_size);
 
     var file: std.ArrayList(u8) = .empty;
     defer file.deinit(allocator);
-    try appendFileHeader(&file, allocator);
-    try appendOuterContainer(&file, allocator, inner.items);
+    try fixture.appendFileHeader(&file, allocator);
+    try fixture.appendOuterContainer(&file, allocator, inner.items);
 
     // The oversized object can never complete, so it ends up as a dangling tail.
     try std.testing.expectError(error.TruncatedBlfObject, fromBytes(allocator, file.items));
@@ -673,9 +508,9 @@ test "rejects unsupported container compression" {
     const allocator = std.testing.allocator;
     var file: std.ArrayList(u8) = .empty;
     defer file.deinit(allocator);
-    try appendFileHeader(&file, allocator);
-    try appendObjectBase(&file, allocator, obj_header_base_size + log_container_size, log_container, obj_header_base_size);
-    try appendU16(&file, allocator, 99);
+    try fixture.appendFileHeader(&file, allocator);
+    try fixture.appendObjectBase(&file, allocator, obj_header_base_size + log_container_size, log_container, obj_header_base_size);
+    try fixture.appendU16(&file, allocator, 99);
     try file.appendNTimes(allocator, 0, 14);
 
     try std.testing.expectError(error.UnsupportedBlfCompression, fromBytes(allocator, file.items));
@@ -685,14 +520,14 @@ test "parses remaining BLF CAN frame object types" {
     const allocator = std.testing.allocator;
     var inner: std.ArrayList(u8) = .empty;
     defer inner.deinit(allocator);
-    try appendCanErrorExtObject(&inner, allocator, 1_000, can_msg_ext | 0x19999999, &.{ 0xcc, 0xdd });
-    try appendCanFdMessageObject(&inner, allocator, 2_000, 0x123, 9, &.{ 0x10, 0x20, 0x30, 0x40 });
-    try appendCanFdMessage64Object(&inner, allocator, 3_000, 0x456, 15, 64, &.{ 0xaa, 0xbb });
+    try fixture.appendCanErrorExtObject(&inner, allocator, 1_000, can_msg_ext | 0x19999999, &.{ 0xcc, 0xdd });
+    try fixture.appendCanFdMessageObject(&inner, allocator, 2_000, 0x123, 9, &.{ 0x10, 0x20, 0x30, 0x40 });
+    try fixture.appendCanFdMessage64Object(&inner, allocator, 3_000, 0x456, 15, 64, &.{ 0xaa, 0xbb });
 
     var file: std.ArrayList(u8) = .empty;
     defer file.deinit(allocator);
-    try appendFileHeader(&file, allocator);
-    try appendOuterContainer(&file, allocator, inner.items);
+    try fixture.appendFileHeader(&file, allocator);
+    try fixture.appendOuterContainer(&file, allocator, inner.items);
 
     var parsed = try fromBytes(allocator, file.items);
     defer parsed.deinit(allocator);
@@ -720,13 +555,13 @@ test "parses unpadded CAN FD 64 object before another object" {
     const allocator = std.testing.allocator;
     var inner: std.ArrayList(u8) = .empty;
     defer inner.deinit(allocator);
-    try appendCanFdMessage64Object(&inner, allocator, 4_000, 0x456, 9, 9, &.{ 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x11, 0x22, 0x33 });
-    try appendClassicCanObject(&inner, allocator, 5_000, 0x123, &.{0xdd});
+    try fixture.appendCanFdMessage64Object(&inner, allocator, 4_000, 0x456, 9, 9, &.{ 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x11, 0x22, 0x33 });
+    try fixture.appendClassicCanObject(&inner, allocator, 5_000, 0x123, &.{0xdd});
 
     var file: std.ArrayList(u8) = .empty;
     defer file.deinit(allocator);
-    try appendFileHeader(&file, allocator);
-    try appendOuterContainer(&file, allocator, inner.items);
+    try fixture.appendFileHeader(&file, allocator);
+    try fixture.appendOuterContainer(&file, allocator, inner.items);
 
     var parsed = try fromBytes(allocator, file.items);
     defer parsed.deinit(allocator);
@@ -740,12 +575,12 @@ test "pads short CAN FD 64 payloads to valid byte length" {
     const allocator = std.testing.allocator;
     var inner: std.ArrayList(u8) = .empty;
     defer inner.deinit(allocator);
-    try appendCanFdMessage64Object(&inner, allocator, 4_000, 0x456, 9, 12, &.{ 0xaa, 0xbb });
+    try fixture.appendCanFdMessage64Object(&inner, allocator, 4_000, 0x456, 9, 12, &.{ 0xaa, 0xbb });
 
     var file: std.ArrayList(u8) = .empty;
     defer file.deinit(allocator);
-    try appendFileHeader(&file, allocator);
-    try appendOuterContainer(&file, allocator, inner.items);
+    try fixture.appendFileHeader(&file, allocator);
+    try fixture.appendOuterContainer(&file, allocator, inner.items);
 
     var parsed = try fromBytes(allocator, file.items);
     defer parsed.deinit(allocator);

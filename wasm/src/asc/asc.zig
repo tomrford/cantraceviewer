@@ -1,5 +1,7 @@
 const std = @import("std");
 pub const frame = @import("frame.zig");
+const trace_text = @import("../trace/text.zig");
+const trace_time = @import("../trace/time.zig");
 const trace = @import("../trace/trace.zig");
 
 pub const Base = frame.Base;
@@ -71,13 +73,13 @@ fn parseHeaderLine(parsed: *ParserState, line: []const u8) !bool {
         return true;
     }
 
-    if (stripPrefix(line, "date ")) |date| {
+    if (trace_text.stripPrefix(line, "date ")) |date| {
         if (parsed.measurement_start_ms == null) {
             parsed.measurement_start_ms = parseVectorDateToUnixMs(date) catch null;
         }
         return true;
     }
-    if (stripPrefix(line, "Begin Triggerblock ")) |triggerblock| {
+    if (trace_text.stripPrefix(line, "Begin Triggerblock ")) |triggerblock| {
         parsed.measurement_start_ms = parseVectorDateToUnixMs(triggerblock) catch null;
         return true;
     }
@@ -121,12 +123,6 @@ fn parseBaseLine(parsed: *ParserState, line: []const u8) !void {
         return error.InvalidBaseLine;
 }
 
-/// Returns the remainder of a string on the condition that the prefix is present.
-fn stripPrefix(text: []const u8, prefix: []const u8) ?[]const u8 {
-    if (!std.mem.startsWith(u8, text, prefix)) return null;
-    return text[prefix.len..];
-}
-
 fn parseVectorDateToUnixMs(text: []const u8) !i64 {
     // ASC date strings do not carry a timezone; use UTC for deterministic display.
     var tokens = std.mem.tokenizeAny(u8, text, " \t\r");
@@ -138,7 +134,7 @@ fn parseVectorDateToUnixMs(text: []const u8) !i64 {
 
     const month = parseMonth(month_text) orelse return error.InvalidVectorDate;
     const time = try parseTimeOfDay(time_text);
-    const days = daysFromCivil(year, month, day);
+    const days = trace_time.daysFromCivil(year, month, day);
     const seconds = try std.math.add(i64, try std.math.mul(i64, days, std.time.s_per_day), time.seconds);
     return try std.math.add(i64, try std.math.mul(i64, seconds, std.time.ms_per_s), time.milliseconds);
 }
@@ -180,20 +176,6 @@ fn parseTimeOfDay(text: []const u8) !struct { seconds: i64, milliseconds: i64 } 
         @as(i64, minute) * std.time.s_per_min +
         @as(i64, second);
     return .{ .seconds = seconds, .milliseconds = milliseconds };
-}
-
-fn daysFromCivil(year_value: i32, month_value: u8, day_value: u8) i64 {
-    var year = @as(i64, year_value);
-    const month = @as(i64, month_value);
-    const day = @as(i64, day_value);
-
-    year -= if (month <= 2) 1 else 0;
-    const era = @divFloor(year, 400);
-    const year_of_era = year - era * 400;
-    const month_prime = month + if (month > 2) @as(i64, -3) else @as(i64, 9);
-    const day_of_year = @divFloor(153 * month_prime + 2, 5) + day - 1;
-    const day_of_era = year_of_era * 365 + @divFloor(year_of_era, 4) - @divFloor(year_of_era, 100) + day_of_year;
-    return era * 146097 + day_of_era - 719468;
 }
 
 pub const parseDecimalSecondsToNs = frame.parseDecimalSecondsToNs;
