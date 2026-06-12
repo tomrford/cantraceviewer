@@ -69,7 +69,8 @@
 <Popover.Content
 	align="end"
 	sideOffset={-32}
-	class="grid w-[min(22rem,calc(100vw-1rem))] -translate-y-2 gap-4 rounded-lg border border-border/70 bg-popover/90 p-4 text-popover-foreground shadow-sm backdrop-blur-md"
+	class="grid w-[min(22rem,calc(100vw-1rem))] translate-x-2 -translate-y-2 gap-4 rounded-lg border border-border/70 bg-popover/90 p-4 text-popover-foreground backdrop-blur-md"
+	style="box-shadow: 0 1px 2px rgb(0 0 0 / 0.08)"
 >
 	<Popover.Close
 		class="absolute top-[6.5px] right-[7px] flex size-8 items-center justify-center rounded-md text-sidebar-foreground/60 transition-[background-color,color,box-shadow,scale] hover:bg-accent hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden active:scale-[0.96]"

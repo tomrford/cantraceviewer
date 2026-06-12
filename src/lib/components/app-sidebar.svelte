@@ -44,8 +44,6 @@
 		isSignalSelected: (key: string) => plotData.isSignalSelected(key)
 	});
 	let isFiltering = $derived(dbcFiles.isSidebarFilterActive(sidebarFilter));
-	const selectedStateClass =
-		'data-[selected=true]:border-sidebar-primary/60 data-[selected=true]:bg-sidebar-primary/15 data-[selected=true]:text-sidebar-foreground';
 	let visibleDbcFiles = $derived(dbcFiles.visibleSidebarTree(sidebarFilter));
 
 	onMount(() => {
@@ -258,8 +256,7 @@
 															<Sidebar.MenuSubItem>
 																<Label
 																	for={signalToggleId}
-																	class={`flex h-7 w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border border-transparent px-2 text-left text-xs font-normal text-sidebar-foreground transition-[background-color,border-color,color,box-shadow] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ${selectedStateClass}`}
-																	data-selected={isSelected}
+																	class="flex h-7 w-full min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 text-left text-xs font-normal text-sidebar-foreground transition-[background-color,color,box-shadow] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
 																>
 																	<Checkbox
 																		id={signalToggleId}
