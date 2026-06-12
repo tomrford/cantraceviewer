@@ -178,7 +178,7 @@
 					aria-busy={traceFile.isLoading}
 				>
 					<Sidebar.Trigger
-						class="-ms-1"
+						class="-ms-1 transition-[background-color,border-color,color,box-shadow,opacity,scale] active:scale-[0.96]"
 						aria-label="Show/hide DBC and signal selector"
 						title="Show/hide DBC and signal selector"
 					/>
@@ -204,7 +204,7 @@
 					{#if traceFile.entry}
 						<button
 							type="button"
-							class="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50"
+							class="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground transition-[background-color,border-color,color,box-shadow,opacity,scale] hover:bg-sidebar-primary/90 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden active:scale-[0.96] disabled:pointer-events-none disabled:opacity-50"
 							disabled={traceFile.isLoading}
 							aria-label={traceFile.isLoading ? 'Loading trace' : 'Load trace'}
 							title={traceFile.isLoading ? 'Loading trace' : 'Load trace'}
@@ -284,7 +284,7 @@
 					{/if}
 					<Popover.Root>
 						<Popover.Trigger
-							class="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
+							class="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground transition-[background-color,border-color,color,box-shadow,opacity,scale] hover:bg-sidebar-primary/90 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden active:scale-[0.96]"
 							aria-label="Open settings"
 							title="Settings"
 						>
