@@ -48,6 +48,8 @@
 	const siteUrl = 'https://cantraceviewer.com/';
 	const squircleButtonClass =
 		'flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground transition-[background-color,border-color,color,box-shadow,opacity,scale] hover:bg-sidebar-primary/90 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden active:scale-[0.96] disabled:pointer-events-none disabled:opacity-50';
+	const titleButtonClass =
+		'flex h-10 max-w-[min(28rem,calc(100vw-12rem))] items-center gap-2 rounded-lg border border-border/70 bg-muted px-4 text-sm font-medium text-foreground transition-[background-color,border-color,color,box-shadow,scale] hover:bg-muted/80 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.98] disabled:pointer-events-none disabled:opacity-60';
 
 	onMount(() => {
 		webgpuSupported = 'gpu' in navigator;
@@ -165,43 +167,43 @@
 {:else}
 	<div class="app-shell flex min-h-screen flex-col bg-background">
 		<header
-			class="grid h-16 shrink-0 grid-cols-[auto_1fr_auto] items-center gap-2 border-b px-4"
+			class="relative flex h-16 shrink-0 items-center justify-between gap-2 border-b px-4"
 			aria-busy={traceFile.isLoading}
 		>
-			<Popover.Root>
-				<Popover.Trigger
-					class={squircleButtonClass}
-					aria-label="Open signal selector"
-					title="Signal selector"
-				>
-					<DatabaseIcon class="size-4" />
-				</Popover.Trigger>
-				<SignalSelectorDialog />
-			</Popover.Root>
-
-			<div class="flex min-w-0 items-center justify-center gap-2 px-2">
-				{#if traceFile.entry}
-					<button
-						type="button"
+			<div class="z-10 flex items-center">
+				<Popover.Root>
+					<Popover.Trigger
 						class={squircleButtonClass}
-						disabled={traceFile.isLoading}
-						aria-label={traceFile.isLoading ? 'Loading trace' : 'Load trace'}
-						title={traceFile.isLoading ? 'Loading trace' : 'Load trace'}
-						onclick={() => traceInput?.click()}
+						aria-label="Open signal selector"
+						title="Signal selector"
 					>
-						<AudioWaveformIcon class="size-4" />
-					</button>
-				{/if}
-				<span class="min-w-0 truncate text-sm font-medium" title={traceMetadataTitle}
-					>{traceFile.displayName}</span
+						<DatabaseIcon class="size-4" />
+					</Popover.Trigger>
+					<SignalSelectorDialog />
+				</Popover.Root>
+			</div>
+
+			<div class="pointer-events-none absolute inset-0 flex items-center justify-center px-20">
+				<button
+					type="button"
+					class="{titleButtonClass} pointer-events-auto"
+					disabled={traceFile.isLoading}
+					aria-label={traceFile.isLoading ? 'Loading trace' : 'Load trace'}
+					title={traceMetadataTitle ?? (traceFile.isLoading ? 'Loading trace' : 'Load trace')}
+					onclick={() => traceInput?.click()}
 				>
-				{#if traceFile.isLoading}
-					<LoaderCircleIcon
-						class="size-4 shrink-0 animate-spin text-muted-foreground"
-						aria-hidden="true"
-					/>
-					<span class="sr-only">Loading trace</span>
-				{/if}
+					<AudioWaveformIcon class="size-4 shrink-0 text-sidebar-primary" />
+					<span class="min-w-0 truncate text-sm font-medium" title={traceMetadataTitle}
+						>{traceFile.displayName}</span
+					>
+					{#if traceFile.isLoading}
+						<LoaderCircleIcon
+							class="size-4 shrink-0 animate-spin text-muted-foreground"
+							aria-hidden="true"
+						/>
+						<span class="sr-only">Loading trace</span>
+					{/if}
+				</button>
 			</div>
 
 			<input
@@ -213,7 +215,7 @@
 				onchange={selectTrace}
 			/>
 
-			<div class="flex items-center gap-2">
+			<div class="z-10 flex items-center gap-2">
 				{#if traceFile.entry}
 					<ButtonGroup.Root aria-label="Plot zoom controls">
 						<Button
@@ -283,11 +285,7 @@
 					</ButtonGroup.Root>
 				{/if}
 				<Popover.Root>
-					<Popover.Trigger
-						class={squircleButtonClass}
-						aria-label="Open settings"
-						title="Settings"
-					>
+					<Popover.Trigger class={squircleButtonClass} aria-label="Open settings" title="Settings">
 						<CogIcon class="size-4" />
 					</Popover.Trigger>
 					<SettingsDialog />

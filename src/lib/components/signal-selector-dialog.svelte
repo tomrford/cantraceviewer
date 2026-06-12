@@ -39,7 +39,9 @@
 	let visibleDbcFiles = $derived(dbcFiles.visibleSidebarTree(sidebarFilter));
 
 	const menuButtonClass =
-		'flex w-full min-w-0 items-center gap-2 overflow-hidden rounded-[calc(var(--radius-sm)+2px)] p-2 text-left text-xs text-sidebar-foreground transition-[background-color,color,box-shadow] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden';
+		'flex w-full min-w-0 items-center gap-2 overflow-hidden rounded-[calc(var(--radius-sm)+2px)] p-2 text-left text-xs text-popover-foreground transition-[background-color,color,box-shadow] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden';
+	const iconButtonClass =
+		'flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color,box-shadow,scale] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96] disabled:pointer-events-none disabled:opacity-50';
 
 	onMount(() => {
 		void dbcFiles.loadLibrary();
@@ -117,7 +119,7 @@
 <Popover.Content
 	align="start"
 	sideOffset={-32}
-	class="relative grid w-[min(24rem,calc(100vw-1rem))] max-h-[min(28rem,calc(100vh-5rem))] -translate-x-2 -translate-y-2 grid-rows-[auto_auto_minmax(0,1fr)] gap-3 rounded-lg border border-border/70 bg-popover/90 p-4 text-popover-foreground backdrop-blur-md"
+	class="relative grid max-h-[min(36rem,calc(100vh-5rem))] w-[min(26rem,calc(100vw-1rem))] -translate-x-4 -translate-y-4 grid-rows-[auto_auto_minmax(0,1fr)] gap-3 overflow-hidden rounded-lg border border-border/70 bg-popover/90 p-4 text-popover-foreground backdrop-blur-md"
 	style="box-shadow: 0 1px 2px rgb(0 0 0 / 0.08)"
 	ondragenter={handleDbcDrag}
 	ondragover={handleDbcDrag}
@@ -141,17 +143,14 @@
 		onchange={selectDbcs}
 	/>
 
-	<div class="relative flex items-center justify-between gap-2">
-		<Popover.Close
-			class="flex size-8 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 transition-[background-color,color,box-shadow,scale] hover:bg-accent hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden active:scale-[0.96]"
-			aria-label="Close signal selector"
-		>
+	<div class="relative grid h-8 grid-cols-[1fr_auto_1fr] items-center">
+		<Popover.Close class={iconButtonClass} aria-label="Close signal selector">
 			<XIcon class="size-4" />
 		</Popover.Close>
-		<Popover.Title class="font-heading text-sm font-medium">Signal Selector</Popover.Title>
+		<Popover.Title class="text-center">Signal Selector</Popover.Title>
 		<button
 			type="button"
-			class="flex size-8 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/60 transition-[background-color,color,box-shadow,scale] hover:bg-accent hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden active:scale-[0.96] disabled:pointer-events-none disabled:opacity-50"
+			class="{iconButtonClass} justify-self-end"
 			disabled={dbcFiles.isLoading}
 			aria-label={dbcFiles.isLoading ? 'Loading DBC' : 'Add DBC'}
 			title={dbcFiles.isLoading ? 'Loading DBC' : 'Add DBC'}
@@ -169,7 +168,7 @@
 		/>
 		<button
 			type="button"
-			class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border/70 text-sidebar-foreground/60 transition-[background-color,border-color,color,box-shadow,scale] hover:bg-accent hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden active:scale-[0.96] data-[active=true]:border-sidebar-primary/60 data-[active=true]:bg-sidebar-primary/15 data-[active=true]:text-sidebar-primary"
+			class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border/70 text-muted-foreground transition-[background-color,border-color,color,box-shadow,scale] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96] data-[active=true]:border-sidebar-primary/60 data-[active=true]:bg-sidebar-primary/15 data-[active=true]:text-sidebar-primary"
 			data-active={showActiveOnly}
 			aria-pressed={showActiveOnly}
 			aria-label={showActiveOnly ? 'Show all DBC signals' : 'Show selected DBC signals only'}
@@ -180,130 +179,139 @@
 		</button>
 	</div>
 
-	<div class="min-h-0 overflow-y-auto">
-		<ul class="flex w-full min-w-0 flex-col gap-1">
-			{#each visibleDbcFiles as dbc (dbc.id)}
-				<li>
-					<Collapsible.Root
-						open={isDbcExpanded(dbc.id)}
-						onOpenChange={(open) => setDbcExpanded(dbc.id, open)}
-						class="group/collapsible"
-					>
-						<div class="group/dbc-row flex items-center gap-1">
-							<Collapsible.Trigger>
-								{#snippet child({ props })}
-									<button
-										{...props}
-										type="button"
-										class="{menuButtonClass} min-w-0 flex-1"
-										aria-label={isDbcExpanded(dbc.id)
-											? `Collapse ${dbc.name}`
-											: `Expand ${dbc.name}`}
-									>
-										<ChevronRightIcon
-											class="size-4 shrink-0 text-sidebar-foreground/60 group-data-[state=open]/collapsible:hidden"
-										/>
-										<ChevronDownIcon
-											class="size-4 shrink-0 text-sidebar-foreground/60 group-data-[state=closed]/collapsible:hidden"
-										/>
-										<span class="truncate">{dbc.name}</span>
-									</button>
-								{/snippet}
-							</Collapsible.Trigger>
-							<button
-								type="button"
-								class="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/50 opacity-70 transition-[background-color,color,box-shadow,opacity,scale] hover:bg-sidebar-accent hover:text-destructive hover:opacity-100 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden active:scale-[0.96]"
-								aria-label={`Delete ${dbc.name}`}
-								onclick={() => removeDbc(dbc.id)}
-							>
-								<TrashIcon class="size-4" />
-							</button>
-						</div>
-						<Collapsible.Content>
-							<ul class="mx-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-s border-sidebar-border px-2.5 py-0.5">
-								{#each dbc.messages as message (message.key)}
-									<li>
-										<Collapsible.Root
-											open={isMessageExpanded(message.key)}
-											onOpenChange={(open) => setMessageExpanded(message.key, open)}
-											class="group/message-collapsible"
+	<div class="relative min-h-0">
+		<div class="h-full overflow-y-auto pb-4">
+			<ul class="flex w-full min-w-0 flex-col gap-1">
+				{#each visibleDbcFiles as dbc (dbc.id)}
+					<li>
+						<Collapsible.Root
+							open={isDbcExpanded(dbc.id)}
+							onOpenChange={(open) => setDbcExpanded(dbc.id, open)}
+							class="group/collapsible"
+						>
+							<div class="group/dbc-row flex items-center gap-1">
+								<Collapsible.Trigger>
+									{#snippet child({ props })}
+										<button
+											{...props}
+											type="button"
+											class="{menuButtonClass} min-w-0 flex-1"
+											aria-label={isDbcExpanded(dbc.id)
+												? `Collapse ${dbc.name}`
+												: `Expand ${dbc.name}`}
 										>
-											<Collapsible.Trigger>
-												{#snippet child({ props })}
-													<button
-														{...props}
-														type="button"
-														class="flex h-7 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs text-sidebar-foreground transition-[background-color,color,box-shadow] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden"
-														aria-label={isMessageExpanded(message.key)
-															? `Collapse ${message.name}`
-															: `Expand ${message.name}`}
-													>
-														<span
-															class="flex size-4 shrink-0 items-center justify-center text-sidebar-foreground/60"
+											<ChevronRightIcon
+												class="size-4 shrink-0 text-muted-foreground group-data-[state=open]/collapsible:hidden"
+											/>
+											<ChevronDownIcon
+												class="size-4 shrink-0 text-muted-foreground group-data-[state=closed]/collapsible:hidden"
+											/>
+											<span class="truncate">{dbc.name}</span>
+										</button>
+									{/snippet}
+								</Collapsible.Trigger>
+								<button
+									type="button"
+									class="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-70 transition-[background-color,color,box-shadow,opacity,scale] hover:bg-accent hover:text-destructive hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96]"
+									aria-label={`Delete ${dbc.name}`}
+									onclick={() => removeDbc(dbc.id)}
+								>
+									<TrashIcon class="size-4" />
+								</button>
+							</div>
+							<Collapsible.Content>
+								<ul
+									class="mx-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-s border-border px-2.5 py-0.5"
+								>
+									{#each dbc.messages as message (message.key)}
+										<li>
+											<Collapsible.Root
+												open={isMessageExpanded(message.key)}
+												onOpenChange={(open) => setMessageExpanded(message.key, open)}
+												class="group/message-collapsible"
+											>
+												<Collapsible.Trigger>
+													{#snippet child({ props })}
+														<button
+															{...props}
+															type="button"
+															class="flex h-7 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs text-popover-foreground transition-[background-color,color,box-shadow] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
+															aria-label={isMessageExpanded(message.key)
+																? `Collapse ${message.name}`
+																: `Expand ${message.name}`}
 														>
-															<ChevronRightIcon
-																class="size-4 group-data-[state=open]/message-collapsible:hidden"
-															/>
-															<ChevronDownIcon
-																class="size-4 group-data-[state=closed]/message-collapsible:hidden"
-															/>
-														</span>
-														<span class="truncate">{message.name}</span>
-													</button>
-												{/snippet}
-											</Collapsible.Trigger>
-											<Collapsible.Content>
-												<ul class="mx-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-s border-sidebar-border px-2.5 py-0.5">
-													{#each message.signals as signal (signal.key)}
-														{@const isSelected = plotData.isSignalSelected(signal.key)}
-														{@const decodeStatus = isSelected
-															? plotData.signalDecodeStatus(signal.key)
-															: null}
-														{@const signalToggleId = `signal-toggle-${signal.key}`}
-														<li>
-															<Label
-																for={signalToggleId}
-																class="flex h-7 w-full min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 text-left text-xs font-normal text-sidebar-foreground transition-[background-color,color,box-shadow] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+															<span
+																class="flex size-4 shrink-0 items-center justify-center text-muted-foreground"
 															>
-																<Checkbox
-																	id={signalToggleId}
-																	checked={isSelected}
-																	aria-label={`Plot ${signal.label}`}
-																	title={decodeStatus?.decodeError ?? undefined}
-																	class="data-[error=true]:border-destructive/50 data-[error=true]:bg-destructive/10 data-[error=true]:text-destructive data-checked:border-sidebar-primary data-checked:bg-sidebar-primary data-checked:text-sidebar-primary-foreground"
-																	data-error={decodeStatus?.decodeError != null}
-																	onCheckedChange={() => plotData.toggleSignal(signal.key)}
+																<ChevronRightIcon
+																	class="size-4 group-data-[state=open]/message-collapsible:hidden"
 																/>
-																<span class="flex min-w-0 flex-1 items-center gap-2">
-																	<span class="truncate font-mono" title={signal.label}>
-																		{signal.signalName}
+																<ChevronDownIcon
+																	class="size-4 group-data-[state=closed]/message-collapsible:hidden"
+																/>
+															</span>
+															<span class="truncate">{message.name}</span>
+														</button>
+													{/snippet}
+												</Collapsible.Trigger>
+												<Collapsible.Content>
+													<ul
+														class="mx-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-s border-border px-2.5 py-0.5"
+													>
+														{#each message.signals as signal (signal.key)}
+															{@const isSelected = plotData.isSignalSelected(signal.key)}
+															{@const decodeStatus = isSelected
+																? plotData.signalDecodeStatus(signal.key)
+																: null}
+															{@const signalToggleId = `signal-toggle-${signal.key}`}
+															<li>
+																<Label
+																	for={signalToggleId}
+																	class="flex h-7 w-full min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 text-left text-xs font-normal text-popover-foreground transition-[background-color,color,box-shadow] hover:bg-accent hover:text-accent-foreground"
+																>
+																	<Checkbox
+																		id={signalToggleId}
+																		checked={isSelected}
+																		aria-label={`Plot ${signal.label}`}
+																		title={decodeStatus?.decodeError ?? undefined}
+																		class="data-[error=true]:border-destructive/50 data-[error=true]:bg-destructive/10 data-[error=true]:text-destructive data-checked:border-sidebar-primary data-checked:bg-sidebar-primary data-checked:text-sidebar-primary-foreground"
+																		data-error={decodeStatus?.decodeError != null}
+																		onCheckedChange={() => plotData.toggleSignal(signal.key)}
+																	/>
+																	<span class="flex min-w-0 flex-1 items-center gap-2">
+																		<span class="truncate font-mono" title={signal.label}>
+																			{signal.signalName}
+																		</span>
+																		{#if decodeStatus?.decodeError}
+																			<CircleAlertIcon
+																				class="size-3 shrink-0 text-destructive"
+																				aria-label={decodeStatus.decodeError}
+																			/>
+																		{:else if decodeStatus?.isDecoding}
+																			<LoaderCircleIcon
+																				class="size-3 shrink-0 animate-spin text-muted-foreground"
+																				aria-label="Decoding signal"
+																			/>
+																		{/if}
 																	</span>
-																	{#if decodeStatus?.decodeError}
-																		<CircleAlertIcon
-																			class="size-3 shrink-0 text-destructive"
-																			aria-label={decodeStatus.decodeError}
-																		/>
-																	{:else if decodeStatus?.isDecoding}
-																		<LoaderCircleIcon
-																			class="size-3 shrink-0 animate-spin text-sidebar-foreground/60"
-																			aria-label="Decoding signal"
-																		/>
-																	{/if}
-																</span>
-															</Label>
-														</li>
-													{/each}
-												</ul>
-											</Collapsible.Content>
-										</Collapsible.Root>
-									</li>
-								{/each}
-							</ul>
-						</Collapsible.Content>
-					</Collapsible.Root>
-				</li>
-			{/each}
-		</ul>
+																</Label>
+															</li>
+														{/each}
+													</ul>
+												</Collapsible.Content>
+											</Collapsible.Root>
+										</li>
+									{/each}
+								</ul>
+							</Collapsible.Content>
+						</Collapsible.Root>
+					</li>
+				{/each}
+			</ul>
+		</div>
+		<div
+			class="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-linear-to-b from-transparent to-popover"
+		></div>
 	</div>
 </Popover.Content>
 

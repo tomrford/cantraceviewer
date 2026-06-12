@@ -23,6 +23,8 @@
 	import type { Component } from 'svelte';
 
 	let helpOpen = $state(false);
+	const iconButtonClass =
+		'flex size-8 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color,box-shadow,scale] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96]';
 
 	const themeOptions: { value: ThemePreference; label: string; icon: Component }[] = [
 		{ value: 'light', label: 'Light', icon: SunIcon },
@@ -69,18 +71,36 @@
 <Popover.Content
 	align="end"
 	sideOffset={-32}
-	class="grid w-[min(22rem,calc(100vw-1rem))] translate-x-2 -translate-y-2 gap-4 rounded-lg border border-border/70 bg-popover/90 p-4 text-popover-foreground backdrop-blur-md"
+	class="grid w-[min(22rem,calc(100vw-1rem))] translate-x-4 -translate-y-4 gap-4 rounded-lg border border-border/70 bg-popover/90 p-4 text-popover-foreground backdrop-blur-md"
 	style="box-shadow: 0 1px 2px rgb(0 0 0 / 0.08)"
 >
-	<Popover.Close
-		class="absolute top-[6.5px] right-[7px] flex size-8 items-center justify-center rounded-md text-sidebar-foreground/60 transition-[background-color,color,box-shadow,scale] hover:bg-accent hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden active:scale-[0.96]"
-		aria-label="Close settings"
-	>
-		<XIcon class="size-4" />
-	</Popover.Close>
-	<Popover.Header>
-		<Popover.Title>Settings</Popover.Title>
-	</Popover.Header>
+	<div class="grid h-8 grid-cols-[1fr_auto_1fr] items-center">
+		<div class="flex items-center gap-1">
+			<button
+				type="button"
+				class={iconButtonClass}
+				aria-label="Open help"
+				title="Help"
+				onclick={() => (helpOpen = true)}
+			>
+				<CircleHelpIcon class="size-4" />
+			</button>
+			<a
+				href="https://github.com/tomrford/cantraceviewer"
+				target="_blank"
+				rel="noreferrer"
+				class={iconButtonClass}
+				aria-label="Open source code on GitHub"
+				title="Source code"
+			>
+				<GithubIcon class="size-4" />
+			</a>
+		</div>
+		<Popover.Title class="text-center">Settings</Popover.Title>
+		<Popover.Close class="{iconButtonClass} justify-self-end" aria-label="Close settings">
+			<XIcon class="size-4" />
+		</Popover.Close>
+	</div>
 
 	<div class="grid gap-2">
 		<div class="text-xs font-medium text-muted-foreground">Theme</div>
@@ -137,28 +157,6 @@
 		</Select.Root>
 		<p class="text-xs text-muted-foreground">{selectedLegendOrderOption.description}</p>
 	</label>
-
-	<div class="flex items-center gap-1 border-t pt-4">
-		<button
-			type="button"
-			class="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 transition-[background-color,color,box-shadow,scale] hover:bg-accent hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden active:scale-[0.96]"
-			aria-label="Open help"
-			title="Help"
-			onclick={() => (helpOpen = true)}
-		>
-			<CircleHelpIcon class="size-4" />
-		</button>
-		<a
-			href="https://github.com/tomrford/cantraceviewer"
-			target="_blank"
-			rel="noreferrer"
-			class="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 transition-[background-color,color,box-shadow,scale] hover:bg-accent hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden active:scale-[0.96]"
-			aria-label="Open source code on GitHub"
-			title="Source code"
-		>
-			<GithubIcon class="size-4" />
-		</a>
-	</div>
 
 	<div class="grid gap-2 border-t pt-4">
 		<div class="text-xs font-medium text-muted-foreground">Persistent data</div>
