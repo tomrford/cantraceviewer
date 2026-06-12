@@ -42,6 +42,8 @@
 		'flex w-full min-w-0 items-center gap-2 overflow-hidden rounded-[calc(var(--radius-sm)+2px)] p-2 text-left text-xs text-popover-foreground transition-[background-color,color,box-shadow] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden';
 	const iconButtonClass =
 		'flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color,box-shadow,scale] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96] disabled:pointer-events-none disabled:opacity-50';
+	const closeButtonClass =
+		'flex size-8 shrink-0 items-center justify-center rounded-md text-destructive transition-[background-color,color,box-shadow,scale] hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96]';
 
 	onMount(() => {
 		void dbcFiles.loadLibrary();
@@ -119,7 +121,7 @@
 <Popover.Content
 	align="start"
 	sideOffset={-32}
-	class="relative grid max-h-[min(36rem,calc(100vh-5rem))] w-[min(26rem,calc(100vw-1rem))] -translate-x-4 -translate-y-4 grid-rows-[auto_auto_minmax(0,1fr)] gap-3 overflow-hidden rounded-lg border border-border/70 bg-popover/90 p-4 text-popover-foreground backdrop-blur-md"
+	class="relative grid h-[min(36rem,calc(100vh-5rem))] w-[min(26rem,calc(100vw-1rem))] -translate-y-2 grid-rows-[auto_auto_minmax(0,1fr)] gap-3 overflow-hidden rounded-lg border border-border/70 bg-popover/90 p-4 text-popover-foreground backdrop-blur-md"
 	style="box-shadow: 0 1px 2px rgb(0 0 0 / 0.08)"
 	ondragenter={handleDbcDrag}
 	ondragover={handleDbcDrag}
@@ -144,7 +146,7 @@
 	/>
 
 	<div class="relative grid h-8 grid-cols-[1fr_auto_1fr] items-center">
-		<Popover.Close class={iconButtonClass} aria-label="Close signal selector">
+		<Popover.Close class={closeButtonClass} aria-label="Close signal selector">
 			<XIcon class="size-4" />
 		</Popover.Close>
 		<Popover.Title class="text-center">Signal Selector</Popover.Title>

@@ -25,6 +25,8 @@
 	let helpOpen = $state(false);
 	const iconButtonClass =
 		'flex size-8 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color,box-shadow,scale] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96]';
+	const closeButtonClass =
+		'flex size-8 items-center justify-center rounded-md text-destructive transition-[background-color,color,box-shadow,scale] hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96]';
 
 	const themeOptions: { value: ThemePreference; label: string; icon: Component }[] = [
 		{ value: 'light', label: 'Light', icon: SunIcon },
@@ -71,7 +73,7 @@
 <Popover.Content
 	align="end"
 	sideOffset={-32}
-	class="grid w-[min(22rem,calc(100vw-1rem))] translate-x-4 -translate-y-4 gap-4 rounded-lg border border-border/70 bg-popover/90 p-4 text-popover-foreground backdrop-blur-md"
+	class="grid w-[min(22rem,calc(100vw-1rem))] -translate-y-2 gap-4 rounded-lg border border-border/70 bg-popover/90 p-4 text-popover-foreground backdrop-blur-md"
 	style="box-shadow: 0 1px 2px rgb(0 0 0 / 0.08)"
 >
 	<div class="grid h-8 grid-cols-[1fr_auto_1fr] items-center">
@@ -97,7 +99,7 @@
 			</a>
 		</div>
 		<Popover.Title class="text-center">Settings</Popover.Title>
-		<Popover.Close class="{iconButtonClass} justify-self-end" aria-label="Close settings">
+		<Popover.Close class="{closeButtonClass} justify-self-end" aria-label="Close settings">
 			<XIcon class="size-4" />
 		</Popover.Close>
 	</div>
