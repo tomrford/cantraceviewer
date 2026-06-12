@@ -7,8 +7,7 @@
 		filesFromDrop,
 		hasDraggedFiles
 	} from '$lib/file-drop.js';
-	import { rankedFuzzySearch } from '$lib/fuzzy-match.js';
-	import { dbcFiles, type SidebarDbcSignal } from '$lib/stores/dbc-files.svelte.js';
+	import { dbcFiles } from '$lib/stores/dbc-files.svelte.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
 	import SearchForm from './search-form.svelte';
 	import * as Collapsible from '$lib/components/ui/collapsible/index.js';
@@ -39,40 +38,13 @@
 	let showActiveOnly = $state(false);
 	let expandedDbcIds = new SvelteSet<string>();
 	let expandedMessageKeys = new SvelteSet<string>();
-	let normalizedSignalSearch = $derived(signalSearch.trim().toLowerCase());
-	let isSignalSearchActive = $derived(normalizedSignalSearch.length > 0);
-	let isFiltering = $derived(isSignalSearchActive || showActiveOnly);
-	let visibleDbcFiles = $derived.by(() =>
-		dbcFiles.sidebarFiles
-			.map((dbc) => {
-				const signalsByMessage: Record<string, SidebarDbcSignal[]> = {};
-				const visibleSignals = rankedFuzzySearch(
-					dbc.messages.flatMap((message) =>
-						message.signals
-							.filter((signal) => !showActiveOnly || plotData.isSignalSelected(signal.key))
-							.map((signal) => ({ messageKey: message.key, signal }))
-					),
-					normalizedSignalSearch,
-					({ signal }) => signal.label
-				);
-
-				for (const { messageKey, signal } of visibleSignals) {
-					signalsByMessage[messageKey] ??= [];
-					signalsByMessage[messageKey].push(signal);
-				}
-
-				return {
-					...dbc,
-					messages: dbc.messages
-						.map((message) => ({
-							...message,
-							signals: signalsByMessage[message.key] ?? []
-						}))
-						.filter((message) => message.signals.length > 0)
-				};
-			})
-			.filter((dbc) => !isFiltering || dbc.messages.length > 0)
-	);
+	let sidebarFilter = $derived({
+		query: signalSearch,
+		activeOnly: showActiveOnly,
+		isSignalSelected: (key: string) => plotData.isSignalSelected(key)
+	});
+	let isFiltering = $derived(dbcFiles.isSidebarFilterActive(sidebarFilter));
+	let visibleDbcFiles = $derived(dbcFiles.visibleSidebarTree(sidebarFilter));
 
 	onMount(() => {
 		void dbcFiles.loadLibrary();

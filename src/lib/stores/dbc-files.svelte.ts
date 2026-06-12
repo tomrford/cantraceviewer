@@ -17,6 +17,11 @@ import {
 	type StoredDbc
 } from './dbc-library.js';
 import { DBC_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '$lib/file-limits.js';
+import {
+	createFuzzySearchIndex,
+	searchFuzzyIndex,
+	type FuzzySearchIndex
+} from '$lib/fuzzy-match.js';
 
 export type DbcFileEntry = {
 	id: string;
@@ -44,6 +49,12 @@ export type SidebarDbcSignal = {
 	signalName: string;
 };
 
+export type SidebarFilterOptions = {
+	query: string;
+	activeOnly: boolean;
+	isSignalSelected: (key: string) => boolean;
+};
+
 export type DbcSignalTarget = {
 	file: DbcFileEntry;
 	message: DbcMessage;
@@ -54,6 +65,14 @@ type SignalTargetIndex = Record<string, DbcSignalTarget>;
 type DbcCandidate = {
 	entry: DbcFileEntry;
 	stored: StoredDbc;
+};
+type SidebarSearchEntry = {
+	messageKey: string;
+	signal: SidebarDbcSignal;
+};
+type SidebarSearchIndex = {
+	dbc: SidebarDbcFile;
+	signals: FuzzySearchIndex<SidebarSearchEntry>;
 };
 
 class DbcFilesStore {
@@ -75,6 +94,42 @@ class DbcFilesStore {
 			}))
 		}))
 	);
+
+	private sidebarSearchIndexes = $derived.by<SidebarSearchIndex[]>(() =>
+		buildSidebarSearchIndexes(this.sidebarFiles)
+	);
+
+	isSidebarFilterActive(filter: SidebarFilterOptions): boolean {
+		return normalizeSidebarQuery(filter.query).length > 0 || filter.activeOnly;
+	}
+
+	visibleSidebarTree(filter: SidebarFilterOptions): SidebarDbcFile[] {
+		const query = normalizeSidebarQuery(filter.query);
+		const isFiltering = this.isSidebarFilterActive(filter);
+
+		return this.sidebarSearchIndexes.flatMap((index) => {
+			const signalsByMessage: Record<string, SidebarDbcSignal[]> = {};
+			const visibleSignals = searchFuzzyIndex(index.signals, query).filter(
+				({ signal }) => !filter.activeOnly || filter.isSignalSelected(signal.key)
+			);
+
+			for (const { messageKey, signal } of visibleSignals) {
+				signalsByMessage[messageKey] ??= [];
+				signalsByMessage[messageKey].push(signal);
+			}
+
+			const messages = index.dbc.messages
+				.map((message) => ({
+					...message,
+					signals: signalsByMessage[message.key] ?? []
+				}))
+				.filter((message) => message.signals.length > 0);
+
+			if (isFiltering && messages.length === 0) return [];
+
+			return [{ ...index.dbc, messages }];
+		});
+	}
 
 	async addFiles(files: Iterable<File>): Promise<void> {
 		if (this.isLoading) return;
@@ -214,6 +269,23 @@ function buildSignalTargetIndex(files: DbcFileEntry[]): SignalTargetIndex {
 	}
 
 	return index;
+}
+
+function buildSidebarSearchIndexes(files: SidebarDbcFile[]): SidebarSearchIndex[] {
+	return files.map((dbc) => {
+		const signals = dbc.messages.flatMap<SidebarSearchEntry>((message) =>
+			message.signals.map((signal) => ({ messageKey: message.key, signal }))
+		);
+
+		return {
+			dbc,
+			signals: createFuzzySearchIndex(signals, ({ signal }) => signal.label)
+		};
+	});
+}
+
+function normalizeSidebarQuery(query: string): string {
+	return query.trim().toLowerCase();
 }
 
 export function signalIdentityKey(
