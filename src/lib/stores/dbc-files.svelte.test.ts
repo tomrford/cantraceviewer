@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
-import { dbcFiles } from './dbc-files.svelte';
+import { dbcFiles, signalIdentityKey, type DbcFileEntry } from './dbc-files.svelte';
 import { listStoredDbcs, putStoredDbcs, resetStoredDbcs } from './dbc-library.js';
 import { closeDbc, getDbcCatalog, openDbc } from '$lib/wasm.js';
-import type { DbcHandle, DbcMessage, ParsedDbc } from '$lib/wasm.js';
+import type { DbcHandle, DbcMessage, DbcSignal, ParsedDbc } from '$lib/wasm.js';
 
 vi.mock('$lib/wasm.js', () => ({
 	closeDbc: vi.fn(() => Promise.resolve()),
@@ -83,6 +83,177 @@ describe('dbcFiles', () => {
 		expect(dbcFiles.files[0]?.handle).toBe(handle);
 		expect(dbcFiles.error).toBe(null);
 		expect(dbcFiles.sidebarFiles[0]?.messages).toHaveLength(2);
+	});
+
+	it('returns the full signal tree for an empty sidebar query', () => {
+		dbcFiles.files = [
+			dbcEntry({
+				id: 'dbc-1',
+				name: 'powertrain.dbc',
+				messages: [
+					message({
+						name: 'PowertrainStatus',
+						canId: 0x101,
+						signals: [signal({ name: 'VehicleSpeed' }), signal({ name: 'EngineRpm' })]
+					}),
+					message({ name: 'EmptyMessage', canId: 0x102, signals: [] })
+				]
+			}),
+			dbcEntry({
+				id: 'dbc-2',
+				name: 'body.dbc',
+				messages: [
+					message({ name: 'DoorStatus', canId: 0x201, signals: [signal({ name: 'DoorOpen' })] })
+				]
+			})
+		];
+
+		expect(visibleSidebarSignals('')).toMatchObject([
+			{
+				id: 'dbc-1',
+				name: 'powertrain',
+				messages: [
+					{
+						name: 'PowertrainStatus',
+						signals: [{ signalName: 'VehicleSpeed' }, { signalName: 'EngineRpm' }]
+					}
+				]
+			},
+			{
+				id: 'dbc-2',
+				name: 'body',
+				messages: [
+					{
+						name: 'DoorStatus',
+						signals: [{ signalName: 'DoorOpen' }]
+					}
+				]
+			}
+		]);
+	});
+
+	it('filters sidebar signals by fuzzy query and hides empty messages and DBCs', () => {
+		dbcFiles.files = [
+			dbcEntry({
+				id: 'dbc-1',
+				name: 'powertrain.dbc',
+				messages: [
+					message({
+						name: 'PowertrainStatus',
+						canId: 0x101,
+						signals: [signal({ name: 'VehicleSpeed' }), signal({ name: 'EngineRpm' })]
+					}),
+					message({
+						name: 'BatteryStatus',
+						canId: 0x102,
+						signals: [signal({ name: 'BatteryVoltage' })]
+					})
+				]
+			}),
+			dbcEntry({
+				id: 'dbc-2',
+				name: 'body.dbc',
+				messages: [
+					message({ name: 'DoorStatus', canId: 0x201, signals: [signal({ name: 'DoorOpen' })] })
+				]
+			})
+		];
+
+		expect(visibleSidebarSignals('vehicle')).toMatchObject([
+			{
+				id: 'dbc-1',
+				messages: [
+					{
+						name: 'PowertrainStatus',
+						signals: [{ signalName: 'VehicleSpeed' }]
+					}
+				]
+			}
+		]);
+	});
+
+	it('filters the sidebar tree to active signals only', () => {
+		const powertrain = message({
+			name: 'PowertrainStatus',
+			canId: 0x101,
+			signals: [signal({ name: 'VehicleSpeed' }), signal({ name: 'EngineRpm' })]
+		});
+		const selectedKey = signalIdentityKey('dbc-1', powertrain, 'EngineRpm');
+		dbcFiles.files = [
+			dbcEntry({
+				id: 'dbc-1',
+				name: 'powertrain.dbc',
+				messages: [powertrain]
+			}),
+			dbcEntry({
+				id: 'dbc-2',
+				name: 'body.dbc',
+				messages: [
+					message({ name: 'DoorStatus', canId: 0x201, signals: [signal({ name: 'DoorOpen' })] })
+				]
+			})
+		];
+
+		expect(
+			visibleSidebarSignals('', {
+				activeOnly: true,
+				isSignalSelected: (key) => key === selectedKey
+			})
+		).toMatchObject([
+			{
+				id: 'dbc-1',
+				messages: [
+					{
+						name: 'PowertrainStatus',
+						signals: [{ signalName: 'EngineRpm' }]
+					}
+				]
+			}
+		]);
+	});
+
+	it('updates sidebar filtering when catalogs are added and removed', async () => {
+		dbcFiles.files = [
+			dbcEntry({
+				id: 'dbc-1',
+				name: 'powertrain.dbc',
+				messages: [
+					message({
+						name: 'PowertrainStatus',
+						canId: 0x101,
+						signals: [signal({ name: 'VehicleSpeed' })]
+					})
+				]
+			})
+		];
+
+		expect(visibleSidebarSignals('vehicle')).toMatchObject([
+			{
+				id: 'dbc-1',
+				messages: [{ signals: [{ signalName: 'VehicleSpeed' }] }]
+			}
+		]);
+
+		dbcFiles.files = [
+			...dbcFiles.files,
+			dbcEntry({
+				id: 'dbc-2',
+				name: 'body.dbc',
+				handle: dbcHandle(2),
+				messages: [
+					message({ name: 'DoorStatus', canId: 0x201, signals: [signal({ name: 'DoorOpen' })] })
+				]
+			})
+		];
+		await dbcFiles.removeFile('dbc-1');
+
+		expect(visibleSidebarSignals('vehicle')).toEqual([]);
+		expect(visibleSidebarSignals('door')).toMatchObject([
+			{
+				id: 'dbc-2',
+				messages: [{ signals: [{ signalName: 'DoorOpen' }] }]
+			}
+		]);
 	});
 
 	it('rejects duplicate frame identities within one DBC file', async () => {
@@ -165,6 +336,25 @@ function dbcHandle(id: number): DbcHandle {
 	return { id } as DbcHandle;
 }
 
+function dbcEntry({
+	id = 'dbc-1',
+	name = 'dbc.dbc',
+	handle = dbcHandle(1),
+	messages = [message()]
+}: {
+	id?: string;
+	name?: string;
+	handle?: DbcHandle;
+	messages?: DbcMessage[];
+} = {}): DbcFileEntry {
+	return {
+		id,
+		name,
+		handle,
+		catalog: catalog(...messages)
+	};
+}
+
 function catalog(...messages: DbcMessage[]): ParsedDbc {
 	return { messages };
 }
@@ -181,4 +371,37 @@ function message(overrides: Partial<DbcMessage> = {}): DbcMessage {
 		signals: [],
 		...overrides
 	};
+}
+
+function signal(overrides: Partial<DbcSignal> = {}): DbcSignal {
+	return {
+		name: 'Signal',
+		startBit: 0,
+		bitLength: 8,
+		endianness: 'intel',
+		signedness: 'unsigned',
+		factor: 1,
+		offset: 0,
+		minimum: 0,
+		maximum: 255,
+		unit: '',
+		valueType: 'integer',
+		unsupportedMux: false,
+		receivers: [],
+		valueDescriptions: [],
+		...overrides
+	};
+}
+
+function visibleSidebarSignals(
+	query: string,
+	{
+		activeOnly = false,
+		isSignalSelected = () => false
+	}: {
+		activeOnly?: boolean;
+		isSignalSelected?: (key: string) => boolean;
+	} = {}
+) {
+	return dbcFiles.visibleSidebarTree({ query, activeOnly, isSignalSelected });
 }
