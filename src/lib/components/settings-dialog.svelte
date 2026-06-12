@@ -1,4 +1,5 @@
 <script lang="ts">
+	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import * as Select from '$lib/components/ui/select/index.js';
 	import {
@@ -12,12 +13,16 @@
 	} from '$lib/stores/preferences.svelte.js';
 	import { dbcFiles } from '$lib/stores/dbc-files.svelte.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
+	import CircleHelpIcon from '@lucide/svelte/icons/circle-help';
+	import GithubIcon from '@lucide/svelte/icons/github';
 	import LaptopIcon from '@lucide/svelte/icons/laptop';
 	import MoonIcon from '@lucide/svelte/icons/moon';
 	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
 	import SunIcon from '@lucide/svelte/icons/sun';
 	import XIcon from '@lucide/svelte/icons/x';
 	import type { Component } from 'svelte';
+
+	let helpOpen = $state(false);
 
 	const themeOptions: { value: ThemePreference; label: string; icon: Component }[] = [
 		{ value: 'light', label: 'Light', icon: SunIcon },
@@ -133,6 +138,28 @@
 		<p class="text-xs text-muted-foreground">{selectedLegendOrderOption.description}</p>
 	</label>
 
+	<div class="flex items-center gap-1 border-t pt-4">
+		<button
+			type="button"
+			class="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 transition-[background-color,color,box-shadow,scale] hover:bg-accent hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden active:scale-[0.96]"
+			aria-label="Open help"
+			title="Help"
+			onclick={() => (helpOpen = true)}
+		>
+			<CircleHelpIcon class="size-4" />
+		</button>
+		<a
+			href="https://github.com/tomrford/cantraceviewer"
+			target="_blank"
+			rel="noreferrer"
+			class="flex size-7 items-center justify-center rounded-md text-sidebar-foreground/55 transition-[background-color,color,box-shadow,scale] hover:bg-accent hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden active:scale-[0.96]"
+			aria-label="Open source code on GitHub"
+			title="Source code"
+		>
+			<GithubIcon class="size-4" />
+		</a>
+	</div>
+
 	<div class="grid gap-2 border-t pt-4">
 		<div class="text-xs font-medium text-muted-foreground">Persistent data</div>
 		<p class="text-xs text-muted-foreground">
@@ -149,3 +176,34 @@
 		</button>
 	</div>
 </Popover.Content>
+
+<AlertDialog.Root bind:open={helpOpen}>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>CAN Trace Viewer</AlertDialog.Title>
+			<AlertDialog.Description class="space-y-2 text-left text-pretty">
+				<p>
+					all files, preferences and saved settings are processed and stored solely in this
+					browser's local storage. Nothing leaves your machine.
+				</p>
+				<p>
+					Load one ASC, TRC, or BLF trace, add one or more DBC files, then select decoded signals
+					from the signal selector.
+				</p>
+				<p>
+					Current support covers CAN trace plotting and a practical subset of DBC, using shared-axis
+					line plots for selected signals.
+				</p>
+				<p>
+					The source code is available on
+					<a href="https://github.com/tomrford/cantraceviewer" target="_blank" rel="noreferrer">
+						GitHub</a
+					>.
+				</p>
+			</AlertDialog.Description>
+		</AlertDialog.Header>
+		<AlertDialog.Footer>
+			<AlertDialog.Action onclick={() => (helpOpen = false)}>Close</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>
