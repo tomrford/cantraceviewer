@@ -41,15 +41,26 @@ const formatContext = {
 };
 
 describe('signal plot data', () => {
-	it('keeps line data constrained to the active x viewport', () => {
+	it('includes neighboring points at viewport edges for line continuity', () => {
 		const [visible] = visibleSignalViews([view([0, 10, 20, 30, 40], [1, 2, 3, 4, 5])], {
 			xMin: 10,
 			xMax: 30
 		});
 
-		expect(Array.from(visible.x)).toEqual([10, 20, 30]);
-		expect(Array.from(visible.y)).toEqual([2, 3, 4]);
-		expect(visible.points).toBe(3);
+		expect(Array.from(visible.x)).toEqual([0, 10, 20, 30, 40]);
+		expect(Array.from(visible.y)).toEqual([1, 2, 3, 4, 5]);
+		expect(visible.points).toBe(5);
+	});
+
+	it('includes bracketing samples when a line segment crosses an empty viewport', () => {
+		const [visible] = visibleSignalViews([view([0, 10, 20], [1, 2, 3])], {
+			xMin: 12,
+			xMax: 18
+		});
+
+		expect(Array.from(visible.x)).toEqual([10, 20]);
+		expect(Array.from(visible.y)).toEqual([2, 3]);
+		expect(visible.points).toBe(2);
 	});
 
 	it('returns empty line data when no points are in the viewport', () => {

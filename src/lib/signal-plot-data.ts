@@ -150,7 +150,7 @@ export function visibleSignalViews(
 	if (viewport === null) return views;
 
 	return views.map((view) => {
-		const { start, end } = visibleIndexRange(view.x, viewport.xMin, viewport.xMax);
+		const { start, end } = renderIndexRange(view.x, viewport.xMin, viewport.xMax);
 		if (start === 0 && end === view.points) return view;
 		return {
 			...view,
@@ -335,6 +335,28 @@ function visibleIndexRange(
 	const end = upperBound(x, max);
 
 	return { start, end: Math.max(start, end) };
+}
+
+function renderIndexRange(
+	x: Float64Array<ArrayBufferLike>,
+	xMin: number,
+	xMax: number
+): { start: number; end: number } {
+	// Include one off-screen neighbor on each side so clipped line segments
+	// continue to the viewport edge even when no sample falls exactly there.
+	const { start, end } = visibleIndexRange(x, xMin, xMax);
+	if (start < end) {
+		return {
+			start: Math.max(0, start - 1),
+			end: Math.min(x.length, end + 1)
+		};
+	}
+
+	if (start > 0 && start < x.length) {
+		return { start: start - 1, end: start + 1 };
+	}
+
+	return { start, end };
 }
 
 function lowerBound(values: Float64Array<ArrayBufferLike>, target: number): number {
