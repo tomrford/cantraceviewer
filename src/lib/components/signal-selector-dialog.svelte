@@ -21,13 +21,16 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 	import XIcon from '@lucide/svelte/icons/x';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 
 	let dbcInput = $state<HTMLInputElement>();
+	let signalListScroller = $state<HTMLDivElement>();
+	let signalListContent = $state<HTMLUListElement>();
 	let signalSearch = $state('');
 	let dbcDropActive = $state(false);
 	let showActiveOnly = $state(false);
+	let signalListOverflows = $state(false);
 	let expandedDbcIds = new SvelteSet<string>();
 	let expandedMessageKeys = new SvelteSet<string>();
 	let sidebarFilter = $derived({
@@ -47,6 +50,19 @@
 
 	onMount(() => {
 		void dbcFiles.loadLibrary();
+
+		const resizeObserver = new ResizeObserver(updateSignalListOverflow);
+		if (signalListScroller) resizeObserver.observe(signalListScroller);
+		if (signalListContent) resizeObserver.observe(signalListContent);
+
+		return () => resizeObserver.disconnect();
+	});
+
+	$effect(() => {
+		visibleDbcFiles;
+		expandedDbcIds.size;
+		expandedMessageKeys.size;
+		void refreshSignalListOverflow();
 	});
 
 	async function selectDbcs(event: Event) {
@@ -116,6 +132,20 @@
 		plotData.deselectDbcFile(dbcId);
 		await dbcFiles.removeFile(dbcId);
 	}
+
+	async function refreshSignalListOverflow(): Promise<void> {
+		await tick();
+		updateSignalListOverflow();
+	}
+
+	function updateSignalListOverflow(): void {
+		if (!signalListScroller) {
+			signalListOverflows = false;
+			return;
+		}
+
+		signalListOverflows = signalListScroller.scrollHeight > signalListScroller.clientHeight + 1;
+	}
 </script>
 
 <Popover.Content
@@ -184,8 +214,12 @@
 	</div>
 
 	<div class="relative min-h-0">
-		<div class="h-full overflow-y-auto pb-4">
-			<ul class="flex w-full min-w-0 flex-col gap-1">
+		<div
+			bind:this={signalListScroller}
+			class="h-full overflow-y-auto pb-4 [--scroll-fade-size:2rem]"
+			class:scroll-fade={signalListOverflows}
+		>
+			<ul bind:this={signalListContent} class="flex w-full min-w-0 flex-col gap-1">
 				{#each visibleDbcFiles as dbc (dbc.id)}
 					<li>
 						<Collapsible.Root
@@ -313,9 +347,6 @@
 				{/each}
 			</ul>
 		</div>
-		<div
-			class="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-linear-to-b from-transparent to-popover"
-		></div>
 	</div>
 </Popover.Content>
 
