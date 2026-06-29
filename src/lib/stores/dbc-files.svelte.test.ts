@@ -276,6 +276,41 @@ describe('dbcFiles', () => {
 		expect(putStoredDbcsMock).not.toHaveBeenCalled();
 	});
 
+	it('rejects a DBC file that is already loaded', async () => {
+		const existingHandle = dbcHandle(303);
+		const duplicateHandle = dbcHandle(304);
+		openDbcMock.mockResolvedValueOnce(existingHandle).mockResolvedValueOnce(duplicateHandle);
+		getDbcCatalogMock
+			.mockResolvedValueOnce(catalog(message({ name: 'Existing' })))
+			.mockResolvedValueOnce(catalog(message({ name: 'Duplicate' })));
+
+		await dbcFiles.addFiles([file('existing.dbc', 'same text')]);
+		await dbcFiles.addFiles([file('copy.dbc', 'same text')]);
+
+		expect(dbcFiles.files).toHaveLength(1);
+		expect(dbcFiles.files[0]?.handle).toBe(existingHandle);
+		expect(dbcFiles.error).toBe('copy is already loaded.');
+		expect(closeDbcMock).toHaveBeenCalledExactlyOnceWith(duplicateHandle);
+		expect(putStoredDbcsMock).toHaveBeenCalledOnce();
+	});
+
+	it('rejects duplicate DBC files selected in one batch', async () => {
+		const firstHandle = dbcHandle(305);
+		const secondHandle = dbcHandle(306);
+		openDbcMock.mockResolvedValueOnce(firstHandle).mockResolvedValueOnce(secondHandle);
+		getDbcCatalogMock
+			.mockResolvedValueOnce(catalog(message({ name: 'First' })))
+			.mockResolvedValueOnce(catalog(message({ name: 'Second' })));
+
+		await dbcFiles.addFiles([file('first.dbc', 'same text'), file('second.dbc', 'same text')]);
+
+		expect(dbcFiles.files).toHaveLength(0);
+		expect(dbcFiles.error).toBe('second is already loaded.');
+		expect(closeDbcMock).toHaveBeenCalledWith(firstHandle);
+		expect(closeDbcMock).toHaveBeenCalledWith(secondHandle);
+		expect(putStoredDbcsMock).not.toHaveBeenCalled();
+	});
+
 	it('ignores added files while another DBC operation is loading', async () => {
 		dbcFiles.isLoading = true;
 

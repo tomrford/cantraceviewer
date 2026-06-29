@@ -144,6 +144,7 @@ class DbcFilesStore {
 			}
 
 			const entries = candidates.map((candidate) => candidate.entry);
+			assertNoDuplicateDbcFileIds(this.files, entries);
 			await putStoredDbcs(candidates.map((candidate) => candidate.stored));
 			this.files = [...this.files, ...entries];
 		} catch (error) {
@@ -231,6 +232,21 @@ class DbcFilesStore {
 			await closeDbc(handle);
 			throw error;
 		}
+	}
+}
+
+function assertNoDuplicateDbcFileIds(existing: DbcFileEntry[], candidates: DbcFileEntry[]): void {
+	const seen: Record<string, true> = {};
+	for (const entry of existing) {
+		seen[entry.id] = true;
+	}
+
+	for (const candidate of candidates) {
+		if (seen[candidate.id]) {
+			throw new Error(`${displayDbcName(candidate.name)} is already loaded.`);
+		}
+
+		seen[candidate.id] = true;
 	}
 }
 
