@@ -49,8 +49,6 @@
 		'flex size-8 shrink-0 items-center justify-center rounded-md text-destructive transition-[background-color,color,box-shadow,scale] hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96]';
 
 	onMount(() => {
-		void dbcFiles.loadLibrary();
-
 		const resizeObserver = new ResizeObserver(updateSignalListOverflow);
 		if (signalListScroller) resizeObserver.observe(signalListScroller);
 		if (signalListContent) resizeObserver.observe(signalListContent);

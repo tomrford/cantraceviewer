@@ -14,6 +14,7 @@
 	} from '$lib/file-drop.js';
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import { Toggle } from '$lib/components/ui/toggle/index.js';
+	import { dbcFiles } from '$lib/stores/dbc-files.svelte.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
 	import { TRACE_FILE_ACCEPT } from '$lib/trace-file-types.js';
@@ -39,6 +40,7 @@
 	let boxZoomEnabled = $state(false);
 	let legendVisible = $state(true);
 	let canResetZoom = $state(false);
+	let signalSelectorOpen = $state(false);
 	const plotControlsDisabled = $derived(!plotData.hasPlottableSignals || traceFile.isLoading);
 	let traceMetadataTitle = $derived(
 		traceFile.entry ? formatTraceMetadata(traceFile.entry.metadata) : undefined
@@ -53,6 +55,7 @@
 
 	onMount(() => {
 		webgpuSupported = 'gpu' in navigator;
+		void dbcFiles.loadLibrary();
 	});
 
 	async function selectTrace(event: Event) {
@@ -171,9 +174,9 @@
 			aria-busy={traceFile.isLoading}
 		>
 			<div class="z-10 flex items-center">
-				<Popover.Root>
+				<Popover.Root bind:open={signalSelectorOpen}>
 					<Popover.Trigger
-						class={squircleButtonClass}
+						class="{squircleButtonClass} data-[state=open]:invisible"
 						aria-label="Open signal selector"
 						title="Signal selector"
 					>
