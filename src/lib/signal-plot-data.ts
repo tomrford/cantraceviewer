@@ -118,10 +118,12 @@ export function formatDecodedValue(
 	};
 }
 
+const EMPTY_SERIES = new Float64Array(0);
+
 export function signalView(signal: PlotSignal): SignalView {
 	const series = signal.series;
-	const sourceTimes = series?.timesMs ?? new Float64Array(0);
-	const sourceValues = series?.values ?? new Float64Array(0);
+	const sourceTimes = series?.timesMs ?? EMPTY_SERIES;
+	const sourceValues = series?.values ?? EMPTY_SERIES;
 	const latest = formatDecodedValue(sourceValues.at(-1) ?? null, signal);
 
 	return {
@@ -141,6 +143,70 @@ export function signalView(signal: PlotSignal): SignalView {
 		maximum: signal.maximum,
 		valueDescriptions: signal.valueDescriptions
 	};
+}
+
+/**
+ * Reuses SignalView objects across store rebuilds: decode-status flips rebuild
+ * every PlotSignal, but views whose rendered content is unchanged keep their
+ * identity so chart updates can be skipped downstream. Entries for dropped
+ * signals are evicted on the next call.
+ */
+export function createSignalViewCache(): (signals: PlotSignal[]) => SignalView[] {
+	let cache = new Map<string, SignalView>();
+
+	return (signals) => {
+		const next = new Map<string, SignalView>();
+		const views = signals.map((signal) => {
+			const cached = cache.get(signal.key);
+			const view =
+				cached !== undefined && viewMatchesSignal(cached, signal) ? cached : signalView(signal);
+			next.set(signal.key, view);
+			return view;
+		});
+		cache = next;
+		return views;
+	};
+}
+
+function viewMatchesSignal(view: SignalView, signal: PlotSignal): boolean {
+	return (
+		view.x === (signal.series?.timesMs ?? EMPTY_SERIES) &&
+		view.y === (signal.series?.values ?? EMPTY_SERIES) &&
+		view.color === signal.color &&
+		view.label === signal.label &&
+		view.unit === signal.unit &&
+		view.factor === signal.factor &&
+		view.offset === signal.offset &&
+		view.minimum === signal.minimum &&
+		view.maximum === signal.maximum &&
+		view.valueDescriptions === signal.valueDescriptions
+	);
+}
+
+/**
+ * Whether two visible-view lists would produce identical chart series: same
+ * signals and colors over the same x/y windows. `subarray` slices compare
+ * equal when buffer, offset, and length match, so recomputing an unchanged
+ * window compares equal despite fresh wrapper objects.
+ */
+export function visibleViewsEqual(a: VisibleSignalView[], b: VisibleSignalView[]): boolean {
+	if (a === b) return true;
+	if (a.length !== b.length) return false;
+	for (let i = 0; i < a.length; i++) {
+		const viewA = a[i];
+		const viewB = b[i];
+		if (viewA.key !== viewB.key || viewA.color !== viewB.color || viewA.label !== viewB.label) {
+			return false;
+		}
+		if (!sameSlice(viewA.x, viewB.x) || !sameSlice(viewA.y, viewB.y)) return false;
+	}
+	return true;
+}
+
+function sameSlice(a: Float64Array<ArrayBufferLike>, b: Float64Array<ArrayBufferLike>): boolean {
+	return (
+		a === b || (a.buffer === b.buffer && a.byteOffset === b.byteOffset && a.length === b.length)
+	);
 }
 
 export function visibleSignalViews(

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	createSignalViewCache,
 	formatAxisValue,
 	formatDecodedValue,
 	formatLegendNumericValue,
@@ -8,8 +9,10 @@ import {
 	lineSeriesForViews,
 	signalDomain,
 	visibleSignalViews,
+	visibleViewsEqual,
 	type SignalView
 } from './signal-plot-data';
+import type { PlotSignal } from './stores/plot-data.svelte.js';
 
 function view(x: number[], y: number[] = x): SignalView {
 	return {
@@ -195,5 +198,102 @@ describe('signal plot data', () => {
 			text: '42.4 km/h',
 			outOfRange: false
 		});
+	});
+});
+
+// Value descriptions come identity-stable from the DBC catalog in the app.
+const NO_DESCRIPTIONS: PlotSignal['valueDescriptions'] = [];
+
+function plotSignal(overrides: Partial<PlotSignal> = {}): PlotSignal {
+	return {
+		key: 'dbc:Message.Signal',
+		color: '#fff',
+		dbcFileId: 'dbc',
+		dbcName: 'demo',
+		sourceFileName: 'demo.dbc',
+		messageName: 'Message',
+		signalName: 'Signal',
+		label: 'Message.Signal',
+		canId: 1,
+		dbcId: 1,
+		isExtended: false,
+		isFd: false,
+		sizeBytes: 8,
+		transmitter: '',
+		startBit: 0,
+		bitLength: 8,
+		endianness: 'little',
+		signedness: 'unsigned',
+		factor: 1,
+		offset: 0,
+		minimum: 0,
+		maximum: 0,
+		unit: '',
+		valueType: 'unsigned',
+		receivers: [],
+		valueDescriptions: NO_DESCRIPTIONS,
+		series: { timesMs: new Float64Array([0, 1]), values: new Float64Array([2, 3]) },
+		isDecoding: false,
+		decodeError: null,
+		...overrides
+	};
+}
+
+describe('createSignalViewCache', () => {
+	it('reuses a view when the signal is rebuilt with unchanged content', () => {
+		const cache = createSignalViewCache();
+		const series = { timesMs: new Float64Array([0, 1]), values: new Float64Array([2, 3]) };
+		const [first] = cache([plotSignal({ series })]);
+		const [second] = cache([plotSignal({ series, isDecoding: true })]);
+
+		expect(second).toBe(first);
+	});
+
+	it('rebuilds the view when the series is replaced, even at equal length', () => {
+		const cache = createSignalViewCache();
+		const [first] = cache([plotSignal()]);
+		const [second] = cache([
+			plotSignal({
+				series: { timesMs: new Float64Array([0, 1]), values: new Float64Array([2, 3]) }
+			})
+		]);
+
+		expect(second).not.toBe(first);
+	});
+
+	it('rebuilds the view when the color changes', () => {
+		const cache = createSignalViewCache();
+		const [first] = cache([plotSignal()]);
+		const [second] = cache([plotSignal({ color: '#f00' })]);
+
+		expect(second).not.toBe(first);
+	});
+});
+
+describe('visibleViewsEqual', () => {
+	const source = view([0, 10, 20, 30, 40], [1, 2, 3, 4, 5]);
+
+	it('treats recomputed slices over the same window as equal', () => {
+		const a = visibleSignalViews([source], { xMin: 19, xMax: 21 });
+		const b = visibleSignalViews([source], { xMin: 19, xMax: 21 });
+
+		expect(a[0]).not.toBe(b[0]);
+		expect(a[0].x).not.toBe(b[0].x);
+		expect(visibleViewsEqual(a, b)).toBe(true);
+	});
+
+	it('detects a shifted window over the same data', () => {
+		const a = visibleSignalViews([source], { xMin: 10, xMax: 30 });
+		const b = visibleSignalViews([source], { xMin: 20, xMax: 40 });
+
+		expect(visibleViewsEqual(a, b)).toBe(false);
+	});
+
+	it('detects view list changes', () => {
+		const a = visibleSignalViews([source], null);
+		expect(visibleViewsEqual(a, [])).toBe(false);
+		expect(visibleViewsEqual(a, visibleSignalViews([{ ...source, color: '#f00' }], null))).toBe(
+			false
+		);
 	});
 });
