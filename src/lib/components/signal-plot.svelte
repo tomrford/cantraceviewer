@@ -15,13 +15,15 @@
 		zoomViewport
 	} from '$lib/plot-viewport.js';
 	import {
+		createSignalViewCache,
 		formatAxisValue,
 		formatAxisTime,
 		lineSeriesForViews,
 		markerValue,
 		signalDomain,
-		signalView,
-		visibleSignalViews
+		visibleSignalViews,
+		visibleViewsEqual,
+		type VisibleSignalView
 	} from '$lib/signal-plot-data.js';
 	import * as ContextMenu from '$lib/components/ui/context-menu/index.js';
 	import SignalPlotLegend from './signal-plot-legend.svelte';
@@ -93,17 +95,38 @@
 				current: PlotRatioPoint;
 		  };
 
+	const viewsForSignals = createSignalViewCache();
 	const plottableSignals = $derived(plotData.signals.filter(isPlottableSignal));
 	const hasPlottableSignals = $derived(plottableSignals.length > 0);
-	const signalViews = $derived(plottableSignals.map((signal) => signalView(signal)));
+	const signalViews = $derived(viewsForSignals(plottableSignals));
 	const measurementStartMs = $derived(traceFile.entry?.metadata.measurementStartMs);
 	const traceDurationNs = $derived(traceFile.entry?.metadata.durationNs);
-	const fullDomain = $derived.by(
-		() => signalDomain(signalViews) ?? traceDurationDomain(traceDurationNs)
-	);
+	let lastDomainValue: PlotViewport | null = null;
+	const fullDomain = $derived.by(() => {
+		const next = signalDomain(signalViews) ?? traceDurationDomain(traceDurationNs);
+		// Keep the object identity stable while the values are unchanged so
+		// derived consumers are not invalidated by view-list churn.
+		if (
+			next === null ||
+			lastDomainValue === null ||
+			next.xMin !== lastDomainValue.xMin ||
+			next.xMax !== lastDomainValue.xMax ||
+			next.yMin !== lastDomainValue.yMin ||
+			next.yMax !== lastDomainValue.yMax
+		) {
+			lastDomainValue = next;
+		}
+		return lastDomainValue;
+	});
 	const plotReady = $derived(fullDomain !== null);
 	const activeViewport = $derived(viewport ?? fullDomain);
-	const visibleViews = $derived(visibleSignalViews(signalViews, activeViewport));
+	let lastVisibleViews: VisibleSignalView[] = [];
+	const visibleViews = $derived.by(() => {
+		const next = visibleSignalViews(signalViews, activeViewport);
+		if (!visibleViewsEqual(lastVisibleViews, next)) lastVisibleViews = next;
+		return lastVisibleViews;
+	});
+	const chartSeries = $derived(lineSeriesForViews(visibleViews));
 	const isFitAll = $derived(viewportsAlmostEqual(activeViewport, fullDomain));
 	const displayedMarkerX = $derived.by(() => {
 		if (!hasPlottableSignals || !markerEnabled || markerX === null) return null;
@@ -148,6 +171,7 @@
 
 	onDestroy(() => {
 		cancelMarkerDragUpdate();
+		if (pushFrame !== null) cancelAnimationFrame(pushFrame);
 		resizeObserver?.disconnect();
 		chart?.dispose();
 	});
@@ -197,14 +221,21 @@
 	});
 
 	const perfStats = createPlotPerfStats();
+	let pendingOptions: ChartGPUOptions | null = null;
+	let pushFrame: number | null = null;
 
+	// Coalesce option pushes to one setOption per animation frame: pointer and
+	// wheel events can fire faster than the display refreshes.
 	$effect(() => {
-		void plotData.seriesRevision;
-		if (!chart) return;
-		const options = chartOptions();
-		const start = performance.now();
-		chart.setOption(options);
-		perfStats?.record(performance.now() - start);
+		pendingOptions = chartOptions();
+		pushFrame ??= requestAnimationFrame(() => {
+			pushFrame = null;
+			if (!chart || pendingOptions === null) return;
+			const start = performance.now();
+			chart.setOption(pendingOptions);
+			perfStats?.record(performance.now() - start);
+			pendingOptions = null;
+		});
 	});
 
 	function whenPlotInteractive(action: () => void) {
@@ -307,7 +338,7 @@
 			animation: false,
 			palette: SIGNAL_COLORS,
 			annotations: [],
-			series: lineSeriesForViews(visibleViews)
+			series: chartSeries
 		};
 	}
 
