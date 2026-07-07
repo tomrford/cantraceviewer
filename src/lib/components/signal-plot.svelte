@@ -25,6 +25,7 @@
 	} from '$lib/signal-plot-data.js';
 	import * as ContextMenu from '$lib/components/ui/context-menu/index.js';
 	import SignalPlotLegend from './signal-plot-legend.svelte';
+	import { createPlotPerfStats } from '$lib/plot-perf.js';
 	import { isPlottableSignal, plotData } from '$lib/stores/plot-data.svelte.js';
 	import { isDark, timestampMode } from '$lib/stores/preferences.svelte.js';
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
@@ -195,9 +196,15 @@
 		lastFullDomain = fullDomain;
 	});
 
+	const perfStats = createPlotPerfStats();
+
 	$effect(() => {
 		void plotData.seriesRevision;
-		chart?.setOption(chartOptions());
+		if (!chart) return;
+		const options = chartOptions();
+		const start = performance.now();
+		chart.setOption(options);
+		perfStats?.record(performance.now() - start);
 	});
 
 	function whenPlotInteractive(action: () => void) {
