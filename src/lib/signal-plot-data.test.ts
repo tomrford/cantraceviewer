@@ -7,9 +7,8 @@ import {
 	isOutsideDbcRange,
 	lineSeries,
 	lineSeriesForViews,
+	renderIndexRange,
 	signalDomain,
-	visibleSignalViews,
-	visibleViewsEqual,
 	type SignalView
 } from './signal-plot-data';
 import type { PlotSignal } from './stores/plot-data.svelte.js';
@@ -44,53 +43,46 @@ const formatContext = {
 };
 
 describe('signal plot data', () => {
-	it('includes neighboring points at viewport edges for line continuity', () => {
-		const [visible] = visibleSignalViews([view([0, 10, 20, 30, 40], [1, 2, 3, 4, 5])], {
-			xMin: 10,
-			xMax: 30
+	it('includes neighboring indexes at window edges for line continuity', () => {
+		expect(renderIndexRange(new Float64Array([0, 10, 20, 30, 40]), 10, 30)).toEqual({
+			start: 0,
+			end: 5
 		});
-
-		expect(Array.from(visible.x)).toEqual([0, 10, 20, 30, 40]);
-		expect(Array.from(visible.y)).toEqual([1, 2, 3, 4, 5]);
-		expect(visible.points).toBe(5);
 	});
 
-	it('includes bracketing samples when a line segment crosses an empty viewport', () => {
-		const [visible] = visibleSignalViews([view([0, 10, 20], [1, 2, 3])], {
-			xMin: 12,
-			xMax: 18
+	it('brackets a line segment crossing an empty window', () => {
+		expect(renderIndexRange(new Float64Array([0, 10, 20]), 12, 18)).toEqual({
+			start: 1,
+			end: 3
 		});
-
-		expect(Array.from(visible.x)).toEqual([10, 20]);
-		expect(Array.from(visible.y)).toEqual([2, 3]);
-		expect(visible.points).toBe(2);
 	});
 
-	it('returns empty line data when no points are in the viewport', () => {
-		const [visible] = visibleSignalViews([view([0, 10, 20])], {
-			xMin: 30,
-			xMax: 40
+	it('returns an empty range for windows beyond the data', () => {
+		expect(renderIndexRange(new Float64Array([0, 10, 20]), 30, 40)).toEqual({
+			start: 3,
+			end: 3
 		});
-
-		expect(Array.from(visible.x)).toEqual([]);
-		expect(Array.from(visible.y)).toEqual([]);
-		expect(visible.points).toBe(0);
 	});
 
-	it('splits the sampling threshold across visible lines', () => {
-		const series = lineSeries(view([0, 1]), 10);
+	it('disables chart-side sampling and gates markers via the threshold', () => {
+		const full = lineSeries({ ...view([0, 1, 2]), sampled: false });
+		expect(full.type).toBe('line');
+		if (full.type !== 'line') throw new Error('expected line series');
+		expect(full.sampling).toBe('none');
+		expect(full.samplingThreshold).toBe(3);
 
-		expect(series.type).toBe('line');
-		if (series.type !== 'line') throw new Error('expected line series');
-		expect(series.samplingThreshold).toBe(2500);
+		const downsampled = lineSeries({ ...view([0, 1, 2]), sampled: true });
+		if (downsampled.type !== 'line') throw new Error('expected line series');
+		expect(downsampled.samplingThreshold).toBe(2);
 	});
 
-	it('excludes empty lines from the sampling budget split', () => {
-		const [series] = lineSeriesForViews([view([]), view([0, 1]), view([])]);
+	it('excludes empty lines from the chart series', () => {
+		const series = lineSeriesForViews([
+			{ ...view([]), sampled: false },
+			{ ...view([0, 1]), sampled: false }
+		]);
 
-		expect(series.type).toBe('line');
-		if (series.type !== 'line') throw new Error('expected line series');
-		expect(series.samplingThreshold).toBe(25_000);
+		expect(series).toHaveLength(1);
 	});
 
 	it('fits the domain across views from min/max scans', () => {
@@ -267,33 +259,5 @@ describe('createSignalViewCache', () => {
 		const [second] = cache([plotSignal({ color: '#f00' })]);
 
 		expect(second).not.toBe(first);
-	});
-});
-
-describe('visibleViewsEqual', () => {
-	const source = view([0, 10, 20, 30, 40], [1, 2, 3, 4, 5]);
-
-	it('treats recomputed slices over the same window as equal', () => {
-		const a = visibleSignalViews([source], { xMin: 19, xMax: 21 });
-		const b = visibleSignalViews([source], { xMin: 19, xMax: 21 });
-
-		expect(a[0]).not.toBe(b[0]);
-		expect(a[0].x).not.toBe(b[0].x);
-		expect(visibleViewsEqual(a, b)).toBe(true);
-	});
-
-	it('detects a shifted window over the same data', () => {
-		const a = visibleSignalViews([source], { xMin: 10, xMax: 30 });
-		const b = visibleSignalViews([source], { xMin: 20, xMax: 40 });
-
-		expect(visibleViewsEqual(a, b)).toBe(false);
-	});
-
-	it('detects view list changes', () => {
-		const a = visibleSignalViews([source], null);
-		expect(visibleViewsEqual(a, [])).toBe(false);
-		expect(visibleViewsEqual(a, visibleSignalViews([{ ...source, color: '#f00' }], null))).toBe(
-			false
-		);
 	});
 });
