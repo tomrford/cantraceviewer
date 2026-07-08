@@ -137,15 +137,25 @@ class DbcFilesStore {
 		this.error = null;
 		this.isLoading = true;
 		const candidates: DbcCandidate[] = [];
+		const seenIds: Record<string, true> = {};
+		for (const file of this.files) {
+			seenIds[file.id] = true;
+		}
 
 		try {
 			for (const file of files) {
-				candidates.push(await this.openFile(file));
+				const stored = await this.storedFile(file);
+				if (seenIds[stored.id]) continue;
+
+				seenIds[stored.id] = true;
+				candidates.push(await this.openStoredDbc(stored));
 			}
 
 			const entries = candidates.map((candidate) => candidate.entry);
-			await putStoredDbcs(candidates.map((candidate) => candidate.stored));
-			this.files = [...this.files, ...entries];
+			if (entries.length > 0) {
+				await putStoredDbcs(candidates.map((candidate) => candidate.stored));
+				this.files = [...this.files, ...entries];
+			}
 		} catch (error) {
 			await closeEntries(candidates.map((candidate) => candidate.entry));
 			this.error = error instanceof Error ? error.message : 'DBC load failed';
@@ -187,29 +197,33 @@ class DbcFilesStore {
 		this.isLoading = true;
 
 		const candidates: DbcFileEntry[] = [];
+		const failedNames: string[] = [];
 		try {
 			for (const dbc of await listStoredDbcs()) {
-				candidates.push((await this.openStoredDbc(dbc)).entry);
+				try {
+					candidates.push((await this.openStoredDbc(dbc)).entry);
+				} catch {
+					failedNames.push(dbc.name);
+				}
 			}
 
 			this.files = candidates;
-			this.hasLoadedLibrary = true;
+			this.error = failedNames.length > 0 ? failedStoredDbcMessage(failedNames) : null;
 		} catch {
 			await closeEntries(candidates);
-			await resetStoredDbcs();
 			this.files = [];
-			this.error = null;
-			this.hasLoadedLibrary = true;
+			this.error = 'Saved DBC library could not be read.';
 		} finally {
+			this.hasLoadedLibrary = true;
 			this.isLoading = false;
 		}
 	}
 
-	private async openFile(file: File): Promise<DbcCandidate> {
+	private async storedFile(file: File): Promise<StoredDbc> {
 		assertFileSizeWithinLimit(file, DBC_MAX_FILE_BYTES, 'DBC');
 
 		const text = await file.text();
-		return this.openStoredDbc({ id: await storedDbcId(text), name: file.name, text });
+		return { id: await storedDbcId(text), name: file.name, text };
 	}
 
 	private async openStoredDbc(dbc: StoredDbc): Promise<DbcCandidate> {
@@ -232,6 +246,14 @@ class DbcFilesStore {
 			throw error;
 		}
 	}
+}
+
+function failedStoredDbcMessage(names: string[]): string {
+	if (names.length === 1) {
+		return `Saved DBC "${names[0]}" failed to load.`;
+	}
+
+	return `${names.length} saved DBC files failed to load: ${names.join(', ')}.`;
 }
 
 function assertUniqueMessageIdentities(fileName: string, catalog: ParsedDbc): void {
