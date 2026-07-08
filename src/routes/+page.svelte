@@ -18,6 +18,7 @@
 	import { Toggle } from '$lib/components/ui/toggle/index.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
 	import { sidebarOpen } from '$lib/stores/preferences.svelte.js';
+	import { onTraceOpened } from '$lib/stores/session.js';
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
 	import { TRACE_FILE_ACCEPT } from '$lib/trace-file-types.js';
 	import type { TraceMetadata } from '$lib/wasm.js';
@@ -66,7 +67,7 @@
 	async function openTraceFile(file: File | null) {
 		if (!file || traceFile.isLoading) return;
 		if (await traceFile.openFile(file)) {
-			plotData.clearSelectedSignals();
+			onTraceOpened();
 		}
 	}
 

@@ -200,33 +200,16 @@ function plotSignal(overrides: Partial<PlotSignal> = {}): PlotSignal {
 	return {
 		key: 'dbc:Message.Signal',
 		color: '#fff',
-		dbcFileId: 'dbc',
-		dbcName: 'demo',
-		sourceFileName: 'demo.dbc',
 		messageName: 'Message',
 		signalName: 'Signal',
 		label: 'Message.Signal',
-		canId: 1,
-		dbcId: 1,
-		isExtended: false,
-		isFd: false,
-		sizeBytes: 8,
-		transmitter: '',
-		startBit: 0,
-		bitLength: 8,
-		endianness: 'little',
-		signedness: 'unsigned',
 		factor: 1,
 		offset: 0,
 		minimum: 0,
 		maximum: 0,
 		unit: '',
-		valueType: 'unsigned',
-		receivers: [],
 		valueDescriptions: NO_DESCRIPTIONS,
 		series: { timesMs: new Float64Array([0, 1]), values: new Float64Array([2, 3]) },
-		isDecoding: false,
-		decodeError: null,
 		...overrides
 	};
 }
@@ -236,7 +219,7 @@ describe('createSignalViewCache', () => {
 		const cache = createSignalViewCache();
 		const series = { timesMs: new Float64Array([0, 1]), values: new Float64Array([2, 3]) };
 		const [first] = cache([plotSignal({ series })]);
-		const [second] = cache([plotSignal({ series, isDecoding: true })]);
+		const [second] = cache([plotSignal({ series })]);
 
 		expect(second).toBe(first);
 	});

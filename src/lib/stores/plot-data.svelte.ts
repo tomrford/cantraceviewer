@@ -1,49 +1,32 @@
 import { createSignalColorAssigner } from '$lib/plot-colors.js';
 import { orderPlotSignals } from '$lib/plot-signal-order.js';
-import { dbcFiles, displayDbcName, signalIdentityKey } from '$lib/stores/dbc-files.svelte.js';
+import { dbcFiles, signalIdentityKey } from '$lib/stores/dbc-files.svelte.js';
 import { legendOrderMode } from '$lib/stores/preferences.svelte.js';
 import { traceFile } from '$lib/stores/trace-file.svelte.js';
-import {
-	getSignalValues,
-	type DecodedSignalSeries,
-	type DbcMessage,
-	type DbcSignal,
-	type DbcValueDescription
-} from '$lib/wasm.js';
-import { SvelteMap, SvelteSet } from 'svelte/reactivity';
+import { getSignalValues, type DecodedSignalSeries, type DbcValueDescription } from '$lib/wasm.js';
+import { SvelteMap } from 'svelte/reactivity';
 
 export type PlotSignalKey = string;
+
+export type SelectedSignalState = {
+	status: 'idle' | 'decoding' | 'ready' | 'error';
+	series: DecodedSignalSeries | null;
+	error: string | null;
+};
 
 export type PlotSignal = {
 	key: PlotSignalKey;
 	color: string;
-	dbcFileId: string;
-	dbcName: string;
-	sourceFileName: string;
+	label: string;
 	messageName: string;
 	signalName: string;
-	label: string;
-	canId: number;
-	dbcId: number;
-	isExtended: boolean;
-	isFd: boolean;
-	sizeBytes: number;
-	transmitter: string;
-	startBit: number;
-	bitLength: number;
-	endianness: string;
-	signedness: string;
 	factor: number;
 	offset: number;
 	minimum: number;
 	maximum: number;
 	unit: string;
-	valueType: string;
-	receivers: string[];
 	valueDescriptions: DbcValueDescription[];
 	series: DecodedSignalSeries | null;
-	isDecoding: boolean;
-	decodeError: string | null;
 };
 
 export function isPlottableSignal(signal: PlotSignal): boolean {
@@ -51,27 +34,30 @@ export function isPlottableSignal(signal: PlotSignal): boolean {
 }
 
 class PlotDataStore {
-	selectedSignalKeys = new SvelteSet<PlotSignalKey>();
-	signalSeries = new SvelteMap<PlotSignalKey, DecodedSignalSeries>();
-	decodingSignalKeys = new SvelteSet<PlotSignalKey>();
-	decodeErrors = new SvelteMap<PlotSignalKey, string>();
+	selectedSignals = new SvelteMap<PlotSignalKey, SelectedSignalState>();
 	private signalColors = createSignalColorAssigner();
 
 	signals = $derived.by<PlotSignal[]>(() => {
 		const signals: PlotSignal[] = [];
 
-		for (const key of this.selectedSignalKeys) {
+		for (const [key, state] of this.selectedSignals) {
 			const target = findSignalTarget(key);
 			if (!target) continue;
 
-			signals.push(
-				plotSignal(target.file.id, target.file.name, target.message, target.signal, {
-					color: this.signalColors.colorFor(key),
-					series: this.signalSeries.get(key),
-					isDecoding: this.decodingSignalKeys.has(key),
-					decodeError: this.decodeErrors.get(key)
-				})
-			);
+			signals.push({
+				key,
+				color: this.signalColors.colorFor(key),
+				label: `${target.message.name}.${target.signal.name}`,
+				messageName: target.message.name,
+				signalName: target.signal.name,
+				unit: target.signal.unit,
+				factor: target.signal.factor,
+				offset: target.signal.offset,
+				minimum: target.signal.minimum,
+				maximum: target.signal.maximum,
+				valueDescriptions: target.signal.valueDescriptions,
+				series: state.series
+			});
 		}
 
 		return orderPlotSignals(signals, legendOrderMode.current);
@@ -80,32 +66,30 @@ class PlotDataStore {
 	hasPlottableSignals = $derived(this.signals.some(isPlottableSignal));
 
 	isSignalSelected(key: PlotSignalKey): boolean {
-		return this.selectedSignalKeys.has(key);
+		return this.selectedSignals.has(key);
 	}
 
 	signalDecodeStatus(key: PlotSignalKey): { isDecoding: boolean; decodeError: string | null } {
-		if (!this.selectedSignalKeys.has(key)) {
+		const state = this.selectedSignals.get(key);
+		if (!state) {
 			return { isDecoding: false, decodeError: null };
 		}
 
 		return {
-			isDecoding: this.decodingSignalKeys.has(key),
-			decodeError: this.decodeErrors.get(key) ?? null
+			isDecoding: state.status === 'decoding',
+			decodeError: state.error
 		};
 	}
 
 	async toggleSignal(key: PlotSignalKey): Promise<void> {
 		if (this.isSignalSelected(key)) {
-			this.selectedSignalKeys.delete(key);
-			this.setSignalSeries(key, null);
-			this.setDecodeError(key, null);
-			this.decodingSignalKeys.delete(key);
+			this.selectedSignals.delete(key);
 			this.signalColors.release(key);
 			return;
 		}
 
 		this.signalColors.colorFor(key);
-		this.selectedSignalKeys.add(key);
+		this.setSignalState(key, { status: 'idle', series: null, error: null });
 		await this.decodeSignal(key);
 	}
 
@@ -118,28 +102,14 @@ class PlotDataStore {
 		);
 
 		for (const key of dbcSignalKeys) {
-			this.selectedSignalKeys.delete(key);
-			this.decodingSignalKeys.delete(key);
-			this.signalSeries.delete(key);
-			this.decodeErrors.delete(key);
+			this.selectedSignals.delete(key);
 			this.signalColors.release(key);
 		}
 	}
 
 	clearSelectedSignals(): void {
-		this.selectedSignalKeys.clear();
-		this.signalSeries.clear();
-		this.decodingSignalKeys.clear();
-		this.decodeErrors.clear();
+		this.selectedSignals.clear();
 		this.signalColors.clear();
-	}
-
-	setSignalSeries(key: PlotSignalKey, series: DecodedSignalSeries | null): void {
-		if (series) {
-			this.signalSeries.set(key, series);
-		} else {
-			this.signalSeries.delete(key);
-		}
 	}
 
 	private async decodeSignal(key: PlotSignalKey): Promise<void> {
@@ -147,8 +117,7 @@ class PlotDataStore {
 		const target = findSignalTarget(key);
 		if (!trace || !target) return;
 
-		this.setDecodeError(key, null);
-		this.decodingSignalKeys.add(key);
+		this.setSignalState(key, { status: 'decoding', series: null, error: null });
 
 		try {
 			const series = await getSignalValues(
@@ -166,70 +135,26 @@ class PlotDataStore {
 				return;
 			}
 
-			this.setSignalSeries(key, series);
+			this.setSignalState(key, { status: 'ready', series, error: null });
 		} catch (error) {
 			if (this.isSignalSelected(key) && traceFile.entry === trace && findSignalTarget(key)) {
-				this.setDecodeError(key, error instanceof Error ? error.message : 'Signal decode failed');
+				this.setSignalState(key, {
+					status: 'error',
+					series: null,
+					error: error instanceof Error ? error.message : 'Signal decode failed'
+				});
 			}
 		} finally {
-			this.decodingSignalKeys.delete(key);
+			const state = this.selectedSignals.get(key);
+			if (state?.status === 'decoding') {
+				this.setSignalState(key, { ...state, status: 'idle' });
+			}
 		}
 	}
 
-	private setDecodeError(key: PlotSignalKey, error: string | null): void {
-		if (error) {
-			this.decodeErrors.set(key, error);
-		} else {
-			this.decodeErrors.delete(key);
-		}
+	private setSignalState(key: PlotSignalKey, state: SelectedSignalState): void {
+		this.selectedSignals.set(key, state);
 	}
-}
-
-type PlotSignalData = {
-	color: string;
-	series: DecodedSignalSeries | undefined;
-	isDecoding: boolean;
-	decodeError: string | undefined;
-};
-
-function plotSignal(
-	dbcFileId: string,
-	sourceFileName: string,
-	message: DbcMessage,
-	signal: DbcSignal,
-	data: PlotSignalData
-): PlotSignal {
-	return {
-		key: signalIdentityKey(dbcFileId, message, signal.name),
-		color: data.color,
-		dbcFileId,
-		dbcName: displayDbcName(sourceFileName),
-		sourceFileName,
-		messageName: message.name,
-		signalName: signal.name,
-		label: `${message.name}.${signal.name}`,
-		canId: message.canId,
-		dbcId: message.dbcId,
-		isExtended: message.isExtended,
-		isFd: message.isFd,
-		sizeBytes: message.sizeBytes,
-		transmitter: message.transmitter,
-		startBit: signal.startBit,
-		bitLength: signal.bitLength,
-		endianness: signal.endianness,
-		signedness: signal.signedness,
-		factor: signal.factor,
-		offset: signal.offset,
-		minimum: signal.minimum,
-		maximum: signal.maximum,
-		unit: signal.unit,
-		valueType: signal.valueType,
-		receivers: signal.receivers,
-		valueDescriptions: signal.valueDescriptions,
-		series: data.series ?? null,
-		isDecoding: data.isDecoding,
-		decodeError: data.decodeError ?? null
-	};
 }
 
 function findSignalTarget(key: PlotSignalKey) {

@@ -623,7 +623,7 @@
 				</ContextMenu.Item>
 				<ContextMenu.Separator />
 				<ContextMenu.Item
-					disabled={plotData.selectedSignalKeys.size === 0}
+					disabled={plotData.selectedSignals.size === 0}
 					variant="destructive"
 					class="!text-destructive focus:!bg-destructive/10 focus:!text-destructive data-highlighted:!text-destructive dark:focus:!bg-destructive/20 [&_svg]:!text-destructive"
 					onSelect={() => plotData.clearSelectedSignals()}

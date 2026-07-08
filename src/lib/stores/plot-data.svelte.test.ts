@@ -42,11 +42,10 @@ describe('plotData', () => {
 			{
 				key: key(),
 				label: 'SpeedMessage.VehicleSpeed',
-				series,
-				isDecoding: false,
-				decodeError: null
+				series
 			}
 		]);
+		expect(plotData.signalDecodeStatus(key())).toEqual({ isDecoding: false, decodeError: null });
 		expect(plotData.hasPlottableSignals).toBe(true);
 	});
 
@@ -60,8 +59,7 @@ describe('plotData', () => {
 		await decode;
 
 		expect(plotData.signals[0]?.series).toBeNull();
-		expect(plotData.signals[0]?.decodeError).toBeNull();
-		expect(plotData.signals[0]?.isDecoding).toBe(false);
+		expect(plotData.signalDecodeStatus(key())).toEqual({ isDecoding: false, decodeError: null });
 	});
 
 	it('clears samples and decode errors when a signal is deselected', async () => {
@@ -72,14 +70,15 @@ describe('plotData', () => {
 		await plotData.toggleSignal(key());
 		await plotData.toggleSignal(key());
 
-		expect(plotData.signals[0]?.decodeError).toBe('decode failed');
+		expect(plotData.signalDecodeStatus(key())).toEqual({
+			isDecoding: false,
+			decodeError: 'decode failed'
+		});
 
 		await plotData.toggleSignal(key());
 
-		expect([...plotData.selectedSignalKeys]).toEqual([]);
-		expect([...plotData.signalSeries]).toEqual([]);
-		expect([...plotData.decodeErrors]).toEqual([]);
-		expect([...plotData.decodingSignalKeys]).toEqual([]);
+		expect([...plotData.selectedSignals]).toEqual([]);
+		expect(plotData.signalDecodeStatus(key())).toEqual({ isDecoding: false, decodeError: null });
 	});
 
 	it('passes the selected trace through to signal decoding', async () => {
@@ -118,10 +117,69 @@ describe('plotData', () => {
 			'Value'
 		);
 		expect(plotData.signals[0]).toMatchObject({
-			canId: 0x200,
 			messageName: 'SpeedMessage',
 			signalName: 'Value'
 		});
+	});
+
+	it('selects a signal without decoding when no trace is loaded', async () => {
+		traceFile.entry = null;
+
+		await plotData.toggleSignal(key());
+
+		expect(plotData.isSignalSelected(key())).toBe(true);
+		expect(plotData.selectedSignals.get(key())).toEqual({
+			status: 'idle',
+			series: null,
+			error: null
+		});
+		expect(getSignalValuesMock).not.toHaveBeenCalled();
+	});
+
+	it('removes signals for a DBC file and releases their colors', async () => {
+		const firstKey = key();
+		const secondKey = signalIdentityKey(
+			'dbc-1',
+			message({ canId: 0x200, signals: [signal({ name: 'Rpm' })] }),
+			'Rpm'
+		);
+		dbcFiles.files = [
+			dbcEntry({
+				messages: [message(), message({ canId: 0x200, signals: [signal({ name: 'Rpm' })] })]
+			})
+		];
+		getSignalValuesMock
+			.mockResolvedValueOnce(signalSeries([0.001], [12.5]))
+			.mockResolvedValueOnce(signalSeries([0.001], [42]));
+
+		await plotData.toggleSignal(firstKey);
+		const firstColor = plotData.signals.find((signal) => signal.key === firstKey)?.color;
+		await plotData.toggleSignal(secondKey);
+
+		plotData.deselectDbcFile('dbc-1');
+
+		expect([...plotData.selectedSignals]).toEqual([]);
+
+		getSignalValuesMock.mockResolvedValueOnce(signalSeries([0.001], [12.5]));
+		await plotData.toggleSignal(firstKey);
+
+		expect(plotData.signals.find((signal) => signal.key === firstKey)?.color).toBe(firstColor);
+	});
+
+	it('clears selected signals and releases colors', async () => {
+		getSignalValuesMock.mockResolvedValueOnce(signalSeries([0.001], [12.5]));
+
+		await plotData.toggleSignal(key());
+		const color = plotData.signals[0]?.color;
+
+		plotData.clearSelectedSignals();
+
+		expect([...plotData.selectedSignals]).toEqual([]);
+
+		getSignalValuesMock.mockResolvedValueOnce(signalSeries([0.001], [12.5]));
+		await plotData.toggleSignal(key());
+
+		expect(plotData.signals[0]?.color).toBe(color);
 	});
 });
 
