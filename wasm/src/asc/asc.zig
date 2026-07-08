@@ -40,6 +40,13 @@ pub fn fromString(allocator: std.mem.Allocator, text: []const u8) !trace.Trace {
 
         const parsed_frame = frame.parseLine(state.base, line, &payload_buffer) catch {
             parsed_trace.skipped_line_count += 1;
+            // Relative timestamps are per-line deltas; keep a skipped line's
+            // delta when its timestamp still parses so later frames don't shift.
+            if (state.timestamp_mode == .relative) {
+                if (leadingTimestampNs(line)) |delta| {
+                    relative_timestamp_ns = std.math.add(u64, relative_timestamp_ns, delta) catch relative_timestamp_ns;
+                }
+            }
             continue;
         };
 
@@ -69,6 +76,12 @@ pub fn fromString(allocator: std.mem.Allocator, text: []const u8) !trace.Trace {
     parsed_trace.frames = try frames.toOwnedSlice(allocator);
     parsed_trace.payloads = try payloads.toOwnedSlice(allocator);
     return parsed_trace;
+}
+
+fn leadingTimestampNs(line: []const u8) ?u64 {
+    var tokens = std.mem.tokenizeAny(u8, line, " \t\r");
+    const first = tokens.next() orelse return null;
+    return frame.parseDecimalSecondsToNs(first) catch null;
 }
 
 fn parseHeaderLine(parsed: *ParserState, line: []const u8) !bool {
@@ -346,6 +359,24 @@ test "skips ASC FD payload length mismatch" {
     try std.testing.expectEqual(@as(usize, 2), parsed.frames.len);
     try std.testing.expectEqual(@as(usize, 1), parsed.skipped_line_count);
     try std.testing.expectEqual(@as(u64, 3_000_000), parsed.last_data_timestamp_ns.?);
+}
+
+test "preserves relative timestamp deltas across skipped lines" {
+    const allocator = std.testing.allocator;
+    const text =
+        \\base hex timestamps relative
+        \\0.100000 1 123 Rx d 1 aa
+        \\0.200000 1 123 Rx d 2 bb
+        \\0.300000 1 123 Rx d 1 cc
+    ;
+
+    var parsed = try fromString(allocator, text);
+    defer parsed.deinit(allocator);
+
+    try std.testing.expectEqual(@as(usize, 2), parsed.frames.len);
+    try std.testing.expectEqual(@as(usize, 1), parsed.skipped_line_count);
+    try std.testing.expectEqual(@as(u64, 100_000_000), parsed.frames[0].timestamp_ns);
+    try std.testing.expectEqual(@as(u64, 600_000_000), parsed.frames[1].timestamp_ns);
 }
 
 test "rejects invalid ASC base line" {
