@@ -2,12 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
 import { dbcFiles, signalIdentityKey, type DbcFileEntry } from './dbc-files.svelte';
 import { listStoredDbcs, putStoredDbcs, resetStoredDbcs } from './dbc-library.js';
-import { closeDbc, getDbcCatalog, openDbc } from '$lib/wasm.js';
+import { closeDbc, openDbc } from '$lib/wasm.js';
 import type { DbcHandle, DbcMessage, DbcSignal, ParsedDbc } from '$lib/wasm.js';
 
 vi.mock('$lib/wasm.js', () => ({
 	closeDbc: vi.fn(() => Promise.resolve()),
-	getDbcCatalog: vi.fn(),
 	openDbc: vi.fn()
 }));
 
@@ -20,7 +19,6 @@ vi.mock('./dbc-library.js', () => ({
 }));
 
 const openDbcMock = openDbc as Mock<typeof openDbc>;
-const getDbcCatalogMock = getDbcCatalog as Mock<typeof getDbcCatalog>;
 const closeDbcMock = closeDbc as Mock<typeof closeDbc>;
 const listStoredDbcsMock = listStoredDbcs as Mock<typeof listStoredDbcs>;
 const putStoredDbcsMock = putStoredDbcs as Mock<typeof putStoredDbcs>;
@@ -35,15 +33,13 @@ describe('dbcFiles', () => {
 		dbcFiles.hasLoadedLibrary = false;
 	});
 
-	it('closes a parsed handle when catalog export fails', async () => {
-		const handle = dbcHandle(101);
-		openDbcMock.mockResolvedValueOnce(handle);
-		getDbcCatalogMock.mockRejectedValueOnce(new Error('catalog failed'));
+	it('reports an open failure without closing a handle', async () => {
+		openDbcMock.mockRejectedValueOnce(new Error('catalog failed'));
 
 		await dbcFiles.addFiles([file('broken.dbc', 'BO_ 1 Broken: 8 ECU')]);
 
 		expect(openDbcMock).toHaveBeenCalledWith('BO_ 1 Broken: 8 ECU');
-		expect(closeDbcMock).toHaveBeenCalledExactlyOnceWith(handle);
+		expect(closeDbcMock).not.toHaveBeenCalled();
 		expect(dbcFiles.files).toEqual([]);
 		expect(dbcFiles.error).toBe('catalog failed');
 		expect(dbcFiles.isLoading).toBe(false);
@@ -52,10 +48,13 @@ describe('dbcFiles', () => {
 	it('allows overlapping CAN IDs across DBC files', async () => {
 		const existingHandle = dbcHandle(201);
 		const duplicateHandle = dbcHandle(202);
-		openDbcMock.mockResolvedValueOnce(existingHandle).mockResolvedValueOnce(duplicateHandle);
-		getDbcCatalogMock
-			.mockResolvedValueOnce(catalog(message({ name: 'Existing', canId: 0x123 })))
-			.mockResolvedValueOnce(catalog(message({ name: 'Duplicate', canId: 0x123 })));
+		openDbcMock
+			.mockResolvedValueOnce(
+				openDbcResult(existingHandle, catalog(message({ name: 'Existing', canId: 0x123 })))
+			)
+			.mockResolvedValueOnce(
+				openDbcResult(duplicateHandle, catalog(message({ name: 'Duplicate', canId: 0x123 })))
+			);
 
 		await dbcFiles.addFiles([file('existing.dbc', 'existing')]);
 		await dbcFiles.addFiles([file('duplicate.dbc', 'duplicate')]);
@@ -69,8 +68,7 @@ describe('dbcFiles', () => {
 
 	it('skips re-added DBC files with identical content without opening a handle', async () => {
 		const handle = dbcHandle(211);
-		openDbcMock.mockResolvedValueOnce(handle);
-		getDbcCatalogMock.mockResolvedValueOnce(catalog(message({ name: 'Vehicle' })));
+		openDbcMock.mockResolvedValueOnce(openDbcResult(handle, catalog(message({ name: 'Vehicle' }))));
 
 		await dbcFiles.addFiles([
 			file('vehicle.dbc', 'same-content'),
@@ -91,11 +89,23 @@ describe('dbcFiles', () => {
 
 	it('keeps classic and CAN FD messages with the same numeric ID in one file', async () => {
 		const handle = dbcHandle(301);
-		openDbcMock.mockResolvedValueOnce(handle);
-		getDbcCatalogMock.mockResolvedValueOnce(
-			catalog(
-				message({ name: 'ClassicMessage', canId: 0x123, sizeBytes: 8, isFd: false }),
-				message({ name: 'FdMessage', canId: 0x123, sizeBytes: 12, isFd: true })
+		openDbcMock.mockResolvedValueOnce(
+			openDbcResult(
+				handle,
+				catalog(
+					message({
+						name: 'ClassicMessage',
+						canId: 0x123,
+						sizeBytes: 8,
+						isFd: false
+					}),
+					message({
+						name: 'FdMessage',
+						canId: 0x123,
+						sizeBytes: 12,
+						isFd: true
+					})
+				)
 			)
 		);
 
@@ -125,7 +135,11 @@ describe('dbcFiles', () => {
 				id: 'dbc-2',
 				name: 'body.dbc',
 				messages: [
-					message({ name: 'DoorStatus', canId: 0x201, signals: [signal({ name: 'DoorOpen' })] })
+					message({
+						name: 'DoorStatus',
+						canId: 0x201,
+						signals: [signal({ name: 'DoorOpen' })]
+					})
 				]
 			})
 		];
@@ -176,7 +190,11 @@ describe('dbcFiles', () => {
 				id: 'dbc-2',
 				name: 'body.dbc',
 				messages: [
-					message({ name: 'DoorStatus', canId: 0x201, signals: [signal({ name: 'DoorOpen' })] })
+					message({
+						name: 'DoorStatus',
+						canId: 0x201,
+						signals: [signal({ name: 'DoorOpen' })]
+					})
 				]
 			})
 		];
@@ -211,7 +229,11 @@ describe('dbcFiles', () => {
 				id: 'dbc-2',
 				name: 'body.dbc',
 				messages: [
-					message({ name: 'DoorStatus', canId: 0x201, signals: [signal({ name: 'DoorOpen' })] })
+					message({
+						name: 'DoorStatus',
+						canId: 0x201,
+						signals: [signal({ name: 'DoorOpen' })]
+					})
 				]
 			})
 		];
@@ -263,7 +285,11 @@ describe('dbcFiles', () => {
 				name: 'body.dbc',
 				handle: dbcHandle(2),
 				messages: [
-					message({ name: 'DoorStatus', canId: 0x201, signals: [signal({ name: 'DoorOpen' })] })
+					message({
+						name: 'DoorStatus',
+						canId: 0x201,
+						signals: [signal({ name: 'DoorOpen' })]
+					})
 				]
 			})
 		];
@@ -280,11 +306,13 @@ describe('dbcFiles', () => {
 
 	it('rejects duplicate frame identities within one DBC file', async () => {
 		const handle = dbcHandle(302);
-		openDbcMock.mockResolvedValueOnce(handle);
-		getDbcCatalogMock.mockResolvedValueOnce(
-			catalog(
-				message({ name: 'FirstMessage', canId: 0x123, sizeBytes: 8 }),
-				message({ name: 'SecondMessage', canId: 0x123, sizeBytes: 8 })
+		openDbcMock.mockResolvedValueOnce(
+			openDbcResult(
+				handle,
+				catalog(
+					message({ name: 'FirstMessage', canId: 0x123, sizeBytes: 8 }),
+					message({ name: 'SecondMessage', canId: 0x123, sizeBytes: 8 })
+				)
 			)
 		);
 
@@ -311,7 +339,6 @@ describe('dbcFiles', () => {
 
 	it('skips bad stored DBC files and loads the rest without resetting storage', async () => {
 		const firstHandle = dbcHandle(401);
-		const badHandle = dbcHandle(402);
 		const secondHandle = dbcHandle(403);
 		listStoredDbcsMock.mockResolvedValueOnce([
 			{ id: 'first-id', name: 'first.dbc', text: 'first' },
@@ -319,13 +346,9 @@ describe('dbcFiles', () => {
 			{ id: 'second-id', name: 'second.dbc', text: 'second' }
 		]);
 		openDbcMock
-			.mockResolvedValueOnce(firstHandle)
-			.mockResolvedValueOnce(badHandle)
-			.mockResolvedValueOnce(secondHandle);
-		getDbcCatalogMock
-			.mockResolvedValueOnce(catalog(message({ name: 'First' })))
+			.mockResolvedValueOnce(openDbcResult(firstHandle, catalog(message({ name: 'First' }))))
 			.mockRejectedValueOnce(new Error('cached DBC failed'))
-			.mockResolvedValueOnce(catalog(message({ name: 'Second' })));
+			.mockResolvedValueOnce(openDbcResult(secondHandle, catalog(message({ name: 'Second' }))));
 
 		await dbcFiles.loadLibrary();
 
@@ -333,7 +356,7 @@ describe('dbcFiles', () => {
 			{ id: 'first-id', name: 'first.dbc', handle: firstHandle },
 			{ id: 'second-id', name: 'second.dbc', handle: secondHandle }
 		]);
-		expect(closeDbcMock).toHaveBeenCalledExactlyOnceWith(badHandle);
+		expect(closeDbcMock).not.toHaveBeenCalled();
 		expect(resetStoredDbcsMock).not.toHaveBeenCalled();
 		expect(dbcFiles.hasLoadedLibrary).toBe(true);
 		expect(dbcFiles.error).toBe('Saved DBC "bad.dbc" failed to load.');
@@ -380,6 +403,13 @@ function file(name: string, text: string): File {
 
 function dbcHandle(id: number): DbcHandle {
 	return { id } as DbcHandle;
+}
+
+function openDbcResult(
+	handle: DbcHandle,
+	catalog: ParsedDbc
+): { handle: DbcHandle; catalog: ParsedDbc } {
+	return { handle, catalog };
 }
 
 function dbcEntry({

@@ -9,7 +9,6 @@ import type { DbcHandle, DbcMessage, DbcSignal, DecodedSignalSeries } from '$lib
 vi.mock('$lib/wasm.js', () => ({
 	closeDbc: vi.fn(() => Promise.resolve()),
 	closeTrace: vi.fn(() => Promise.resolve()),
-	getDbcCatalog: vi.fn(),
 	getSignalValues: vi.fn(),
 	openDbc: vi.fn()
 }));
@@ -45,7 +44,10 @@ describe('plotData', () => {
 				series
 			}
 		]);
-		expect(plotData.signalDecodeStatus(key())).toEqual({ isDecoding: false, decodeError: null });
+		expect(plotData.signalDecodeStatus(key())).toEqual({
+			isDecoding: false,
+			decodeError: null
+		});
 		expect(plotData.hasPlottableSignals).toBe(true);
 	});
 
@@ -59,7 +61,10 @@ describe('plotData', () => {
 		await decode;
 
 		expect(plotData.signals[0]?.series).toBeNull();
-		expect(plotData.signalDecodeStatus(key())).toEqual({ isDecoding: false, decodeError: null });
+		expect(plotData.signalDecodeStatus(key())).toEqual({
+			isDecoding: false,
+			decodeError: null
+		});
 	});
 
 	it('clears samples and decode errors when a signal is deselected', async () => {
@@ -78,7 +83,10 @@ describe('plotData', () => {
 		await plotData.toggleSignal(key());
 
 		expect([...plotData.selectedSignals]).toEqual([]);
-		expect(plotData.signalDecodeStatus(key())).toEqual({ isDecoding: false, decodeError: null });
+		expect(plotData.signalDecodeStatus(key())).toEqual({
+			isDecoding: false,
+			decodeError: null
+		});
 	});
 
 	it('passes the selected trace through to signal decoding', async () => {
@@ -99,8 +107,16 @@ describe('plotData', () => {
 		dbcFiles.files = [
 			dbcEntry({
 				messages: [
-					message({ canId: 0x100, sizeBytes: 1, signals: [signal({ name: 'Value' })] }),
-					message({ canId: 0x200, sizeBytes: 1, signals: [signal({ name: 'Value' })] })
+					message({
+						canId: 0x100,
+						sizeBytes: 1,
+						signals: [signal({ name: 'Value' })]
+					}),
+					message({
+						canId: 0x200,
+						sizeBytes: 1,
+						signals: [signal({ name: 'Value' })]
+					})
 				]
 			})
 		];

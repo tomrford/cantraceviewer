@@ -4,11 +4,12 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import {
 	closeDbc,
 	closeTrace,
-	getDbcCatalog,
 	getSignalValues,
 	openDbc,
 	openTrace,
+	WasmError,
 	type DbcHandle,
+	type ParsedDbc,
 	type TraceHandle
 } from '$lib/wasm.js';
 
@@ -30,9 +31,8 @@ beforeAll(() => {
 
 describe('WASM adapter integration', () => {
 	it('parses a DBC and exports the typed catalog', async () => {
-		const handle = await openFixtureDbc();
+		const { handle, catalog } = await openFixtureDbc();
 		try {
-			const catalog = await getDbcCatalog(handle);
 			const powertrain = catalog.messages.find((message) => message.name === 'PowertrainStatus');
 			const vehicleSpeed = powertrain?.signals.find((signal) => signal.name === 'vehicle_speed');
 
@@ -74,10 +74,14 @@ describe('WASM adapter integration', () => {
 	});
 
 	it('decodes selected signal values through the TypeScript boundary', async () => {
-		const dbc = await openFixtureDbc();
+		const { handle: dbc } = await openFixtureDbc();
 		const trace = await openFixtureTrace();
 		try {
-			const powertrainIdentity = { canId: 288, isExtended: false, sizeBytes: 8 };
+			const powertrainIdentity = {
+				canId: 288,
+				isExtended: false,
+				sizeBytes: 8
+			};
 			const batteryIdentity = { canId: 512, isExtended: false, sizeBytes: 8 };
 			const speed = await getSignalValues(dbc, trace, powertrainIdentity, 'vehicle_speed');
 			const coolant = await getSignalValues(dbc, trace, powertrainIdentity, 'coolant_temp');
@@ -97,7 +101,7 @@ describe('WASM adapter integration', () => {
 	});
 
 	it('opens a generated BLF trace through the TypeScript boundary', async () => {
-		const dbc = await openFixtureDbc();
+		const { handle: dbc } = await openFixtureDbc();
 		const trace = await openTrace('blf', generatedBlfTrace());
 		try {
 			expect(trace.metadata).toEqual({
@@ -122,15 +126,13 @@ describe('WASM adapter integration', () => {
 
 	it('normalizes parse and decode failures', async () => {
 		const trace = await openFixtureTrace();
-		const dbc = await openFixtureDbc();
+		const { handle: dbc } = await openFixtureDbc();
 		try {
-			await expect(openDbc('BO_ broken')).rejects.toThrow('DBC parse failed');
-			await expect(
-				openTrace('asc', new TextEncoder().encode('0.000000 1 100 Rx d 2 00'))
-			).rejects.toThrow('ASC parse failed');
+			await expectWasmError(openDbc('BO_ broken'));
+			await expectWasmError(openTrace('asc', new TextEncoder().encode('0.000000 1 100 Rx d 2 00')));
 			await expect(
 				getSignalValues(dbc, trace, { canId: 288, isExtended: false, sizeBytes: 8 }, 'missing')
-			).rejects.toThrow('Signal decode failed');
+			).rejects.toMatchObject({ code: 'SignalNotFound' });
 		} finally {
 			await closeTrace(trace);
 			await closeDbc(dbc);
@@ -138,7 +140,10 @@ describe('WASM adapter integration', () => {
 	});
 });
 
-async function openFixtureDbc(): Promise<DbcHandle> {
+async function openFixtureDbc(): Promise<{
+	handle: DbcHandle;
+	catalog: ParsedDbc;
+}> {
 	const text = await readFile(resolve(fixturesDir, 'agentic-demo.dbc'), 'utf8');
 	return openDbc(text);
 }
@@ -235,4 +240,14 @@ function concatBytes(...parts: Uint8Array[]): Uint8Array {
 
 function paddingSize(size: number): number {
 	return size % 4;
+}
+
+async function expectWasmError(promise: Promise<unknown>): Promise<void> {
+	try {
+		await promise;
+		throw new Error('Expected WasmError');
+	} catch (error) {
+		expect(error).toBeInstanceOf(WasmError);
+		expect((error as WasmError).code.length).toBeGreaterThan(0);
+	}
 }

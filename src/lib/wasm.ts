@@ -45,6 +45,40 @@ const TraceMetadataSchema = z.object({
 	durationNs: z.number().nullable()
 });
 
+const WasmFailureEnvelopeSchema = z.object({
+	ok: z.literal(false),
+	code: z.string().min(1),
+	message: z.string()
+});
+
+const DbcParseEnvelopeSchema = z.discriminatedUnion('ok', [
+	z.object({
+		ok: z.literal(true),
+		handle: z.number(),
+		catalog: ParsedDbcSchema
+	}),
+	WasmFailureEnvelopeSchema
+]);
+
+const TraceParseEnvelopeSchema = z.discriminatedUnion('ok', [
+	z.object({
+		ok: z.literal(true),
+		handle: z.number(),
+		metadata: TraceMetadataSchema
+	}),
+	WasmFailureEnvelopeSchema
+]);
+
+const SignalValuesEnvelopeSchema = z.discriminatedUnion('ok', [
+	z.object({
+		ok: z.literal(true),
+		values: z.number()
+	}),
+	WasmFailureEnvelopeSchema
+]);
+
+type WasmFailureEnvelope = z.infer<typeof WasmFailureEnvelopeSchema>;
+
 export type DbcValueDescription = z.infer<typeof DbcValueDescriptionSchema>;
 export type DbcSignal = z.infer<typeof DbcSignalSchema>;
 export type DbcMessage = z.infer<typeof DbcMessageSchema>;
@@ -55,6 +89,16 @@ export type DecodedSignalSeries = {
 	values: Float64Array;
 };
 export type TraceType = 'asc' | 'trc' | 'blf';
+
+export class WasmError extends Error {
+	readonly code: string;
+
+	constructor(code: string, message: string) {
+		super(message);
+		this.name = 'WasmError';
+		this.code = code;
+	}
+}
 
 declare const DbcHandleBrand: unique symbol;
 declare const TraceHandleBrand: unique symbol;
@@ -76,12 +120,10 @@ type CanTraceViewerWasmExports = {
 	memory: WebAssembly.Memory;
 	owned_bytes_alloc(len: number): number;
 	dbc_parse(input: number): number;
-	dbc_to_json(handle: number): number;
 	dbc_free(handle: number): void;
 	asc_parse(input: number): number;
 	trc_parse(input: number): number;
 	blf_parse(input: number): number;
-	trace_to_metadata_json(handle: number): number;
 	trace_free(handle: number): void;
 	get_trace_signal_values(
 		dbcHandle: number,
@@ -118,7 +160,7 @@ function copyBytesToWasm(wasm: CanTraceViewerWasmExports, input: Uint8Array): nu
 	const inputBytes = wasm.owned_bytes_alloc(input.byteLength);
 
 	if (inputBytes === 0) {
-		throw new Error('WASM allocation failed');
+		throw new WasmError('OutOfMemory', 'Out of memory');
 	}
 
 	const inputPtr = wasm.owned_bytes_ptr(inputBytes);
@@ -170,33 +212,23 @@ function readSignalSeries(
 	}
 }
 
-export async function openDbc(text: string): Promise<DbcHandle> {
+export async function openDbc(text: string): Promise<{ handle: DbcHandle; catalog: ParsedDbc }> {
 	const wasm = await loadWasm();
 	const inputBytes = copyTextToWasm(wasm, text);
 
-	let handle: number;
+	let envelopeBytes: number;
 	try {
-		handle = wasm.dbc_parse(inputBytes);
+		envelopeBytes = wasm.dbc_parse(inputBytes);
 	} finally {
 		wasm.owned_bytes_free(inputBytes);
 	}
 
-	if (handle === 0) {
-		throw new Error('DBC parse failed');
-	}
+	const envelope = parseEnvelope(wasm, envelopeBytes, DbcParseEnvelopeSchema);
 
-	return { id: handle } as DbcHandle;
-}
-
-export async function getDbcCatalog(handle: DbcHandle): Promise<ParsedDbc> {
-	const wasm = await loadWasm();
-	const jsonBytes = wasm.dbc_to_json(handle.id);
-
-	if (jsonBytes === 0) {
-		throw new Error('DBC JSON export failed');
-	}
-
-	return ParsedDbcSchema.parse(JSON.parse(readOwnedText(wasm, jsonBytes)));
+	return {
+		handle: { id: envelope.handle } as DbcHandle,
+		catalog: envelope.catalog
+	};
 }
 
 export async function closeDbc(handle: DbcHandle): Promise<void> {
@@ -225,27 +257,14 @@ export async function getSignalValues(
 			messageIdentity.sizeBytes,
 			signalNameBytes
 		);
-		if (series === 0) {
-			throw new Error('Signal decode failed');
-		}
+		const envelope = parseEnvelope(wasm, series, SignalValuesEnvelopeSchema);
 
-		return readSignalSeries(wasm, series);
+		return readSignalSeries(wasm, envelope.values);
 	} finally {
 		if (signalNameBytes !== 0) {
 			wasm.owned_bytes_free(signalNameBytes);
 		}
 	}
-}
-
-async function getTraceMetadata(id: number): Promise<TraceMetadata> {
-	const wasm = await loadWasm();
-	const jsonBytes = wasm.trace_to_metadata_json(id);
-
-	if (jsonBytes === 0) {
-		throw new Error('Trace metadata export failed');
-	}
-
-	return TraceMetadataSchema.parse(JSON.parse(readOwnedText(wasm, jsonBytes)));
 }
 
 export async function closeTrace(trace: TraceHandle): Promise<void> {
@@ -255,54 +274,48 @@ export async function closeTrace(trace: TraceHandle): Promise<void> {
 
 export async function openTrace(traceType: TraceType, bytes: Uint8Array): Promise<TraceHandle> {
 	const wasm = await loadWasm();
-	const traceParser = parserForTraceType(wasm, traceType);
-	const id = parseTraceBytes(wasm, bytes, traceParser.parse, traceParser.label);
-
-	try {
-		return {
-			id,
-			metadata: await getTraceMetadata(id)
-		} as TraceHandle;
-	} catch (error) {
-		wasm.trace_free(id);
-		throw error;
-	}
-}
-
-function parseTraceBytes(
-	wasm: CanTraceViewerWasmExports,
-	bytes: Uint8Array,
-	parse: (input: number) => number,
-	formatLabel: TraceFormatLabel
-): number {
+	const parse = parserForTraceType(wasm, traceType);
 	const inputBytes = copyBytesToWasm(wasm, bytes);
 
-	let handle: number;
 	try {
-		handle = parse(inputBytes);
+		const envelopeBytes = parse(inputBytes);
+		const envelope = parseEnvelope(wasm, envelopeBytes, TraceParseEnvelopeSchema);
+		return {
+			id: envelope.handle,
+			metadata: envelope.metadata
+		} as TraceHandle;
 	} finally {
 		wasm.owned_bytes_free(inputBytes);
 	}
-
-	if (handle === 0) {
-		throw new Error(`${formatLabel} parse failed`);
-	}
-
-	return handle;
 }
 
 function parserForTraceType(
 	wasm: CanTraceViewerWasmExports,
 	traceType: TraceType
-): { parse: (input: number) => number; label: TraceFormatLabel } {
+): (input: number) => number {
 	switch (traceType) {
 		case 'asc':
-			return { parse: wasm.asc_parse, label: 'ASC' };
+			return wasm.asc_parse;
 		case 'trc':
-			return { parse: wasm.trc_parse, label: 'TRC' };
+			return wasm.trc_parse;
 		case 'blf':
-			return { parse: wasm.blf_parse, label: 'BLF' };
+			return wasm.blf_parse;
 	}
 }
 
-type TraceFormatLabel = 'ASC' | 'TRC' | 'BLF';
+function parseEnvelope<TSuccess extends { ok: true }>(
+	wasm: CanTraceViewerWasmExports,
+	ownedBytes: number,
+	schema: z.ZodType<TSuccess | WasmFailureEnvelope>
+): TSuccess {
+	if (ownedBytes === 0) {
+		throw new WasmError('OutOfMemory', 'Out of memory');
+	}
+
+	const envelope = schema.parse(JSON.parse(readOwnedText(wasm, ownedBytes)));
+	if (!envelope.ok) {
+		throw new WasmError(envelope.code, envelope.message);
+	}
+
+	return envelope;
+}

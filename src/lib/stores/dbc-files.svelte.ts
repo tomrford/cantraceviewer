@@ -1,6 +1,5 @@
 import {
 	closeDbc,
-	getDbcCatalog,
 	openDbc,
 	type DbcHandle,
 	type DbcMessage,
@@ -227,10 +226,9 @@ class DbcFilesStore {
 	}
 
 	private async openStoredDbc(dbc: StoredDbc): Promise<DbcCandidate> {
-		const handle = await openDbc(dbc.text);
+		const { handle, catalog } = await openDbc(dbc.text);
 
 		try {
-			const catalog = await getDbcCatalog(handle);
 			assertUniqueMessageIdentities(dbc.name, catalog);
 			return {
 				entry: {
@@ -285,7 +283,11 @@ function buildSignalTargetIndex(files: DbcFileEntry[]): SignalTargetIndex {
 	for (const file of files) {
 		for (const message of file.catalog.messages) {
 			for (const signal of message.signals) {
-				index[signalIdentityKey(file.id, message, signal.name)] = { file, message, signal };
+				index[signalIdentityKey(file.id, message, signal.name)] = {
+					file,
+					message,
+					signal
+				};
 			}
 		}
 	}
