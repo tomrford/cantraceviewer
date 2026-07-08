@@ -117,6 +117,26 @@ export type TraceHandle = {
 	readonly metadata: TraceMetadata;
 };
 
+type HandleKind = 'dbc' | 'trace';
+
+type HandleState = {
+	closed: boolean;
+	freed: boolean;
+	inFlight: number;
+};
+
+/**
+ * Runtime lifetime registry for opaque WASM handles.
+ *
+ * A handle is freed exactly once, never while a decode holds it, and never used
+ * after close. Decodes only hold handles for the synchronous WASM call and
+ * owned-result read after all awaits have resolved.
+ */
+const handleRegistry: Record<HandleKind, Map<number, HandleState>> = {
+	dbc: new Map(),
+	trace: new Map()
+};
+
 type CanTraceViewerWasmExports = {
 	memory: WebAssembly.Memory;
 	owned_bytes_alloc(len: number): number;
@@ -150,6 +170,78 @@ async function loadWasm() {
 	});
 
 	return wasmPromise;
+}
+
+function registerHandle(kind: HandleKind, id: number): void {
+	handleRegistry[kind].set(id, {
+		closed: false,
+		freed: false,
+		inFlight: 0
+	});
+}
+
+function handleState(kind: HandleKind, id: number): HandleState | undefined {
+	return handleRegistry[kind].get(id);
+}
+
+function assertHandleOpen(kind: HandleKind, id: number): HandleState {
+	const state = handleState(kind, id);
+	if (!state || state.closed || state.freed) {
+		throw new WasmError('HandleClosed', `${kind} handle is closed`);
+	}
+
+	return state;
+}
+
+function closeHandle(wasm: CanTraceViewerWasmExports, kind: HandleKind, id: number): void {
+	const state = handleState(kind, id);
+	if (!state) {
+		return;
+	}
+	if (state.closed) {
+		return;
+	}
+
+	state.closed = true;
+	freeHandleIfIdle(wasm, kind, id, state);
+}
+
+function freeHandleIfIdle(
+	wasm: CanTraceViewerWasmExports,
+	kind: HandleKind,
+	id: number,
+	state: HandleState
+): void {
+	if (!state.closed || state.freed || state.inFlight > 0) {
+		return;
+	}
+
+	state.freed = true;
+	handleRegistry[kind].delete(id);
+	if (kind === 'dbc') {
+		wasm.dbc_free(id);
+	} else {
+		wasm.trace_free(id);
+	}
+}
+
+function holdDecodeHandles(
+	wasm: CanTraceViewerWasmExports,
+	dbcHandle: DbcHandle,
+	trace: TraceHandle
+): () => void {
+	const dbcState = assertHandleOpen('dbc', dbcHandle.id);
+	const traceState = assertHandleOpen('trace', trace.id);
+
+	dbcState.inFlight += 1;
+	traceState.inFlight += 1;
+
+	return () => {
+		dbcState.inFlight -= 1;
+		traceState.inFlight -= 1;
+		freeHandleIfIdle(wasm, 'dbc', dbcHandle.id, dbcState);
+		freeHandleIfIdle(wasm, 'trace', trace.id, traceState);
+	};
 }
 
 function copyTextToWasm(wasm: CanTraceViewerWasmExports, text: string): number {
@@ -225,6 +317,7 @@ export async function openDbc(text: string): Promise<{ handle: DbcHandle; catalo
 	}
 
 	const envelope = parseEnvelope(wasm, envelopeBytes, DbcParseEnvelopeSchema);
+	registerHandle('dbc', envelope.handle);
 
 	return {
 		handle: { id: envelope.handle } as DbcHandle,
@@ -234,7 +327,7 @@ export async function openDbc(text: string): Promise<{ handle: DbcHandle; catalo
 
 export async function closeDbc(handle: DbcHandle): Promise<void> {
 	const wasm = await loadWasm();
-	wasm.dbc_free(handle.id);
+	closeHandle(wasm, 'dbc', handle.id);
 }
 
 export type DbcMessageIdentity = Pick<DbcMessage, 'canId' | 'isExtended' | 'sizeBytes'>;
@@ -247,8 +340,10 @@ export async function getSignalValues(
 ): Promise<DecodedSignalSeries> {
 	const wasm = await loadWasm();
 	let signalNameBytes = 0;
+	let releaseHandles: (() => void) | null = null;
 	try {
 		signalNameBytes = copyTextToWasm(wasm, signalName);
+		releaseHandles = holdDecodeHandles(wasm, dbcHandle, trace);
 
 		const series = wasm.get_trace_signal_values(
 			dbcHandle.id,
@@ -262,6 +357,7 @@ export async function getSignalValues(
 
 		return readSignalSeries(wasm, envelope.values);
 	} finally {
+		releaseHandles?.();
 		if (signalNameBytes !== 0) {
 			wasm.owned_bytes_free(signalNameBytes);
 		}
@@ -270,7 +366,7 @@ export async function getSignalValues(
 
 export async function closeTrace(trace: TraceHandle): Promise<void> {
 	const wasm = await loadWasm();
-	wasm.trace_free(trace.id);
+	closeHandle(wasm, 'trace', trace.id);
 }
 
 export async function openTrace(traceType: TraceType, bytes: Uint8Array): Promise<TraceHandle> {
@@ -281,6 +377,7 @@ export async function openTrace(traceType: TraceType, bytes: Uint8Array): Promis
 	try {
 		const envelopeBytes = parse(inputBytes);
 		const envelope = parseEnvelope(wasm, envelopeBytes, TraceParseEnvelopeSchema);
+		registerHandle('trace', envelope.handle);
 		return {
 			id: envelope.handle,
 			metadata: envelope.metadata

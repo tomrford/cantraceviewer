@@ -101,6 +101,66 @@ describe('WASM adapter integration', () => {
 		}
 	});
 
+	it('keeps a started decode safe when the trace is closed', async () => {
+		const { handle: dbc } = await openFixtureDbc();
+		const trace = await openFixtureTrace();
+		const powertrainIdentity = {
+			canId: 288,
+			isExtended: false,
+			sizeBytes: 8
+		};
+
+		try {
+			const decode = getSignalValues(dbc, trace, powertrainIdentity, 'vehicle_speed');
+			await closeTrace(trace);
+
+			try {
+				const speed = await decode;
+				expect(Array.from(speed.timesMs).slice(0, 3)).toEqual([10, 110, 210]);
+				expect(Array.from(speed.values).slice(0, 3)).toEqual([100, 123.4, 150]);
+			} catch (error) {
+				expect(error).toBeInstanceOf(WasmError);
+				expect((error as WasmError).code).toBe('HandleClosed');
+			}
+
+			await closeTrace(trace);
+
+			const unrelatedTrace = await openFixtureTrace();
+			try {
+				const speed = await getSignalValues(
+					dbc,
+					unrelatedTrace,
+					powertrainIdentity,
+					'vehicle_speed'
+				);
+				expect(speed.timesMs.length).toBe(251);
+			} finally {
+				await closeTrace(unrelatedTrace);
+			}
+		} finally {
+			await closeDbc(dbc);
+		}
+	});
+
+	it('rejects decode attempts on an already-closed handle', async () => {
+		const { handle: dbc } = await openFixtureDbc();
+		const trace = await openFixtureTrace();
+		try {
+			await closeTrace(trace);
+			await expect(
+				getSignalValues(
+					dbc,
+					trace,
+					{ canId: 288, isExtended: false, sizeBytes: 8 },
+					'vehicle_speed'
+				)
+			).rejects.toMatchObject({ code: 'HandleClosed' });
+		} finally {
+			await closeTrace(trace);
+			await closeDbc(dbc);
+		}
+	});
+
 	it('opens a generated BLF trace through the TypeScript boundary', async () => {
 		const { handle: dbc } = await openFixtureDbc();
 		const trace = await openTrace('blf', generatedBlfTrace());
