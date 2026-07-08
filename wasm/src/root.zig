@@ -93,7 +93,7 @@ export fn get_trace_signal_values(
     const values = series.selectedSignalValues(
         abi.allocator,
         dbc_ptr,
-        trace_ptr.trace,
+        trace_ptr,
         can_id,
         is_extended,
         size_bytes,
