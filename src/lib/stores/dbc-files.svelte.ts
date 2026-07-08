@@ -1,6 +1,5 @@
 import {
 	closeDbc,
-	getDbcCatalog,
 	openDbc,
 	type DbcHandle,
 	type DbcMessage,
@@ -17,6 +16,7 @@ import {
 	type StoredDbc
 } from './dbc-library.js';
 import { DBC_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '$lib/file-limits.js';
+import { assertTextFileContent } from '$lib/file-preflight.js';
 import {
 	createFuzzySearchIndex,
 	searchFuzzyIndex,
@@ -220,17 +220,19 @@ class DbcFilesStore {
 	}
 
 	private async storedFile(file: File): Promise<StoredDbc> {
+		assertDbcFileName(file);
 		assertFileSizeWithinLimit(file, DBC_MAX_FILE_BYTES, 'DBC');
 
-		const text = await file.text();
+		const bytes = new Uint8Array(await file.arrayBuffer());
+		assertTextFileContent(bytes, 'DBC');
+		const text = new TextDecoder().decode(bytes);
 		return { id: await storedDbcId(text), name: file.name, text };
 	}
 
 	private async openStoredDbc(dbc: StoredDbc): Promise<DbcCandidate> {
-		const handle = await openDbc(dbc.text);
+		const { handle, catalog } = await openDbc(dbc.text);
 
 		try {
-			const catalog = await getDbcCatalog(handle);
 			assertUniqueMessageIdentities(dbc.name, catalog);
 			return {
 				entry: {
@@ -254,6 +256,12 @@ function failedStoredDbcMessage(names: string[]): string {
 	}
 
 	return `${names.length} saved DBC files failed to load: ${names.join(', ')}.`;
+}
+
+function assertDbcFileName(file: File): void {
+	if (/\.dbc$/i.test(file.name)) return;
+
+	throw new Error('Unsupported DBC file type. Open .dbc.');
 }
 
 function assertUniqueMessageIdentities(fileName: string, catalog: ParsedDbc): void {
@@ -285,7 +293,11 @@ function buildSignalTargetIndex(files: DbcFileEntry[]): SignalTargetIndex {
 	for (const file of files) {
 		for (const message of file.catalog.messages) {
 			for (const signal of message.signals) {
-				index[signalIdentityKey(file.id, message, signal.name)] = { file, message, signal };
+				index[signalIdentityKey(file.id, message, signal.name)] = {
+					file,
+					message,
+					signal
+				};
 			}
 		}
 	}

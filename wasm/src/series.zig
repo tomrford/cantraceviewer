@@ -4,18 +4,16 @@
 //! then receives parallel `f64` arrays of `(time_ms, value)` samples.
 
 const std = @import("std");
-const asc = @import("asc/asc.zig");
 const dbc_handle = @import("dbc/handle.zig");
 const message = @import("dbc/message.zig");
 const signal = @import("dbc/signal.zig");
 const trace_frame = @import("trace/frame.zig");
-const trace = @import("trace/trace.zig");
-const trc = @import("trc/trc.zig");
+const trace_handle = @import("trace/handle.zig");
 
 pub fn selectedSignalValues(
     allocator: std.mem.Allocator,
     dbc: *const dbc_handle.Handle,
-    parsed_trace: trace.Trace,
+    trace_handle_ptr: *trace_handle.Handle,
     can_id: u32,
     is_extended: bool,
     size_bytes: u16,
@@ -23,15 +21,18 @@ pub fn selectedSignalValues(
 ) ![]f64 {
     const selection = try findSignal(dbc, can_id, is_extended, size_bytes, signal_name);
     const plan = try selection.signal.planDecode(selection.message.size_bytes);
+    const parsed_trace = trace_handle_ptr.trace;
+    const index = try trace_handle_ptr.frameIndex(allocator);
+    const frame_indices = index.lookup(selection.message.can_id, selection.message.is_extended);
 
-    const sample_count = countMatchingSamples(parsed_trace, selection.message);
+    const sample_count = countMatchingSamples(parsed_trace.payloads, parsed_trace.frames, frame_indices, selection.message);
     const values_offset = sample_count;
     const out = try allocator.alloc(f64, sample_count * 2);
     errdefer allocator.free(out);
 
     var sample_index: usize = 0;
-    for (parsed_trace.frames) |frame| {
-        if (!matchesMessage(frame, selection.message)) continue;
+    for (frame_indices) |frame_index| {
+        const frame = parsed_trace.frames[frame_index];
 
         const payload = payloadPrefixForMessage(parsed_trace.payloads, frame, selection.message) orelse continue;
         out[sample_index] = timestampNsToMs(frame.timestamp_ns);
@@ -65,18 +66,16 @@ fn findSignal(
     return error.SignalNotFound;
 }
 
-fn matchesMessage(frame: trace_frame.Frame, msg: message.Message) bool {
-    if (frame.kind != .data) return false;
-    const id = frame.id orelse return false;
-    return id.value == msg.can_id and
-        id.is_extended == msg.is_extended;
-}
-
-fn countMatchingSamples(parsed_trace: trace.Trace, msg: message.Message) usize {
+fn countMatchingSamples(
+    payloads: []const u8,
+    frames: []const trace_frame.Frame,
+    frame_indices: []const u32,
+    msg: message.Message,
+) usize {
     var count: usize = 0;
-    for (parsed_trace.frames) |frame| {
-        if (!matchesMessage(frame, msg)) continue;
-        if (payloadPrefixForMessage(parsed_trace.payloads, frame, msg) == null) continue;
+    for (frame_indices) |frame_index| {
+        const frame = frames[frame_index];
+        if (payloadPrefixForMessage(payloads, frame, msg) == null) continue;
         count += 1;
     }
     return count;
@@ -122,13 +121,13 @@ test "extracts selected signal values as relative-millisecond/value series" {
 
     const dbc = try dbc_handle.Handle.parse(allocator, dbc_text);
     defer dbc.deinit(allocator);
-    var parsed = try asc.fromString(allocator, asc_text);
-    defer parsed.deinit(allocator);
+    const trace_handle_ptr = try trace_handle.Handle.parseAsc(allocator, asc_text);
+    defer trace_handle_ptr.deinit(allocator);
 
     const bytes = try selectedSignalValues(
         allocator,
         dbc,
-        parsed,
+        trace_handle_ptr,
         0x123,
         false,
         2,
@@ -153,13 +152,13 @@ test "extracts selected float signal values as relative-millisecond/value series
 
     const dbc = try dbc_handle.Handle.parse(allocator, dbc_text);
     defer dbc.deinit(allocator);
-    var parsed = try asc.fromString(allocator, asc_text);
-    defer parsed.deinit(allocator);
+    const trace_handle_ptr = try trace_handle.Handle.parseAsc(allocator, asc_text);
+    defer trace_handle_ptr.deinit(allocator);
 
     const bytes = try selectedSignalValues(
         allocator,
         dbc,
-        parsed,
+        trace_handle_ptr,
         0x123,
         false,
         4,
@@ -184,13 +183,13 @@ test "extracts selected motorola float signal values as relative-millisecond/val
 
     const dbc = try dbc_handle.Handle.parse(allocator, dbc_text);
     defer dbc.deinit(allocator);
-    var parsed = try asc.fromString(allocator, asc_text);
-    defer parsed.deinit(allocator);
+    const trace_handle_ptr = try trace_handle.Handle.parseAsc(allocator, asc_text);
+    defer trace_handle_ptr.deinit(allocator);
 
     const bytes = try selectedSignalValues(
         allocator,
         dbc,
-        parsed,
+        trace_handle_ptr,
         0x123,
         false,
         4,
@@ -217,13 +216,13 @@ test "skips short frames and decodes DBC-sized prefix from padded classic frames
 
     const dbc = try dbc_handle.Handle.parse(allocator, dbc_text);
     defer dbc.deinit(allocator);
-    var parsed = try asc.fromString(allocator, asc_text);
-    defer parsed.deinit(allocator);
+    const trace_handle_ptr = try trace_handle.Handle.parseAsc(allocator, asc_text);
+    defer trace_handle_ptr.deinit(allocator);
 
     const bytes = try selectedSignalValues(
         allocator,
         dbc,
-        parsed,
+        trace_handle_ptr,
         0x123,
         false,
         2,
@@ -250,13 +249,13 @@ test "selects same-name messages by CAN identity" {
 
     const dbc = try dbc_handle.Handle.parse(allocator, dbc_text);
     defer dbc.deinit(allocator);
-    var parsed = try asc.fromString(allocator, asc_text);
-    defer parsed.deinit(allocator);
+    const trace_handle_ptr = try trace_handle.Handle.parseAsc(allocator, asc_text);
+    defer trace_handle_ptr.deinit(allocator);
 
     const bytes = try selectedSignalValues(
         allocator,
         dbc,
-        parsed,
+        trace_handle_ptr,
         0x200,
         false,
         1,
@@ -284,13 +283,13 @@ test "selects classic and FD rows by payload length" {
 
     const dbc = try dbc_handle.Handle.parse(allocator, dbc_text);
     defer dbc.deinit(allocator);
-    var parsed = try asc.fromString(allocator, asc_text);
-    defer parsed.deinit(allocator);
+    const trace_handle_ptr = try trace_handle.Handle.parseAsc(allocator, asc_text);
+    defer trace_handle_ptr.deinit(allocator);
 
     const classic = try selectedSignalValues(
         allocator,
         dbc,
-        parsed,
+        trace_handle_ptr,
         0x123,
         false,
         8,
@@ -300,7 +299,7 @@ test "selects classic and FD rows by payload length" {
     const fd = try selectedSignalValues(
         allocator,
         dbc,
-        parsed,
+        trace_handle_ptr,
         0x123,
         false,
         12,
@@ -327,13 +326,13 @@ test "does not require FD flag when ID, extended flag, and payload length match"
 
     const dbc = try dbc_handle.Handle.parse(allocator, dbc_text);
     defer dbc.deinit(allocator);
-    var parsed = try asc.fromString(allocator, asc_text);
-    defer parsed.deinit(allocator);
+    const trace_handle_ptr = try trace_handle.Handle.parseAsc(allocator, asc_text);
+    defer trace_handle_ptr.deinit(allocator);
 
     const bytes = try selectedSignalValues(
         allocator,
         dbc,
-        parsed,
+        trace_handle_ptr,
         0x123,
         false,
         8,
@@ -359,13 +358,13 @@ test "extracts selected signal values from TRC" {
 
     const dbc = try dbc_handle.Handle.parse(allocator, dbc_text);
     defer dbc.deinit(allocator);
-    var parsed = try trc.fromString(allocator, trc_text);
-    defer parsed.deinit(allocator);
+    const trace_handle_ptr = try trace_handle.Handle.parseTrc(allocator, trc_text);
+    defer trace_handle_ptr.deinit(allocator);
 
     const bytes = try selectedSignalValues(
         allocator,
         dbc,
-        parsed,
+        trace_handle_ptr,
         0x123,
         false,
         2,
@@ -374,4 +373,83 @@ test "extracts selected signal values from TRC" {
     defer allocator.free(bytes);
 
     try std.testing.expectEqualSlices(f64, &.{ 0.1, 4660.0 }, bytes);
+}
+
+test "reuses frame index when decoding different signals from one handle" {
+    const allocator = std.testing.allocator;
+    const dbc_text =
+        \\BO_ 291 Example: 2 ECU
+        \\ SG_ Speed : 0|8@1+ (1,0) [0|255] "" DASH
+        \\ SG_ Temp : 8|8@1+ (1,0) [0|255] "" DASH
+    ;
+    const asc_text =
+        \\base hex timestamps absolute
+        \\0.001 1 123 Rx d 2 10 20
+        \\0.002 1 124 Rx d 2 ff ff
+        \\0.003 1 123 Rx d 2 30 40
+    ;
+
+    const dbc = try dbc_handle.Handle.parse(allocator, dbc_text);
+    defer dbc.deinit(allocator);
+    const trace_handle_ptr = try trace_handle.Handle.parseAsc(allocator, asc_text);
+    defer trace_handle_ptr.deinit(allocator);
+
+    const speed = try selectedSignalValues(
+        allocator,
+        dbc,
+        trace_handle_ptr,
+        0x123,
+        false,
+        2,
+        "Speed",
+    );
+    defer allocator.free(speed);
+    const first_index = try trace_handle_ptr.frameIndex(allocator);
+
+    const temp = try selectedSignalValues(
+        allocator,
+        dbc,
+        trace_handle_ptr,
+        0x123,
+        false,
+        2,
+        "Temp",
+    );
+    defer allocator.free(temp);
+    const second_index = try trace_handle_ptr.frameIndex(allocator);
+
+    try std.testing.expectEqual(@intFromPtr(first_index), @intFromPtr(second_index));
+    try std.testing.expectEqualSlices(f64, &.{ 1.0, 3.0, 16.0, 48.0 }, speed);
+    try std.testing.expectEqualSlices(f64, &.{ 1.0, 3.0, 32.0, 64.0 }, temp);
+}
+
+test "returns empty series when selected message id is absent from trace" {
+    const allocator = std.testing.allocator;
+    const dbc_text =
+        \\BO_ 291 Example: 1 ECU
+        \\ SG_ Value : 0|8@1+ (1,0) [0|255] "" DASH
+    ;
+    const asc_text =
+        \\base hex timestamps absolute
+        \\0.001 1 124 Rx d 1 11
+        \\0.002 1 125 Rx d 1 22
+    ;
+
+    const dbc = try dbc_handle.Handle.parse(allocator, dbc_text);
+    defer dbc.deinit(allocator);
+    const trace_handle_ptr = try trace_handle.Handle.parseAsc(allocator, asc_text);
+    defer trace_handle_ptr.deinit(allocator);
+
+    const bytes = try selectedSignalValues(
+        allocator,
+        dbc,
+        trace_handle_ptr,
+        0x123,
+        false,
+        1,
+        "Value",
+    );
+    defer allocator.free(bytes);
+
+    try std.testing.expectEqualSlices(f64, &.{}, bytes);
 }

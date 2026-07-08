@@ -24,6 +24,8 @@
 	import type { TraceMetadata } from '$lib/wasm.js';
 	import AudioWaveformIcon from '@lucide/svelte/icons/audio-waveform';
 	import CogIcon from '@lucide/svelte/icons/cog';
+	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
+	import XIcon from '@lucide/svelte/icons/x';
 	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
 	import { onMount } from 'svelte';
 
@@ -287,6 +289,25 @@
 				{/if}
 			</Sidebar.Inset>
 		</Sidebar.Provider>
+
+		{#if traceFile.warning}
+			<div
+				class="fixed top-3 right-3 z-50 flex max-w-sm items-start gap-2 rounded-md border border-amber-400/40 bg-amber-50 px-3 py-2 text-xs/relaxed text-amber-950 shadow-sm dark:border-amber-400/30 dark:bg-amber-950/80 dark:text-amber-100"
+				role="status"
+			>
+				<TriangleAlertIcon class="mt-0.5 size-4 shrink-0" />
+				<p class="min-w-0 flex-1">{traceFile.warning}</p>
+				<Button
+					variant="ghost"
+					size="icon"
+					class="-mt-1 -mr-1 size-6 shrink-0 text-current hover:bg-amber-950/10 dark:hover:bg-amber-100/10"
+					aria-label="Dismiss trace warning"
+					onclick={() => traceFile.clearWarning()}
+				>
+					<XIcon class="size-3.5" />
+				</Button>
+			</div>
+		{/if}
 
 		<AlertDialog.Root
 			bind:open={() => traceFile.error !== null, (open) => !open && traceFile.clearError()}
