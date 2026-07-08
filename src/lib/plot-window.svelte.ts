@@ -3,7 +3,7 @@ import type { PlotViewport } from './plot-viewport.js';
 import { renderIndexRange, type SignalView, type WindowedSignalView } from './signal-plot-data.js';
 
 /** Total point budget shared by all rendered lines per materialization. */
-const TOTAL_SAMPLING_BUDGET = 25_000;
+const TOTAL_SAMPLING_BUDGET = 50_000;
 /** Buffered slices span viewport ± span, so they hold up to 3x the on-screen window. */
 const BUFFER_SPANS = 3;
 const SETTLE_MS = 150;

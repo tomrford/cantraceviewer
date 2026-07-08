@@ -70,10 +70,10 @@ describe('PlotWindow', () => {
 
 	it('downsamples to the shared budget at full span', () => {
 		const plotWindow = new PlotWindow();
-		const [windowed] = plotWindow.viewsFor([rampView('a', 40_000)], null);
+		const [windowed] = plotWindow.viewsFor([rampView('a', 60_000)], null);
 
 		expect(windowed.sampled).toBe(true);
-		expect(windowed.points).toBe(25_000);
+		expect(windowed.points).toBe(50_000);
 	});
 
 	it('splits the budget across signals with points', () => {
@@ -83,8 +83,8 @@ describe('PlotWindow', () => {
 			null
 		);
 
-		expect(views[0].points).toBe(12_500);
-		expect(views[1].points).toBe(12_500);
+		expect(views[0].points).toBe(25_000);
+		expect(views[1].points).toBe(25_000);
 		expect(views[2].points).toBe(0);
 	});
 
