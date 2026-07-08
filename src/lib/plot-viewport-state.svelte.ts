@@ -18,9 +18,12 @@ export class PlotViewportState {
 	activeViewport = $derived.by(() =>
 		this.#mode.mode === 'fit' ? this.fullDomain : this.#mode.viewport
 	);
-	isFitAll = $derived.by(
-		() => this.#mode.mode === 'fit' || viewportsAlmostEqual(this.#mode.viewport, this.fullDomain)
-	);
+	// Fit-all is a property of the mode, not of coincidental equality: a manual
+	// viewport the domain later drifts into must stay manual (reset enabled),
+	// since a derived cannot latch it to fit and it will not follow further
+	// domain changes. Interactive returns to ~full extent still normalize to
+	// fit at setManual time.
+	isFitAll = $derived.by(() => this.#mode.mode === 'fit');
 
 	zoomBy(factor: number, anchor: PlotRatioPoint = CENTER, axes?: { x: boolean; y: boolean }): void {
 		const viewport = this.activeViewport;

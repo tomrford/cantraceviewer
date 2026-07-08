@@ -55,6 +55,25 @@ describe('PlotViewportState', () => {
 		expect(state.isFitAll).toBe(true);
 	});
 
+	it('stays manual when the domain drifts into the manual viewport', () => {
+		const state = new PlotViewportState();
+		let domain = $state<PlotViewport | null>(viewport(0, 100));
+		state.domainSource = () => domain;
+
+		state.setManual(viewport(0, 80));
+		domain = viewport(0, 80);
+
+		expect(state.isFitAll).toBe(false);
+
+		domain = viewport(0, 120);
+
+		expect(state.activeViewport).toEqual(viewport(0, 80));
+
+		state.reset();
+		expect(state.activeViewport).toEqual(viewport(0, 120));
+		expect(state.isFitAll).toBe(true);
+	});
+
 	it('reset returns to fit mode and follows later domain changes', () => {
 		const state = new PlotViewportState();
 		let domain = $state<PlotViewport | null>(viewport(0, 100));
