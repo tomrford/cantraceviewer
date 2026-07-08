@@ -1,5 +1,6 @@
 import { closeTrace, openTrace, type TraceHandle, type TraceType } from '$lib/wasm.js';
 import { TRACE_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '$lib/file-limits.js';
+import { assertTraceFileContent } from '$lib/file-preflight.js';
 import {
 	TRACE_FILE_DESCRIPTION,
 	displayTraceName,
@@ -12,11 +13,20 @@ class TraceFileStore {
 	entry = $state<TraceFileEntry | null>(null);
 	isLoading = $state(false);
 	error = $state<string | null>(null);
+	private dismissedWarningEntry = $state<TraceFileEntry | null>(null);
 
 	displayName = $derived(this.entry ? displayTraceName(this.entry.file.name) : 'CAN Trace Viewer');
+	warning = $derived.by(() => {
+		if (!this.entry || this.entry === this.dismissedWarningEntry) return null;
+		const count = this.entry.metadata.skippedLineCount;
+		if (count === 0) return null;
+
+		return `Parsed with ${count} malformed ${count === 1 ? 'line' : 'lines'} skipped.`;
+	});
 
 	async openFile(file: File): Promise<boolean> {
 		this.error = null;
+		this.dismissedWarningEntry = null;
 		this.isLoading = true;
 
 		let next: TraceFileEntry | null = null;
@@ -25,6 +35,7 @@ class TraceFileStore {
 			assertFileSizeWithinLimit(file, TRACE_MAX_FILE_BYTES, 'Trace');
 
 			const bytes = new Uint8Array(await file.arrayBuffer());
+			assertTraceFileContent(traceType, bytes);
 			next = await openTraceFile(traceType, file, bytes);
 
 			const previous = this.entry;
@@ -57,6 +68,10 @@ class TraceFileStore {
 
 	clearError(): void {
 		this.error = null;
+	}
+
+	clearWarning(): void {
+		this.dismissedWarningEntry = this.entry;
 	}
 }
 
