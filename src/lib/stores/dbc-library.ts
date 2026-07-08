@@ -19,13 +19,8 @@ const DBC_STORE_NAME = 'dbc-files';
 
 export async function listStoredDbcs(): Promise<StoredDbc[]> {
 	if (!isIndexedDbAvailable()) return [];
-	try {
-		const database = await openDatabase();
-		return database.getAll(DBC_STORE_NAME);
-	} catch {
-		await resetStoredDbcs();
-		return [];
-	}
+	const database = await openDatabase();
+	return database.getAll(DBC_STORE_NAME);
 }
 
 export async function putStoredDbcs(dbcs: StoredDbc[]): Promise<void> {

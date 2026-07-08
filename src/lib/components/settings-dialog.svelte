@@ -3,15 +3,13 @@
 	import * as Select from '$lib/components/ui/select/index.js';
 	import {
 		legendOrderMode,
-		resetPreferences,
 		themePreference,
 		timestampMode,
 		type LegendOrderMode,
 		type ThemePreference,
 		type TimestampMode
 	} from '$lib/stores/preferences.svelte.js';
-	import { dbcFiles } from '$lib/stores/dbc-files.svelte.js';
-	import { plotData } from '$lib/stores/plot-data.svelte.js';
+	import { onResetPersistentData } from '$lib/stores/session.js';
 	import LaptopIcon from '@lucide/svelte/icons/laptop';
 	import MoonIcon from '@lucide/svelte/icons/moon';
 	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
@@ -55,9 +53,7 @@
 			legendOrderOptions[0]
 	);
 	async function resetPersistentData(): Promise<void> {
-		plotData.clearSelectedSignals();
-		resetPreferences();
-		await dbcFiles.resetLibrary();
+		await onResetPersistentData();
 	}
 </script>
 

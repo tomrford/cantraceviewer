@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { rankedFuzzySearch } from './fuzzy-match';
+import { createFuzzySearchIndex, searchFuzzyIndex } from './fuzzy-match';
 
 const signals = [
 	{ messageName: 'Message', signalName: 'Signal' },
@@ -10,15 +10,30 @@ const signals = [
 	{ messageName: 'VeryLongUnrelatedSignal', signalName: 'Other' }
 ];
 
+const index = createFuzzySearchIndex(
+	signals,
+	(signal) => `${signal.messageName}.${signal.signalName}`
+);
+
 function search(query: string): string[] {
-	return rankedFuzzySearch(
-		signals,
-		query,
+	return searchFuzzyIndex(index, query).map(
 		(signal) => `${signal.messageName}.${signal.signalName}`
-	).map((signal) => `${signal.messageName}.${signal.signalName}`);
+	);
 }
 
-describe('rankedFuzzySearch', () => {
+describe('searchFuzzyIndex', () => {
+	it('returns all items for an empty query', () => {
+		expect(search('')).toEqual([
+			'Message.Signal',
+			'SpeedMessage.VehicleSpeed',
+			'PowertrainStatus.vehicle_speed',
+			'EngineStatus.EngineRpm',
+			'VehicleAcceleration.LongitudinalAccel',
+			'VeryLongUnrelatedSignal.Other'
+		]);
+		expect(search('   ')).toHaveLength(signals.length);
+	});
+
 	it('uses MiniSearch token matching with camel and separator boundaries', () => {
 		expect(search('vehicle speed')).toEqual(
 			expect.arrayContaining(['SpeedMessage.VehicleSpeed', 'PowertrainStatus.vehicle_speed'])

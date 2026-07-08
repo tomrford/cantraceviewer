@@ -131,7 +131,7 @@ function readOwnedText(wasm: CanTraceViewerWasmExports, ownedBytes: number): str
 	try {
 		const ptr = wasm.owned_bytes_ptr(ownedBytes);
 		const len = wasm.owned_bytes_len(ownedBytes);
-		const bytes = new Uint8Array(wasm.memory.buffer, ptr, len).slice();
+		const bytes = new Uint8Array(wasm.memory.buffer, ptr, len);
 
 		return new TextDecoder().decode(bytes);
 	} finally {

@@ -1,19 +1,6 @@
 <script lang="ts">
-	import {
-		normalizedWheelDelta,
-		type PlotRatioPoint,
-		plotSize,
-		pointerToPlotRatio
-	} from '$lib/plot-geometry.js';
 	import { SIGNAL_COLORS } from '$lib/plot-colors.js';
-	import {
-		boxViewport,
-		panViewport,
-		type PlotViewport,
-		viewportsAlmostEqual,
-		viewportCenterX,
-		zoomViewport
-	} from '$lib/plot-viewport.js';
+	import { type PlotViewport, viewportCenterX } from '$lib/plot-viewport.js';
 	import {
 		createSignalViewCache,
 		formatAxisValue,
@@ -23,13 +10,16 @@
 		signalDomain
 	} from '$lib/signal-plot-data.js';
 	import { PlotWindow } from '$lib/plot-window.svelte.js';
+	import { PlotViewportState } from '$lib/plot-viewport-state.svelte.js';
+	import PlotInteraction from './plot-interaction.svelte';
+	import PlotMarker from './plot-marker.svelte';
 	import * as ContextMenu from '$lib/components/ui/context-menu/index.js';
 	import SignalPlotLegend from './signal-plot-legend.svelte';
 	import { createPlotPerfStats } from '$lib/plot-perf.js';
 	import { isPlottableSignal, plotData } from '$lib/stores/plot-data.svelte.js';
 	import { isDark, timestampMode } from '$lib/stores/preferences.svelte.js';
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
-	import { onDestroy, onMount, untrack } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import type { HTMLAttributes } from 'svelte/elements';
 	import type { ChartGPUInstance, ChartGPUOptions } from 'chartgpu';
 	import BoxSelectIcon from '@lucide/svelte/icons/box-select';
@@ -45,7 +35,7 @@
 		markerX = $bindable<number | null>(null),
 		boxZoomEnabled = $bindable(false),
 		legendVisible = $bindable(true),
-		onCanResetZoomChange,
+		viewport,
 		class: className,
 		...restProps
 	}: HTMLAttributes<HTMLElement> & {
@@ -54,21 +44,12 @@
 		markerX?: number | null;
 		boxZoomEnabled?: boolean;
 		legendVisible?: boolean;
-		onCanResetZoomChange?: (canReset: boolean) => void;
+		viewport: PlotViewportState;
 	} = $props();
 	let container: HTMLDivElement;
 	let chart: ChartGPUInstance | null = null;
-	let createChart:
-		| ((container: HTMLElement, options: ChartGPUOptions) => Promise<ChartGPUInstance>)
-		| null = null;
 	let chartError = $state<string | null>(null);
-	let markerDragPointerId = $state<number | null>(null);
-	let viewport = $state<PlotViewport | null>(null);
-	let lastFullDomain: PlotViewport | null = null;
-	let dragState = $state<DragState | null>(null);
 	let contextMenuX = $state<number | null>(null);
-	let markerDragRaf: number | null = null;
-	let pendingMarkerX: number | null = null;
 	let resizeObserver: ResizeObserver | null = null;
 
 	const PLOT_GRID = { left: 64, right: 24, top: 18, bottom: 44 };
@@ -76,23 +57,6 @@
 		dark: { color: '#f4f4f5', opacity: 0.1 },
 		light: { color: '#71717a', opacity: 0.3 }
 	} as const;
-	const WHEEL_ZOOM_SPEED = 0.002;
-
-	type DragState =
-		| {
-				type: 'pan';
-				pointerId: number;
-				clientX: number;
-				clientY: number;
-				startViewport: PlotViewport;
-		  }
-		| {
-				type: 'box';
-				pointerId: number;
-				start: PlotRatioPoint;
-				current: PlotRatioPoint;
-		  };
-
 	const viewsForSignals = createSignalViewCache();
 	const plottableSignals = $derived(plotData.signals.filter(isPlottableSignal));
 	const hasPlottableSignals = $derived(plottableSignals.length > 0);
@@ -117,7 +81,8 @@
 		return lastDomainValue;
 	});
 	const plotReady = $derived(fullDomain !== null);
-	const activeViewport = $derived(viewport ?? fullDomain);
+	const emptyMessage = 'Select signals from the DBC side panel to view them.';
+	const activeViewport = $derived(viewport.activeViewport);
 	const plotWindow = new PlotWindow();
 	const windowedViews = $derived(plotWindow.viewsFor(signalViews, activeViewport));
 	const chartSeries = $derived(lineSeriesForViews(windowedViews));
@@ -125,7 +90,7 @@
 	$effect(() => {
 		plotWindow.settleAfter(signalViews, activeViewport);
 	});
-	const isFitAll = $derived(viewportsAlmostEqual(activeViewport, fullDomain));
+	const isFitAll = $derived(viewport.isFitAll);
 	const displayedMarkerX = $derived.by(() => {
 		if (!hasPlottableSignals || !markerEnabled || markerX === null) return null;
 		return markerX;
@@ -150,6 +115,10 @@
 
 		return signalViews.map((view) => markerValue(view, x));
 	});
+	onMount(() => {
+		viewport.domainSource = () => fullDomain;
+	});
+
 	onMount(async () => {
 		if (!('gpu' in navigator)) {
 			return;
@@ -157,7 +126,7 @@
 
 		try {
 			const mod = await import('chartgpu');
-			createChart = mod.ChartGPU.create;
+			const createChart = mod.ChartGPU.create;
 			chart = await createChart(container, chartOptions());
 
 			resizeObserver = new ResizeObserver(() => chart?.resize());
@@ -168,20 +137,11 @@
 	});
 
 	onDestroy(() => {
-		cancelMarkerDragUpdate();
 		if (pushFrame !== null) cancelAnimationFrame(pushFrame);
+		viewport.domainSource = null;
 		plotWindow.dispose();
 		resizeObserver?.disconnect();
 		chart?.dispose();
-	});
-
-	let lastReportedCanReset: boolean | undefined;
-
-	$effect(() => {
-		const canReset = hasPlottableSignals && !isFitAll;
-		if (lastReportedCanReset === canReset) return;
-		lastReportedCanReset = canReset;
-		onCanResetZoomChange?.(canReset);
 	});
 
 	$effect(() => {
@@ -189,9 +149,8 @@
 			markerEnabled = false;
 			markerX = null;
 			boxZoomEnabled = false;
-			dragState = null;
 			contextMenuX = null;
-			if (viewport !== null) viewport = null;
+			viewport.reset();
 			return;
 		}
 
@@ -203,20 +162,6 @@
 		if (markerX === null && activeViewport !== null) {
 			markerX = viewportCenterX(activeViewport);
 		}
-	});
-
-	$effect(() => {
-		const currentViewport = untrack(() => viewport);
-		const wasFitAll =
-			currentViewport === null || viewportsAlmostEqual(currentViewport, lastFullDomain);
-		if (fullDomain === null) {
-			if (currentViewport !== null) viewport = null;
-			lastFullDomain = null;
-			return;
-		}
-
-		if (wasFitAll && !viewportsAlmostEqual(currentViewport, fullDomain)) viewport = fullDomain;
-		lastFullDomain = fullDomain;
 	});
 
 	const perfStats = createPlotPerfStats();
@@ -237,29 +182,6 @@
 		});
 	});
 
-	function whenPlotInteractive(action: () => void) {
-		if (!hasPlottableSignals) return;
-		action();
-	}
-
-	export function plotZoomIn() {
-		whenPlotInteractive(() => {
-			zoomBy(0.5);
-		});
-	}
-
-	export function plotZoomOut() {
-		whenPlotInteractive(() => {
-			zoomBy(2);
-		});
-	}
-
-	export function plotResetZoom() {
-		whenPlotInteractive(() => {
-			resetZoom();
-		});
-	}
-
 	function toggleMarker() {
 		if (!hasPlottableSignals) return;
 		markerEnabled = !markerEnabled;
@@ -274,26 +196,6 @@
 		if (!hasPlottableSignals) return;
 		if (!markerEnabled) markerEnabled = true;
 		markerX = x;
-	}
-
-	function cancelMarkerDragUpdate() {
-		if (markerDragRaf !== null) {
-			cancelAnimationFrame(markerDragRaf);
-			markerDragRaf = null;
-		}
-		pendingMarkerX = null;
-	}
-
-	function flushPendingMarkerUpdate() {
-		if (markerDragRaf !== null) {
-			cancelAnimationFrame(markerDragRaf);
-			markerDragRaf = null;
-		}
-
-		if (pendingMarkerX !== null) {
-			placeMarkerAt(pendingMarkerX);
-			pendingMarkerX = null;
-		}
 	}
 
 	function chartOptions(): ChartGPUOptions {
@@ -356,156 +258,15 @@
 	}
 
 	function zoomBy(factor: number) {
-		if (activeViewport === null) return;
-		viewport = zoomViewport(activeViewport, factor, { xRatio: 0.5, yRatio: 0.5 });
+		viewport.zoomBy(factor);
 	}
 
 	function resetZoom() {
-		if (fullDomain === null) return;
-		viewport = fullDomain;
-		dragState = null;
+		viewport.reset();
 	}
 
-	function startMarkerDrag(event: PointerEvent) {
-		event.preventDefault();
-		event.stopPropagation();
-		markerDragPointerId = event.pointerId;
-		(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
-		updateMarkerFromPointer(event);
-	}
-
-	function dragMarker(event: PointerEvent) {
-		if (markerDragPointerId !== event.pointerId) return;
-		event.preventDefault();
-		updateMarkerFromPointer(event);
-	}
-
-	function stopMarkerDrag(event: PointerEvent) {
-		if (markerDragPointerId !== event.pointerId) return;
-		markerDragPointerId = null;
-		flushPendingMarkerUpdate();
-		const target = event.currentTarget as HTMLElement;
-		if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
-	}
-
-	function updateMarkerFromPointer(event: PointerEvent) {
-		const x = pointerToDataX(event);
-		if (x === null) return;
-
-		pendingMarkerX = x;
-		if (markerDragRaf !== null) return;
-
-		markerDragRaf = requestAnimationFrame(() => {
-			markerDragRaf = null;
-			if (pendingMarkerX === null) return;
-			placeMarkerAt(pendingMarkerX);
-			pendingMarkerX = null;
-		});
-	}
-
-	function pointerToDataX(event: PointerEvent): number | null {
-		return clientToDataX(event);
-	}
-
-	function clientToDataX(event: Pick<MouseEvent, 'clientX' | 'clientY'>): number | null {
-		if (activeViewport === null) return null;
-		const point = currentPlotRatio(event);
-		if (point === null) return null;
-		return activeViewport.xMin + point.xRatio * (activeViewport.xMax - activeViewport.xMin);
-	}
-
-	function rememberContextMenuPoint(event: MouseEvent) {
-		contextMenuX = clientToDataX(event);
-	}
-
-	function handlePlotWheel(event: WheelEvent) {
-		if (activeViewport === null) return;
-		const point = currentPlotRatio(event);
-		if (point === null) return;
-
-		const delta = normalizedWheelDelta(event, currentPlotSize().height);
-		if (delta.x === 0 && delta.y === 0) return;
-
-		if (Math.abs(delta.x) > Math.abs(delta.y) && !event.shiftKey && !event.altKey) {
-			event.preventDefault();
-			const plotSize = currentPlotSize();
-			viewport = panViewport(activeViewport, { x: -delta.x, y: 0 }, plotSize);
-			return;
-		}
-
-		event.preventDefault();
-		const factor = Math.exp(Math.min(200, Math.max(-200, delta.y)) * WHEEL_ZOOM_SPEED);
-		viewport = zoomViewport(activeViewport, factor, point, {
-			x: !event.altKey,
-			y: !event.shiftKey
-		});
-	}
-
-	function startPlotDrag(event: PointerEvent) {
-		if (activeViewport === null || event.button !== 0) return;
-		const point = currentPlotRatio(event);
-		if (point === null) return;
-		event.preventDefault();
-		(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
-
-		dragState = boxZoomEnabled
-			? { type: 'box', pointerId: event.pointerId, start: point, current: point }
-			: {
-					type: 'pan',
-					pointerId: event.pointerId,
-					clientX: event.clientX,
-					clientY: event.clientY,
-					startViewport: activeViewport
-				};
-	}
-
-	function dragPlot(event: PointerEvent) {
-		if (dragState === null || dragState.pointerId !== event.pointerId) return;
-		event.preventDefault();
-
-		if (dragState.type === 'box') {
-			const point = currentPlotRatio(event);
-			if (point !== null) dragState = { ...dragState, current: point };
-			return;
-		}
-
-		viewport = panViewport(
-			dragState.startViewport,
-			{
-				x: event.clientX - dragState.clientX,
-				y: event.clientY - dragState.clientY
-			},
-			currentPlotSize()
-		);
-	}
-
-	function stopPlotDrag(event: PointerEvent) {
-		if (dragState === null || dragState.pointerId !== event.pointerId) return;
-		const state = dragState;
-		dragState = null;
-		const target = event.currentTarget as HTMLElement;
-		if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
-
-		if (state.type === 'box' && activeViewport !== null) {
-			const nextViewport = boxViewport(activeViewport, state.start, state.current);
-			if (nextViewport !== null) viewport = nextViewport;
-		}
-	}
-
-	function cancelBoxZoom(event: KeyboardEvent) {
-		if (event.key !== 'Escape' || dragState?.type !== 'box') return;
-		event.preventDefault();
-		dragState = null;
-	}
-
-	function currentPlotRatio(
-		event: Pick<PointerEvent, 'clientX' | 'clientY'>
-	): PlotRatioPoint | null {
-		return pointerToPlotRatio(container.getBoundingClientRect(), PLOT_GRID, event);
-	}
-
-	function currentPlotSize(): { width: number; height: number } {
-		return plotSize(container.getBoundingClientRect(), PLOT_GRID);
+	function rememberContextMenuPoint(x: number | null) {
+		contextMenuX = x;
 	}
 </script>
 
@@ -528,66 +289,22 @@
 
 	{#if hasPlottableSignals}
 		<ContextMenu.Root>
-			<ContextMenu.Trigger
-				class="contents"
-				disabled={!hasPlottableSignals}
-				oncontextmenu={rememberContextMenuPoint}
-			>
-				<button
-					type="button"
-					class={`absolute z-30 border-0 bg-transparent p-0 text-left outline-none ${
-						boxZoomEnabled
-							? 'cursor-crosshair'
-							: dragState?.type === 'pan'
-								? 'cursor-grabbing'
-								: 'cursor-grab'
-					}`}
-					style:top={`${PLOT_GRID.top}px`}
-					style:bottom={`${PLOT_GRID.bottom}px`}
-					style:left={`${PLOT_GRID.left}px`}
-					style:right={`${PLOT_GRID.right}px`}
-					aria-label="Plot viewport interaction"
-					onwheel={handlePlotWheel}
-					onpointerdown={startPlotDrag}
-					onpointermove={dragPlot}
-					onpointerup={stopPlotDrag}
-					onpointercancel={stopPlotDrag}
-					onkeydown={cancelBoxZoom}
-				>
-					{#if dragState?.type === 'box'}
-						<div
-							class="absolute border border-current bg-current/10 text-foreground"
-							style:left={`${Math.min(dragState.start.xRatio, dragState.current.xRatio) * 100}%`}
-							style:top={`${Math.min(dragState.start.yRatio, dragState.current.yRatio) * 100}%`}
-							style:width={`${Math.abs(dragState.current.xRatio - dragState.start.xRatio) * 100}%`}
-							style:height={`${Math.abs(dragState.current.yRatio - dragState.start.yRatio) * 100}%`}
-						></div>
-					{/if}
-				</button>
+			<ContextMenu.Trigger class="contents" disabled={!hasPlottableSignals}>
+				<PlotInteraction
+					{viewport}
+					{boxZoomEnabled}
+					grid={PLOT_GRID}
+					onContextMenuPoint={rememberContextMenuPoint}
+				/>
 
 				{#if markerPercent !== null}
-					<div
-						class="pointer-events-none absolute z-40 text-foreground"
-						style:top={`${PLOT_GRID.top}px`}
-						style:bottom={`${PLOT_GRID.bottom}px`}
-						style:left={`${PLOT_GRID.left}px`}
-						style:right={`${PLOT_GRID.right}px`}
-					>
-						<div
-							class="pointer-events-auto absolute inset-y-0 w-5 -translate-x-1/2 cursor-ew-resize"
-							style:left={`${markerPercent}%`}
-							role="separator"
-							aria-label="X marker"
-							aria-orientation="vertical"
-							tabindex="-1"
-							onpointerdown={startMarkerDrag}
-							onpointermove={dragMarker}
-							onpointerup={stopMarkerDrag}
-							onpointercancel={stopMarkerDrag}
-						>
-							<span class="absolute inset-y-0 left-1/2 border-l border-current"></span>
-						</div>
-					</div>
+					<PlotMarker
+						viewport={activeViewport}
+						grid={PLOT_GRID}
+						percent={markerPercent}
+						onMarkerX={placeMarkerAt}
+						onContextMenuPoint={rememberContextMenuPoint}
+					/>
 				{/if}
 			</ContextMenu.Trigger>
 			<ContextMenu.Content class="w-52">
@@ -623,7 +340,7 @@
 				</ContextMenu.Item>
 				<ContextMenu.Separator />
 				<ContextMenu.Item
-					disabled={plotData.selectedSignalKeys.size === 0}
+					disabled={plotData.selectedSignals.size === 0}
 					variant="destructive"
 					class="!text-destructive focus:!bg-destructive/10 focus:!text-destructive data-highlighted:!text-destructive dark:focus:!bg-destructive/20 [&_svg]:!text-destructive"
 					onSelect={() => plotData.clearSelectedSignals()}
@@ -635,32 +352,27 @@
 		</ContextMenu.Root>
 	{/if}
 
-	{#if plotReady}
-		{#if !hasPlottableSignals}
-			<div
-				class="pointer-events-none absolute inset-0 z-30 flex items-center justify-center px-6 text-center text-sm text-muted-foreground"
-			>
-				Select signals from the DBC side panel to view them.
-			</div>
-		{/if}
+	{#if hasPlottableSignals && legendVisible}
+		<SignalPlotLegend
+			views={signalViews}
+			{displayedMarkerX}
+			{markerValues}
+			{measurementStartMs}
+			timestampMode={timestampMode.current}
+		/>
+	{/if}
 
-		{#if hasPlottableSignals && legendVisible}
-			<SignalPlotLegend
-				views={signalViews}
-				{displayedMarkerX}
-				{markerValues}
-				{measurementStartMs}
-				timestampMode={timestampMode.current}
-			/>
-		{/if}
-	{:else}
+	{#if !plotReady || !hasPlottableSignals}
 		<div
-			class="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-muted-foreground"
+			class={[
+				'absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-muted-foreground',
+				plotReady ? 'pointer-events-none z-30' : ''
+			]}
 		>
-			{#if chartError}
+			{#if !plotReady && chartError}
 				{chartError}
 			{:else}
-				Select signals from the DBC side panel to view them.
+				{emptyMessage}
 			{/if}
 		</div>
 	{/if}

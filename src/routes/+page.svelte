@@ -1,9 +1,9 @@
 <script lang="ts">
 	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 	import AppSidebar from '$lib/components/app-sidebar.svelte';
+	import PlotToolbar from '$lib/components/plot-toolbar.svelte';
 	import SettingsDialog from '$lib/components/settings-dialog.svelte';
 	import SignalPlot from '$lib/components/signal-plot.svelte';
-	import * as ButtonGroup from '$lib/components/ui/button-group/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Empty from '$lib/components/ui/empty/index.js';
 	import {
@@ -15,41 +15,34 @@
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import { Separator } from '$lib/components/ui/separator/index.js';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
-	import { Toggle } from '$lib/components/ui/toggle/index.js';
+	import { PlotViewportState } from '$lib/plot-viewport-state.svelte.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
 	import { sidebarOpen } from '$lib/stores/preferences.svelte.js';
+	import { onTraceOpened } from '$lib/stores/session.js';
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
 	import { TRACE_FILE_ACCEPT } from '$lib/trace-file-types.js';
 	import type { TraceMetadata } from '$lib/wasm.js';
 	import AudioWaveformIcon from '@lucide/svelte/icons/audio-waveform';
-	import BoxSelectIcon from '@lucide/svelte/icons/box-select';
 	import CogIcon from '@lucide/svelte/icons/cog';
-	import ExpandIcon from '@lucide/svelte/icons/expand';
-	import ListIcon from '@lucide/svelte/icons/list';
 	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
-	import MinusIcon from '@lucide/svelte/icons/minus';
-	import PlusIcon from '@lucide/svelte/icons/plus';
-	import SeparatorVerticalIcon from '@lucide/svelte/icons/separator-vertical';
 	import { onMount } from 'svelte';
 
 	let traceInput = $state<HTMLInputElement>();
-	let plot = $state<SignalPlot>();
 	let traceDropActive = $state(false);
 	let webgpuSupported = $state<boolean | null>(null);
 	let markerEnabled = $state(false);
 	let markerX = $state<number | null>(null);
 	let boxZoomEnabled = $state(false);
 	let legendVisible = $state(true);
-	let canResetZoom = $state(false);
+	const plotViewport = new PlotViewportState();
 	const plotControlsDisabled = $derived(!plotData.hasPlottableSignals || traceFile.isLoading);
+	const canResetZoom = $derived(plotData.hasPlottableSignals && !plotViewport.isFitAll);
 	let traceMetadataTitle = $derived(
 		traceFile.entry ? formatTraceMetadata(traceFile.entry.metadata) : undefined
 	);
 	const siteTitle = 'CAN Trace Viewer';
 	const siteDescription = 'Lightweight browser-based CAN trace plotting and analysis GUI.';
 	const siteUrl = 'https://cantraceviewer.com/';
-	const toolbarIconButtonClass =
-		'border-input bg-transparent hover:bg-muted hover:text-foreground dark:bg-transparent dark:hover:bg-muted/50';
 
 	onMount(() => {
 		webgpuSupported = 'gpu' in navigator;
@@ -66,7 +59,7 @@
 	async function openTraceFile(file: File | null) {
 		if (!file || traceFile.isLoading) return;
 		if (await traceFile.openFile(file)) {
-			plotData.clearSelectedSignals();
+			onTraceOpened();
 		}
 	}
 
@@ -215,72 +208,16 @@
 					{/if}
 					<span class="ms-auto"></span>
 					{#if traceFile.entry}
-						<ButtonGroup.Root aria-label="Plot zoom controls">
-							<Button
-								variant="outline"
-								size="icon"
-								class={toolbarIconButtonClass}
-								aria-label="Zoom in"
-								title="Zoom in"
-								disabled={plotControlsDisabled}
-								onclick={() => plot?.plotZoomIn()}
-							>
-								<PlusIcon class="size-3.5" />
-							</Button>
-							<Button
-								variant="outline"
-								size="icon"
-								class={toolbarIconButtonClass}
-								aria-label="Zoom out"
-								title="Zoom out"
-								disabled={plotControlsDisabled}
-								onclick={() => plot?.plotZoomOut()}
-							>
-								<MinusIcon class="size-3.5" />
-							</Button>
-							<Button
-								variant="outline"
-								size="icon"
-								class={toolbarIconButtonClass}
-								aria-label="Zoom to full extent"
-								title="Zoom to full extent"
-								disabled={plotControlsDisabled || !canResetZoom}
-								onclick={() => plot?.plotResetZoom()}
-							>
-								<ExpandIcon class="size-3.5" />
-							</Button>
-						</ButtonGroup.Root>
-						<ButtonGroup.Root aria-label="Plot display controls">
-							<Toggle
-								bind:pressed={boxZoomEnabled}
-								disabled={plotControlsDisabled}
-								variant="outline"
-								size="default"
-								aria-label={boxZoomEnabled ? 'Use drag pan' : 'Use box zoom'}
-								title={boxZoomEnabled ? 'Use drag pan' : 'Use box zoom'}
-							>
-								<BoxSelectIcon class="size-3.5" />
-							</Toggle>
-							<Toggle
-								bind:pressed={markerEnabled}
-								disabled={plotControlsDisabled}
-								variant="outline"
-								size="default"
-								aria-label={markerEnabled ? 'Hide x marker' : 'Show x marker'}
-								title={markerEnabled ? 'Hide x marker' : 'Show x marker'}
-							>
-								<SeparatorVerticalIcon class="size-3.5" />
-							</Toggle>
-							<Toggle
-								bind:pressed={legendVisible}
-								variant="outline"
-								size="default"
-								aria-label={legendVisible ? 'Hide legend' : 'Show legend'}
-								title={legendVisible ? 'Hide legend' : 'Show legend'}
-							>
-								<ListIcon class="size-3.5" />
-							</Toggle>
-						</ButtonGroup.Root>
+						<PlotToolbar
+							disabled={plotControlsDisabled}
+							{canResetZoom}
+							bind:boxZoomEnabled
+							bind:markerEnabled
+							bind:legendVisible
+							onZoomIn={() => plotViewport.zoomBy(0.5)}
+							onZoomOut={() => plotViewport.zoomBy(2)}
+							onResetZoom={() => plotViewport.reset()}
+						/>
 					{/if}
 					<Popover.Root>
 						<Popover.Trigger
@@ -295,12 +232,11 @@
 				</header>
 				{#if traceFile.entry}
 					<SignalPlot
-						bind:this={plot}
+						viewport={plotViewport}
 						bind:markerEnabled
 						bind:markerX
 						bind:boxZoomEnabled
 						bind:legendVisible
-						onCanResetZoomChange={(canReset) => (canResetZoom = canReset)}
 						dropActive={traceDropActive}
 						ondragenter={handleTraceDrag}
 						ondragover={handleTraceDrag}
