@@ -31,10 +31,13 @@ pub fn fromString(allocator: std.mem.Allocator, text: []const u8) !trace.Trace {
         if (state.version == .v30) return error.UnsupportedTrcVersion;
         if (state.version.isV2() and state.columns == null) return error.InvalidTrcColumns;
 
-        const parsed_frame = if (state.version.isV2())
-            try line_v2.parseLine(state.columns.?, line, &payload_buffer)
+        const parsed_frame = (if (state.version.isV2())
+            line_v2.parseLine(state.columns.?, line, &payload_buffer)
         else
-            try line_v1.parseLine(line, &payload_buffer);
+            line_v1.parseLine(line, &payload_buffer)) catch {
+            parsed_trace.skipped_line_count += 1;
+            continue;
+        };
 
         if (parsed_frame) |line_frame| {
             var stored = line_frame;
@@ -191,6 +194,56 @@ test "rejects unsupported TRC 3.0" {
     ;
 
     try std.testing.expectError(error.UnsupportedTrcVersion, fromString(allocator, text));
+}
+
+test "skips truncated TRC 1.x line and oversized token line" {
+    const allocator = std.testing.allocator;
+    const text =
+        \\;$FILEVERSION=1.1
+        \\1 0.100 Rx 0123 1 AA
+        \\2 0.200 Rx 0123 2 BB
+        \\3 0.300 Rx 0123 1 CC
+        \\4 0.400 Rx 0123 1 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+    ;
+
+    var parsed = try fromString(allocator, text);
+    defer parsed.deinit(allocator);
+
+    try std.testing.expectEqual(@as(usize, 2), parsed.frames.len);
+    try std.testing.expectEqual(@as(usize, 2), parsed.data_frame_count);
+    try std.testing.expectEqual(@as(usize, 2), parsed.skipped_line_count);
+    try std.testing.expectEqual(@as(u64, 300_000), parsed.last_data_timestamp_ns.?);
+}
+
+test "skips truncated TRC 2.x line and oversized token line" {
+    const allocator = std.testing.allocator;
+    const text =
+        \\;$FILEVERSION=2.1
+        \\;$COLUMNS=N,O,T,B,I,d,R,L,D
+        \\1 0.100 DT 1 0123 Rx - 1 AA
+        \\2 0.200 DT 1 0123 Rx - 2 BB
+        \\3 0.300 DT 1 0123 Rx - 1 CC
+        \\4 0.400 DT 1 0123 Rx - 1 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+    ;
+
+    var parsed = try fromString(allocator, text);
+    defer parsed.deinit(allocator);
+
+    try std.testing.expectEqual(@as(usize, 2), parsed.frames.len);
+    try std.testing.expectEqual(@as(usize, 2), parsed.data_frame_count);
+    try std.testing.expectEqual(@as(usize, 2), parsed.skipped_line_count);
+    try std.testing.expectEqual(@as(u64, 300_000), parsed.last_data_timestamp_ns.?);
+}
+
+test "rejects invalid TRC columns" {
+    const allocator = std.testing.allocator;
+    const text =
+        \\;$FILEVERSION=2.1
+        \\;$COLUMNS=N,O
+        \\1 0.100 DT 1 0123 Rx - 1 AA
+    ;
+
+    try std.testing.expectError(error.InvalidTrcColumns, fromString(allocator, text));
 }
 
 test "cleans up owned frames when payload finalization fails" {

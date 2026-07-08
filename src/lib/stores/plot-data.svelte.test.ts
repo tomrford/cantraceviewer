@@ -222,6 +222,7 @@ function traceEntry(id: number): TraceFileEntry {
 		metadata: {
 			measurementStartMs: null,
 			validMessageCount: 1,
+			skippedLineCount: 0,
 			durationNs: 1_000_000
 		}
 	} as TraceFileEntry;

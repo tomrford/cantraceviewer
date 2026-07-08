@@ -3,6 +3,7 @@ const std = @import("std");
 pub const Metadata = struct {
     measurement_start_ms: ?i64,
     valid_message_count: usize,
+    skipped_line_count: usize,
     duration_ns: ?u64,
 };
 
@@ -16,6 +17,8 @@ pub fn toJson(allocator: std.mem.Allocator, metadata: Metadata) ![]u8 {
     try writer.write(metadata.measurement_start_ms);
     try writer.objectField("validMessageCount");
     try writer.write(metadata.valid_message_count);
+    try writer.objectField("skippedLineCount");
+    try writer.write(metadata.skipped_line_count);
     try writer.objectField("durationNs");
     try writer.write(metadata.duration_ns);
     try writer.endObject();
@@ -28,11 +31,13 @@ test "serializes shared trace metadata to JSON" {
     const json = try toJson(allocator, .{
         .measurement_start_ms = 1_777_366_800_000,
         .valid_message_count = 1,
+        .skipped_line_count = 2,
         .duration_ns = 1_000_000,
     });
     defer allocator.free(json);
 
     try std.testing.expect(std.mem.indexOf(u8, json, "\"measurementStartMs\":1777366800000") != null);
     try std.testing.expect(std.mem.indexOf(u8, json, "\"validMessageCount\":1") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"skippedLineCount\":2") != null);
     try std.testing.expect(std.mem.indexOf(u8, json, "\"durationNs\":1000000") != null);
 }

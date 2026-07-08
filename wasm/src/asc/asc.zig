@@ -38,7 +38,12 @@ pub fn fromString(allocator: std.mem.Allocator, text: []const u8) !trace.Trace {
 
         if (try parseHeaderLine(&state, line)) continue;
 
-        if (try frame.parseLine(state.base, line, &payload_buffer)) |line_frame| {
+        const parsed_frame = frame.parseLine(state.base, line, &payload_buffer) catch {
+            parsed_trace.skipped_line_count += 1;
+            continue;
+        };
+
+        if (parsed_frame) |line_frame| {
             var normalized = line_frame;
             if (state.timestamp_mode == .relative) {
                 relative_timestamp_ns = try std.math.add(u64, relative_timestamp_ns, normalized.timestamp_ns);
@@ -304,6 +309,53 @@ test "duration is null when no data frames are present" {
 
     try std.testing.expectEqual(@as(usize, 0), parsed.data_frame_count);
     try std.testing.expectEqual(@as(?u64, null), parsed.last_data_timestamp_ns);
+}
+
+test "skips truncated ASC data line and keeps other frames" {
+    const allocator = std.testing.allocator;
+    const text =
+        \\base hex timestamps absolute
+        \\0.001 1 123 Rx d 1 aa
+        \\0.002 1 123 Rx d 1 bb
+        \\0.003 1 123 Rx d 2 10
+    ;
+
+    var parsed = try fromString(allocator, text);
+    defer parsed.deinit(allocator);
+
+    try std.testing.expectEqual(@as(usize, 2), parsed.frames.len);
+    try std.testing.expectEqual(@as(usize, 2), parsed.data_frame_count);
+    try std.testing.expectEqual(@as(usize, 1), parsed.skipped_line_count);
+    try std.testing.expectEqual(@as(u64, 2_000_000), parsed.last_data_timestamp_ns.?);
+    try std.testing.expectEqual(@as(u8, 0xaa), parsed.payloads[0]);
+    try std.testing.expectEqual(@as(u8, 0xbb), parsed.payloads[1]);
+}
+
+test "skips ASC FD payload length mismatch" {
+    const allocator = std.testing.allocator;
+    const text =
+        \\base hex timestamps absolute
+        \\0.001 1 123 Rx d 1 aa
+        \\0.002 CANFD 1 Rx 18fee900x - 1 0 9 8 01 02 03 04 05 06 07 08
+        \\0.003 1 123 Rx d 1 bb
+    ;
+
+    var parsed = try fromString(allocator, text);
+    defer parsed.deinit(allocator);
+
+    try std.testing.expectEqual(@as(usize, 2), parsed.frames.len);
+    try std.testing.expectEqual(@as(usize, 1), parsed.skipped_line_count);
+    try std.testing.expectEqual(@as(u64, 3_000_000), parsed.last_data_timestamp_ns.?);
+}
+
+test "rejects invalid ASC base line" {
+    const allocator = std.testing.allocator;
+    const text =
+        \\base nope timestamps absolute
+        \\0.001 1 123 Rx d 1 aa
+    ;
+
+    try std.testing.expectError(error.InvalidBaseLine, fromString(allocator, text));
 }
 
 test "cleans up owned frames when payload finalization fails" {

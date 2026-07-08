@@ -66,6 +66,7 @@ describe('WASM adapter integration', () => {
 			expect(trace.metadata).toEqual({
 				measurementStartMs: 1777550400000,
 				validMessageCount: 1506,
+				skippedLineCount: 0,
 				durationNs: 25_050_000_000
 			});
 		} finally {
@@ -107,6 +108,7 @@ describe('WASM adapter integration', () => {
 			expect(trace.metadata).toEqual({
 				measurementStartMs: 1778494830400,
 				validMessageCount: 2,
+				skippedLineCount: 0,
 				durationNs: 20_000_000
 			});
 
@@ -129,13 +131,35 @@ describe('WASM adapter integration', () => {
 		const { handle: dbc } = await openFixtureDbc();
 		try {
 			await expectWasmError(openDbc('BO_ broken'));
-			await expectWasmError(openTrace('asc', new TextEncoder().encode('0.000000 1 100 Rx d 2 00')));
+			await expectWasmError(
+				openTrace('asc', new TextEncoder().encode('base nope timestamps absolute'))
+			);
 			await expect(
 				getSignalValues(dbc, trace, { canId: 288, isExtended: false, sizeBytes: 8 }, 'missing')
 			).rejects.toMatchObject({ code: 'SignalNotFound' });
 		} finally {
 			await closeTrace(trace);
 			await closeDbc(dbc);
+		}
+	});
+
+	it('reports skipped malformed trace lines in metadata', async () => {
+		const trace = await openTrace(
+			'asc',
+			new TextEncoder().encode(
+				[
+					'base hex timestamps absolute',
+					'0.001 1 123 Rx d 1 aa',
+					'0.0015 1 123 Rx d 2 aa',
+					'0.002 1 123 Rx d 1 bb'
+				].join('\n')
+			)
+		);
+		try {
+			expect(trace.metadata.skippedLineCount).toBe(1);
+			expect(trace.metadata.validMessageCount).toBe(2);
+		} finally {
+			await closeTrace(trace);
 		}
 	});
 });

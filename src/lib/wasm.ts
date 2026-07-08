@@ -42,6 +42,7 @@ const ParsedDbcSchema = z.object({
 const TraceMetadataSchema = z.object({
 	measurementStartMs: z.number().nullable(),
 	validMessageCount: z.number(),
+	skippedLineCount: z.number(),
 	durationNs: z.number().nullable()
 });
 
