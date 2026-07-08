@@ -37,6 +37,11 @@
 	// so filter/expansion state carries across reopens. Scroll position is DOM
 	// state and needs saving explicitly.
 	let savedScrollTop = 0;
+	// The browser clamps scrollTop writes while the list is below its final
+	// height; restoring must not let that clamped value echo back into
+	// savedScrollTop, so the restore stays pending until it sticks.
+	let pendingScrollRestore: number | null = null;
+	let clampedScrollRestore = 0;
 	let selectorFilter = $derived({
 		query: signalSearch,
 		activeOnly: showActiveOnly,
@@ -55,10 +60,11 @@
 	$effect(() => {
 		if (!signalListScroller || !signalListContent) return;
 
-		const resizeObserver = new ResizeObserver(updateSignalListOverflow);
+		const resizeObserver = new ResizeObserver(handleSignalListResize);
 		resizeObserver.observe(signalListScroller);
 		resizeObserver.observe(signalListContent);
-		signalListScroller.scrollTop = savedScrollTop;
+		pendingScrollRestore = savedScrollTop;
+		restoreScrollPosition();
 
 		return () => resizeObserver.disconnect();
 	});
@@ -138,6 +144,34 @@
 
 		signalListOverflows = signalListScroller.scrollHeight > signalListScroller.clientHeight + 1;
 	}
+
+	function handleSignalListResize(): void {
+		updateSignalListOverflow();
+		restoreScrollPosition();
+	}
+
+	function restoreScrollPosition(): void {
+		if (pendingScrollRestore === null || !signalListScroller) return;
+
+		signalListScroller.scrollTop = pendingScrollRestore;
+		if (signalListScroller.scrollTop === pendingScrollRestore) {
+			pendingScrollRestore = null;
+		} else {
+			clampedScrollRestore = signalListScroller.scrollTop;
+		}
+	}
+
+	function persistScrollPosition(): void {
+		if (!signalListScroller) return;
+		if (pendingScrollRestore !== null) {
+			// Scroll events at the clamped offset are echoes of our own restore
+			// writes; anything else is the user scrolling, and they win.
+			if (signalListScroller.scrollTop === clampedScrollRestore) return;
+			pendingScrollRestore = null;
+		}
+
+		savedScrollTop = signalListScroller.scrollTop;
+	}
 </script>
 
 <Popover.Content
@@ -210,7 +244,7 @@
 			bind:this={signalListScroller}
 			class="h-full overflow-y-auto pb-4 [--scroll-fade-size:2rem]"
 			class:scroll-fade={signalListOverflows}
-			onscroll={() => (savedScrollTop = signalListScroller?.scrollTop ?? 0)}
+			onscroll={persistScrollPosition}
 		>
 			<ul bind:this={signalListContent} class="flex w-full min-w-0 flex-col gap-1">
 				{#each visibleDbcFiles as dbc (dbc.id)}
