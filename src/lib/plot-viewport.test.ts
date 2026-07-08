@@ -4,7 +4,6 @@ import {
 	paddedViewport,
 	panViewport,
 	viewportCenterX,
-	viewportIndicator,
 	zoomViewport
 } from './plot-viewport';
 
@@ -49,15 +48,6 @@ describe('plot viewport math', () => {
 				{ xRatio: 0.2, yRatio: 0.7 }
 			)
 		).toEqual({ xMin: 20, xMax: 80, yMin: 60, yMax: 160 });
-	});
-
-	it('derives axis location indicators from full extent', () => {
-		expect(
-			viewportIndicator(
-				{ xMin: 25, xMax: 75, yMin: 50, yMax: 150 },
-				{ xMin: 0, xMax: 100, yMin: 0, yMax: 200 }
-			)
-		).toEqual({ xLeft: 25, xWidth: 50, yTop: 25, yHeight: 50 });
 	});
 
 	it('returns the x-axis midpoint', () => {

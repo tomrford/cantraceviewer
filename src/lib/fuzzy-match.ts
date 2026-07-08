@@ -10,14 +10,6 @@ export type FuzzySearchIndex<T> = {
 	miniSearch: MiniSearch<SearchDocument>;
 };
 
-export function rankedFuzzySearch<T>(
-	items: T[],
-	query: string,
-	getSearchText: (item: T) => string
-): T[] {
-	return searchFuzzyIndex(createFuzzySearchIndex(items, getSearchText), query);
-}
-
 export function createFuzzySearchIndex<T>(
 	items: T[],
 	getSearchText: (item: T) => string
