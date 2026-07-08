@@ -5,6 +5,7 @@
 
 const std = @import("std");
 const abi = @import("abi.zig");
+const envelope = @import("envelope.zig");
 pub const dbc = @import("dbc/dbc.zig");
 pub const blf = @import("blf/blf.zig");
 pub const asc = @import("asc/asc.zig");
@@ -20,23 +21,23 @@ export fn owned_bytes_alloc(len: usize) ?*abi.OwnedBytes {
 
 /// Parses a DBC file from an `OwnedBytes` input buffer.
 ///
-/// The returned integer is an opaque handle. JavaScript must release it with
-/// `dbc_free` after catalog exports and signal decoding are finished.
-export fn dbc_parse(input: *const abi.OwnedBytes) usize {
-    const handle = dbc_handle.Handle.parse(abi.allocator, input.slice()) catch return 0;
-    return @intFromPtr(handle);
-}
+/// The returned envelope contains an opaque handle and the parsed catalog.
+/// JavaScript must release the handle with `dbc_free`.
+export fn dbc_parse(input: *const abi.OwnedBytes) ?*abi.OwnedBytes {
+    const handle = dbc_handle.Handle.parse(abi.allocator, input.slice()) catch |err| {
+        return envelope.failure(abi.allocator, err);
+    };
 
-/// Exports the parsed DBC catalog used by the browser signal picker.
-///
-/// The returned bytes are owned by WASM and must be released with
-/// `owned_bytes_free` after JavaScript copies them out.
-export fn dbc_to_json(handle_value: usize) ?*abi.OwnedBytes {
-    if (handle_value == 0) return null;
+    const catalog_json = handle.toCatalogJson(abi.allocator) catch |err| {
+        handle.deinit(abi.allocator);
+        return envelope.failure(abi.allocator, err);
+    };
+    defer abi.allocator.free(catalog_json);
 
-    const handle: *dbc_handle.Handle = @ptrFromInt(handle_value);
-    const json = handle.toCatalogJson(abi.allocator) catch return null;
-    return abi.OwnedBytes.fromOwnedSlice(json) catch null;
+    return envelope.successHandleWithRawJson(abi.allocator, @intFromPtr(handle), "catalog", catalog_json) catch |err| {
+        handle.deinit(abi.allocator);
+        return envelope.failure(abi.allocator, err);
+    };
 }
 
 /// Releases a parsed DBC handle and all arena-owned parser data behind it.
@@ -49,23 +50,10 @@ export fn dbc_free(handle_value: usize) void {
 
 /// Parses an ASC trace file from an `OwnedBytes` input buffer.
 ///
-/// The returned integer is an opaque handle. JavaScript must release it with
-/// `trace_free` after metadata exports and signal decoding are finished.
-export fn asc_parse(input: *const abi.OwnedBytes) usize {
-    const handle = trace_handle.Handle.parseAsc(abi.allocator, input.slice()) catch return 0;
-    return @intFromPtr(handle);
-}
-
-/// Exports small parsed-trace metadata used by the browser plot axes.
-///
-/// The returned bytes are owned by WASM and must be released with
-/// `owned_bytes_free` after JavaScript copies them out.
-export fn trace_to_metadata_json(handle_value: usize) ?*abi.OwnedBytes {
-    if (handle_value == 0) return null;
-
-    const handle: *trace_handle.Handle = @ptrFromInt(handle_value);
-    const json = handle.toMetadataJson(abi.allocator) catch return null;
-    return abi.OwnedBytes.fromOwnedSlice(json) catch null;
+/// The returned envelope contains an opaque handle and parsed trace metadata.
+/// JavaScript must release the handle with `trace_free`.
+export fn asc_parse(input: *const abi.OwnedBytes) ?*abi.OwnedBytes {
+    return parseTraceEnvelope(input, trace_handle.Handle.parseAsc);
 }
 
 /// Releases a parsed trace handle and all trace data behind it.
@@ -77,21 +65,19 @@ export fn trace_free(handle_value: usize) void {
 }
 
 /// Parses a TRC trace file from an `OwnedBytes` input buffer.
-export fn trc_parse(input: *const abi.OwnedBytes) usize {
-    const handle = trace_handle.Handle.parseTrc(abi.allocator, input.slice()) catch return 0;
-    return @intFromPtr(handle);
+export fn trc_parse(input: *const abi.OwnedBytes) ?*abi.OwnedBytes {
+    return parseTraceEnvelope(input, trace_handle.Handle.parseTrc);
 }
 
 /// Parses a BLF trace file from an `OwnedBytes` input buffer.
-export fn blf_parse(input: *const abi.OwnedBytes) usize {
-    const handle = trace_handle.Handle.parseBlf(abi.allocator, input.slice()) catch return 0;
-    return @intFromPtr(handle);
+export fn blf_parse(input: *const abi.OwnedBytes) ?*abi.OwnedBytes {
+    return parseTraceEnvelope(input, trace_handle.Handle.parseBlf);
 }
 
 /// Exports packed parallel `f64` arrays for one DBC signal from a parsed trace.
 ///
-/// The returned bytes store all relative millisecond values first, followed by
-/// all decoded signal values.
+/// The returned envelope contains an `OwnedFloat64s` address. JavaScript reads
+/// and releases that address through the `owned_float64s_*` exports.
 export fn get_trace_signal_values(
     dbc_handle_value: usize,
     trace_handle_value: usize,
@@ -99,22 +85,51 @@ export fn get_trace_signal_values(
     is_extended: bool,
     size_bytes: u16,
     signal_name: *const abi.OwnedBytes,
-) ?*abi.OwnedFloat64s {
-    if (dbc_handle_value == 0 or trace_handle_value == 0) return null;
+) ?*abi.OwnedBytes {
+    if (dbc_handle_value == 0 or trace_handle_value == 0) return envelope.failure(abi.allocator, error.InvalidHandle);
 
     const dbc_ptr: *dbc_handle.Handle = @ptrFromInt(dbc_handle_value);
     const trace_ptr: *trace_handle.Handle = @ptrFromInt(trace_handle_value);
     const values = series.selectedSignalValues(
         abi.allocator,
         dbc_ptr,
-        trace_ptr.trace,
+        trace_ptr,
         can_id,
         is_extended,
         size_bytes,
         signal_name.slice(),
-    ) catch return null;
+    ) catch |err| {
+        return envelope.failure(abi.allocator, err);
+    };
 
-    return abi.OwnedFloat64s.fromOwnedSlice(values) catch null;
+    const owned_values = abi.OwnedFloat64s.fromOwnedSlice(values) catch |err| {
+        return envelope.failure(abi.allocator, err);
+    };
+
+    return envelope.successValues(abi.allocator, @intFromPtr(owned_values)) catch |err| {
+        owned_values.deinit();
+        return envelope.failure(abi.allocator, err);
+    };
+}
+
+fn parseTraceEnvelope(
+    input: *const abi.OwnedBytes,
+    comptime parse: fn (std.mem.Allocator, []const u8) anyerror!*trace_handle.Handle,
+) ?*abi.OwnedBytes {
+    const handle = parse(abi.allocator, input.slice()) catch |err| {
+        return envelope.failure(abi.allocator, err);
+    };
+
+    const metadata_json = handle.toMetadataJson(abi.allocator) catch |err| {
+        handle.deinit(abi.allocator);
+        return envelope.failure(abi.allocator, err);
+    };
+    defer abi.allocator.free(metadata_json);
+
+    return envelope.successHandleWithRawJson(abi.allocator, @intFromPtr(handle), "metadata", metadata_json) catch |err| {
+        handle.deinit(abi.allocator);
+        return envelope.failure(abi.allocator, err);
+    };
 }
 
 /// Returns the memory address of an `OwnedBytes` payload.
@@ -147,10 +162,30 @@ export fn owned_float64s_free(values: *abi.OwnedFloat64s) void {
     values.deinit();
 }
 
-test "serializing failed parse handle returns null" {
-    try std.testing.expectEqual(@as(?*abi.OwnedBytes, null), dbc_to_json(0));
+test "bad DBC parse returns failure envelope" {
+    const input = try abi.OwnedBytes.fromOwnedSlice(try abi.allocator.dupe(u8, "BO_ broken"));
+    defer input.deinit();
+
+    const result = dbc_parse(input) orelse return error.ExpectedEnvelope;
+    defer result.deinit();
+
+    try std.testing.expect(std.mem.indexOf(u8, result.slice(), "\"ok\":false") != null);
+    try std.testing.expect(std.mem.indexOf(u8, result.slice(), "\"code\":") != null);
 }
 
-test "serializing failed ASC parse handle returns null" {
-    try std.testing.expectEqual(@as(?*abi.OwnedBytes, null), trace_to_metadata_json(0));
+test "good DBC parse returns handle and catalog envelope" {
+    const text =
+        \\BO_ 100 Example: 8 ECU
+        \\ SG_ State : 0|8@1+ (1,0) [0|255] "" DASH
+    ;
+    const input = try abi.OwnedBytes.fromOwnedSlice(try abi.allocator.dupe(u8, text));
+    defer input.deinit();
+
+    const result = dbc_parse(input) orelse return error.ExpectedEnvelope;
+    defer result.deinit();
+
+    const json = result.slice();
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"ok\":true") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"handle\":") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"catalog\":{\"messages\"") != null);
 }

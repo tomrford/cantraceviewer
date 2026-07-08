@@ -42,8 +42,43 @@ const ParsedDbcSchema = z.object({
 const TraceMetadataSchema = z.object({
 	measurementStartMs: z.number().nullable(),
 	validMessageCount: z.number(),
+	skippedLineCount: z.number(),
 	durationNs: z.number().nullable()
 });
+
+const WasmFailureEnvelopeSchema = z.object({
+	ok: z.literal(false),
+	code: z.string().min(1),
+	message: z.string()
+});
+
+const DbcParseEnvelopeSchema = z.discriminatedUnion('ok', [
+	z.object({
+		ok: z.literal(true),
+		handle: z.number(),
+		catalog: ParsedDbcSchema
+	}),
+	WasmFailureEnvelopeSchema
+]);
+
+const TraceParseEnvelopeSchema = z.discriminatedUnion('ok', [
+	z.object({
+		ok: z.literal(true),
+		handle: z.number(),
+		metadata: TraceMetadataSchema
+	}),
+	WasmFailureEnvelopeSchema
+]);
+
+const SignalValuesEnvelopeSchema = z.discriminatedUnion('ok', [
+	z.object({
+		ok: z.literal(true),
+		values: z.number()
+	}),
+	WasmFailureEnvelopeSchema
+]);
+
+type WasmFailureEnvelope = z.infer<typeof WasmFailureEnvelopeSchema>;
 
 export type DbcValueDescription = z.infer<typeof DbcValueDescriptionSchema>;
 export type DbcSignal = z.infer<typeof DbcSignalSchema>;
@@ -55,6 +90,16 @@ export type DecodedSignalSeries = {
 	values: Float64Array;
 };
 export type TraceType = 'asc' | 'trc' | 'blf';
+
+export class WasmError extends Error {
+	readonly code: string;
+
+	constructor(code: string, message: string) {
+		super(message);
+		this.name = 'WasmError';
+		this.code = code;
+	}
+}
 
 declare const DbcHandleBrand: unique symbol;
 declare const TraceHandleBrand: unique symbol;
@@ -72,16 +117,34 @@ export type TraceHandle = {
 	readonly metadata: TraceMetadata;
 };
 
+type HandleKind = 'dbc' | 'trace';
+
+type HandleState = {
+	closed: boolean;
+	freed: boolean;
+	inFlight: number;
+};
+
+/**
+ * Runtime lifetime registry for opaque WASM handles.
+ *
+ * A handle is freed exactly once, never while a decode holds it, and never used
+ * after close. Decodes only hold handles for the synchronous WASM call and
+ * owned-result read after all awaits have resolved.
+ */
+const handleRegistry: Record<HandleKind, Map<number, HandleState>> = {
+	dbc: new Map(),
+	trace: new Map()
+};
+
 type CanTraceViewerWasmExports = {
 	memory: WebAssembly.Memory;
 	owned_bytes_alloc(len: number): number;
 	dbc_parse(input: number): number;
-	dbc_to_json(handle: number): number;
 	dbc_free(handle: number): void;
 	asc_parse(input: number): number;
 	trc_parse(input: number): number;
 	blf_parse(input: number): number;
-	trace_to_metadata_json(handle: number): number;
 	trace_free(handle: number): void;
 	get_trace_signal_values(
 		dbcHandle: number,
@@ -109,6 +172,78 @@ async function loadWasm() {
 	return wasmPromise;
 }
 
+function registerHandle(kind: HandleKind, id: number): void {
+	handleRegistry[kind].set(id, {
+		closed: false,
+		freed: false,
+		inFlight: 0
+	});
+}
+
+function handleState(kind: HandleKind, id: number): HandleState | undefined {
+	return handleRegistry[kind].get(id);
+}
+
+function assertHandleOpen(kind: HandleKind, id: number): HandleState {
+	const state = handleState(kind, id);
+	if (!state || state.closed || state.freed) {
+		throw new WasmError('HandleClosed', `${kind} handle is closed`);
+	}
+
+	return state;
+}
+
+function closeHandle(wasm: CanTraceViewerWasmExports, kind: HandleKind, id: number): void {
+	const state = handleState(kind, id);
+	if (!state) {
+		return;
+	}
+	if (state.closed) {
+		return;
+	}
+
+	state.closed = true;
+	freeHandleIfIdle(wasm, kind, id, state);
+}
+
+function freeHandleIfIdle(
+	wasm: CanTraceViewerWasmExports,
+	kind: HandleKind,
+	id: number,
+	state: HandleState
+): void {
+	if (!state.closed || state.freed || state.inFlight > 0) {
+		return;
+	}
+
+	state.freed = true;
+	handleRegistry[kind].delete(id);
+	if (kind === 'dbc') {
+		wasm.dbc_free(id);
+	} else {
+		wasm.trace_free(id);
+	}
+}
+
+function holdDecodeHandles(
+	wasm: CanTraceViewerWasmExports,
+	dbcHandle: DbcHandle,
+	trace: TraceHandle
+): () => void {
+	const dbcState = assertHandleOpen('dbc', dbcHandle.id);
+	const traceState = assertHandleOpen('trace', trace.id);
+
+	dbcState.inFlight += 1;
+	traceState.inFlight += 1;
+
+	return () => {
+		dbcState.inFlight -= 1;
+		traceState.inFlight -= 1;
+		freeHandleIfIdle(wasm, 'dbc', dbcHandle.id, dbcState);
+		freeHandleIfIdle(wasm, 'trace', trace.id, traceState);
+	};
+}
+
 function copyTextToWasm(wasm: CanTraceViewerWasmExports, text: string): number {
 	const input = new TextEncoder().encode(text);
 	return copyBytesToWasm(wasm, input);
@@ -118,7 +253,7 @@ function copyBytesToWasm(wasm: CanTraceViewerWasmExports, input: Uint8Array): nu
 	const inputBytes = wasm.owned_bytes_alloc(input.byteLength);
 
 	if (inputBytes === 0) {
-		throw new Error('WASM allocation failed');
+		throw new WasmError('OutOfMemory', 'Out of memory');
 	}
 
 	const inputPtr = wasm.owned_bytes_ptr(inputBytes);
@@ -170,38 +305,29 @@ function readSignalSeries(
 	}
 }
 
-export async function openDbc(text: string): Promise<DbcHandle> {
+export async function openDbc(text: string): Promise<{ handle: DbcHandle; catalog: ParsedDbc }> {
 	const wasm = await loadWasm();
 	const inputBytes = copyTextToWasm(wasm, text);
 
-	let handle: number;
+	let envelopeBytes: number;
 	try {
-		handle = wasm.dbc_parse(inputBytes);
+		envelopeBytes = wasm.dbc_parse(inputBytes);
 	} finally {
 		wasm.owned_bytes_free(inputBytes);
 	}
 
-	if (handle === 0) {
-		throw new Error('DBC parse failed');
-	}
+	const envelope = parseEnvelope(wasm, envelopeBytes, DbcParseEnvelopeSchema);
+	registerHandle('dbc', envelope.handle);
 
-	return { id: handle } as DbcHandle;
-}
-
-export async function getDbcCatalog(handle: DbcHandle): Promise<ParsedDbc> {
-	const wasm = await loadWasm();
-	const jsonBytes = wasm.dbc_to_json(handle.id);
-
-	if (jsonBytes === 0) {
-		throw new Error('DBC JSON export failed');
-	}
-
-	return ParsedDbcSchema.parse(JSON.parse(readOwnedText(wasm, jsonBytes)));
+	return {
+		handle: { id: envelope.handle } as DbcHandle,
+		catalog: envelope.catalog
+	};
 }
 
 export async function closeDbc(handle: DbcHandle): Promise<void> {
 	const wasm = await loadWasm();
-	wasm.dbc_free(handle.id);
+	closeHandle(wasm, 'dbc', handle.id);
 }
 
 export type DbcMessageIdentity = Pick<DbcMessage, 'canId' | 'isExtended' | 'sizeBytes'>;
@@ -214,8 +340,10 @@ export async function getSignalValues(
 ): Promise<DecodedSignalSeries> {
 	const wasm = await loadWasm();
 	let signalNameBytes = 0;
+	let releaseHandles: (() => void) | null = null;
 	try {
 		signalNameBytes = copyTextToWasm(wasm, signalName);
+		releaseHandles = holdDecodeHandles(wasm, dbcHandle, trace);
 
 		const series = wasm.get_trace_signal_values(
 			dbcHandle.id,
@@ -225,84 +353,67 @@ export async function getSignalValues(
 			messageIdentity.sizeBytes,
 			signalNameBytes
 		);
-		if (series === 0) {
-			throw new Error('Signal decode failed');
-		}
+		const envelope = parseEnvelope(wasm, series, SignalValuesEnvelopeSchema);
 
-		return readSignalSeries(wasm, series);
+		return readSignalSeries(wasm, envelope.values);
 	} finally {
+		releaseHandles?.();
 		if (signalNameBytes !== 0) {
 			wasm.owned_bytes_free(signalNameBytes);
 		}
 	}
 }
 
-async function getTraceMetadata(id: number): Promise<TraceMetadata> {
-	const wasm = await loadWasm();
-	const jsonBytes = wasm.trace_to_metadata_json(id);
-
-	if (jsonBytes === 0) {
-		throw new Error('Trace metadata export failed');
-	}
-
-	return TraceMetadataSchema.parse(JSON.parse(readOwnedText(wasm, jsonBytes)));
-}
-
 export async function closeTrace(trace: TraceHandle): Promise<void> {
 	const wasm = await loadWasm();
-	wasm.trace_free(trace.id);
+	closeHandle(wasm, 'trace', trace.id);
 }
 
 export async function openTrace(traceType: TraceType, bytes: Uint8Array): Promise<TraceHandle> {
 	const wasm = await loadWasm();
-	const traceParser = parserForTraceType(wasm, traceType);
-	const id = parseTraceBytes(wasm, bytes, traceParser.parse, traceParser.label);
-
-	try {
-		return {
-			id,
-			metadata: await getTraceMetadata(id)
-		} as TraceHandle;
-	} catch (error) {
-		wasm.trace_free(id);
-		throw error;
-	}
-}
-
-function parseTraceBytes(
-	wasm: CanTraceViewerWasmExports,
-	bytes: Uint8Array,
-	parse: (input: number) => number,
-	formatLabel: TraceFormatLabel
-): number {
+	const parse = parserForTraceType(wasm, traceType);
 	const inputBytes = copyBytesToWasm(wasm, bytes);
 
-	let handle: number;
 	try {
-		handle = parse(inputBytes);
+		const envelopeBytes = parse(inputBytes);
+		const envelope = parseEnvelope(wasm, envelopeBytes, TraceParseEnvelopeSchema);
+		registerHandle('trace', envelope.handle);
+		return {
+			id: envelope.handle,
+			metadata: envelope.metadata
+		} as TraceHandle;
 	} finally {
 		wasm.owned_bytes_free(inputBytes);
 	}
-
-	if (handle === 0) {
-		throw new Error(`${formatLabel} parse failed`);
-	}
-
-	return handle;
 }
 
 function parserForTraceType(
 	wasm: CanTraceViewerWasmExports,
 	traceType: TraceType
-): { parse: (input: number) => number; label: TraceFormatLabel } {
+): (input: number) => number {
 	switch (traceType) {
 		case 'asc':
-			return { parse: wasm.asc_parse, label: 'ASC' };
+			return wasm.asc_parse;
 		case 'trc':
-			return { parse: wasm.trc_parse, label: 'TRC' };
+			return wasm.trc_parse;
 		case 'blf':
-			return { parse: wasm.blf_parse, label: 'BLF' };
+			return wasm.blf_parse;
 	}
 }
 
-type TraceFormatLabel = 'ASC' | 'TRC' | 'BLF';
+function parseEnvelope<TSuccess extends { ok: true }>(
+	wasm: CanTraceViewerWasmExports,
+	ownedBytes: number,
+	schema: z.ZodType<TSuccess | WasmFailureEnvelope>
+): TSuccess {
+	if (ownedBytes === 0) {
+		throw new WasmError('OutOfMemory', 'Out of memory');
+	}
+
+	const envelope = schema.parse(JSON.parse(readOwnedText(wasm, ownedBytes)));
+	if (!envelope.ok) {
+		throw new WasmError(envelope.code, envelope.message);
+	}
+
+	return envelope;
+}
