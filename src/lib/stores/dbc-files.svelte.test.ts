@@ -128,10 +128,10 @@ describe('dbcFiles', () => {
 		expect(dbcFiles.files).toHaveLength(1);
 		expect(dbcFiles.files[0]?.handle).toBe(handle);
 		expect(dbcFiles.error).toBe(null);
-		expect(dbcFiles.sidebarFiles[0]?.messages).toHaveLength(2);
+		expect(dbcFiles.selectorFiles[0]?.messages).toHaveLength(2);
 	});
 
-	it('returns the full signal tree for an empty sidebar query', () => {
+	it('returns the full signal tree for an empty selector query', () => {
 		dbcFiles.files = [
 			dbcEntry({
 				id: 'dbc-1',
@@ -158,7 +158,7 @@ describe('dbcFiles', () => {
 			})
 		];
 
-		expect(visibleSidebarSignals('')).toMatchObject([
+		expect(visibleSelectorSignals('')).toMatchObject([
 			{
 				id: 'dbc-1',
 				name: 'powertrain',
@@ -182,7 +182,7 @@ describe('dbcFiles', () => {
 		]);
 	});
 
-	it('filters sidebar signals by fuzzy query and hides empty messages and DBCs', () => {
+	it('filters selector signals by fuzzy query and hides empty messages and DBCs', () => {
 		dbcFiles.files = [
 			dbcEntry({
 				id: 'dbc-1',
@@ -213,7 +213,7 @@ describe('dbcFiles', () => {
 			})
 		];
 
-		expect(visibleSidebarSignals('vehicle')).toMatchObject([
+		expect(visibleSelectorSignals('vehicle')).toMatchObject([
 			{
 				id: 'dbc-1',
 				messages: [
@@ -226,7 +226,7 @@ describe('dbcFiles', () => {
 		]);
 	});
 
-	it('filters the sidebar tree to active signals only', () => {
+	it('filters the selector tree to active signals only', () => {
 		const powertrain = message({
 			name: 'PowertrainStatus',
 			canId: 0x101,
@@ -253,7 +253,7 @@ describe('dbcFiles', () => {
 		];
 
 		expect(
-			visibleSidebarSignals('', {
+			visibleSelectorSignals('', {
 				activeOnly: true,
 				isSignalSelected: (key) => key === selectedKey
 			})
@@ -270,7 +270,7 @@ describe('dbcFiles', () => {
 		]);
 	});
 
-	it('updates sidebar filtering when catalogs are added and removed', async () => {
+	it('updates selector filtering when catalogs are added and removed', async () => {
 		dbcFiles.files = [
 			dbcEntry({
 				id: 'dbc-1',
@@ -285,7 +285,7 @@ describe('dbcFiles', () => {
 			})
 		];
 
-		expect(visibleSidebarSignals('vehicle')).toMatchObject([
+		expect(visibleSelectorSignals('vehicle')).toMatchObject([
 			{
 				id: 'dbc-1',
 				messages: [{ signals: [{ signalName: 'VehicleSpeed' }] }]
@@ -309,8 +309,8 @@ describe('dbcFiles', () => {
 		];
 		await dbcFiles.removeFile('dbc-1');
 
-		expect(visibleSidebarSignals('vehicle')).toEqual([]);
-		expect(visibleSidebarSignals('door')).toMatchObject([
+		expect(visibleSelectorSignals('vehicle')).toEqual([]);
+		expect(visibleSelectorSignals('door')).toMatchObject([
 			{
 				id: 'dbc-2',
 				messages: [{ signals: [{ signalName: 'DoorOpen' }] }]
@@ -483,7 +483,7 @@ function signal(overrides: Partial<DbcSignal> = {}): DbcSignal {
 	};
 }
 
-function visibleSidebarSignals(
+function visibleSelectorSignals(
 	query: string,
 	{
 		activeOnly = false,
@@ -493,5 +493,5 @@ function visibleSidebarSignals(
 		isSignalSelected?: (key: string) => boolean;
 	} = {}
 ) {
-	return dbcFiles.visibleSidebarTree({ query, activeOnly, isSignalSelected });
+	return dbcFiles.visibleSelectorTree({ query, activeOnly, isSignalSelected });
 }
