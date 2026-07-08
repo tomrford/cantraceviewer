@@ -67,6 +67,28 @@ describe('dbcFiles', () => {
 		expect(closeDbcMock).not.toHaveBeenCalled();
 	});
 
+	it('skips re-added DBC files with identical content without opening a handle', async () => {
+		const handle = dbcHandle(211);
+		openDbcMock.mockResolvedValueOnce(handle);
+		getDbcCatalogMock.mockResolvedValueOnce(catalog(message({ name: 'Vehicle' })));
+
+		await dbcFiles.addFiles([
+			file('vehicle.dbc', 'same-content'),
+			file('vehicle-copy.dbc', 'same-content')
+		]);
+		await dbcFiles.addFiles([file('vehicle-again.dbc', 'same-content')]);
+
+		expect(openDbcMock).toHaveBeenCalledExactlyOnceWith('same-content');
+		expect(closeDbcMock).not.toHaveBeenCalled();
+		expect(putStoredDbcsMock).toHaveBeenCalledExactlyOnceWith([
+			{ id: 'same-content', name: 'vehicle.dbc', text: 'same-content' }
+		]);
+		expect(dbcFiles.files).toHaveLength(1);
+		expect(dbcFiles.files[0]?.id).toBe('same-content');
+		expect(dbcFiles.files[0]?.handle).toBe(handle);
+		expect(dbcFiles.error).toBe(null);
+	});
+
 	it('keeps classic and CAN FD messages with the same numeric ID in one file', async () => {
 		const handle = dbcHandle(301);
 		openDbcMock.mockResolvedValueOnce(handle);
@@ -287,22 +309,46 @@ describe('dbcFiles', () => {
 		expect(dbcFiles.isLoading).toBe(true);
 	});
 
-	it('resets the stored DBC library after a library load failure', async () => {
-		const handle = dbcHandle(401);
+	it('skips bad stored DBC files and loads the rest without resetting storage', async () => {
+		const firstHandle = dbcHandle(401);
+		const badHandle = dbcHandle(402);
+		const secondHandle = dbcHandle(403);
 		listStoredDbcsMock.mockResolvedValueOnce([
-			{ id: 'stored-id', name: 'stored.dbc', text: 'stored' }
+			{ id: 'first-id', name: 'first.dbc', text: 'first' },
+			{ id: 'bad-id', name: 'bad.dbc', text: 'bad' },
+			{ id: 'second-id', name: 'second.dbc', text: 'second' }
 		]);
-		openDbcMock.mockResolvedValueOnce(handle);
-		getDbcCatalogMock.mockRejectedValueOnce(new Error('cached DBC failed'));
+		openDbcMock
+			.mockResolvedValueOnce(firstHandle)
+			.mockResolvedValueOnce(badHandle)
+			.mockResolvedValueOnce(secondHandle);
+		getDbcCatalogMock
+			.mockResolvedValueOnce(catalog(message({ name: 'First' })))
+			.mockRejectedValueOnce(new Error('cached DBC failed'))
+			.mockResolvedValueOnce(catalog(message({ name: 'Second' })));
 
 		await dbcFiles.loadLibrary();
 
-		expect(openDbcMock).toHaveBeenCalledExactlyOnceWith('stored');
-		expect(closeDbcMock).toHaveBeenCalledExactlyOnceWith(handle);
-		expect(resetStoredDbcsMock).toHaveBeenCalledOnce();
+		expect(dbcFiles.files).toMatchObject([
+			{ id: 'first-id', name: 'first.dbc', handle: firstHandle },
+			{ id: 'second-id', name: 'second.dbc', handle: secondHandle }
+		]);
+		expect(closeDbcMock).toHaveBeenCalledExactlyOnceWith(badHandle);
+		expect(resetStoredDbcsMock).not.toHaveBeenCalled();
 		expect(dbcFiles.hasLoadedLibrary).toBe(true);
+		expect(dbcFiles.error).toBe('Saved DBC "bad.dbc" failed to load.');
+	});
+
+	it('surfaces storage-level library read failures without resetting storage', async () => {
+		listStoredDbcsMock.mockRejectedValueOnce(new Error('indexeddb failed'));
+
+		await dbcFiles.loadLibrary();
+
 		expect(dbcFiles.files).toEqual([]);
-		expect(dbcFiles.error).toBe(null);
+		expect(dbcFiles.error).toBe('Saved DBC library could not be read.');
+		expect(dbcFiles.hasLoadedLibrary).toBe(true);
+		expect(resetStoredDbcsMock).not.toHaveBeenCalled();
+		expect(openDbcMock).not.toHaveBeenCalled();
 	});
 
 	it('resets loaded DBC handles and the stored DBC library', async () => {

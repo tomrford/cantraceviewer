@@ -110,18 +110,6 @@ export function boxViewport(
 	};
 }
 
-export function viewportIndicator(viewport: PlotViewport, fullDomain: PlotViewport) {
-	const fullXSpan = fullDomain.xMax - fullDomain.xMin;
-	const fullYSpan = fullDomain.yMax - fullDomain.yMin;
-
-	return {
-		xLeft: fullXSpan > 0 ? ((viewport.xMin - fullDomain.xMin) / fullXSpan) * 100 : 0,
-		xWidth: fullXSpan > 0 ? ((viewport.xMax - viewport.xMin) / fullXSpan) * 100 : 100,
-		yTop: fullYSpan > 0 ? ((fullDomain.yMax - viewport.yMax) / fullYSpan) * 100 : 0,
-		yHeight: fullYSpan > 0 ? ((viewport.yMax - viewport.yMin) / fullYSpan) * 100 : 100
-	};
-}
-
 function paddedAxis(
 	min: number,
 	max: number,

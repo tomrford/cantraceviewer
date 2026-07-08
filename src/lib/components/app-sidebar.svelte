@@ -9,6 +9,7 @@
 	} from '$lib/file-drop.js';
 	import { dbcFiles } from '$lib/stores/dbc-files.svelte.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
+	import { onDbcRemoved } from '$lib/stores/session.js';
 	import SearchForm from './search-form.svelte';
 	import * as Collapsible from '$lib/components/ui/collapsible/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
@@ -114,8 +115,7 @@
 		for (const message of dbcFiles.sidebarFiles.find((dbc) => dbc.id === dbcId)?.messages ?? []) {
 			expandedMessageKeys.delete(message.key);
 		}
-		plotData.deselectDbcFile(dbcId);
-		await dbcFiles.removeFile(dbcId);
+		await onDbcRemoved(dbcId);
 	}
 </script>
 
