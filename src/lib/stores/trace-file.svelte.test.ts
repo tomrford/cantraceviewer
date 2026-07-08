@@ -53,6 +53,17 @@ describe('traceFile', () => {
 		expect(closeTraceMock).not.toHaveBeenCalled();
 	});
 
+	it('keeps a dismissed warning dismissed when a later open fails', async () => {
+		openTraceMock.mockResolvedValueOnce(traceHandle(1, metadata({ skippedLineCount: 2 })));
+
+		await traceFile.openFile(file('trace.asc', 'date Mon Jan 1 00:00:00.000'));
+		traceFile.clearWarning();
+		await traceFile.openFile(file('trace.txt', 'not a trace'));
+
+		expect(traceFile.error).not.toBe(null);
+		expect(traceFile.warning).toBe(null);
+	});
+
 	it('does not warn when no malformed lines were skipped', async () => {
 		openTraceMock.mockResolvedValueOnce(traceHandle(1, metadata({ skippedLineCount: 0 })));
 

@@ -26,7 +26,6 @@ class TraceFileStore {
 
 	async openFile(file: File): Promise<boolean> {
 		this.error = null;
-		this.dismissedWarningEntry = null;
 		this.isLoading = true;
 
 		let next: TraceFileEntry | null = null;
@@ -40,6 +39,7 @@ class TraceFileStore {
 
 			const previous = this.entry;
 			this.entry = next;
+			this.dismissedWarningEntry = null;
 			next = null;
 
 			if (previous) {
