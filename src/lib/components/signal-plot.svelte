@@ -10,9 +10,7 @@
 		boxViewport,
 		panViewport,
 		type PlotViewport,
-		viewportsAlmostEqual,
-		viewportCenterX,
-		zoomViewport
+		viewportCenterX
 	} from '$lib/plot-viewport.js';
 	import {
 		createSignalViewCache,
@@ -23,13 +21,14 @@
 		signalDomain
 	} from '$lib/signal-plot-data.js';
 	import { PlotWindow } from '$lib/plot-window.svelte.js';
+	import { PlotViewportState } from '$lib/plot-viewport-state.svelte.js';
 	import * as ContextMenu from '$lib/components/ui/context-menu/index.js';
 	import SignalPlotLegend from './signal-plot-legend.svelte';
 	import { createPlotPerfStats } from '$lib/plot-perf.js';
 	import { isPlottableSignal, plotData } from '$lib/stores/plot-data.svelte.js';
 	import { isDark, timestampMode } from '$lib/stores/preferences.svelte.js';
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
-	import { onDestroy, onMount, untrack } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import type { HTMLAttributes } from 'svelte/elements';
 	import type { ChartGPUInstance, ChartGPUOptions } from 'chartgpu';
 	import BoxSelectIcon from '@lucide/svelte/icons/box-select';
@@ -58,13 +57,8 @@
 	} = $props();
 	let container: HTMLDivElement;
 	let chart: ChartGPUInstance | null = null;
-	let createChart:
-		| ((container: HTMLElement, options: ChartGPUOptions) => Promise<ChartGPUInstance>)
-		| null = null;
 	let chartError = $state<string | null>(null);
 	let markerDragPointerId = $state<number | null>(null);
-	let viewport = $state<PlotViewport | null>(null);
-	let lastFullDomain: PlotViewport | null = null;
 	let dragState = $state<DragState | null>(null);
 	let contextMenuX = $state<number | null>(null);
 	let markerDragRaf: number | null = null;
@@ -117,7 +111,9 @@
 		return lastDomainValue;
 	});
 	const plotReady = $derived(fullDomain !== null);
-	const activeViewport = $derived(viewport ?? fullDomain);
+	const viewportState = new PlotViewportState();
+	viewportState.domainSource = () => fullDomain;
+	const activeViewport = $derived(viewportState.activeViewport);
 	const plotWindow = new PlotWindow();
 	const windowedViews = $derived(plotWindow.viewsFor(signalViews, activeViewport));
 	const chartSeries = $derived(lineSeriesForViews(windowedViews));
@@ -125,7 +121,7 @@
 	$effect(() => {
 		plotWindow.settleAfter(signalViews, activeViewport);
 	});
-	const isFitAll = $derived(viewportsAlmostEqual(activeViewport, fullDomain));
+	const isFitAll = $derived(viewportState.isFitAll);
 	const displayedMarkerX = $derived.by(() => {
 		if (!hasPlottableSignals || !markerEnabled || markerX === null) return null;
 		return markerX;
@@ -157,7 +153,7 @@
 
 		try {
 			const mod = await import('chartgpu');
-			createChart = mod.ChartGPU.create;
+			const createChart = mod.ChartGPU.create;
 			chart = await createChart(container, chartOptions());
 
 			resizeObserver = new ResizeObserver(() => chart?.resize());
@@ -175,12 +171,8 @@
 		chart?.dispose();
 	});
 
-	let lastReportedCanReset: boolean | undefined;
-
 	$effect(() => {
 		const canReset = hasPlottableSignals && !isFitAll;
-		if (lastReportedCanReset === canReset) return;
-		lastReportedCanReset = canReset;
 		onCanResetZoomChange?.(canReset);
 	});
 
@@ -191,7 +183,7 @@
 			boxZoomEnabled = false;
 			dragState = null;
 			contextMenuX = null;
-			if (viewport !== null) viewport = null;
+			viewportState.reset();
 			return;
 		}
 
@@ -203,20 +195,6 @@
 		if (markerX === null && activeViewport !== null) {
 			markerX = viewportCenterX(activeViewport);
 		}
-	});
-
-	$effect(() => {
-		const currentViewport = untrack(() => viewport);
-		const wasFitAll =
-			currentViewport === null || viewportsAlmostEqual(currentViewport, lastFullDomain);
-		if (fullDomain === null) {
-			if (currentViewport !== null) viewport = null;
-			lastFullDomain = null;
-			return;
-		}
-
-		if (wasFitAll && !viewportsAlmostEqual(currentViewport, fullDomain)) viewport = fullDomain;
-		lastFullDomain = fullDomain;
 	});
 
 	const perfStats = createPlotPerfStats();
@@ -237,27 +215,19 @@
 		});
 	});
 
-	function whenPlotInteractive(action: () => void) {
-		if (!hasPlottableSignals) return;
-		action();
-	}
-
 	export function plotZoomIn() {
-		whenPlotInteractive(() => {
-			zoomBy(0.5);
-		});
+		if (!hasPlottableSignals) return;
+		viewportState.zoomBy(0.5);
 	}
 
 	export function plotZoomOut() {
-		whenPlotInteractive(() => {
-			zoomBy(2);
-		});
+		if (!hasPlottableSignals) return;
+		viewportState.zoomBy(2);
 	}
 
 	export function plotResetZoom() {
-		whenPlotInteractive(() => {
-			resetZoom();
-		});
+		if (!hasPlottableSignals) return;
+		resetZoom();
 	}
 
 	function toggleMarker() {
@@ -356,13 +326,11 @@
 	}
 
 	function zoomBy(factor: number) {
-		if (activeViewport === null) return;
-		viewport = zoomViewport(activeViewport, factor, { xRatio: 0.5, yRatio: 0.5 });
+		viewportState.zoomBy(factor);
 	}
 
 	function resetZoom() {
-		if (fullDomain === null) return;
-		viewport = fullDomain;
+		viewportState.reset();
 		dragState = null;
 	}
 
@@ -389,7 +357,7 @@
 	}
 
 	function updateMarkerFromPointer(event: PointerEvent) {
-		const x = pointerToDataX(event);
+		const x = clientToDataX(event);
 		if (x === null) return;
 
 		pendingMarkerX = x;
@@ -401,10 +369,6 @@
 			placeMarkerAt(pendingMarkerX);
 			pendingMarkerX = null;
 		});
-	}
-
-	function pointerToDataX(event: PointerEvent): number | null {
-		return clientToDataX(event);
 	}
 
 	function clientToDataX(event: Pick<MouseEvent, 'clientX' | 'clientY'>): number | null {
@@ -429,13 +393,13 @@
 		if (Math.abs(delta.x) > Math.abs(delta.y) && !event.shiftKey && !event.altKey) {
 			event.preventDefault();
 			const plotSize = currentPlotSize();
-			viewport = panViewport(activeViewport, { x: -delta.x, y: 0 }, plotSize);
+			viewportState.panBy({ x: -delta.x, y: 0 }, plotSize);
 			return;
 		}
 
 		event.preventDefault();
 		const factor = Math.exp(Math.min(200, Math.max(-200, delta.y)) * WHEEL_ZOOM_SPEED);
-		viewport = zoomViewport(activeViewport, factor, point, {
+		viewportState.zoomBy(factor, point, {
 			x: !event.altKey,
 			y: !event.shiftKey
 		});
@@ -469,13 +433,15 @@
 			return;
 		}
 
-		viewport = panViewport(
-			dragState.startViewport,
-			{
-				x: event.clientX - dragState.clientX,
-				y: event.clientY - dragState.clientY
-			},
-			currentPlotSize()
+		viewportState.setManual(
+			panViewport(
+				dragState.startViewport,
+				{
+					x: event.clientX - dragState.clientX,
+					y: event.clientY - dragState.clientY
+				},
+				currentPlotSize()
+			)
 		);
 	}
 
@@ -488,7 +454,7 @@
 
 		if (state.type === 'box' && activeViewport !== null) {
 			const nextViewport = boxViewport(activeViewport, state.start, state.current);
-			if (nextViewport !== null) viewport = nextViewport;
+			if (nextViewport !== null) viewportState.setManual(nextViewport);
 		}
 	}
 
