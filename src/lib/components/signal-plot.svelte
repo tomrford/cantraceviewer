@@ -20,11 +20,9 @@
 		formatAxisTime,
 		lineSeriesForViews,
 		markerValue,
-		signalDomain,
-		visibleSignalViews,
-		visibleViewsEqual,
-		type VisibleSignalView
+		signalDomain
 	} from '$lib/signal-plot-data.js';
+	import { PlotWindow } from '$lib/plot-window.svelte.js';
 	import * as ContextMenu from '$lib/components/ui/context-menu/index.js';
 	import SignalPlotLegend from './signal-plot-legend.svelte';
 	import { createPlotPerfStats } from '$lib/plot-perf.js';
@@ -120,13 +118,13 @@
 	});
 	const plotReady = $derived(fullDomain !== null);
 	const activeViewport = $derived(viewport ?? fullDomain);
-	let lastVisibleViews: VisibleSignalView[] = [];
-	const visibleViews = $derived.by(() => {
-		const next = visibleSignalViews(signalViews, activeViewport);
-		if (!visibleViewsEqual(lastVisibleViews, next)) lastVisibleViews = next;
-		return lastVisibleViews;
+	const plotWindow = new PlotWindow();
+	const windowedViews = $derived(plotWindow.viewsFor(signalViews, activeViewport));
+	const chartSeries = $derived(lineSeriesForViews(windowedViews));
+
+	$effect(() => {
+		plotWindow.settleAfter(signalViews, activeViewport);
 	});
-	const chartSeries = $derived(lineSeriesForViews(visibleViews));
 	const isFitAll = $derived(viewportsAlmostEqual(activeViewport, fullDomain));
 	const displayedMarkerX = $derived.by(() => {
 		if (!hasPlottableSignals || !markerEnabled || markerX === null) return null;
@@ -172,6 +170,7 @@
 	onDestroy(() => {
 		cancelMarkerDragUpdate();
 		if (pushFrame !== null) cancelAnimationFrame(pushFrame);
+		plotWindow.dispose();
 		resizeObserver?.disconnect();
 		chart?.dispose();
 	});

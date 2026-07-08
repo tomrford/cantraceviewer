@@ -32,12 +32,13 @@ export type LegendMarkerValue = {
 	outOfRange: boolean;
 };
 
-export type VisibleSignalView = SignalView & {
+export type WindowedSignalView = SignalView & {
 	x: Float64Array<ArrayBufferLike>;
 	y: Float64Array<ArrayBufferLike>;
+	/** True when the slice was downsampled below the source resolution. */
+	sampled: boolean;
 };
 
-const DEFAULT_TOTAL_SAMPLING_THRESHOLD = 25_000;
 const LEGEND_MAX_SIGNIFICANT_DIGITS = 7;
 
 export function isOutsideDbcRange(value: number, minimum: number, maximum: number): boolean {
@@ -183,74 +184,24 @@ function viewMatchesSignal(view: SignalView, signal: PlotSignal): boolean {
 	);
 }
 
-/**
- * Whether two visible-view lists would produce identical chart series: same
- * signals and colors over the same x/y windows. `subarray` slices compare
- * equal when buffer, offset, and length match, so recomputing an unchanged
- * window compares equal despite fresh wrapper objects.
- */
-export function visibleViewsEqual(a: VisibleSignalView[], b: VisibleSignalView[]): boolean {
-	if (a === b) return true;
-	if (a.length !== b.length) return false;
-	for (let i = 0; i < a.length; i++) {
-		const viewA = a[i];
-		const viewB = b[i];
-		if (viewA.key !== viewB.key || viewA.color !== viewB.color || viewA.label !== viewB.label) {
-			return false;
-		}
-		if (!sameSlice(viewA.x, viewB.x) || !sameSlice(viewA.y, viewB.y)) return false;
-	}
-	return true;
-}
-
-function sameSlice(a: Float64Array<ArrayBufferLike>, b: Float64Array<ArrayBufferLike>): boolean {
-	return (
-		a === b || (a.buffer === b.buffer && a.byteOffset === b.byteOffset && a.length === b.length)
-	);
-}
-
-export function visibleSignalViews(
-	views: SignalView[],
-	viewport: Pick<PlotViewport, 'xMin' | 'xMax'> | null
-): VisibleSignalView[] {
-	if (viewport === null) return views;
-
-	return views.map((view) => {
-		const { start, end } = renderIndexRange(view.x, viewport.xMin, viewport.xMax);
-		if (start === 0 && end === view.points) return view;
-		return {
-			...view,
-			x: view.x.subarray(start, end),
-			y: view.y.subarray(start, end),
-			points: end - start
-		};
-	});
-}
-
-export function lineSeries(
-	view: SignalView,
-	visibleLineCount = 1,
-	totalSamplingThreshold = DEFAULT_TOTAL_SAMPLING_THRESHOLD
-): SeriesConfig {
-	const samplingThreshold = Math.max(
-		2,
-		Math.floor(totalSamplingThreshold / Math.max(1, visibleLineCount))
-	);
-
+export function lineSeries(view: WindowedSignalView): SeriesConfig {
 	return {
 		type: 'line',
 		name: view.label,
 		data: { x: view.x, y: view.y },
 		color: view.color,
 		lineStyle: { color: view.color, width: 2.5, opacity: 0.95 },
-		sampling: 'lttb',
-		samplingThreshold
+		// PlotWindow pre-samples the data, so ChartGPU-side sampling stays off.
+		// The threshold's only remaining role is the patched sample-marker gate
+		// (markers render iff point count ≤ threshold): full-resolution slices
+		// enable it, downsampled ones suppress it.
+		sampling: 'none',
+		samplingThreshold: view.sampled ? view.points - 1 : view.points
 	};
 }
 
-export function lineSeriesForViews(views: SignalView[]): SeriesConfig[] {
-	const plottedViews = views.filter((view) => view.points > 0);
-	return plottedViews.map((view) => lineSeries(view, plottedViews.length));
+export function lineSeriesForViews(views: WindowedSignalView[]): SeriesConfig[] {
+	return views.filter((view) => view.points > 0).map((view) => lineSeries(view));
 }
 
 export function markerValue(view: SignalView, x: number): LegendMarkerValue {
@@ -403,7 +354,7 @@ function visibleIndexRange(
 	return { start, end: Math.max(start, end) };
 }
 
-function renderIndexRange(
+export function renderIndexRange(
 	x: Float64Array<ArrayBufferLike>,
 	xMin: number,
 	xMax: number
