@@ -30,29 +30,45 @@ export type DbcFileEntry = {
 	catalog: ParsedDbc;
 };
 
-export type SidebarDbcFile = {
+export type SelectorDbcFile = {
 	id: string;
 	name: string;
-	messages: SidebarDbcMessage[];
+	messages: SelectorDbcMessage[];
 };
 
-export type SidebarDbcMessage = {
+export type SelectorDbcMessage = {
 	key: string;
 	name: string;
-	signals: SidebarDbcSignal[];
+	signals: SelectorDbcSignal[];
 };
 
-export type SidebarDbcSignal = {
+export type SelectorDbcSignal = {
 	key: string;
 	label: string;
 	messageName: string;
 	signalName: string;
 };
 
-export type SidebarFilterOptions = {
+export type SelectorFilterOptions = {
 	query: string;
 	activeOnly: boolean;
 	isSignalSelected: (key: string) => boolean;
+	expandedDbcIds: ReadonlySet<string>;
+	expandedMessageKeys: ReadonlySet<string>;
+};
+
+export type SelectorTreeDbc = {
+	id: string;
+	name: string;
+	expanded: boolean;
+	messages: SelectorTreeMessage[];
+};
+
+export type SelectorTreeMessage = {
+	key: string;
+	name: string;
+	expanded: boolean;
+	signals: SelectorDbcSignal[];
 };
 
 export type DbcSignalTarget = {
@@ -66,13 +82,13 @@ type DbcCandidate = {
 	entry: DbcFileEntry;
 	stored: StoredDbc;
 };
-type SidebarSearchEntry = {
+type SelectorSearchEntry = {
 	messageKey: string;
-	signal: SidebarDbcSignal;
+	signal: SelectorDbcSignal;
 };
-type SidebarSearchIndex = {
-	dbc: SidebarDbcFile;
-	signals: FuzzySearchIndex<SidebarSearchEntry>;
+type SelectorSearchIndex = {
+	dbc: SelectorDbcFile;
+	signals: FuzzySearchIndex<SelectorSearchEntry>;
 };
 
 class DbcFilesStore {
@@ -83,32 +99,51 @@ class DbcFilesStore {
 
 	signalTargetByKey = $derived.by(() => buildSignalTargetIndex(this.files));
 
-	sidebarFiles = $derived.by<SidebarDbcFile[]>(() =>
+	selectorFiles = $derived.by<SelectorDbcFile[]>(() =>
 		this.files.map((entry) => ({
 			id: entry.id,
 			name: displayDbcName(entry.name),
 			messages: entry.catalog.messages.map((message) => ({
-				key: sidebarMessageKey(entry.id, message),
+				key: selectorMessageKey(entry.id, message),
 				name: message.name,
-				signals: message.signals.map((signal) => sidebarSignal(entry.id, message, signal))
+				signals: message.signals.map((signal) => selectorSignal(entry.id, message, signal))
 			}))
 		}))
 	);
 
-	private sidebarSearchIndexes = $derived.by<SidebarSearchIndex[]>(() =>
-		buildSidebarSearchIndexes(this.sidebarFiles)
+	private selectorSearchIndexes = $derived.by<SelectorSearchIndex[]>(() =>
+		buildSelectorSearchIndexes(this.selectorFiles)
 	);
 
-	isSidebarFilterActive(filter: SidebarFilterOptions): boolean {
-		return normalizeSidebarQuery(filter.query).length > 0 || filter.activeOnly;
+	private isSelectorFilterActive(filter: SelectorFilterOptions): boolean {
+		return normalizeSelectorQuery(filter.query).length > 0 || filter.activeOnly;
 	}
 
-	visibleSidebarTree(filter: SidebarFilterOptions): SidebarDbcFile[] {
-		const query = normalizeSidebarQuery(filter.query);
-		const isFiltering = this.isSidebarFilterActive(filter);
+	// The returned tree is the single source of what the selector renders:
+	// collapsed nodes carry empty children so collapsed content never mounts,
+	// and expansion flips arrive as part of the same tree swap as the data.
+	visibleSelectorTree(filter: SelectorFilterOptions): SelectorTreeDbc[] {
+		const query = normalizeSelectorQuery(filter.query);
+		if (!this.isSelectorFilterActive(filter)) {
+			return this.selectorFiles.map((dbc) => {
+				if (!filter.expandedDbcIds.has(dbc.id)) return { ...dbc, expanded: false, messages: [] };
 
-		return this.sidebarSearchIndexes.flatMap((index) => {
-			const signalsByMessage: Record<string, SidebarDbcSignal[]> = {};
+				return {
+					...dbc,
+					expanded: true,
+					messages: dbc.messages
+						.filter((message) => message.signals.length > 0)
+						.map((message) =>
+							filter.expandedMessageKeys.has(message.key)
+								? { ...message, expanded: true }
+								: { ...message, expanded: false, signals: [] }
+						)
+				};
+			});
+		}
+
+		return this.selectorSearchIndexes.flatMap((index) => {
+			const signalsByMessage: Record<string, SelectorDbcSignal[]> = {};
 			const visibleSignals = searchFuzzyIndex(index.signals, query).filter(
 				({ signal }) => !filter.activeOnly || filter.isSignalSelected(signal.key)
 			);
@@ -121,13 +156,14 @@ class DbcFilesStore {
 			const messages = index.dbc.messages
 				.map((message) => ({
 					...message,
+					expanded: true,
 					signals: signalsByMessage[message.key] ?? []
 				}))
 				.filter((message) => message.signals.length > 0);
 
-			if (isFiltering && messages.length === 0) return [];
+			if (messages.length === 0) return [];
 
-			return [{ ...index.dbc, messages }];
+			return [{ ...index.dbc, expanded: true, messages }];
 		});
 	}
 
@@ -305,9 +341,9 @@ function buildSignalTargetIndex(files: DbcFileEntry[]): SignalTargetIndex {
 	return index;
 }
 
-function buildSidebarSearchIndexes(files: SidebarDbcFile[]): SidebarSearchIndex[] {
+function buildSelectorSearchIndexes(files: SelectorDbcFile[]): SelectorSearchIndex[] {
 	return files.map((dbc) => {
-		const signals = dbc.messages.flatMap<SidebarSearchEntry>((message) =>
+		const signals = dbc.messages.flatMap<SelectorSearchEntry>((message) =>
 			message.signals.map((signal) => ({ messageKey: message.key, signal }))
 		);
 
@@ -318,7 +354,7 @@ function buildSidebarSearchIndexes(files: SidebarDbcFile[]): SidebarSearchIndex[
 	});
 }
 
-function normalizeSidebarQuery(query: string): string {
+function normalizeSelectorQuery(query: string): string {
 	return query.trim().toLowerCase();
 }
 
@@ -330,15 +366,15 @@ export function signalIdentityKey(
 	return JSON.stringify([dbcFileId, messageIdentityKey(message), signalName]);
 }
 
-function sidebarMessageKey(dbcFileId: string, message: DbcMessage): string {
+function selectorMessageKey(dbcFileId: string, message: DbcMessage): string {
 	return JSON.stringify([dbcFileId, messageIdentityKey(message)]);
 }
 
-function sidebarSignal(
+function selectorSignal(
 	dbcFileId: string,
 	message: DbcMessage,
 	signal: DbcSignal
-): SidebarDbcSignal {
+): SelectorDbcSignal {
 	return {
 		key: signalIdentityKey(dbcFileId, message, signal.name),
 		label: `${message.name}.${signal.name}`,

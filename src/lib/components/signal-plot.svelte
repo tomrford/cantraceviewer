@@ -81,7 +81,7 @@
 		return lastDomainValue;
 	});
 	const plotReady = $derived(fullDomain !== null);
-	const emptyMessage = 'Select signals from the DBC side panel to view them.';
+	const emptyMessage = 'Select signals from the signal selector to view them.';
 	const activeViewport = $derived(viewport.activeViewport);
 	const plotWindow = new PlotWindow();
 	const windowedViews = $derived(plotWindow.viewsFor(signalViews, activeViewport));
