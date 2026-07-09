@@ -122,6 +122,16 @@
 @layer base {
 	* {
 		@apply border-border outline-ring/50;
+		/* Windows/Edge render classic UA scrollbars; keep them slim and themed.
+		   Overlay-scrollbar platforms (macOS) ignore most of this. */
+		scrollbar-width: thin;
+		scrollbar-color: color-mix(in oklab, var(--muted-foreground) 50%, transparent) transparent;
+	}
+	:root {
+		color-scheme: light;
+	}
+	.dark {
+		color-scheme: dark;
 	}
 	body {
 		@apply bg-background text-foreground;

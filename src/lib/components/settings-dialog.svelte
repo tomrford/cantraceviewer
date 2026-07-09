@@ -69,6 +69,7 @@
 <Popover.Content
 	align="end"
 	sideOffset={-32}
+	interactOutsideBehavior="ignore"
 	class="relative grid w-[min(22rem,calc(100vw-1rem))] translate-x-2 -translate-y-2 gap-4 rounded-lg border border-border/70 bg-popover/90 p-4 pt-14 text-popover-foreground backdrop-blur-md"
 	style="box-shadow: 0 1px 2px rgb(0 0 0 / 0.08)"
 >
