@@ -6,9 +6,9 @@ Live instance: https://cantraceviewer.com
 
 Product shape: open directly into the plotter. Load one ASC, PCAN TRC 1.x/2.x, or BLF trace, save one or more DBC files to the local browser library, select signals from the sidebar, and render decoded signal series on a shared time plot.
 
-Implementation shape: SvelteKit/Svelte 5 with Bun, Tailwind, and shadcn-svelte style components. Zig code lives under `wasm/` and compiles to WebAssembly for DBC parsing, trace parsing, and signal decode work.
+Implementation shape: SvelteKit/Svelte 5 with Bun, Tailwind, and shadcn-svelte style components. Rust code lives under `wasm/` and compiles through wasm-bindgen for DBC parsing, trace parsing, and signal decode work.
 
-Keep TypeScript as the glue between the Svelte UI and WASM workers. Keep WASM details behind typed browser-facing interfaces.
+Keep TypeScript as the glue between the Svelte UI and generated wasm-bindgen classes. Keep WASM details behind typed browser-facing interfaces.
 
 Saved DBC files and UI preferences live only in browser storage on the current device. Loaded traces and derived signal series live in memory for the current browser session. Do not add server persistence or new persisted state without an explicit product reason.
 
@@ -21,13 +21,14 @@ bun run dev
 bun run test
 bun run check
 bun run wasm:build:release
+bun run wasm:check
 bun run wasm:test
 ```
 
-The repo commits the release WASM binary for git-based deployment on Cloudflare Workers. If you change Zig code, run `bun run wasm:build:release` before committing so the bundle is updated.
+The repo commits the release WASM binary and generated wasm-bindgen JavaScript and TypeScript declarations for git-based deployment on Cloudflare Workers. If you change Rust code or its exported interface, run `bun run wasm:build:release` before committing so every generated artifact is updated.
 
 Backlog lives in GitHub issues on this repo.
 
-### Zig
+### Rust
 
-We are using Zig 0.16.0 for the WASM parts of the project. Docs can be found at https://ziglang.org/documentation/0.16.0/.
+The Rust toolchain, wasm-bindgen CLI, and Binaryen are pinned by `flake.lock`. Keep CAN, DBC, and trace parsing in this crate rather than introducing format-parser dependencies. Compression implementations may use a focused, WASM-compatible crate; BLF zlib/DEFLATE decoding uses `miniz_oxide`.

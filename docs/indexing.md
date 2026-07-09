@@ -1,26 +1,7 @@
-# Trace Indexing
+# Trace indexing
 
-Signal extraction currently scans the parsed frame list for the loaded trace and
-filters by the selected DBC message ID, extended-ID flag, and payload length.
-This keeps the ASC, TRC, and BLF parsers simple while the UI is exercised
-against real traces.
+Signal extraction uses a lazy frame index owned by the Rust `Trace` wasm-bindgen class. Parsing ASC, TRC, or BLF records normalized frames and payloads without building secondary structures. The first signal decode builds a `HashMap<(u32, bool), Vec<u32>>` from CAN ID and extended-ID flag to data-frame indices; later decodes on the same trace reuse it.
 
-If signal extraction becomes a measured bottleneck, add a parse-time frame index
-owned by the shared trace model:
+The index contains data frames only. Each index entry points into the trace-owned frame vector, while payload bytes remain in the trace's compact side buffer. Signal extraction looks up the selected message identity and then applies payload-length and CAN/CAN FD checks before decoding values.
 
-```zig
-pub const FrameIndexEntry = struct {
-    key: frame.FrameKey,
-    frame_indices: []const u32,
-};
-
-pub const Trace = struct {
-    frames: []const frame.Frame = &.{},
-    by_id: []const FrameIndexEntry = &.{},
-};
-```
-
-`by_id` groups frame indices by `frame.FrameKey`, with each `frame_indices` entry
-pointing into the parser-owned `frames` slice. `selectedSignalValues` can then
-find the selected message key and iterate only matching frames. Each trace handle
-must free every `frame_indices` slice and then the `by_id` slice.
+Dropping the generated `Trace` class releases the frames, payload bytes, and any initialized index together. The TypeScript adapter keeps that generated class behind an opaque handle and calls `free()` when the trace closes.

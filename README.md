@@ -10,7 +10,7 @@ Trace files and decoded series stay in the current browser session. Saved DBCs a
 
 ## Development
 
-The UI is SvelteKit/Svelte 5 with Bun, Tailwind, and shadcn-svelte style components. Zig code under `wasm/` compiles to WebAssembly for DBC parsing, trace parsing, and signal decode work.
+The UI is SvelteKit/Svelte 5 with Bun, Tailwind, and shadcn-svelte style components. Rust code under `wasm/` compiles through wasm-bindgen for DBC parsing, trace parsing, and signal decoding. TypeScript keeps the generated bindings behind the app's typed browser-facing adapter.
 
 ```sh
 nix develop -c bun install
@@ -23,6 +23,7 @@ Useful checks:
 ```sh
 nix develop -c bun run test
 nix develop -c bun run check
+nix develop -c bun run wasm:check
 nix develop -c bun run wasm:test
 nix develop -c bun run wasm:build:release
 ```

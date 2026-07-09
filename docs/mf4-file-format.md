@@ -148,11 +148,10 @@ Keep MF4 as a separate parser domain that feeds the shared trace handle, matchin
 ```mermaid
 flowchart LR
     A["src/lib/stores/trace-file.svelte.ts<br/>.mf4 detection"] --> B["src/lib/wasm.ts<br/>TraceType 'mf4'"]
-    B --> C["wasm/src/root.zig<br/>mf4_parse export"]
-    C --> D["wasm/src/trace/handle.zig<br/>Handle.parseMf4"]
-    D --> E["wasm/src/mf4/mf4.zig<br/>MDF4 block parser"]
-    E --> F["wasm/src/trace/trace.zig<br/>shared Trace"]
-    F --> G["wasm/src/series.zig<br/>DBC signal decode"]
+    B --> C["wasm/src/lib.rs<br/>Trace.parseMf4 binding"]
+    C --> D["wasm/src/mf4/mod.rs<br/>MDF4 block parser"]
+    D --> E["wasm/src/trace/mod.rs<br/>shared Trace"]
+    E --> F["wasm/src/series.rs<br/>DBC signal decode"]
 ```
 
 Recommended slices:
@@ -160,9 +159,9 @@ Recommended slices:
 1. Add `wasm/src/mf4/` with a block reader that validates `ID`, reads common headers, follows `HD -> DG -> CG/CN/data`, and skips unknown blocks by length.
 2. Add record extraction for sorted, uncompressed `CAN_DataFrame` with fixed-size `DataBytes`.
 3. Add `DL` traversal and unsorted record-ID dispatch.
-4. Add Deflate `DZ` support using the same Zig stdlib compression stack already used by BLF.
+4. Add Deflate `DZ` support using the same bounded `miniz_oxide` approach as BLF.
 5. Add MLSD payload handling for CAN FD.
-6. Wire `mf4_parse` through the existing WASM/TypeScript trace type and accept `.mf4` in the file picker.
+6. Add `Trace.parseMf4` to the wasm-bindgen boundary, wire it through the TypeScript trace type, and accept `.mf4` in the file picker.
 7. Extend tests with generated minimal MF4 bytes plus at least one real public CANedge/asammdf sample.
 
 The browser trace cap remains the existing trace-file cap. The parser should reject oversized internal allocations even when the browser cap has already accepted the file; `DZ.original_size`, `DL` block totals, `CG.cycles_nr * samples_byte_nr`, and `SD` payload lengths are all attacker-controlled.

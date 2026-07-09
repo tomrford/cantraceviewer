@@ -16,6 +16,7 @@
 		"bun.lock",
 		"bun.lockb",
 		"/static/",
-		"/wasm/"
+		"/wasm/",
+		"/src/lib/wasm-bindgen/"
 	]
 }
