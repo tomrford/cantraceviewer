@@ -53,6 +53,22 @@ export type SelectorFilterOptions = {
 	query: string;
 	activeOnly: boolean;
 	isSignalSelected: (key: string) => boolean;
+	expandedDbcIds: ReadonlySet<string>;
+	expandedMessageKeys: ReadonlySet<string>;
+};
+
+export type SelectorTreeDbc = {
+	id: string;
+	name: string;
+	expanded: boolean;
+	messages: SelectorTreeMessage[];
+};
+
+export type SelectorTreeMessage = {
+	key: string;
+	name: string;
+	expanded: boolean;
+	signals: SelectorDbcSignal[];
 };
 
 export type DbcSignalTarget = {
@@ -99,13 +115,32 @@ class DbcFilesStore {
 		buildSelectorSearchIndexes(this.selectorFiles)
 	);
 
-	isSelectorFilterActive(filter: SelectorFilterOptions): boolean {
+	private isSelectorFilterActive(filter: SelectorFilterOptions): boolean {
 		return normalizeSelectorQuery(filter.query).length > 0 || filter.activeOnly;
 	}
 
-	visibleSelectorTree(filter: SelectorFilterOptions): SelectorDbcFile[] {
+	// The returned tree is the single source of what the selector renders:
+	// collapsed nodes carry empty children so collapsed content never mounts,
+	// and expansion flips arrive as part of the same tree swap as the data.
+	visibleSelectorTree(filter: SelectorFilterOptions): SelectorTreeDbc[] {
 		const query = normalizeSelectorQuery(filter.query);
-		const isFiltering = this.isSelectorFilterActive(filter);
+		if (!this.isSelectorFilterActive(filter)) {
+			return this.selectorFiles.map((dbc) => {
+				if (!filter.expandedDbcIds.has(dbc.id)) return { ...dbc, expanded: false, messages: [] };
+
+				return {
+					...dbc,
+					expanded: true,
+					messages: dbc.messages
+						.filter((message) => message.signals.length > 0)
+						.map((message) =>
+							filter.expandedMessageKeys.has(message.key)
+								? { ...message, expanded: true }
+								: { ...message, expanded: false, signals: [] }
+						)
+				};
+			});
+		}
 
 		return this.selectorSearchIndexes.flatMap((index) => {
 			const signalsByMessage: Record<string, SelectorDbcSignal[]> = {};
@@ -121,13 +156,14 @@ class DbcFilesStore {
 			const messages = index.dbc.messages
 				.map((message) => ({
 					...message,
+					expanded: true,
 					signals: signalsByMessage[message.key] ?? []
 				}))
 				.filter((message) => message.signals.length > 0);
 
-			if (isFiltering && messages.length === 0) return [];
+			if (messages.length === 0) return [];
 
-			return [{ ...index.dbc, messages }];
+			return [{ ...index.dbc, expanded: true, messages }];
 		});
 	}
 

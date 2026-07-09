@@ -45,9 +45,10 @@
 	let selectorFilter = $derived({
 		query: signalSearch,
 		activeOnly: showActiveOnly,
-		isSignalSelected: (key: string) => plotData.isSignalSelected(key)
+		isSignalSelected: (key: string) => plotData.isSignalSelected(key),
+		expandedDbcIds,
+		expandedMessageKeys
 	});
-	let isFiltering = $derived(dbcFiles.isSelectorFilterActive(selectorFilter));
 	let visibleDbcFiles = $derived(dbcFiles.visibleSelectorTree(selectorFilter));
 
 	const menuButtonClass =
@@ -102,22 +103,12 @@
 		await addDbcFiles(dbcFilesFromDrop(filesFromDrop(event)));
 	}
 
-	function isDbcExpanded(dbcId: string): boolean {
-		if (isFiltering) return true;
-		return expandedDbcIds.has(dbcId);
-	}
-
 	function setDbcExpanded(dbcId: string, open: boolean): void {
 		if (open) {
 			expandedDbcIds.add(dbcId);
 		} else {
 			expandedDbcIds.delete(dbcId);
 		}
-	}
-
-	function isMessageExpanded(messageKey: string): boolean {
-		if (isFiltering) return true;
-		return expandedMessageKeys.has(messageKey);
 	}
 
 	function setMessageExpanded(messageKey: string, open: boolean): void {
@@ -250,7 +241,7 @@
 				{#each visibleDbcFiles as dbc (dbc.id)}
 					<li>
 						<Collapsible.Root
-							open={isDbcExpanded(dbc.id)}
+							open={dbc.expanded}
 							onOpenChange={(open) => setDbcExpanded(dbc.id, open)}
 							class="group/collapsible"
 						>
@@ -261,9 +252,7 @@
 											{...props}
 											type="button"
 											class="{menuButtonClass} min-w-0 flex-1"
-											aria-label={isDbcExpanded(dbc.id)
-												? `Collapse ${dbc.name}`
-												: `Expand ${dbc.name}`}
+											aria-label={dbc.expanded ? `Collapse ${dbc.name}` : `Expand ${dbc.name}`}
 										>
 											<ChevronRightIcon
 												class="size-4 shrink-0 text-muted-foreground group-data-[state=open]/collapsible:hidden"
@@ -284,91 +273,99 @@
 									<TrashIcon class="size-4" />
 								</button>
 							</div>
-							<Collapsible.Content>
-								<ul
-									class="mx-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-s border-border px-2.5 py-0.5"
-								>
-									{#each dbc.messages as message (message.key)}
-										<li>
-											<Collapsible.Root
-												open={isMessageExpanded(message.key)}
-												onOpenChange={(open) => setMessageExpanded(message.key, open)}
-												class="group/message-collapsible"
-											>
-												<Collapsible.Trigger>
-													{#snippet child({ props })}
-														<button
-															{...props}
-															type="button"
-															class="flex h-7 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs text-popover-foreground transition-[background-color,color,box-shadow] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
-															aria-label={isMessageExpanded(message.key)
-																? `Collapse ${message.name}`
-																: `Expand ${message.name}`}
-														>
-															<span
-																class="flex size-4 shrink-0 items-center justify-center text-muted-foreground"
+							<!-- Collapsible.Content keeps children mounted (hidden) while closed; with
+							     thousands of signals that makes every popover open unusably slow, so
+							     closed sections must not render at all. Mounting is driven only by the
+							     tree items so expansion and data can never disagree mid-flush. -->
+							{#if dbc.expanded}
+								<Collapsible.Content>
+									<ul
+										class="mx-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-s border-border px-2.5 py-0.5"
+									>
+										{#each dbc.messages as message (message.key)}
+											<li>
+												<Collapsible.Root
+													open={message.expanded}
+													onOpenChange={(open) => setMessageExpanded(message.key, open)}
+													class="group/message-collapsible"
+												>
+													<Collapsible.Trigger>
+														{#snippet child({ props })}
+															<button
+																{...props}
+																type="button"
+																class="flex h-7 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs text-popover-foreground transition-[background-color,color,box-shadow] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
+																aria-label={message.expanded
+																	? `Collapse ${message.name}`
+																	: `Expand ${message.name}`}
 															>
-																<ChevronRightIcon
-																	class="size-4 group-data-[state=open]/message-collapsible:hidden"
-																/>
-																<ChevronDownIcon
-																	class="size-4 group-data-[state=closed]/message-collapsible:hidden"
-																/>
-															</span>
-															<span class="truncate">{message.name}</span>
-														</button>
-													{/snippet}
-												</Collapsible.Trigger>
-												<Collapsible.Content>
-													<ul
-														class="mx-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-s border-border px-2.5 py-0.5"
-													>
-														{#each message.signals as signal (signal.key)}
-															{@const isSelected = plotData.isSignalSelected(signal.key)}
-															{@const decodeStatus = isSelected
-																? plotData.signalDecodeStatus(signal.key)
-																: null}
-															{@const signalToggleId = `signal-toggle-${signal.key}`}
-															<li>
-																<Label
-																	for={signalToggleId}
-																	class="flex h-7 w-full min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 text-left text-xs font-normal text-popover-foreground transition-[background-color,color,box-shadow] hover:bg-accent hover:text-accent-foreground"
+																<span
+																	class="flex size-4 shrink-0 items-center justify-center text-muted-foreground"
 																>
-																	<Checkbox
-																		id={signalToggleId}
-																		checked={isSelected}
-																		aria-label={`Plot ${signal.label}`}
-																		title={decodeStatus?.decodeError ?? undefined}
-																		class="data-[error=true]:border-destructive/50 data-[error=true]:bg-destructive/10 data-[error=true]:text-destructive data-checked:border-sidebar-primary data-checked:bg-sidebar-primary data-checked:text-sidebar-primary-foreground"
-																		data-error={decodeStatus?.decodeError != null}
-																		onCheckedChange={() => plotData.toggleSignal(signal.key)}
+																	<ChevronRightIcon
+																		class="size-4 group-data-[state=open]/message-collapsible:hidden"
 																	/>
-																	<span class="flex min-w-0 flex-1 items-center gap-2">
-																		<span class="truncate font-mono" title={signal.label}>
-																			{signal.signalName}
-																		</span>
-																		{#if decodeStatus?.decodeError}
-																			<CircleAlertIcon
-																				class="size-3 shrink-0 text-destructive"
-																				aria-label={decodeStatus.decodeError}
+																	<ChevronDownIcon
+																		class="size-4 group-data-[state=closed]/message-collapsible:hidden"
+																	/>
+																</span>
+																<span class="truncate">{message.name}</span>
+															</button>
+														{/snippet}
+													</Collapsible.Trigger>
+													{#if message.expanded}
+														<Collapsible.Content>
+															<ul
+																class="mx-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-s border-border px-2.5 py-0.5"
+															>
+																{#each message.signals as signal (signal.key)}
+																	{@const isSelected = plotData.isSignalSelected(signal.key)}
+																	{@const decodeStatus = isSelected
+																		? plotData.signalDecodeStatus(signal.key)
+																		: null}
+																	{@const signalToggleId = `signal-toggle-${signal.key}`}
+																	<li>
+																		<Label
+																			for={signalToggleId}
+																			class="flex h-7 w-full min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 text-left text-xs font-normal text-popover-foreground transition-[background-color,color,box-shadow] hover:bg-accent hover:text-accent-foreground"
+																		>
+																			<Checkbox
+																				id={signalToggleId}
+																				checked={isSelected}
+																				aria-label={`Plot ${signal.label}`}
+																				title={decodeStatus?.decodeError ?? undefined}
+																				class="data-[error=true]:border-destructive/50 data-[error=true]:bg-destructive/10 data-[error=true]:text-destructive data-checked:border-sidebar-primary data-checked:bg-sidebar-primary data-checked:text-sidebar-primary-foreground"
+																				data-error={decodeStatus?.decodeError != null}
+																				onCheckedChange={() => plotData.toggleSignal(signal.key)}
 																			/>
-																		{:else if decodeStatus?.isDecoding}
-																			<LoaderCircleIcon
-																				class="size-3 shrink-0 animate-spin text-muted-foreground"
-																				aria-label="Decoding signal"
-																			/>
-																		{/if}
-																	</span>
-																</Label>
-															</li>
-														{/each}
-													</ul>
-												</Collapsible.Content>
-											</Collapsible.Root>
-										</li>
-									{/each}
-								</ul>
-							</Collapsible.Content>
+																			<span class="flex min-w-0 flex-1 items-center gap-2">
+																				<span class="truncate font-mono" title={signal.label}>
+																					{signal.signalName}
+																				</span>
+																				{#if decodeStatus?.decodeError}
+																					<CircleAlertIcon
+																						class="size-3 shrink-0 text-destructive"
+																						aria-label={decodeStatus.decodeError}
+																					/>
+																				{:else if decodeStatus?.isDecoding}
+																					<LoaderCircleIcon
+																						class="size-3 shrink-0 animate-spin text-muted-foreground"
+																						aria-label="Decoding signal"
+																					/>
+																				{/if}
+																			</span>
+																		</Label>
+																	</li>
+																{/each}
+															</ul>
+														</Collapsible.Content>
+													{/if}
+												</Collapsible.Root>
+											</li>
+										{/each}
+									</ul>
+								</Collapsible.Content>
+							{/if}
 						</Collapsible.Root>
 					</li>
 				{/each}
