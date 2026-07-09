@@ -169,6 +169,7 @@
 	align="start"
 	sideOffset={-32}
 	interactOutsideBehavior="ignore"
+	trapFocus={false}
 	class="relative grid h-[calc(100vh-1rem)] w-[min(26rem,calc(100vw-1rem))] -translate-x-2 -translate-y-2 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden rounded-lg border border-border/70 bg-popover/90 p-4 pt-14 text-popover-foreground backdrop-blur-md"
 	style="box-shadow: 0 1px 2px rgb(0 0 0 / 0.08)"
 	ondragenter={handleDbcDrag}

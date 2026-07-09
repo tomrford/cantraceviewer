@@ -182,10 +182,12 @@
 				</Popover.Root>
 			</div>
 
-			<div class="pointer-events-none absolute inset-0 flex items-center justify-center px-20">
+			<div
+				class="pointer-events-none flex min-w-0 flex-1 items-center justify-center lg:absolute lg:inset-0 lg:px-20"
+			>
 				<button
 					type="button"
-					class="{titleButtonClass} pointer-events-auto"
+					class="{titleButtonClass} pointer-events-auto w-full lg:w-auto"
 					disabled={traceFile.isLoading}
 					aria-label={traceFile.isLoading ? 'Loading trace' : 'Load trace'}
 					title={traceMetadataTitle ?? (traceFile.isLoading ? 'Loading trace' : 'Load trace')}
