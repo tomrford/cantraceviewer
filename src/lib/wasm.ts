@@ -1,76 +1,57 @@
 /** Rust/WASM parse and decode adapter. File limits live in '$lib/file-limits.js'. */
-import initWasm, {
-	Dbc as WasmDbc,
-	DecoderError,
-	Trace as WasmTrace
-} from './wasm-bindgen/cantraceviewer.js';
+import initWasm, { Dbc as WasmDbc, Trace as WasmTrace } from './wasm-bindgen/cantraceviewer.js';
 import wasmUrl from './wasm-bindgen/cantraceviewer_bg.wasm?url';
-import { z } from 'zod';
 
-const DbcValueDescriptionSchema = z.object({
-	rawValue: z.number(),
-	label: z.string()
-});
+export type DbcValueDescription = {
+	rawValue: number;
+	label: string;
+};
 
-const DbcSignalSchema = z.object({
-	name: z.string(),
-	startBit: z.number(),
-	bitLength: z.number(),
-	endianness: z.string(),
-	signedness: z.string(),
-	factor: z.number(),
-	offset: z.number(),
-	minimum: z.number(),
-	maximum: z.number(),
-	unit: z.string(),
-	valueType: z.string(),
-	unsupportedMux: z.boolean(),
-	receivers: z.array(z.string()),
-	valueDescriptions: z.array(DbcValueDescriptionSchema)
-});
+export type DbcSignal = {
+	name: string;
+	startBit: number;
+	bitLength: number;
+	endianness: string;
+	signedness: string;
+	factor: number;
+	offset: number;
+	minimum: number;
+	maximum: number;
+	unit: string;
+	valueType: string;
+	unsupportedMux: boolean;
+	receivers: string[];
+	valueDescriptions: DbcValueDescription[];
+};
 
-const DbcMessageSchema = z.object({
-	name: z.string(),
-	dbcId: z.number(),
-	canId: z.number(),
-	isExtended: z.boolean(),
-	isFd: z.boolean(),
-	sizeBytes: z.number(),
-	transmitter: z.string(),
-	signals: z.array(DbcSignalSchema)
-});
+export type DbcMessage = {
+	name: string;
+	dbcId: number;
+	canId: number;
+	isExtended: boolean;
+	isFd: boolean;
+	sizeBytes: number;
+	transmitter: string;
+	signals: DbcSignal[];
+};
 
-const ParsedDbcSchema = z.object({
-	messages: z.array(DbcMessageSchema)
-});
+/** Shape pinned by the `serializes_parsed_catalog` test in wasm/src/dbc/catalog.rs. */
+export type ParsedDbc = {
+	messages: DbcMessage[];
+};
 
-const TraceMetadataSchema = z.object({
-	measurementStartMs: z.number().nullable(),
-	validMessageCount: z.number(),
-	skippedLineCount: z.number(),
-	durationNs: z.number().nullable()
-});
+export type TraceMetadata = {
+	measurementStartMs: number | null;
+	validMessageCount: number;
+	skippedLineCount: number;
+	durationNs: number | null;
+};
 
-export type DbcValueDescription = z.infer<typeof DbcValueDescriptionSchema>;
-export type DbcSignal = z.infer<typeof DbcSignalSchema>;
-export type DbcMessage = z.infer<typeof DbcMessageSchema>;
-export type ParsedDbc = z.infer<typeof ParsedDbcSchema>;
-export type TraceMetadata = z.infer<typeof TraceMetadataSchema>;
 export type DecodedSignalSeries = {
 	timesMs: Float64Array;
 	values: Float64Array;
 };
 export type TraceType = 'asc' | 'trc' | 'blf';
-
-export class WasmError extends Error {
-	readonly code: string;
-
-	constructor(code: string, message: string) {
-		super(message);
-		this.name = 'WasmError';
-		this.code = code;
-	}
-}
 
 declare const DbcHandleBrand: unique symbol;
 declare const TraceHandleBrand: unique symbol;
@@ -119,9 +100,12 @@ export async function openDbc(text: string): Promise<{ handle: DbcHandle; catalo
 	const wasm = withWasmErrors(() => WasmDbc.parse(text));
 
 	try {
-		const catalog = ParsedDbcSchema.parse(JSON.parse(withWasmErrors(() => wasm.catalogJson())));
+		const catalog = JSON.parse(withWasmErrors(() => wasm.catalogJson())) as ParsedDbc;
 		return {
-			handle: newDbcHandle(wasm),
+			handle: {
+				id: nextHandleId++,
+				[HandleState]: { closed: false, wasm }
+			} as DbcHandle,
 			catalog
 		};
 	} catch (error) {
@@ -156,10 +140,6 @@ export async function getSignalValues(
 		)
 	);
 
-	if (packed.length % 2 !== 0) {
-		throw new WasmError('InvalidSeries', 'Signal values export returned an invalid length');
-	}
-
 	const count = packed.length / 2;
 	return {
 		timesMs: packed.subarray(0, count),
@@ -175,32 +155,18 @@ export async function closeTrace(trace: TraceHandle): Promise<void> {
 export async function openTrace(traceType: TraceType, bytes: Uint8Array): Promise<TraceHandle> {
 	await loadWasm();
 	const wasm = withWasmErrors(() => parseTrace(traceType, bytes));
-	try {
-		const metadata = withWasmErrors(() =>
-			TraceMetadataSchema.parse({
-				measurementStartMs: wasm.measurementStartMs ?? null,
-				validMessageCount: wasm.validMessageCount,
-				skippedLineCount: wasm.skippedLineCount,
-				durationNs: wasm.durationNs ?? null
-			})
-		);
+	const metadata: TraceMetadata = {
+		measurementStartMs: wasm.measurementStartMs ?? null,
+		validMessageCount: wasm.validMessageCount,
+		skippedLineCount: wasm.skippedLineCount,
+		durationNs: wasm.durationNs ?? null
+	};
 
-		return {
-			id: nextHandleId++,
-			metadata,
-			[HandleState]: { closed: false, wasm }
-		} as TraceHandle;
-	} catch (error) {
-		wasm.free();
-		throw error;
-	}
-}
-
-function newDbcHandle(wasm: WasmDbc): DbcHandle {
 	return {
 		id: nextHandleId++,
+		metadata,
 		[HandleState]: { closed: false, wasm }
-	} as DbcHandle;
+	} as TraceHandle;
 }
 
 function parseTrace(traceType: TraceType, bytes: Uint8Array): WasmTrace {
@@ -219,7 +185,7 @@ function assertHandleOpen<T extends DbcHandleState | TraceHandleState>(
 	state: T
 ): T {
 	if (!state || state.closed) {
-		throw new WasmError('HandleClosed', `${kind} handle is closed`);
+		throw new Error(`${kind} handle is closed`);
 	}
 
 	return state;
@@ -241,17 +207,11 @@ function withWasmErrors<T>(operation: () => T): T {
 }
 
 function normalizeWasmError(error: unknown): unknown {
-	if (error instanceof DecoderError) {
-		const code = error.code;
-		const message = error.message;
-		error.free();
-		return new WasmError(code, message);
-	}
 	if (error instanceof WebAssembly.RuntimeError) {
-		return new WasmError('WasmRuntimeError', error.message || 'WebAssembly execution failed');
+		return new Error(`WebAssembly execution failed: ${error.message}`);
 	}
 	if (error instanceof WebAssembly.CompileError || error instanceof WebAssembly.LinkError) {
-		return new WasmError('WasmLoadError', error.message || 'WebAssembly failed to load');
+		return new Error(`WebAssembly failed to load: ${error.message}`);
 	}
 
 	return error;

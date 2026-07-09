@@ -96,67 +96,6 @@ export class Dbc {
 if (Symbol.dispose) Dbc.prototype[Symbol.dispose] = Dbc.prototype.free;
 
 /**
- * Stable error object thrown by fallible generated JavaScript bindings.
- */
-export class DecoderError {
-    static __wrap(ptr) {
-        const obj = Object.create(DecoderError.prototype);
-        obj.__wbg_ptr = ptr;
-        DecoderErrorFinalization.register(obj, obj.__wbg_ptr, obj);
-        return obj;
-    }
-    __destroy_into_raw() {
-        const ptr = this.__wbg_ptr;
-        this.__wbg_ptr = 0;
-        DecoderErrorFinalization.unregister(this);
-        return ptr;
-    }
-    free() {
-        const ptr = this.__destroy_into_raw();
-        wasm.__wbg_decodererror_free(ptr, 0);
-    }
-    /**
-     * @returns {string}
-     */
-    get code() {
-        let deferred1_0;
-        let deferred1_1;
-        try {
-            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            wasm.decodererror_code(retptr, this.__wbg_ptr);
-            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
-            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
-            deferred1_0 = r0;
-            deferred1_1 = r1;
-            return getStringFromWasm0(r0, r1);
-        } finally {
-            wasm.__wbindgen_add_to_stack_pointer(16);
-            wasm.__wbindgen_export(deferred1_0, deferred1_1, 1);
-        }
-    }
-    /**
-     * @returns {string}
-     */
-    get message() {
-        let deferred1_0;
-        let deferred1_1;
-        try {
-            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            wasm.decodererror_message(retptr, this.__wbg_ptr);
-            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
-            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
-            deferred1_0 = r0;
-            deferred1_1 = r1;
-            return getStringFromWasm0(r0, r1);
-        } finally {
-            wasm.__wbindgen_add_to_stack_pointer(16);
-            wasm.__wbindgen_export(deferred1_0, deferred1_1, 1);
-        }
-    }
-}
-if (Symbol.dispose) DecoderError.prototype[Symbol.dispose] = DecoderError.prototype.free;
-
-/**
  * Parsed trace model owned by WebAssembly.
  */
 export class Trace {
@@ -286,12 +225,12 @@ if (Symbol.dispose) Trace.prototype[Symbol.dispose] = Trace.prototype.free;
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,
+        __wbg_Error_bce6d499ff0a4aff: function(arg0, arg1) {
+            const ret = Error(getStringFromWasm0(arg0, arg1));
+            return addHeapObject(ret);
+        },
         __wbg___wbindgen_throw_9c31b086c2b26051: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
-        },
-        __wbg_decodererror_new: function(arg0) {
-            const ret = DecoderError.__wrap(arg0);
-            return addHeapObject(ret);
         },
     };
     return {
@@ -300,9 +239,6 @@ function __wbg_get_imports() {
     };
 }
 
-const DecoderErrorFinalization = (typeof FinalizationRegistry === 'undefined')
-    ? { register: () => {}, unregister: () => {} }
-    : new FinalizationRegistry(ptr => wasm.__wbg_decodererror_free(ptr, 1));
 const DbcFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_dbc_free(ptr, 1));

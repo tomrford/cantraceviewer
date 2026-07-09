@@ -14,17 +14,6 @@ use crate::trace::{Frame, FrameIndex, Trace};
 pub(crate) enum SeriesError {
     SignalNotFound,
     Decode(DbcError),
-    OutOfMemory,
-}
-
-impl SeriesError {
-    pub(crate) fn code(&self) -> &'static str {
-        match self {
-            Self::SignalNotFound => "SignalNotFound",
-            Self::Decode(error) => error.code(),
-            Self::OutOfMemory => "OutOfMemory",
-        }
-    }
 }
 
 impl fmt::Display for SeriesError {
@@ -32,7 +21,6 @@ impl fmt::Display for SeriesError {
         match self {
             Self::SignalNotFound => formatter.write_str("Signal not found in DBC"),
             Self::Decode(error) => error.fmt(formatter),
-            Self::OutOfMemory => formatter.write_str("not enough memory to decode the signal"),
         }
     }
 }
@@ -42,7 +30,6 @@ impl StdError for SeriesError {
         match self {
             Self::SignalNotFound => None,
             Self::Decode(error) => Some(error),
-            Self::OutOfMemory => None,
         }
     }
 }
@@ -79,14 +66,7 @@ pub(crate) fn selected_signal_values(
         })
         .count();
 
-    let packed_len = sample_count
-        .checked_mul(2)
-        .ok_or(SeriesError::OutOfMemory)?;
-    let mut packed = Vec::new();
-    packed
-        .try_reserve_exact(packed_len)
-        .map_err(|_| SeriesError::OutOfMemory)?;
-    packed.resize(packed_len, 0.0);
+    let mut packed = vec![0.0; sample_count * 2];
     let values_offset = sample_count;
     let mut sample_index = 0;
 
@@ -137,7 +117,7 @@ mod tests {
     fn decode(dbc_text: &str, asc_text: &str, size: u16, signal: &str) -> Vec<f64> {
         let dbc = Dbc::parse(dbc_text).unwrap();
         let trace = asc::parse(asc_text).unwrap();
-        let index = FrameIndex::build(&trace.frames).unwrap();
+        let index = FrameIndex::build(&trace.frames);
         selected_signal_values(&dbc, &trace, &index, 0x123, false, size, signal).unwrap()
     }
 
@@ -175,7 +155,7 @@ mod tests {
             "base hex timestamps absolute\n0.001 1 123 Rx d 8 01 00 00 00 00 00 00 00\n0.002 CANFD 1 Rx 123 - 1 0 8 8 02 00 00 00 00 00 00 00\n0.003 CANFD 1 Rx 123 - 1 0 9 12 03 00 00 00 00 00 00 00 00 00 00 00",
         )
         .unwrap();
-        let index = FrameIndex::build(&trace.frames).unwrap();
+        let index = FrameIndex::build(&trace.frames);
 
         assert_eq!(
             selected_signal_values(&dbc, &trace, &index, 0x123, false, 8, "ClassicSpeed").unwrap(),

@@ -9,66 +9,21 @@ mod series;
 mod trace;
 mod trc;
 
-use dbc::DbcHandle;
-use trace::{FrameIndex, Trace as ParsedTrace, TraceError};
-
-/// Stable error object thrown by fallible generated JavaScript bindings.
-#[wasm_bindgen]
-pub struct DecoderError {
-    code: String,
-    message: String,
-}
-
-#[wasm_bindgen]
-impl DecoderError {
-    #[wasm_bindgen(getter)]
-    pub fn code(&self) -> String {
-        self.code.clone()
-    }
-
-    #[wasm_bindgen(getter)]
-    pub fn message(&self) -> String {
-        self.message.clone()
-    }
-}
-
-impl DecoderError {
-    fn new(code: &str, message: impl ToString) -> Self {
-        Self {
-            code: code.to_owned(),
-            message: message.to_string(),
-        }
-    }
-
-    fn from_dbc(error: dbc::DbcError) -> Self {
-        Self::new(error.code(), error)
-    }
-
-    fn from_trace(error: TraceError) -> Self {
-        Self::new(error.code(), error)
-    }
-
-    fn from_blf(error: blf::BlfError) -> Self {
-        Self::new(error.code(), error)
-    }
-
-    fn from_series(error: series::SeriesError) -> Self {
-        Self::new(error.code(), error)
-    }
-}
+use dbc::Dbc;
+use trace::{FrameIndex, Trace as ParsedTrace};
 
 /// Parsed DBC model owned by WebAssembly.
 #[wasm_bindgen(js_name = Dbc)]
 pub struct WasmDbc {
-    inner: DbcHandle,
+    inner: Dbc,
 }
 
 #[wasm_bindgen]
 impl WasmDbc {
     /// Parse DBC text and retain the decoded model for subsequent signal work.
-    pub fn parse(input: &str) -> Result<WasmDbc, DecoderError> {
+    pub fn parse(input: &str) -> Result<WasmDbc, JsError> {
         Ok(Self {
-            inner: DbcHandle::parse(input).map_err(DecoderError::from_dbc)?,
+            inner: Dbc::parse(input)?,
         })
     }
 
@@ -87,20 +42,20 @@ impl WasmDbc {
         is_extended: bool,
         size_bytes: u16,
         signal_name: &str,
-    ) -> Result<Box<[f64]>, DecoderError> {
-        trace.ensure_frame_index()?;
-        let index = trace.index.as_ref().expect("frame index was initialized");
-        series::selected_signal_values(
-            &self.inner.dbc,
+    ) -> Result<Box<[f64]>, JsError> {
+        let index = trace
+            .index
+            .get_or_insert_with(|| FrameIndex::build(&trace.inner.frames));
+        Ok(series::selected_signal_values(
+            &self.inner,
             &trace.inner,
             index,
             can_id,
             is_extended,
             size_bytes,
             signal_name,
-        )
-        .map(Vec::into_boxed_slice)
-        .map_err(DecoderError::from_series)
+        )?
+        .into_boxed_slice())
     }
 }
 
@@ -114,24 +69,18 @@ pub struct WasmTrace {
 #[wasm_bindgen]
 impl WasmTrace {
     #[wasm_bindgen(js_name = parseAsc)]
-    pub fn parse_asc(input: &[u8]) -> Result<WasmTrace, DecoderError> {
-        Ok(Self::from_trace(
-            asc::parse_bytes(input).map_err(DecoderError::from_trace)?,
-        ))
+    pub fn parse_asc(input: &[u8]) -> Result<WasmTrace, JsError> {
+        Ok(Self::from_trace(asc::parse_bytes(input)?))
     }
 
     #[wasm_bindgen(js_name = parseTrc)]
-    pub fn parse_trc(input: &[u8]) -> Result<WasmTrace, DecoderError> {
-        Ok(Self::from_trace(
-            trc::parse_bytes(input).map_err(DecoderError::from_trace)?,
-        ))
+    pub fn parse_trc(input: &[u8]) -> Result<WasmTrace, JsError> {
+        Ok(Self::from_trace(trc::parse_bytes(input)?))
     }
 
     #[wasm_bindgen(js_name = parseBlf)]
-    pub fn parse_blf(input: &[u8]) -> Result<WasmTrace, DecoderError> {
-        Ok(Self::from_trace(
-            blf::from_bytes(input).map_err(DecoderError::from_blf)?,
-        ))
+    pub fn parse_blf(input: &[u8]) -> Result<WasmTrace, JsError> {
+        Ok(Self::from_trace(blf::from_bytes(input)?))
     }
 
     #[wasm_bindgen(getter, js_name = measurementStartMs)]
@@ -158,14 +107,5 @@ impl WasmTrace {
 impl WasmTrace {
     fn from_trace(inner: ParsedTrace) -> Self {
         Self { inner, index: None }
-    }
-
-    fn ensure_frame_index(&mut self) -> Result<(), DecoderError> {
-        if self.index.is_none() {
-            self.index =
-                Some(FrameIndex::build(&self.inner.frames).map_err(DecoderError::from_trace)?);
-        }
-
-        Ok(())
     }
 }

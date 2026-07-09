@@ -1,7 +1,9 @@
 use std::rc::Rc;
 
 use super::quotes::parse_quoted;
-use super::{DbcError, ValueDescription, ValueType, find_dbc_whitespace, trim_dbc};
+use super::{
+    DbcError, ValueDescription, ValueType, find_dbc_whitespace, is_dbc_whitespace, trim_dbc,
+};
 
 /// DBC bit-numbering mode for a signal payload.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -110,7 +112,12 @@ impl Signal {
         let Some(rest) = cursor.strip_prefix("SG_") else {
             return Err(DbcError::InvalidSignalLine);
         };
-        if !rest.as_bytes().first().is_some_and(is_dbc_whitespace) {
+        if !rest
+            .as_bytes()
+            .first()
+            .copied()
+            .is_some_and(is_dbc_whitespace)
+        {
             return Err(DbcError::InvalidSignalLine);
         }
         let mut cursor = trim_dbc(rest);
@@ -305,10 +312,6 @@ fn parse_finite_float(field: &'static str, text: &str) -> Result<f64, DbcError> 
         });
     }
     Ok(value)
-}
-
-fn is_dbc_whitespace(byte: &u8) -> bool {
-    matches!(byte, b' ' | b'\t' | b'\r')
 }
 
 #[inline]

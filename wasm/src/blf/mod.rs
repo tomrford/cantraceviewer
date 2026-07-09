@@ -113,38 +113,6 @@ impl fmt::Display for BlfError {
 
 impl std::error::Error for BlfError {}
 
-impl BlfError {
-    pub(crate) const fn code(&self) -> &'static str {
-        match self {
-            Self::InvalidBlfHeader => "InvalidBlfHeader",
-            Self::InvalidBlfSignature => "InvalidBlfSignature",
-            Self::InvalidBlfHeaderSize => "InvalidBlfHeaderSize",
-            Self::TruncatedBlfObjectHeader => "TruncatedBlfObjectHeader",
-            Self::InvalidBlfObject => "InvalidBlfObject",
-            Self::InvalidBlfObjectSize => "InvalidBlfObjectSize",
-            Self::TruncatedBlfObject => "TruncatedBlfObject",
-            Self::TruncatedBlfObjectPadding => "TruncatedBlfObjectPadding",
-            Self::InvalidBlfObjectHeader => "InvalidBlfObjectHeader",
-            Self::InvalidBlfCanMessage => "InvalidBlfCanMessage",
-            Self::InvalidBlfCanErrorExt => "InvalidBlfCanErrorExt",
-            Self::InvalidBlfCanFdMessage => "InvalidBlfCanFdMessage",
-            Self::InvalidBlfCanFdMessage64 => "InvalidBlfCanFdMessage64",
-            Self::InvalidBlfContainer => "InvalidBlfContainer",
-            Self::InvalidBlfContainerSize => "InvalidBlfContainerSize",
-            Self::OutOfMemory => "OutOfMemory",
-            Self::UnsupportedBlfCompression(_) => "UnsupportedBlfCompression",
-            Self::InvalidBlfSystemTime => "InvalidBlfSystemTime",
-            Self::InvalidBlfTimestamp => "InvalidBlfTimestamp",
-            Self::InvalidCanId => "InvalidCanId",
-            Self::PayloadOffsetOverflow => "PayloadOffsetOverflow",
-            Self::InvalidZlibHeader => "InvalidZlibHeader",
-            Self::UnsupportedZlibDictionary => "UnsupportedZlibDictionary",
-            Self::InvalidDeflateStream => "InvalidDeflateStream",
-            Self::InvalidZlibChecksum => "InvalidZlibChecksum",
-        }
-    }
-}
-
 fn inflate_zlib(input: &[u8], expected_len: usize) -> Result<Vec<u8>, BlfError> {
     if input.len() < 6 {
         return Err(BlfError::InvalidZlibHeader);

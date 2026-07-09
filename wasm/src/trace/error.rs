@@ -13,35 +13,10 @@ pub(crate) enum TraceError {
     InvalidPayloadLength,
     InvalidFrameLine,
     PayloadOffsetOverflow,
-    FrameIndexOverflow,
-    OutOfMemory,
     UnsupportedTrcVersion,
     UnsupportedTrcColumn,
     InvalidTrcColumns,
     InvalidStartTime,
-}
-
-impl TraceError {
-    pub(crate) const fn code(&self) -> &'static str {
-        match self {
-            Self::InvalidBaseLine => "InvalidBaseLine",
-            Self::InvalidVectorDate => "InvalidVectorDate",
-            Self::InvalidTimestamp => "InvalidTimestamp",
-            Self::TimestampTooPrecise => "TimestampTooPrecise",
-            Self::TimestampOverflow => "TimestampOverflow",
-            Self::InvalidId => "InvalidId",
-            Self::InvalidDlc => "InvalidDlc",
-            Self::InvalidPayloadLength => "InvalidPayloadLength",
-            Self::InvalidFrameLine => "InvalidFrameLine",
-            Self::PayloadOffsetOverflow => "PayloadOffsetOverflow",
-            Self::FrameIndexOverflow => "FrameIndexOverflow",
-            Self::OutOfMemory => "OutOfMemory",
-            Self::UnsupportedTrcVersion => "UnsupportedTrcVersion",
-            Self::UnsupportedTrcColumn => "UnsupportedTrcColumn",
-            Self::InvalidTrcColumns => "InvalidTrcColumns",
-            Self::InvalidStartTime => "InvalidStartTime",
-        }
-    }
 }
 
 impl fmt::Display for TraceError {
@@ -57,8 +32,6 @@ impl fmt::Display for TraceError {
             Self::InvalidPayloadLength => "payload length does not match the CAN data length code",
             Self::InvalidFrameLine => "invalid trace frame line",
             Self::PayloadOffsetOverflow => "trace payload storage exceeds the supported range",
-            Self::FrameIndexOverflow => "trace contains too many frames to index",
-            Self::OutOfMemory => "not enough memory to store the trace",
             Self::UnsupportedTrcVersion => "unsupported PCAN TRC version",
             Self::UnsupportedTrcColumn => "unsupported PCAN TRC column",
             Self::InvalidTrcColumns => "invalid PCAN TRC column declaration",
@@ -68,17 +41,3 @@ impl fmt::Display for TraceError {
 }
 
 impl Error for TraceError {}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn exposes_stable_machine_codes() {
-        assert_eq!(TraceError::InvalidFrameLine.code(), "InvalidFrameLine");
-        assert_eq!(
-            TraceError::UnsupportedTrcVersion.to_string(),
-            "unsupported PCAN TRC version"
-        );
-    }
-}

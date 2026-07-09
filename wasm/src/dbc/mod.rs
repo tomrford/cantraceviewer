@@ -5,17 +5,14 @@
 
 mod catalog;
 mod error;
-mod handle;
 mod message;
 mod quotes;
 mod signal;
 mod values;
 
 use std::rc::Rc;
-use std::str::FromStr;
 
 pub use error::DbcError;
-pub use handle::Handle as DbcHandle;
 pub use message::Message;
 pub use signal::Signal;
 pub use values::{
@@ -123,14 +120,6 @@ impl Dbc {
     }
 }
 
-impl FromStr for Dbc {
-    type Err = DbcError;
-
-    fn from_str(text: &str) -> Result<Self, Self::Err> {
-        Self::parse(text)
-    }
-}
-
 fn finish_message(
     messages: &mut Vec<Message>,
     current_message: &mut Option<Message>,
@@ -206,7 +195,7 @@ pub(crate) fn find_dbc_whitespace(text: &str) -> Option<usize> {
         .position(|byte| is_dbc_whitespace(*byte))
 }
 
-const fn is_dbc_whitespace(byte: u8) -> bool {
+pub(crate) const fn is_dbc_whitespace(byte: u8) -> bool {
     matches!(byte, b' ' | b'\t' | b'\r')
 }
 

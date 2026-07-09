@@ -23,17 +23,6 @@ export class Dbc {
 }
 
 /**
- * Stable error object thrown by fallible generated JavaScript bindings.
- */
-export class DecoderError {
-    private constructor();
-    free(): void;
-    [Symbol.dispose](): void;
-    readonly code: string;
-    readonly message: string;
-}
-
-/**
  * Parsed trace model owned by WebAssembly.
  */
 export class Trace {
@@ -54,10 +43,7 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_dbc_free: (a: number, b: number) => void;
-    readonly __wbg_decodererror_free: (a: number, b: number) => void;
     readonly __wbg_trace_free: (a: number, b: number) => void;
-    readonly decodererror_code: (a: number, b: number) => void;
-    readonly decodererror_message: (a: number, b: number) => void;
     readonly wasmdbc_catalogJson: (a: number, b: number) => void;
     readonly wasmdbc_decodeSignal: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
     readonly wasmdbc_parse: (a: number, b: number, c: number) => void;

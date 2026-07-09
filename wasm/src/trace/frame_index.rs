@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::{Frame, FrameKind, TraceError};
+use super::{Frame, FrameKind};
 
 #[derive(Debug, Default)]
 pub(crate) struct FrameIndex {
@@ -8,7 +8,7 @@ pub(crate) struct FrameIndex {
 }
 
 impl FrameIndex {
-    pub(crate) fn build(frames: &[Frame]) -> Result<Self, TraceError> {
+    pub(crate) fn build(frames: &[Frame]) -> Self {
         let mut buckets: HashMap<(u32, bool), Vec<u32>> = HashMap::new();
 
         for (index, frame) in frames.iter().enumerate() {
@@ -18,27 +18,14 @@ impl FrameIndex {
             let Some(id) = frame.id else {
                 continue;
             };
-            let index = u32::try_from(index).map_err(|_| TraceError::FrameIndexOverflow)?;
-            let key = (id.value, id.is_extended);
-            if let Some(indices) = buckets.get_mut(&key) {
-                indices
-                    .try_reserve(1)
-                    .map_err(|_| TraceError::OutOfMemory)?;
-                indices.push(index);
-            } else {
-                buckets
-                    .try_reserve(1)
-                    .map_err(|_| TraceError::OutOfMemory)?;
-                let mut indices = Vec::new();
-                indices
-                    .try_reserve(1)
-                    .map_err(|_| TraceError::OutOfMemory)?;
-                indices.push(index);
-                buckets.insert(key, indices);
-            }
+            let index = u32::try_from(index).expect("more frames than wasm memory can hold");
+            buckets
+                .entry((id.value, id.is_extended))
+                .or_default()
+                .push(index);
         }
 
-        Ok(Self { buckets })
+        Self { buckets }
     }
 
     pub(crate) fn lookup(&self, can_id: u32, is_extended: bool) -> &[u32] {
@@ -78,7 +65,7 @@ mod tests {
             },
         ];
 
-        let index = FrameIndex::build(&frames).unwrap();
+        let index = FrameIndex::build(&frames);
         assert_eq!(index.lookup(0x123, false), &[0, 3]);
         assert_eq!(index.lookup(0x123, true), &[2]);
         assert!(index.lookup(0x456, false).is_empty());

@@ -32,7 +32,7 @@ pub(crate) fn parse_bytes(bytes: &[u8]) -> Result<Trace, TraceError> {
     let mut line_scratch = String::new();
 
     for raw_line_bytes in bytes.split(|&byte| byte == b'\n') {
-        let raw_line = lossy_utf8_line(raw_line_bytes, &mut line_scratch)?;
+        let raw_line = lossy_utf8_line(raw_line_bytes, &mut line_scratch);
         let line = raw_line.trim_matches([' ', '\t', '\r']);
         if line.is_empty() {
             continue;
@@ -68,16 +68,8 @@ pub(crate) fn parse_bytes(bytes: &[u8]) -> Result<Trace, TraceError> {
             continue;
         };
 
-        trace
-            .frames
-            .try_reserve(1)
-            .map_err(|_| TraceError::OutOfMemory)?;
         if parsed_frame.kind == FrameKind::Data && parsed_frame.id.is_some() {
             let payload_len = parsed_frame.payload_len as usize;
-            trace
-                .payloads
-                .try_reserve(payload_len)
-                .map_err(|_| TraceError::OutOfMemory)?;
             parsed_frame.payload_offset = u32::try_from(trace.payloads.len())
                 .map_err(|_| TraceError::PayloadOffsetOverflow)?;
             trace

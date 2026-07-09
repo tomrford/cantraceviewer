@@ -2,10 +2,7 @@
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
 export const __wbg_dbc_free: (a: number, b: number) => void;
-export const __wbg_decodererror_free: (a: number, b: number) => void;
 export const __wbg_trace_free: (a: number, b: number) => void;
-export const decodererror_code: (a: number, b: number) => void;
-export const decodererror_message: (a: number, b: number) => void;
 export const wasmdbc_catalogJson: (a: number, b: number) => void;
 export const wasmdbc_decodeSignal: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
 export const wasmdbc_parse: (a: number, b: number, c: number) => void;

@@ -8,7 +8,6 @@ import {
 	getSignalValues,
 	openDbc,
 	openTrace,
-	WasmError,
 	type DbcHandle,
 	type ParsedDbc,
 	type TraceHandle
@@ -153,8 +152,8 @@ describe('WASM adapter integration', () => {
 				expect(Array.from(speed.timesMs).slice(0, 3)).toEqual([10, 110, 210]);
 				expect(Array.from(speed.values).slice(0, 3)).toEqual([100, 123.4, 150]);
 			} catch (error) {
-				expect(error).toBeInstanceOf(WasmError);
-				expect((error as WasmError).code).toBe('HandleClosed');
+				expect(error).toBeInstanceOf(Error);
+				expect((error as Error).message).toBe('trace handle is closed');
 			}
 
 			await closeTrace(trace);
@@ -188,7 +187,7 @@ describe('WASM adapter integration', () => {
 					{ canId: 288, isExtended: false, sizeBytes: 8 },
 					'vehicle_speed'
 				)
-			).rejects.toMatchObject({ code: 'HandleClosed' });
+			).rejects.toThrow('trace handle is closed');
 		} finally {
 			await closeTrace(trace);
 			await closeDbc(dbc);
@@ -237,18 +236,16 @@ describe('WASM adapter integration', () => {
 		const trace = await openFixtureTrace();
 		const { handle: dbc } = await openFixtureDbc();
 		try {
-			await expectWasmError(openDbc('BO_ broken'));
-			await expectWasmError(
+			await expect(openDbc('BO_ broken')).rejects.toThrow('invalid DBC message record');
+			await expect(
 				openTrace('asc', new TextEncoder().encode('base nope timestamps absolute'))
-			);
+			).rejects.toThrow('invalid ASC base declaration');
 			const invalidBlf = new Uint8Array(144);
 			invalidBlf.set(new TextEncoder().encode('NOPE'));
-			await expect(openTrace('blf', invalidBlf)).rejects.toMatchObject({
-				code: 'InvalidBlfSignature'
-			});
+			await expect(openTrace('blf', invalidBlf)).rejects.toThrow('invalid BLF file signature');
 			await expect(
 				getSignalValues(dbc, trace, { canId: 288, isExtended: false, sizeBytes: 8 }, 'missing')
-			).rejects.toMatchObject({ code: 'SignalNotFound' });
+			).rejects.toThrow('Signal not found in DBC');
 		} finally {
 			await closeTrace(trace);
 			await closeDbc(dbc);
@@ -416,14 +413,4 @@ function concatBytes(...parts: Uint8Array[]): Uint8Array {
 
 function paddingSize(size: number): number {
 	return size % 4;
-}
-
-async function expectWasmError(promise: Promise<unknown>): Promise<void> {
-	try {
-		await promise;
-		throw new Error('Expected WasmError');
-	} catch (error) {
-		expect(error).toBeInstanceOf(WasmError);
-		expect((error as WasmError).code.length).toBeGreaterThan(0);
-	}
 }

@@ -10,20 +10,12 @@ pub(crate) use frame::{CanId, Frame, FrameKind};
 pub(crate) use frame_index::FrameIndex;
 pub(crate) use time::{ExtraPrecision, days_from_civil, decimal_fraction_to_units};
 
-pub(crate) fn lossy_utf8_line<'a>(
-    bytes: &'a [u8],
-    scratch: &'a mut String,
-) -> Result<&'a str, TraceError> {
+pub(crate) fn lossy_utf8_line<'a>(bytes: &'a [u8], scratch: &'a mut String) -> &'a str {
     if let Ok(line) = std::str::from_utf8(bytes) {
-        return Ok(line);
+        return line;
     }
 
     scratch.clear();
-    let max_len = bytes.len().checked_mul(3).ok_or(TraceError::OutOfMemory)?;
-    scratch
-        .try_reserve(max_len)
-        .map_err(|_| TraceError::OutOfMemory)?;
-
     let mut remaining = bytes;
     while !remaining.is_empty() {
         match std::str::from_utf8(remaining) {
@@ -46,7 +38,7 @@ pub(crate) fn lossy_utf8_line<'a>(
         }
     }
 
-    Ok(scratch)
+    scratch
 }
 
 #[derive(Debug, Default)]
@@ -96,7 +88,7 @@ mod tests {
     #[test]
     fn replaces_invalid_utf8_without_losing_ascii_fields() {
         let mut scratch = String::new();
-        let line = lossy_utf8_line(b"0.100 frame \xff tail", &mut scratch).unwrap();
+        let line = lossy_utf8_line(b"0.100 frame \xff tail", &mut scratch);
 
         assert_eq!(line, "0.100 frame \u{fffd} tail");
     }

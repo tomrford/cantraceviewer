@@ -3,9 +3,6 @@ use std::fmt;
 use std::num::{ParseFloatError, ParseIntError};
 
 /// Errors produced while parsing DBC data or decoding a DBC signal.
-///
-/// The enum keeps the parser boundary typed while [`DbcError::code`] provides
-/// a stable, JavaScript-friendly identifier for the `wasm-bindgen` adapter.
 #[derive(Debug)]
 pub enum DbcError {
     InvalidMessageLine,
@@ -41,28 +38,6 @@ pub enum DbcError {
 }
 
 impl DbcError {
-    /// Stable error identifier intended for the JavaScript error boundary.
-    pub const fn code(&self) -> &'static str {
-        match self {
-            Self::InvalidMessageLine => "InvalidMessageLine",
-            Self::InvalidSignalLine => "InvalidSignalLine",
-            Self::SignalWithoutMessage => "SignalWithoutMessage",
-            Self::InvalidValueDescriptionLine => "InvalidValueDescriptionLine",
-            Self::InvalidValueTableLine => "InvalidValueTableLine",
-            Self::InvalidSignalValueTypeLine => "InvalidSignalValueTypeLine",
-            Self::InvalidQuotedString => "InvalidQuotedString",
-            Self::InvalidInteger { .. } => "InvalidInteger",
-            Self::InvalidFloat { .. } => "InvalidFloat",
-            Self::NonFiniteSignalNumber { .. } => "NonFiniteSignalNumber",
-            Self::RawValueOutsideJsSafeIntegerRange(_) => "RawValueOutsideJsSafeIntegerRange",
-            Self::UnsupportedMessageLength(_) => "UnsupportedMessageLength",
-            Self::UnsupportedMultiplexing => "UnsupportedMultiplexing",
-            Self::InvalidSignalBitLength(_) => "InvalidSignalBitLength",
-            Self::SignalOutsideMessage => "SignalOutsideMessage",
-            Self::InvalidPayloadLength { .. } => "InvalidPayloadLength",
-        }
-    }
-
     pub(crate) fn invalid_integer(field: &'static str, value: &str, source: ParseIntError) -> Self {
         Self::InvalidInteger {
             field,
