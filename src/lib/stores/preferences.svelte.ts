@@ -18,10 +18,6 @@ export const timestampMode = new PersistedState<TimestampMode>(
 	{ syncTabs: false }
 );
 
-export const sidebarOpen = new PersistedState('cantraceviewer:sidebar-open', true, {
-	syncTabs: false
-});
-
 export const legendOrderMode = new PersistedState<LegendOrderMode>(
 	'cantraceviewer:legend-order',
 	'selection',
@@ -40,6 +36,5 @@ export function isDark(): boolean {
 export function resetPreferences(): void {
 	themePreference.current = 'system';
 	timestampMode.current = 'relative';
-	sidebarOpen.current = true;
 	legendOrderMode.current = 'selection';
 }

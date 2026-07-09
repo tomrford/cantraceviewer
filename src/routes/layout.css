@@ -122,6 +122,16 @@
 @layer base {
 	* {
 		@apply border-border outline-ring/50;
+		/* Windows/Edge render classic UA scrollbars; keep them slim and themed.
+		   Overlay-scrollbar platforms (macOS) ignore most of this. */
+		scrollbar-width: thin;
+		scrollbar-color: color-mix(in oklab, var(--muted-foreground) 50%, transparent) transparent;
+	}
+	:root {
+		color-scheme: light;
+	}
+	.dark {
+		color-scheme: dark;
 	}
 	body {
 		@apply bg-background text-foreground;
@@ -130,5 +140,86 @@
 		@apply font-sans;
 		-webkit-font-smoothing: antialiased;
 		-moz-osx-font-smoothing: grayscale;
+	}
+}
+
+@property --scroll-fade-t {
+	syntax: '<length-percentage>';
+	inherits: false;
+	initial-value: 0;
+}
+
+@property --scroll-fade-b {
+	syntax: '<length-percentage>';
+	inherits: false;
+	initial-value: 0;
+}
+
+@property --scroll-fade-mask {
+	syntax: '*';
+	inherits: false;
+}
+
+@layer utilities {
+	.scroll-fade {
+		-webkit-mask-image: var(--scroll-fade-mask);
+		mask-image: var(--scroll-fade-mask);
+		-webkit-mask-repeat: no-repeat;
+		mask-repeat: no-repeat;
+		-webkit-mask-composite: source-in;
+		mask-composite: intersect;
+	}
+
+	.scroll-fade {
+		--_scroll-fade-size-t: var(
+			--scroll-fade-t-size,
+			var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+		);
+		--_scroll-fade-size-b: var(
+			--scroll-fade-b-size,
+			var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+		);
+		--scroll-fade-t: var(--_scroll-fade-size-t);
+		--scroll-fade-b: var(--_scroll-fade-size-b);
+		--scroll-fade-block: linear-gradient(
+			to bottom,
+			transparent 0,
+			#000 var(--scroll-fade-t, 0px),
+			#000 calc(100% - var(--scroll-fade-b, 0px)),
+			transparent 100%
+		);
+		--scroll-fade-mask: var(--scroll-fade-block);
+		animation:
+			1ms ease-in-out scroll-fade-reveal-t,
+			1ms ease-in-out scroll-fade-reveal-b;
+		animation-timeline: scroll(self y), scroll(self y);
+		animation-range:
+			0 var(--scroll-fade-reveal, calc(var(--spacing) * 24)),
+			calc(100% - var(--scroll-fade-reveal, calc(var(--spacing) * 24))) 100%;
+		animation-fill-mode: both;
+	}
+}
+
+@keyframes scroll-fade-reveal-t {
+	from {
+		--scroll-fade-t: 0px;
+	}
+	to {
+		--scroll-fade-t: var(
+			--_scroll-fade-size-t,
+			var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+		);
+	}
+}
+
+@keyframes scroll-fade-reveal-b {
+	from {
+		--scroll-fade-b: var(
+			--_scroll-fade-size-b,
+			var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+		);
+	}
+	to {
+		--scroll-fade-b: 0px;
 	}
 }

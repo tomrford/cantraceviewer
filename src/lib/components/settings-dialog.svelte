@@ -1,4 +1,5 @@
 <script lang="ts">
+	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import * as Select from '$lib/components/ui/select/index.js';
 	import {
@@ -10,12 +11,20 @@
 		type TimestampMode
 	} from '$lib/stores/preferences.svelte.js';
 	import { onResetPersistentData } from '$lib/stores/session.js';
+	import CircleHelpIcon from '@lucide/svelte/icons/circle-help';
+	import GithubIcon from '@lucide/svelte/icons/github';
 	import LaptopIcon from '@lucide/svelte/icons/laptop';
 	import MoonIcon from '@lucide/svelte/icons/moon';
 	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
 	import SunIcon from '@lucide/svelte/icons/sun';
 	import XIcon from '@lucide/svelte/icons/x';
 	import type { Component } from 'svelte';
+
+	let helpOpen = $state(false);
+	const iconButtonClass =
+		'flex size-8 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color,box-shadow,scale] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96]';
+	const closeButtonClass =
+		'flex size-8 items-center justify-center rounded-md text-destructive transition-[background-color,color,box-shadow,scale] hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96]';
 
 	const themeOptions: { value: ThemePreference; label: string; icon: Component }[] = [
 		{ value: 'light', label: 'Light', icon: SunIcon },
@@ -60,18 +69,40 @@
 <Popover.Content
 	align="end"
 	sideOffset={-32}
-	class="grid w-[min(22rem,calc(100vw-1rem))] translate-x-2 -translate-y-2 gap-4 rounded-lg border border-border/70 bg-popover/90 p-4 text-popover-foreground backdrop-blur-md"
+	interactOutsideBehavior="ignore"
+	trapFocus={false}
+	class="relative grid w-[min(22rem,calc(100vw-1rem))] translate-x-2 -translate-y-2 gap-4 rounded-lg border border-border/70 bg-popover/90 p-4 pt-14 text-popover-foreground backdrop-blur-md"
 	style="box-shadow: 0 1px 2px rgb(0 0 0 / 0.08)"
 >
-	<Popover.Close
-		class="absolute top-[6.5px] right-[7px] flex size-8 items-center justify-center rounded-md text-sidebar-foreground/60 transition-[background-color,color,box-shadow,scale] hover:bg-accent hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden active:scale-[0.96]"
-		aria-label="Close settings"
+	<div
+		class="absolute top-[6.5px] right-[7px] left-[7px] grid h-8 grid-cols-[1fr_auto_1fr] items-center"
 	>
-		<XIcon class="size-4" />
-	</Popover.Close>
-	<Popover.Header>
-		<Popover.Title>Settings</Popover.Title>
-	</Popover.Header>
+		<div class="flex items-center gap-1">
+			<button
+				type="button"
+				class={iconButtonClass}
+				aria-label="Open help"
+				title="Help"
+				onclick={() => (helpOpen = true)}
+			>
+				<CircleHelpIcon class="size-4" />
+			</button>
+			<a
+				href="https://github.com/tomrford/cantraceviewer"
+				target="_blank"
+				rel="noreferrer"
+				class={iconButtonClass}
+				aria-label="Open source code on GitHub"
+				title="Source code"
+			>
+				<GithubIcon class="size-4" />
+			</a>
+		</div>
+		<Popover.Title class="text-center">Settings</Popover.Title>
+		<Popover.Close class="{closeButtonClass} justify-self-end" aria-label="Close settings">
+			<XIcon class="size-4" />
+		</Popover.Close>
+	</div>
 
 	<div class="grid gap-2">
 		<div class="text-xs font-medium text-muted-foreground">Theme</div>
@@ -145,3 +176,34 @@
 		</button>
 	</div>
 </Popover.Content>
+
+<AlertDialog.Root bind:open={helpOpen}>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>CAN Trace Viewer</AlertDialog.Title>
+			<AlertDialog.Description class="space-y-2 text-left text-pretty">
+				<p>
+					All files, preferences and saved settings are processed and stored solely in this
+					browser's local storage. Nothing leaves your machine.
+				</p>
+				<p>
+					Load one ASC, TRC, or BLF trace, add one or more DBC files, then select decoded signals
+					from the signal selector.
+				</p>
+				<p>
+					Current support covers CAN trace plotting and a practical subset of DBC, using shared-axis
+					line plots for selected signals.
+				</p>
+				<p>
+					The source code is available on
+					<a href="https://github.com/tomrford/cantraceviewer" target="_blank" rel="noreferrer">
+						GitHub</a
+					>.
+				</p>
+			</AlertDialog.Description>
+		</AlertDialog.Header>
+		<AlertDialog.Footer>
+			<AlertDialog.Action onclick={() => (helpOpen = false)}>Close</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>
