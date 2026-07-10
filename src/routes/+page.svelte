@@ -42,8 +42,48 @@
 		traceFile.entry ? formatTraceMetadata(traceFile.entry.metadata) : undefined
 	);
 	const siteTitle = 'CAN Trace Viewer';
-	const siteDescription = 'Lightweight browser-based CAN trace plotting and analysis GUI.';
+	const pageTitle = 'Free online CAN trace viewer for ASC, TRC and BLF logs';
+	const siteDescription =
+		'Plot and decode ASC, TRC, and BLF CAN bus logs in your browser. Free and open source; files stay on your device with no upload, account, or subscription.';
 	const siteUrl = 'https://cantraceviewer.com/';
+	const landingTitle = 'Plot CAN bus logs in your browser';
+	const landingDescription =
+		'Open an ASC, TRC, or BLF trace and use a DBC to plot decoded signals. Free and open source; files stay on this device with no upload, account, or subscription.';
+	const structuredData = {
+		'@context': 'https://schema.org',
+		'@graph': [
+			{
+				'@type': 'WebSite',
+				'@id': `${siteUrl}#website`,
+				url: siteUrl,
+				name: siteTitle,
+				description: siteDescription
+			},
+			{
+				'@type': 'WebApplication',
+				'@id': `${siteUrl}#application`,
+				url: siteUrl,
+				name: siteTitle,
+				description: siteDescription,
+				applicationCategory: 'UtilitiesApplication',
+				operatingSystem: 'Any operating system with a WebGPU-capable browser',
+				browserRequirements: 'WebGPU support and a viewport of at least 600 by 600 pixels',
+				softwareRequirements: 'WebGPU',
+				isAccessibleForFree: true,
+				offers: {
+					'@type': 'Offer',
+					price: 0
+				},
+				codeRepository: 'https://github.com/tomrford/cantraceviewer',
+				license: 'https://github.com/tomrford/cantraceviewer/blob/main/LICENSE.md',
+				featureList: [
+					'Plot ASC, PCAN TRC 1.x and 2.x, and BLF CAN logs',
+					'Decode CAN signals with DBC files',
+					'Process files locally in the browser'
+				]
+			}
+		]
+	};
 	const squircleButtonClass =
 		'flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground transition-[background-color,border-color,color,box-shadow,opacity,scale] hover:bg-sidebar-primary/90 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden active:scale-[0.96] disabled:pointer-events-none disabled:opacity-50';
 	const titleButtonClass =
@@ -119,31 +159,38 @@
 </script>
 
 <svelte:head>
-	<title>{siteTitle}</title>
+	<title>{pageTitle}</title>
 	<meta name="description" content={siteDescription} />
 	<meta name="theme-color" content="#09090b" />
 	<link rel="canonical" href={siteUrl} />
 
 	<meta property="og:type" content="website" />
 	<meta property="og:site_name" content={siteTitle} />
-	<meta property="og:title" content={siteTitle} />
+	<meta property="og:title" content={pageTitle} />
 	<meta property="og:description" content={siteDescription} />
 	<meta property="og:url" content={siteUrl} />
 	<meta property="og:image" content="https://cantraceviewer.com/og-image.png" />
+	<meta property="og:image:alt" content="CAN Trace Viewer plotting decoded CAN bus signals" />
 	<meta property="og:image:width" content="1200" />
 	<meta property="og:image:height" content="630" />
 
 	<meta name="twitter:card" content="summary_large_image" />
-	<meta name="twitter:title" content={siteTitle} />
+	<meta name="twitter:title" content={pageTitle} />
 	<meta name="twitter:description" content={siteDescription} />
 	<meta name="twitter:image" content="https://cantraceviewer.com/og-image.png" />
+	<meta name="twitter:image:alt" content="CAN Trace Viewer plotting decoded CAN bus signals" />
+
+	<svelte:element this={'script'} type="application/ld+json">
+		{JSON.stringify(structuredData)}
+	</svelte:element>
 </svelte:head>
 
 <main
 	class="viewport-gate flex min-h-screen items-center justify-center bg-background px-6 text-center"
 >
-	<div class="max-w-sm space-y-2">
-		<h1 class="text-base font-medium text-foreground">Screen too small</h1>
+	<div class="max-w-md space-y-2">
+		<h1 class="text-base font-medium text-foreground">{landingTitle}</h1>
+		<p class="text-sm text-muted-foreground">{landingDescription}</p>
 		<p class="text-sm text-muted-foreground">
 			CAN Trace Viewer needs a viewport of at least 600 px in both width and height. It works best
 			on desktop or tablet.
@@ -269,10 +316,8 @@
 				{/if}
 				<Empty.Root class="max-w-md border-0">
 					<Empty.Header>
-						<Empty.Title>Open a trace</Empty.Title>
-						<Empty.Description>
-							Load an ASC, TRC, or BLF file to start plotting decoded CAN signals.
-						</Empty.Description>
+						<h1 class="font-heading text-base font-medium tracking-tight">{landingTitle}</h1>
+						<Empty.Description>{landingDescription}</Empty.Description>
 					</Empty.Header>
 					<Empty.Content>
 						<Button size="lg" disabled={traceFile.isLoading} onclick={() => traceInput?.click()}>
