@@ -1,6 +1,6 @@
 # CI runs everything through `nix develop -c` so Bun, Rust, wasm-bindgen, and
-# Binaryen come from flake.lock, matching local development. This keeps the
-# committed WASM and generated bindings reproducible in the drift check.
+# Binaryen come from flake.lock, matching local tool versions. Rust codegen is
+# not byte-identical across hosts, so CI drift-checks the generated bindings.
 # Nix install + devshell eval costs ~30s on ubuntu runners; acceptable.
 name: CI
 
@@ -11,9 +11,7 @@ on:
 
 jobs:
   ci:
-    # The committed WASM is generated on Apple silicon, and Rust's cross-host
-    # code generation is not byte-for-byte identical for this target.
-    runs-on: macos-15
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -37,7 +35,10 @@ jobs:
       - name: Rust WASM tests
         run: nix develop -c bun run wasm:test
 
-      - name: Generated WASM bindings up to date
+      - name: Release WASM builds and generated bindings up to date
         run: |
           nix develop -c bun run wasm:build:release
-          git diff --exit-code
+          git diff --exit-code -- \
+            src/lib/wasm-bindgen/cantraceviewer.js \
+            src/lib/wasm-bindgen/cantraceviewer.d.ts \
+            src/lib/wasm-bindgen/cantraceviewer_bg.wasm.d.ts
