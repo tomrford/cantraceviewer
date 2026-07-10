@@ -23,6 +23,7 @@
 	import type { TraceMetadata } from '$lib/wasm.js';
 	import AudioWaveformIcon from '@lucide/svelte/icons/audio-waveform';
 	import CogIcon from '@lucide/svelte/icons/cog';
+	import CircleHelpIcon from '@lucide/svelte/icons/circle-help';
 	import DatabaseIcon from '@lucide/svelte/icons/database';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import XIcon from '@lucide/svelte/icons/x';
@@ -61,31 +62,11 @@
 			? -1
 			: WALKTHROUGH_STEPS.findIndex((step) => step.id === walkthroughStepId)
 	);
-	let walkthroughNextDisabled = $derived.by(() => {
-		switch (walkthroughStepId) {
-			case 'add-dbc':
-				return dbcFiles.files.length === 0;
-			case 'trace':
-				return traceFile.entry === null;
-			case 'signals':
-				return !plotData.hasPlottableSignals;
-			default:
-				return false;
-		}
-	});
-	let walkthroughNextHint = $derived.by(() => {
-		if (!walkthroughNextDisabled) return undefined;
-		switch (walkthroughStepId) {
-			case 'add-dbc':
-				return 'Add a DBC to continue.';
-			case 'trace':
-				return 'Open a trace to continue.';
-			case 'signals':
-				return 'Select a signal to continue.';
-			default:
-				return undefined;
-		}
-	});
+	let walkthroughInvitationVisible = $derived(
+		dbcFiles.hasLoadedLibrary &&
+			walkthroughStepId === null &&
+			shouldShowWalkthrough(walkthroughVersion.current)
+	);
 	const siteTitle = 'CAN Trace Viewer';
 	const pageTitle = 'Free online CAN trace viewer for ASC, TRC and BLF logs';
 	const siteDescription =
@@ -136,27 +117,28 @@
 
 	onMount(() => {
 		webgpuSupported = 'gpu' in navigator;
-		void initializePage();
+		void dbcFiles.loadLibrary();
 	});
-
-	$effect(() => {
-		if (
-			!signalSelectorOpen &&
-			(walkthroughStepId === 'add-dbc' || walkthroughStepId === 'signals')
-		) {
-			walkthroughStepId = 'library';
-		}
-	});
-
-	async function initializePage(): Promise<void> {
-		await dbcFiles.loadLibrary();
-		if (shouldShowWalkthrough(walkthroughVersion.current)) {
-			await showWalkthroughStep('library');
-		}
-	}
 
 	async function startWalkthrough(): Promise<void> {
 		await showWalkthroughStep('library');
+	}
+
+	function handleSignalSelectorOpen(open: boolean): void {
+		signalSelectorOpen = open;
+		if (open && walkthroughStepId === 'library') {
+			void showWalkthroughStep('add-dbc');
+		} else if (!open && (walkthroughStepId === 'add-dbc' || walkthroughStepId === 'signals')) {
+			void showWalkthroughStep('library');
+		}
+	}
+
+	function handleAddDbc(): void {
+		if (walkthroughStepId === 'add-dbc') void showWalkthroughStep('trace');
+	}
+
+	function handleSignalToggle(): void {
+		if (walkthroughStepId === 'signals') void showWalkthroughStep('controls');
 	}
 
 	async function showWalkthroughStep(stepId: WalkthroughStep['id']): Promise<void> {
@@ -167,9 +149,9 @@
 		walkthroughStepId = stepId;
 	}
 
-	async function moveWalkthrough(direction: -1 | 1): Promise<void> {
+	async function advanceWalkthrough(): Promise<void> {
 		if (!walkthroughStepId) return;
-		const nextStep = adjacentWalkthroughStep(walkthroughStepId, direction);
+		const nextStep = adjacentWalkthroughStep(walkthroughStepId, 1);
 		if (!nextStep) {
 			finishWalkthrough();
 			return;
@@ -195,6 +177,7 @@
 		if (!file || traceFile.isLoading) return;
 		if (await traceFile.openFile(file)) {
 			onTraceOpened();
+			if (walkthroughStepId === 'trace') await showWalkthroughStep('signals');
 		}
 	}
 
@@ -306,7 +289,7 @@
 			aria-busy={traceFile.isLoading}
 		>
 			<div class="flex items-center">
-				<Popover.Root bind:open={signalSelectorOpen}>
+				<Popover.Root bind:open={() => signalSelectorOpen, handleSignalSelectorOpen}>
 					<Popover.Trigger
 						class={squircleButtonClass}
 						data-walkthrough-target="signal-selector"
@@ -315,7 +298,7 @@
 					>
 						<DatabaseIcon class="size-4" />
 					</Popover.Trigger>
-					<SignalSelectorDialog />
+					<SignalSelectorDialog onAddDbc={handleAddDbc} onSignalToggle={handleSignalToggle} />
 				</Popover.Root>
 			</div>
 
@@ -354,9 +337,9 @@
 				onchange={selectTrace}
 			/>
 
-			<div class="flex items-center gap-2">
+			<div class="flex items-center gap-2" data-walkthrough-target="plot-controls">
 				{#if traceFile.entry}
-					<div class="flex items-center" data-walkthrough-target="plot-controls">
+					<div class="flex items-center">
 						<PlotToolbar
 							disabled={plotControlsDisabled}
 							{canResetZoom}
@@ -412,7 +395,7 @@
 						<h1 class="font-heading text-base font-medium tracking-tight">{landingTitle}</h1>
 						<Empty.Description>{landingDescription}</Empty.Description>
 					</Empty.Header>
-					<Empty.Content>
+					<Empty.Content class="max-w-none flex-row justify-center">
 						<Button size="lg" disabled={traceFile.isLoading} onclick={() => traceInput?.click()}>
 							{#if traceFile.isLoading}
 								<LoaderCircleIcon data-icon="inline-start" class="size-4 animate-spin" />
@@ -422,6 +405,12 @@
 								Open trace
 							{/if}
 						</Button>
+						{#if walkthroughInvitationVisible}
+							<Button variant="outline" size="lg" onclick={() => void startWalkthrough()}>
+								<CircleHelpIcon data-icon="inline-start" class="size-4" />
+								First time? Take a tour
+							</Button>
+						{/if}
 					</Empty.Content>
 				</Empty.Root>
 			</section>
@@ -467,11 +456,7 @@
 				step={walkthroughStep}
 				stepIndex={walkthroughStepIndex}
 				stepCount={WALKTHROUGH_STEPS.length}
-				nextDisabled={walkthroughNextDisabled}
-				nextHint={walkthroughNextHint}
-				onBack={() => void moveWalkthrough(-1)}
-				onNext={() => void moveWalkthrough(1)}
-				onSkip={finishWalkthrough}
+				onAdvance={() => void advanceWalkthrough()}
 			/>
 		{/if}
 	</div>

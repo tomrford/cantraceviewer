@@ -24,6 +24,8 @@
 	import XIcon from '@lucide/svelte/icons/x';
 	import { SvelteSet } from 'svelte/reactivity';
 
+	let { onAddDbc, onSignalToggle }: { onAddDbc?: () => void; onSignalToggle?: () => void } =
+		$props();
 	let dbcInput = $state<HTMLInputElement>();
 	let signalListScroller = $state<HTMLDivElement>();
 	let signalListContent = $state<HTMLUListElement>();
@@ -82,6 +84,16 @@
 		if (files.length === 0) return;
 
 		await dbcFiles.addFiles(files);
+	}
+
+	function openDbcInput(): void {
+		onAddDbc?.();
+		dbcInput?.click();
+	}
+
+	function toggleSignal(signalKey: string): void {
+		plotData.toggleSignal(signalKey);
+		onSignalToggle?.();
 	}
 
 	function handleDbcDrag(event: DragEvent) {
@@ -166,6 +178,7 @@
 </script>
 
 <Popover.Content
+	data-walkthrough-target="signal-selector-panel"
 	align="start"
 	sideOffset={-32}
 	interactOutsideBehavior="ignore"
@@ -208,7 +221,7 @@
 			disabled={dbcFiles.isLoading}
 			aria-label={dbcFiles.isLoading ? 'Loading DBC' : 'Add DBC'}
 			title={dbcFiles.isLoading ? 'Loading DBC' : 'Add DBC'}
-			onclick={() => dbcInput?.click()}
+			onclick={openDbcInput}
 		>
 			<PlusIcon class="size-4" />
 		</button>
@@ -233,7 +246,7 @@
 		</button>
 	</div>
 
-	<div class="relative min-h-0" data-walkthrough-target="signal-list">
+	<div class="relative min-h-0">
 		<div
 			bind:this={signalListScroller}
 			class="h-full overflow-y-auto pb-4 [--scroll-fade-size:2rem] [scrollbar-gutter:stable]"
@@ -339,7 +352,7 @@
 																				title={decodeStatus?.decodeError ?? undefined}
 																				class="data-[error=true]:border-destructive/50 data-[error=true]:bg-destructive/10 data-[error=true]:text-destructive data-checked:border-sidebar-primary data-checked:bg-sidebar-primary data-checked:text-sidebar-primary-foreground"
 																				data-error={decodeStatus?.decodeError != null}
-																				onCheckedChange={() => plotData.toggleSignal(signal.key)}
+																				onCheckedChange={() => toggleSignal(signal.key)}
 																			/>
 																			<span class="flex min-w-0 flex-1 items-center gap-2">
 																				<span class="truncate font-mono" title={signal.label}>

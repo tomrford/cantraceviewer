@@ -8,7 +8,6 @@ export type WalkthroughStep = {
 	placement: WalkthroughPlacement;
 	title: string;
 	description: string;
-	nextLabel: string;
 };
 
 export const WALKTHROUGH_STEPS: WalkthroughStep[] = [
@@ -17,8 +16,7 @@ export const WALKTHROUGH_STEPS: WalkthroughStep[] = [
 		target: 'signal-selector',
 		placement: 'bottom-start',
 		title: 'Your signal library',
-		description: 'Open the signal selector to add DBC files and choose decoded signals.',
-		nextLabel: 'Open selector'
+		description: 'Open the signal selector to add DBC files and choose decoded signals.'
 	},
 	{
 		id: 'add-dbc',
@@ -26,25 +24,22 @@ export const WALKTHROUGH_STEPS: WalkthroughStep[] = [
 		placement: 'right-start',
 		title: 'Add a DBC',
 		description:
-			'Use the plus button to add one or more DBC files. They stay in this browser for your next visit.',
-		nextLabel: 'Continue'
+			'Use the plus button to add one or more DBC files. They stay in this browser for your next visit.'
 	},
 	{
 		id: 'trace',
 		target: 'trace',
 		placement: 'bottom-start',
 		title: 'Open a trace',
-		description: 'Open or drop an ASC, TRC or BLF file. The trace stays in this tab.',
-		nextLabel: 'Continue'
+		description: 'Open or drop an ASC, TRC or BLF file. The trace stays in this tab.'
 	},
 	{
 		id: 'signals',
-		target: 'signal-list',
+		target: 'signal-selector-panel',
 		placement: 'right-start',
 		title: 'Select signals',
 		description:
-			'Expand a message and tick a signal. The shared plot updates as you select signals.',
-		nextLabel: 'Continue'
+			'Expand a message and tick a signal. The shared plot updates as you select signals.'
 	},
 	{
 		id: 'controls',
@@ -52,8 +47,7 @@ export const WALKTHROUGH_STEPS: WalkthroughStep[] = [
 		placement: 'bottom-end',
 		title: 'Explore the plot',
 		description:
-			'Use the toolbar to zoom, box-select, show a marker or hide the legend. Scroll to zoom, drag to pan and right-click the plot for more actions.',
-		nextLabel: 'Finish'
+			'Once signals are plotted, use the toolbar here to zoom, box-select, show a marker or hide the legend. Scroll to zoom, drag to pan and right-click the plot for more actions.'
 	}
 ];
 
