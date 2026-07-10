@@ -12,6 +12,7 @@
 	} from '$lib/file-drop.js';
 	import { dbcFiles } from '$lib/stores/dbc-files.svelte.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
+	import { traceFile } from '$lib/stores/trace-file.svelte.js';
 	import { onDbcRemoved } from '$lib/stores/session.js';
 	import SearchForm from './search-form.svelte';
 	import CheckIcon from '@lucide/svelte/icons/check';
@@ -51,7 +52,9 @@
 		expandedDbcIds,
 		expandedMessageKeys
 	});
-	let visibleDbcFiles = $derived(dbcFiles.visibleSelectorTree(selectorFilter));
+	let visibleDbcFiles = $derived(
+		dbcFiles.visibleSelectorTree(selectorFilter, traceFile.mf4SelectorIndexes)
+	);
 
 	const menuButtonClass =
 		'flex w-full min-w-0 items-center gap-2 overflow-hidden rounded-[calc(var(--radius-sm)+2px)] p-2 text-left text-xs text-popover-foreground transition-[background-color,color,box-shadow] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden';
@@ -225,11 +228,7 @@
 	</div>
 
 	<div class="flex items-center gap-2">
-		<SearchForm
-			class="min-w-0 flex-1"
-			bind:value={signalSearch}
-			placeholder="Filter DBC signals..."
-		/>
+		<SearchForm class="min-w-0 flex-1" bind:value={signalSearch} placeholder="Filter signals..." />
 		<button
 			type="button"
 			class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border/70 text-muted-foreground transition-[background-color,border-color,color,box-shadow,scale] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96] data-[active=true]:border-sidebar-primary/60 data-[active=true]:bg-sidebar-primary/15 data-[active=true]:text-sidebar-primary"
@@ -273,18 +272,26 @@
 											<ChevronDownIcon
 												class="size-4 shrink-0 text-muted-foreground group-data-[state=closed]/collapsible:hidden"
 											/>
-											<span class="truncate">{dbc.name}</span>
+											<span class="min-w-0 truncate" class:italic={dbc.transient}>{dbc.name}</span>
+											{#if dbc.transient}
+												<span
+													class="shrink-0 rounded border border-border/70 bg-muted px-1 py-0.5 text-[9px] leading-none font-medium text-muted-foreground not-italic"
+													>MF4</span
+												>
+											{/if}
 										</button>
 									{/snippet}
 								</Collapsible.Trigger>
-								<button
-									type="button"
-									class="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-70 transition-[background-color,color,box-shadow,opacity,scale] hover:bg-accent hover:text-destructive hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96]"
-									aria-label={`Delete ${dbc.name}`}
-									onclick={() => removeDbc(dbc.id)}
-								>
-									<TrashIcon class="size-4" />
-								</button>
+								{#if !dbc.transient && dbc.kind === 'dbc'}
+									<button
+										type="button"
+										class="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-70 transition-[background-color,color,box-shadow,opacity,scale] hover:bg-accent hover:text-destructive hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96]"
+										aria-label={`Delete ${dbc.name}`}
+										onclick={() => removeDbc(dbc.id)}
+									>
+										<TrashIcon class="size-4" />
+									</button>
+								{/if}
 							</div>
 							<!-- Collapsible.Content keeps children mounted (hidden) while closed; with
 							     thousands of signals that makes every popover open unusably slow, so

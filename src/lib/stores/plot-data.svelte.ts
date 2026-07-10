@@ -1,14 +1,20 @@
 import { createSignalColorAssigner } from '$lib/plot-colors.js';
 import { orderPlotSignals } from '$lib/plot-signal-order.js';
-import { dbcFiles, signalIdentityKey } from '$lib/stores/dbc-files.svelte.js';
+import { dbcFiles, signalIdentityKey, type DbcSignalTarget } from '$lib/stores/dbc-files.svelte.js';
 import { legendOrderMode } from '$lib/stores/preferences.svelte.js';
 import { traceFile } from '$lib/stores/trace-file.svelte.js';
-import { getSignalValues, type DecodedSignalSeries, type DbcValueDescription } from '$lib/wasm.js';
+import {
+	getMf4SignalValues,
+	getSignalValues,
+	type DecodedSignalSeries,
+	type DbcValueDescription
+} from '$lib/wasm.js';
+import type { Mf4SignalTarget } from '$lib/mf4-signals.js';
 import { SvelteMap } from 'svelte/reactivity';
 
-export type PlotSignalKey = string;
+type PlotSignalKey = string;
 
-export type SelectedSignalState = {
+type SelectedSignalState = {
 	status: 'idle' | 'decoding' | 'ready' | 'error';
 	series: DecodedSignalSeries | null;
 	error: string | null;
@@ -44,20 +50,37 @@ class PlotDataStore {
 			const target = findSignalTarget(key);
 			if (!target) continue;
 
-			signals.push({
-				key,
-				color: this.signalColors.colorFor(key),
-				label: `${target.message.name}.${target.signal.name}`,
-				messageName: target.message.name,
-				signalName: target.signal.name,
-				unit: target.signal.unit,
-				factor: target.signal.factor,
-				offset: target.signal.offset,
-				minimum: target.signal.minimum,
-				maximum: target.signal.maximum,
-				valueDescriptions: target.signal.valueDescriptions,
-				series: state.series
-			});
+			if (target.kind === 'dbc') {
+				signals.push({
+					key,
+					color: this.signalColors.colorFor(key),
+					label: `${target.value.message.name}.${target.value.signal.name}`,
+					messageName: target.value.message.name,
+					signalName: target.value.signal.name,
+					unit: target.value.signal.unit,
+					factor: target.value.signal.factor,
+					offset: target.value.signal.offset,
+					minimum: target.value.signal.minimum,
+					maximum: target.value.signal.maximum,
+					valueDescriptions: target.value.signal.valueDescriptions,
+					series: state.series
+				});
+			} else {
+				signals.push({
+					key,
+					color: this.signalColors.colorFor(key),
+					label: `${target.value.group.name}.${target.value.signal.name}`,
+					messageName: target.value.group.name,
+					signalName: target.value.signal.name,
+					unit: target.value.signal.unit,
+					factor: 1,
+					offset: 0,
+					minimum: Number.NaN,
+					maximum: Number.NaN,
+					valueDescriptions: [],
+					series: state.series
+				});
+			}
 		}
 
 		return orderPlotSignals(signals, legendOrderMode.current);
@@ -120,16 +143,10 @@ class PlotDataStore {
 		this.setSignalState(key, { status: 'decoding', series: null, error: null });
 
 		try {
-			const series = await getSignalValues(
-				target.file.handle,
-				trace,
-				{
-					canId: target.message.canId,
-					isExtended: target.message.isExtended,
-					sizeBytes: target.message.sizeBytes
-				},
-				target.signal.name
-			);
+			const series =
+				target.kind === 'mf4'
+					? await getMf4SignalValues(trace, target.value.signal.id)
+					: await this.decodeDbcSignal(trace, target.value);
 
 			if (!this.isSignalSelected(key) || traceFile.entry !== trace || !findSignalTarget(key)) {
 				return;
@@ -152,13 +169,35 @@ class PlotDataStore {
 		}
 	}
 
+	private async decodeDbcSignal(
+		trace: NonNullable<typeof traceFile.entry>,
+		target: DbcSignalTarget
+	) {
+		if (!trace.hasRawFrames) {
+			throw new Error('This trace has no raw CAN frames for DBC decoding.');
+		}
+		return getSignalValues(
+			target.file.handle,
+			trace,
+			{
+				canId: target.message.canId,
+				isExtended: target.message.isExtended,
+				sizeBytes: target.message.sizeBytes
+			},
+			target.signal.name
+		);
+	}
+
 	private setSignalState(key: PlotSignalKey, state: SelectedSignalState): void {
 		this.selectedSignals.set(key, state);
 	}
 }
 
 function findSignalTarget(key: PlotSignalKey) {
-	return dbcFiles.signalTargetByKey[key] ?? null;
+	const dbc = dbcFiles.signalTargetByKey[key];
+	if (dbc) return { kind: 'dbc' as const, value: dbc };
+	const mf4 = traceFile.mf4SignalTargetByKey[key] as Mf4SignalTarget | undefined;
+	return mf4 ? { kind: 'mf4' as const, value: mf4 } : null;
 }
 
 export const plotData = new PlotDataStore();

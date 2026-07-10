@@ -25,7 +25,7 @@ describe('traceFile', () => {
 		await traceFile.openFile(file('trace.txt', 'BO_ 1 Example: 8 ECU'));
 
 		expect(openTraceMock).not.toHaveBeenCalled();
-		expect(traceFile.error).toBe('Unsupported trace file type. Open .asc, .trc, or .blf.');
+		expect(traceFile.error).toBe('Unsupported trace file type. Open .asc, .trc, .blf, or .mf4.');
 	});
 
 	it('rejects BLF files without LOGG magic before WASM parse', async () => {

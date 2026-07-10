@@ -26,12 +26,6 @@ export function removeCrosshair(crosshairs: PlotCrosshair[], id: CrosshairId): P
 	return crosshairs.filter((crosshair) => crosshair.id !== id);
 }
 
-export function nextCrosshairId(crosshairs: PlotCrosshair[]): CrosshairId | null {
-	if (crosshairById(crosshairs, 1) === null) return 1;
-	if (crosshairById(crosshairs, 2) === null) return 2;
-	return null;
-}
-
 export function moveCrosshair(
 	crosshair: PlotCrosshair,
 	point: Pick<PlotCrosshair, 'x' | 'y'>,

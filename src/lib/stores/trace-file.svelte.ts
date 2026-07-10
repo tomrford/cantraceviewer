@@ -1,6 +1,7 @@
 import { closeTrace, openTrace, type TraceHandle, type TraceType } from '$lib/wasm.js';
 import { TRACE_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '$lib/file-limits.js';
 import { assertTraceFileContent } from '$lib/file-preflight.js';
+import { buildMf4SignalTargetIndex, mf4SelectorSearchIndexes } from '$lib/mf4-signals.js';
 import {
 	TRACE_FILE_DESCRIPTION,
 	displayTraceName,
@@ -16,12 +17,17 @@ class TraceFileStore {
 	private dismissedWarningEntry = $state<TraceFileEntry | null>(null);
 
 	displayName = $derived(this.entry ? displayTraceName(this.entry.file.name) : 'CAN Trace Viewer');
+	mf4SignalTargetByKey = $derived.by(() => buildMf4SignalTargetIndex(this.entry));
+	mf4SelectorIndexes = $derived.by(() => mf4SelectorSearchIndexes(this.entry));
 	warning = $derived.by(() => {
 		if (!this.entry || this.entry === this.dismissedWarningEntry) return null;
+		const warnings = [...(this.entry.warnings ?? [])];
 		const count = this.entry.metadata.skippedLineCount;
-		if (count === 0) return null;
+		if (count > 0) {
+			warnings.push(`Parsed with ${count} malformed ${count === 1 ? 'line' : 'lines'} skipped.`);
+		}
 
-		return `Parsed with ${count} malformed ${count === 1 ? 'line' : 'lines'} skipped.`;
+		return warnings.length > 0 ? warnings.join(' ') : null;
 	});
 
 	async openFile(file: File): Promise<boolean> {
@@ -54,15 +60,6 @@ class TraceFileStore {
 			return false;
 		} finally {
 			this.isLoading = false;
-		}
-	}
-
-	async clear(): Promise<void> {
-		const previous = this.entry;
-		this.entry = null;
-
-		if (previous) {
-			await closeTrace(previous);
 		}
 	}
 
