@@ -11,7 +11,9 @@ on:
 
 jobs:
   ci:
-    runs-on: ubuntu-latest
+    # The committed WASM is generated on Apple silicon, and Rust's cross-host
+    # code generation is not byte-for-byte identical for this target.
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
 
