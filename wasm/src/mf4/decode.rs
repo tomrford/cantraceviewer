@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::trace::{CanId, Frame, FrameKind, Trace};
+use crate::trace::{CanId, Frame, FrameKind, Trace, fd_payload_length_from_dlc};
 
 use super::Mf4Error;
 use super::block::{Channel, ChannelGroup, DataGroup, FileIndex, collect_data};
@@ -307,13 +307,12 @@ fn append_raw_frame(
     };
 
     if matches!(plan.kind, FrameKind::Data | FrameKind::Error) {
-        let payload_len = plan
+        let explicit_payload_len = plan
             .data_length
             .as_ref()
             .map(|channel| decode_raw(record, channel))
-            .transpose()?
-            .unwrap_or(0)
-            .min(64) as usize;
+            .transpose()?;
+        let payload_len = payload_length(explicit_payload_len, dlc, frame.is_fd)?;
         if payload_len > 0 {
             let channel = plan.data_bytes.as_ref().ok_or(Mf4Error::InvalidRecord)?;
             let payload = decode_bytes(record, channel, payload_len)?;
@@ -334,6 +333,18 @@ fn append_raw_frame(
     }
     trace.frames.push(frame);
     Ok(())
+}
+
+fn payload_length(explicit: Option<u64>, dlc: u8, is_fd: bool) -> Result<usize, Mf4Error> {
+    if let Some(length) = explicit {
+        return Ok(length.min(64) as usize);
+    }
+    if is_fd {
+        return fd_payload_length_from_dlc(dlc)
+            .map(usize::from)
+            .map_err(|_| Mf4Error::InvalidRecord);
+    }
+    Ok(usize::from(dlc.min(8)))
 }
 
 fn master_channel(group: &ChannelGroup) -> Option<&Channel> {
@@ -446,4 +457,17 @@ fn seconds_to_ns(seconds: f64) -> Result<u64, Mf4Error> {
         return Err(Mf4Error::InvalidTimestamp);
     }
     Ok(value as u64)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn derives_payload_length_from_dlc_when_data_length_is_absent() {
+        assert_eq!(payload_length(None, 4, false).unwrap(), 4);
+        assert_eq!(payload_length(None, 9, true).unwrap(), 12);
+        assert_eq!(payload_length(Some(3), 8, false).unwrap(), 3);
+        assert!(payload_length(None, 16, true).is_err());
+    }
 }

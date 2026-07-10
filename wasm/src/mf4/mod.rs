@@ -9,14 +9,17 @@ use fdeflate::{DecompressionError, Decompressor};
 
 use crate::trace::Trace;
 
-use block::{FileIndex, parse_index};
+use block::{
+    FileIndex, MAX_EMBEDDED_DBC_BYTES, is_arxml_attachment, is_dbc_attachment, parse_index,
+};
 use decode::{
     NativeSignal, decode_native_signal, duration_ns, native_signals, native_time_range,
     parse_raw_trace,
 };
 pub(crate) use error::Mf4Error;
 
-const MAX_EMBEDDED_DBC_BYTES: usize = 1024 * 1024;
+const ABSOLUTE_TIME_THRESHOLD_SECONDS: f64 = 100_000_000.0;
+const ABSOLUTE_TIME_THRESHOLD_NS: u64 = 100_000_000_000_000_000;
 
 #[derive(Debug)]
 pub(crate) struct Document {
@@ -44,9 +47,10 @@ impl Document {
         }
 
         let native_range = native_time_range(&bytes, &index)?;
-        let time_offset_seconds = native_range
-            .filter(|(minimum, _)| *minimum >= 100_000_000.0)
-            .map_or(0.0, |(minimum, _)| minimum);
+        let raw_minimum = trace.frames.iter().map(|frame| frame.timestamp_ns).min();
+        let (raw_time_offset_ns, time_offset_seconds) =
+            time_offsets(raw_minimum, native_range.map(|(minimum, _)| minimum))?;
+        normalize_raw_timestamps(&mut trace, raw_time_offset_ns)?;
         if let Some((_, maximum)) = native_range {
             let duration = duration_ns(maximum - time_offset_seconds)?;
             trace.last_data_timestamp_ns = Some(
@@ -146,34 +150,33 @@ fn classify_attachments(index: &FileIndex) -> (Vec<EmbeddedDbc>, Vec<String>) {
     let mut dbcs = Vec::new();
     let mut warnings = Vec::new();
     for attachment in &index.attachments {
-        let lower_name = attachment.name.to_ascii_lowercase();
-        let lower_mime = attachment.mime.to_ascii_lowercase();
-        let is_dbc = lower_name.ends_with(".dbc") || lower_mime.contains("dbc");
-        let is_arxml = lower_name.ends_with(".arxml") || lower_mime.contains("arxml");
-        if is_arxml {
+        if is_arxml_attachment(&attachment.name, &attachment.mime) {
             warnings.push(format!(
                 "Embedded ARXML attachment \"{}\" is not supported yet; see issue #115.",
                 display_attachment_name(&attachment.name, "ARXML")
             ));
             continue;
         }
-        if !is_dbc {
+        if !is_dbc_attachment(&attachment.name, &attachment.mime) {
             continue;
         }
-        let Some(data) = attachment.data.as_deref() else {
+        if !attachment.is_embedded {
             warnings.push(format!(
                 "DBC attachment \"{}\" is external and cannot be opened from this MF4 file.",
                 display_attachment_name(&attachment.name, "DBC")
             ));
             continue;
-        };
-        if data.len() > MAX_EMBEDDED_DBC_BYTES {
+        }
+        if attachment.original_size > MAX_EMBEDDED_DBC_BYTES {
             warnings.push(format!(
                 "Embedded DBC \"{}\" exceeds the 1 MiB DBC limit.",
                 display_attachment_name(&attachment.name, "DBC")
             ));
             continue;
         }
+        let Some(data) = attachment.data.as_deref() else {
+            continue;
+        };
         match std::str::from_utf8(data) {
             Ok(text) => dbcs.push(EmbeddedDbc {
                 name: display_attachment_name(&attachment.name, "embedded.dbc").to_owned(),
@@ -186,6 +189,45 @@ fn classify_attachments(index: &FileIndex) -> (Vec<EmbeddedDbc>, Vec<String>) {
         }
     }
     (dbcs, warnings)
+}
+
+fn time_offsets(
+    raw_minimum_ns: Option<u64>,
+    native_minimum: Option<f64>,
+) -> Result<(u64, f64), Mf4Error> {
+    let raw_absolute = raw_minimum_ns.filter(|minimum| *minimum >= ABSOLUTE_TIME_THRESHOLD_NS);
+    let native_absolute =
+        native_minimum.filter(|minimum| *minimum >= ABSOLUTE_TIME_THRESHOLD_SECONDS);
+    Ok(match (raw_absolute, native_absolute) {
+        (Some(raw), Some(native)) => {
+            let shared_ns = raw.min(duration_ns(native)?);
+            (shared_ns, shared_ns as f64 / 1_000_000_000.0)
+        }
+        (Some(raw), None) => (raw, 0.0),
+        (None, Some(native)) => (0, native),
+        (None, None) => (0, 0.0),
+    })
+}
+
+fn normalize_raw_timestamps(trace: &mut Trace, offset_ns: u64) -> Result<(), Mf4Error> {
+    if offset_ns == 0 {
+        return Ok(());
+    }
+    for frame in &mut trace.frames {
+        frame.timestamp_ns = frame
+            .timestamp_ns
+            .checked_sub(offset_ns)
+            .ok_or(Mf4Error::InvalidTimestamp)?;
+    }
+    trace.last_data_timestamp_ns = trace
+        .last_data_timestamp_ns
+        .map(|timestamp| {
+            timestamp
+                .checked_sub(offset_ns)
+                .ok_or(Mf4Error::InvalidTimestamp)
+        })
+        .transpose()?;
+    Ok(())
 }
 
 fn display_attachment_name<'a>(name: &'a str, fallback: &'a str) -> &'a str {
@@ -276,6 +318,7 @@ fn write_json_string(output: &mut String, value: &str) {
 mod tests {
     use super::*;
     use crate::mf4::block::Attachment;
+    use crate::trace::Frame;
 
     #[test]
     fn parses_raw_can_event_groups() {
@@ -352,7 +395,9 @@ mod tests {
             attachments: vec![Attachment {
                 name: "network.arxml".to_owned(),
                 mime: "application/x-arxml".to_owned(),
-                data: Some(b"<AUTOSAR/>".to_vec()),
+                is_embedded: true,
+                original_size: 10,
+                data: None,
             }],
         };
 
@@ -362,6 +407,63 @@ mod tests {
         assert_eq!(
             warnings,
             ["Embedded ARXML attachment \"network.arxml\" is not supported yet; see issue #115."]
+        );
+    }
+
+    #[test]
+    fn reports_oversized_embedded_dbcs_without_materializing_them() {
+        let index = FileIndex {
+            measurement_start_ms: None,
+            data_groups: Vec::new(),
+            attachments: vec![Attachment {
+                name: "large.dbc".to_owned(),
+                mime: "application/x-dbc".to_owned(),
+                is_embedded: true,
+                original_size: MAX_EMBEDDED_DBC_BYTES + 1,
+                data: None,
+            }],
+        };
+
+        let (dbcs, warnings) = classify_attachments(&index);
+
+        assert!(dbcs.is_empty());
+        assert_eq!(
+            warnings,
+            ["Embedded DBC \"large.dbc\" exceeds the 1 MiB DBC limit."]
+        );
+    }
+
+    #[test]
+    fn aligns_absolute_raw_and_native_timestamps_to_a_shared_origin() {
+        let raw_minimum_ns = 134_217_728_250_000_000;
+        let native_minimum = 134_217_728.5;
+        let (raw_offset_ns, native_offset) =
+            time_offsets(Some(raw_minimum_ns), Some(native_minimum)).unwrap();
+        assert_eq!(raw_offset_ns, raw_minimum_ns);
+        assert_eq!(native_offset, 134_217_728.25);
+
+        let mut trace = Trace {
+            frames: vec![
+                Frame {
+                    timestamp_ns: raw_minimum_ns,
+                    ..Frame::default()
+                },
+                Frame {
+                    timestamp_ns: raw_minimum_ns + 250_000_000,
+                    ..Frame::default()
+                },
+            ],
+            last_data_timestamp_ns: Some(raw_minimum_ns + 250_000_000),
+            ..Trace::default()
+        };
+        normalize_raw_timestamps(&mut trace, raw_offset_ns).unwrap();
+
+        assert_eq!(trace.frames[0].timestamp_ns, 0);
+        assert_eq!(trace.frames[1].timestamp_ns, 250_000_000);
+        assert_eq!(trace.last_data_timestamp_ns, Some(250_000_000));
+        assert_eq!(
+            time_offsets(Some(100_000_000), Some(native_minimum)).unwrap(),
+            (0, native_minimum)
         );
     }
 }

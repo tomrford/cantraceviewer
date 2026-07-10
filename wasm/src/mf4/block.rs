@@ -4,6 +4,7 @@ use super::{Mf4Error, inflate_zlib};
 
 const COMMON_HEADER_SIZE: usize = 24;
 const MAX_DECOMPRESSED_BYTES: usize = 500 * 1024 * 1024;
+pub(super) const MAX_EMBEDDED_DBC_BYTES: usize = 1024 * 1024;
 
 #[derive(Clone, Debug)]
 pub(super) struct Channel {
@@ -88,7 +89,26 @@ pub(super) struct DataGroup {
 pub(super) struct Attachment {
     pub(super) name: String,
     pub(super) mime: String,
+    pub(super) is_embedded: bool,
+    pub(super) original_size: usize,
     pub(super) data: Option<Vec<u8>>,
+}
+
+pub(super) fn is_dbc_attachment(name: &str, mime: &str) -> bool {
+    name.to_ascii_lowercase().ends_with(".dbc") || mime.to_ascii_lowercase().contains("dbc")
+}
+
+pub(super) fn is_arxml_attachment(name: &str, mime: &str) -> bool {
+    name.to_ascii_lowercase().ends_with(".arxml") || mime.to_ascii_lowercase().contains("arxml")
+}
+
+fn should_materialize_attachment(
+    name: &str,
+    mime: &str,
+    is_embedded: bool,
+    original_size: usize,
+) -> bool {
+    is_embedded && is_dbc_attachment(name, mime) && original_size <= MAX_EMBEDDED_DBC_BYTES
 }
 
 #[derive(Debug)]
@@ -314,7 +334,10 @@ fn parse_attachments(bytes: &[u8], first_address: u64) -> Result<Vec<Attachment>
         let embedded_size = usize::try_from(read_u64(data, 32)?)
             .map_err(|_| Mf4Error::InvalidBlock("attachment"))?;
         let embedded = data.get(40..40usize.saturating_add(embedded_size));
-        let attachment_data = if flags & 1 == 0 {
+        let is_embedded = flags & 1 != 0;
+        let should_materialize =
+            should_materialize_attachment(&name, &mime, is_embedded, original_size);
+        let attachment_data = if !should_materialize {
             None
         } else if flags & 2 != 0 {
             let compressed = embedded.ok_or(Mf4Error::Truncated("attachment"))?;
@@ -329,6 +352,8 @@ fn parse_attachments(bytes: &[u8], first_address: u64) -> Result<Vec<Attachment>
         output.push(Attachment {
             name,
             mime,
+            is_embedded,
+            original_size,
             data: attachment_data,
         });
         address = block.link(0)?;
@@ -536,4 +561,37 @@ fn interpolate_table(values: &[f64], raw: f64) -> Option<f64> {
         }
     }
     pairs.last().map(|pair| pair[1])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn materializes_only_embedded_dbcs_within_the_dbc_limit() {
+        assert!(should_materialize_attachment(
+            "network.dbc",
+            "application/octet-stream",
+            true,
+            MAX_EMBEDDED_DBC_BYTES,
+        ));
+        assert!(!should_materialize_attachment(
+            "photo.bin",
+            "application/octet-stream",
+            true,
+            8,
+        ));
+        assert!(!should_materialize_attachment(
+            "network.dbc",
+            "application/x-dbc",
+            true,
+            MAX_EMBEDDED_DBC_BYTES + 1,
+        ));
+        assert!(!should_materialize_attachment(
+            "network.dbc",
+            "application/x-dbc",
+            false,
+            8,
+        ));
+    }
 }

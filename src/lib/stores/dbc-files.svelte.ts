@@ -224,6 +224,7 @@ class DbcFilesStore {
 	}
 
 	async addTransientDbcs(ownerTraceId: number, dbcs: EmbeddedDbc[]): Promise<void> {
+		this.error = null;
 		await this.clearTransientDbcs();
 		const entries: DbcFileEntry[] = [];
 		try {

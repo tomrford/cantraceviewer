@@ -109,6 +109,18 @@ describe('dbcFiles', () => {
 		expect(closeDbcMock).toHaveBeenCalledExactlyOnceWith(handle);
 	});
 
+	it('clears a failed embedded DBC error when the trace is replaced', async () => {
+		openDbcMock.mockRejectedValueOnce(new Error('embedded catalog failed'));
+
+		await dbcFiles.addTransientDbcs(42, [{ name: 'broken.dbc', text: 'broken' }]);
+		expect(dbcFiles.error).toBe('embedded catalog failed');
+
+		await dbcFiles.addTransientDbcs(43, []);
+
+		expect(dbcFiles.error).toBe(null);
+		expect(dbcFiles.files).toEqual([]);
+	});
+
 	it('skips re-added DBC files with identical content without opening a handle', async () => {
 		const handle = dbcHandle(211);
 		openDbcMock.mockResolvedValueOnce(openDbcResult(handle, catalog(message({ name: 'Vehicle' }))));

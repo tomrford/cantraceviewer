@@ -6,11 +6,7 @@ import { traceFile } from './trace-file.svelte.js';
 export async function onTraceOpened(): Promise<void> {
 	plotData.clearSelectedSignals();
 	const trace = traceFile.entry;
-	if (!trace || trace.embeddedDbcs.length === 0) {
-		await dbcFiles.clearTransientDbcs();
-		return;
-	}
-	await dbcFiles.addTransientDbcs(trace.id, trace.embeddedDbcs);
+	await dbcFiles.addTransientDbcs(trace?.id ?? 0, trace?.embeddedDbcs ?? []);
 }
 
 export async function onDbcRemoved(dbcFileId: string): Promise<void> {
