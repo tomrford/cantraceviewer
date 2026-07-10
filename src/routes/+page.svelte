@@ -133,7 +133,7 @@
 		}
 	}
 
-	function handleAddDbc(): void {
+	function handleDbcAdded(): void {
 		if (walkthroughStepId === 'add-dbc') void showWalkthroughStep('signals');
 	}
 
@@ -298,7 +298,7 @@
 					>
 						<DatabaseIcon class="size-4" />
 					</Popover.Trigger>
-					<SignalSelectorDialog onAddDbc={handleAddDbc} onSignalToggle={handleSignalToggle} />
+					<SignalSelectorDialog onDbcAdded={handleDbcAdded} onSignalToggle={handleSignalToggle} />
 				</Popover.Root>
 			</div>
 

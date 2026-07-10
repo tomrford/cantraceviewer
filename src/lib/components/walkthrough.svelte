@@ -75,7 +75,7 @@
 
 <div
 	bind:this={panel}
-	class="fixed z-[80] grid w-[min(20rem,calc(100vw-1rem))] gap-3 rounded-lg border border-border/60 bg-popover/95 p-4 text-popover-foreground shadow-md backdrop-blur-md transition-[top,left,opacity] duration-150"
+	class="fixed z-[80] grid w-[min(20rem,calc(100vw-1rem))] gap-3 rounded-lg border border-border/60 bg-popover/95 p-4 text-popover-foreground shadow-md backdrop-blur-md transition-opacity duration-100"
 	class:opacity-0={!ready}
 	style:top={`${panelPosition.top}px`}
 	style:left={`${panelPosition.left}px`}

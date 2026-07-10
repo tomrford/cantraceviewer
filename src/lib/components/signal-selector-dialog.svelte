@@ -24,7 +24,7 @@
 	import XIcon from '@lucide/svelte/icons/x';
 	import { SvelteSet } from 'svelte/reactivity';
 
-	let { onAddDbc, onSignalToggle }: { onAddDbc?: () => void; onSignalToggle?: () => void } =
+	let { onDbcAdded, onSignalToggle }: { onDbcAdded?: () => void; onSignalToggle?: () => void } =
 		$props();
 	let dbcInput = $state<HTMLInputElement>();
 	let signalListScroller = $state<HTMLDivElement>();
@@ -83,12 +83,9 @@
 	async function addDbcFiles(files: File[]) {
 		if (files.length === 0) return;
 
+		const previousFileCount = dbcFiles.files.length;
 		await dbcFiles.addFiles(files);
-	}
-
-	function openDbcInput(): void {
-		onAddDbc?.();
-		dbcInput?.click();
+		if (dbcFiles.files.length > previousFileCount) onDbcAdded?.();
 	}
 
 	function toggleSignal(signalKey: string): void {
@@ -221,7 +218,7 @@
 			disabled={dbcFiles.isLoading}
 			aria-label={dbcFiles.isLoading ? 'Loading DBC' : 'Add DBC'}
 			title={dbcFiles.isLoading ? 'Loading DBC' : 'Add DBC'}
-			onclick={openDbcInput}
+			onclick={() => dbcInput?.click()}
 		>
 			<PlusIcon class="size-4" />
 		</button>
