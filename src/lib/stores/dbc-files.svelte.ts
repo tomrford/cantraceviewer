@@ -40,20 +40,20 @@ export type SelectorDbcFile = {
 	transient: boolean;
 };
 
-export type SelectorDbcMessage = {
+type SelectorDbcMessage = {
 	key: string;
 	name: string;
 	signals: SelectorDbcSignal[];
 };
 
-export type SelectorDbcSignal = {
+type SelectorDbcSignal = {
 	key: string;
 	label: string;
 	messageName: string;
 	signalName: string;
 };
 
-export type SelectorFilterOptions = {
+type SelectorFilterOptions = {
 	query: string;
 	activeOnly: boolean;
 	isSignalSelected: (key: string) => boolean;
@@ -61,7 +61,7 @@ export type SelectorFilterOptions = {
 	expandedMessageKeys: ReadonlySet<string>;
 };
 
-export type SelectorTreeDbc = {
+type SelectorTreeDbc = {
 	id: string;
 	name: string;
 	expanded: boolean;
@@ -70,7 +70,7 @@ export type SelectorTreeDbc = {
 	transient: boolean;
 };
 
-export type SelectorTreeMessage = {
+type SelectorTreeMessage = {
 	key: string;
 	name: string;
 	expanded: boolean;
@@ -360,11 +360,11 @@ function assertUniqueMessageIdentities(fileName: string, catalog: ParsedDbc): vo
 	}
 }
 
-export function messageIdentityKey(message: DbcMessageIdentity): string {
+function messageIdentityKey(message: DbcMessageIdentity): string {
 	return `${message.isExtended ? 'extended' : 'standard'}:${message.canId}:${message.sizeBytes}`;
 }
 
-export function displayDbcName(fileName: string): string {
+function displayDbcName(fileName: string): string {
 	return fileName.replace(/\.dbc$/i, '');
 }
 

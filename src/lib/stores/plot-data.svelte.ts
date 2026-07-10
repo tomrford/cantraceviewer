@@ -12,9 +12,9 @@ import {
 import type { Mf4SignalTarget } from '$lib/mf4-signals.js';
 import { SvelteMap } from 'svelte/reactivity';
 
-export type PlotSignalKey = string;
+type PlotSignalKey = string;
 
-export type SelectedSignalState = {
+type SelectedSignalState = {
 	status: 'idle' | 'decoding' | 'ready' | 'error';
 	series: DecodedSignalSeries | null;
 	error: string | null;

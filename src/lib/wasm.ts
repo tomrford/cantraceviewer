@@ -63,7 +63,7 @@ export type Mf4SignalGroup = {
 	signals: Mf4Signal[];
 };
 
-export type Mf4SignalCatalog = {
+type Mf4SignalCatalog = {
 	groups: Mf4SignalGroup[];
 };
 
