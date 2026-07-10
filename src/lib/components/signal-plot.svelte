@@ -10,7 +10,6 @@
 	import type { PlotPoint, PlotViewport } from '$lib/plot-viewport.js';
 	import {
 		crosshairById,
-		nextCrosshairId,
 		removeCrosshair,
 		setCrosshair,
 		type CrosshairId,
@@ -113,7 +112,6 @@
 	const chartSeries = $derived(lineSeriesForViews(windowedViews));
 	const c1 = $derived(crosshairById(crosshairs, 1));
 	const c2 = $derived(crosshairById(crosshairs, 2));
-	const nextId = $derived(nextCrosshairId(crosshairs));
 
 	$effect(() => {
 		plotWindow.settleAfter(signalViews, activeViewport);
@@ -203,9 +201,9 @@
 		crosshairs = setCrosshair(crosshairs, crosshair);
 	}
 
-	function addCrosshairAtContextPoint(): void {
-		if (contextMenuPoint === null || nextId === null) return;
-		updateCrosshair({ id: nextId, ...contextMenuPoint });
+	function placeCrosshairAtContextPoint(id: CrosshairId): void {
+		if (contextMenuPoint === null) return;
+		updateCrosshair({ id, ...contextMenuPoint });
 	}
 
 	function deleteCrosshair(id: CrosshairId): void {
@@ -409,23 +407,36 @@
 					Zoom to full extent
 				</ContextMenu.Item>
 				<ContextMenu.Separator />
+				<ContextMenu.Sub>
+					<ContextMenu.SubTrigger>
+						<CrosshairIcon />
+						Crosshairs
+					</ContextMenu.SubTrigger>
+					<ContextMenu.SubContent class="w-44">
+						<ContextMenu.Item
+							disabled={contextMenuPoint === null}
+							onSelect={() => placeCrosshairAtContextPoint(1)}
+						>
+							<CrosshairIcon />
+							Place C1
+						</ContextMenu.Item>
+						<ContextMenu.Item
+							disabled={contextMenuPoint === null}
+							onSelect={() => placeCrosshairAtContextPoint(2)}
+						>
+							<CrosshairIcon />
+							Place C2
+						</ContextMenu.Item>
+						<ContextMenu.Item disabled={crosshairs.length === 0} onSelect={() => (crosshairs = [])}>
+							<XIcon />
+							Clear all
+						</ContextMenu.Item>
+					</ContextMenu.SubContent>
+				</ContextMenu.Sub>
 				{#if contextMenuCrosshairId !== null}
 					<ContextMenu.Item onSelect={() => deleteCrosshair(contextMenuCrosshairId!)}>
 						<XIcon />
-						Remove crosshair {contextMenuCrosshairId}
-					</ContextMenu.Item>
-				{:else if nextId !== null}
-					<ContextMenu.Item
-						disabled={contextMenuPoint === null}
-						onSelect={addCrosshairAtContextPoint}
-					>
-						<CrosshairIcon />
-						Add crosshair {nextId} here
-					</ContextMenu.Item>
-				{:else}
-					<ContextMenu.Item onSelect={() => (crosshairs = [])}>
-						<XIcon />
-						Remove all crosshairs
+						Delete C{contextMenuCrosshairId}
 					</ContextMenu.Item>
 				{/if}
 				<ContextMenu.Item onSelect={toggleBoxZoom}>

@@ -115,10 +115,7 @@
 
 <div
 	bind:this={track}
-	class={[
-		'pointer-events-none absolute z-40',
-		crosshair.id === 1 ? 'text-sky-500' : 'text-amber-500'
-	]}
+	class="pointer-events-none absolute z-40 text-foreground"
 	style:top={`${grid.top}px`}
 	style:bottom={`${grid.bottom}px`}
 	style:left={`${grid.left}px`}
@@ -176,10 +173,7 @@
 				class="absolute top-1/2 left-1/2 size-3 -translate-1/2 rounded-full border-2 border-current bg-background"
 			></span>
 			<span
-				class={[
-					'absolute top-full left-full -mt-1 -ml-1 rounded-sm px-1 font-mono text-[0.625rem] leading-4 font-semibold shadow-sm',
-					crosshair.id === 1 ? 'bg-sky-500 text-white' : 'bg-amber-500 text-black'
-				]}
+				class="absolute top-full left-full -mt-1 -ml-1 rounded-sm bg-foreground px-1 font-mono text-[0.625rem] leading-4 font-semibold text-background shadow-sm"
 			>
 				{crosshair.id}
 			</span>
