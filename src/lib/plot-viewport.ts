@@ -5,6 +5,11 @@ export type PlotViewport = {
 	yMax: number;
 };
 
+export type PlotPoint = {
+	x: number;
+	y: number;
+};
+
 const MIN_SPAN = 1e-9;
 const EQUAL_TOLERANCE = 1e-6;
 
@@ -31,6 +36,38 @@ export function paddedViewport(
 
 export function viewportCenterX(viewport: Pick<PlotViewport, 'xMin' | 'xMax'>): number {
 	return viewport.xMin + (viewport.xMax - viewport.xMin) / 2;
+}
+
+export function viewportCenter(viewport: PlotViewport): PlotPoint {
+	return {
+		x: viewportCenterX(viewport),
+		y: viewport.yMin + (viewport.yMax - viewport.yMin) / 2
+	};
+}
+
+export function dataPointAtRatio(
+	viewport: PlotViewport,
+	point: { xRatio: number; yRatio: number }
+): PlotPoint {
+	const xRatio = clamp(point.xRatio, 0, 1);
+	const yRatio = clamp(point.yRatio, 0, 1);
+	return {
+		x: viewport.xMin + xRatio * (viewport.xMax - viewport.xMin),
+		y: viewport.yMax - yRatio * (viewport.yMax - viewport.yMin)
+	};
+}
+
+export function ratioAtDataPoint(
+	viewport: PlotViewport,
+	point: PlotPoint
+): {
+	xRatio: number;
+	yRatio: number;
+} {
+	return {
+		xRatio: (point.x - viewport.xMin) / (viewport.xMax - viewport.xMin),
+		yRatio: (viewport.yMax - point.y) / (viewport.yMax - viewport.yMin)
+	};
 }
 
 export function viewportsAlmostEqual(a: PlotViewport | null, b: PlotViewport | null): boolean {

@@ -1,6 +1,12 @@
 <script lang="ts">
 	import type { PlotRatioPoint } from '$lib/plot-geometry.js';
-	import { boxViewport, panViewport, type PlotViewport } from '$lib/plot-viewport.js';
+	import {
+		boxViewport,
+		dataPointAtRatio,
+		panViewport,
+		type PlotPoint,
+		type PlotViewport
+	} from '$lib/plot-viewport.js';
 	import { PlotViewportState } from '$lib/plot-viewport-state.svelte.js';
 
 	let {
@@ -12,7 +18,7 @@
 		viewport: PlotViewportState;
 		boxZoomEnabled: boolean;
 		grid: { left: number; right: number; top: number; bottom: number };
-		onContextMenuPoint?: (x: number | null) => void;
+		onContextMenuPoint?: (point: PlotPoint | null) => void;
 	} = $props();
 
 	let overlay: HTMLButtonElement;
@@ -34,7 +40,7 @@
 		  };
 
 	function handleContextMenu(event: MouseEvent) {
-		onContextMenuPoint?.(clientToDataX(event));
+		onContextMenuPoint?.(clientToDataPoint(event));
 	}
 
 	function startPlotDrag(event: PointerEvent) {
@@ -98,12 +104,12 @@
 		dragState = null;
 	}
 
-	function clientToDataX(event: Pick<MouseEvent, 'clientX' | 'clientY'>): number | null {
+	function clientToDataPoint(event: Pick<MouseEvent, 'clientX' | 'clientY'>): PlotPoint | null {
 		const activeViewport = viewport.activeViewport;
 		if (activeViewport === null) return null;
 		const point = currentPlotRatio(event);
 		if (point === null) return null;
-		return activeViewport.xMin + point.xRatio * (activeViewport.xMax - activeViewport.xMin);
+		return dataPointAtRatio(activeViewport, point);
 	}
 
 	function currentPlotRatio(

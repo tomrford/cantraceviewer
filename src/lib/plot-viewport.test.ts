@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
 	boxViewport,
+	dataPointAtRatio,
 	paddedViewport,
 	panViewport,
+	ratioAtDataPoint,
+	viewportCenter,
 	viewportCenterX,
 	zoomViewport
 } from './plot-viewport';
@@ -52,5 +55,14 @@ describe('plot viewport math', () => {
 
 	it('returns the x-axis midpoint', () => {
 		expect(viewportCenterX({ xMin: 0, xMax: 100 })).toBe(50);
+	});
+
+	it('maps crosshair coordinates between data and screen ratios', () => {
+		const viewport = { xMin: 10, xMax: 110, yMin: -20, yMax: 80 };
+		const point = dataPointAtRatio(viewport, { xRatio: 0.25, yRatio: 0.75 });
+
+		expect(point).toEqual({ x: 35, y: 5 });
+		expect(ratioAtDataPoint(viewport, point)).toEqual({ xRatio: 0.25, yRatio: 0.75 });
+		expect(viewportCenter(viewport)).toEqual({ x: 60, y: 30 });
 	});
 });

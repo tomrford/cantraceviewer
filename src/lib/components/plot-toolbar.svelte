@@ -1,19 +1,30 @@
 <script lang="ts">
 	import * as ButtonGroup from '$lib/components/ui/button-group/index.js';
-	import { Button } from '$lib/components/ui/button/index.js';
+	import { Button, buttonVariants } from '$lib/components/ui/button/index.js';
+	import * as Popover from '$lib/components/ui/popover/index.js';
 	import { Toggle } from '$lib/components/ui/toggle/index.js';
+	import {
+		crosshairById,
+		setCrosshair,
+		type CrosshairId,
+		type PlotCrosshair
+	} from '$lib/plot-crosshair.js';
+	import { viewportCenter, type PlotViewport } from '$lib/plot-viewport.js';
+	import { cn } from '$lib/utils.js';
 	import BoxSelectIcon from '@lucide/svelte/icons/box-select';
+	import CrosshairIcon from '@lucide/svelte/icons/crosshair';
 	import ExpandIcon from '@lucide/svelte/icons/expand';
 	import ListIcon from '@lucide/svelte/icons/list';
 	import MinusIcon from '@lucide/svelte/icons/minus';
 	import PlusIcon from '@lucide/svelte/icons/plus';
-	import SeparatorVerticalIcon from '@lucide/svelte/icons/separator-vertical';
+	import XIcon from '@lucide/svelte/icons/x';
 
 	let {
 		disabled,
 		canResetZoom,
+		viewport,
 		boxZoomEnabled = $bindable(false),
-		markerEnabled = $bindable(false),
+		crosshairs = $bindable<PlotCrosshair[]>([]),
 		legendVisible = $bindable(true),
 		onZoomIn,
 		onZoomOut,
@@ -21,16 +32,25 @@
 	}: {
 		disabled?: boolean;
 		canResetZoom?: boolean;
+		viewport: PlotViewport | null;
 		boxZoomEnabled?: boolean;
-		markerEnabled?: boolean;
+		crosshairs?: PlotCrosshair[];
 		legendVisible?: boolean;
 		onZoomIn: () => void;
 		onZoomOut: () => void;
 		onResetZoom: () => void;
 	} = $props();
+	const c1 = $derived(crosshairById(crosshairs, 1));
+	const c2 = $derived(crosshairById(crosshairs, 2));
 
 	const toolbarIconButtonClass =
 		'border-input bg-transparent hover:bg-muted hover:text-foreground dark:bg-transparent dark:hover:bg-muted/50';
+
+	function placeCrosshair(id: CrosshairId) {
+		if (viewport !== null) {
+			crosshairs = setCrosshair(crosshairs, { id, ...viewportCenter(viewport) });
+		}
+	}
 </script>
 
 <ButtonGroup.Root aria-label="Plot zoom controls">
@@ -79,16 +99,49 @@
 	>
 		<BoxSelectIcon class="size-3.5" />
 	</Toggle>
-	<Toggle
-		bind:pressed={markerEnabled}
-		{disabled}
-		variant="outline"
-		size="default"
-		aria-label={markerEnabled ? 'Hide x marker' : 'Show x marker'}
-		title={markerEnabled ? 'Hide x marker' : 'Show x marker'}
-	>
-		<SeparatorVerticalIcon class="size-3.5" />
-	</Toggle>
+	<Popover.Root>
+		<Popover.Trigger
+			class={cn(
+				buttonVariants({ variant: 'outline', size: 'default' }),
+				toolbarIconButtonClass,
+				crosshairs.length > 0 && 'bg-muted text-foreground'
+			)}
+			{disabled}
+			aria-label="Manage crosshairs"
+			title="Crosshairs"
+		>
+			<CrosshairIcon class="size-3.5" />
+		</Popover.Trigger>
+		<Popover.Content align="end" class="w-52 gap-1 p-1.5">
+			<Popover.Close
+				class={cn(buttonVariants({ variant: 'ghost' }), 'w-full justify-start')}
+				disabled={viewport === null}
+				onclick={() => placeCrosshair(1)}
+			>
+				<CrosshairIcon />
+				{c1 === null ? 'Place C1' : 'Center C1'}
+			</Popover.Close>
+			<Popover.Close
+				class={cn(buttonVariants({ variant: 'ghost' }), 'w-full justify-start')}
+				disabled={viewport === null}
+				onclick={() => placeCrosshair(2)}
+			>
+				<CrosshairIcon />
+				{c2 === null ? 'Place C2' : 'Center C2'}
+			</Popover.Close>
+			<Popover.Close
+				class={cn(
+					buttonVariants({ variant: 'ghost' }),
+					'w-full justify-start text-destructive hover:bg-destructive/10 hover:text-destructive'
+				)}
+				disabled={crosshairs.length === 0}
+				onclick={() => (crosshairs = [])}
+			>
+				<XIcon />
+				Clear all
+			</Popover.Close>
+		</Popover.Content>
+	</Popover.Root>
 	<Toggle
 		bind:pressed={legendVisible}
 		variant="outline"
