@@ -26,6 +26,7 @@
 	import { isDark, timestampMode } from '$lib/stores/preferences.svelte.js';
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
 	import { onDestroy, onMount } from 'svelte';
+	import { toast } from 'svelte-sonner';
 	import type { HTMLAttributes } from 'svelte/elements';
 	import type { ChartGPUInstance, ChartGPUOptions } from 'chartgpu';
 	import BoxSelectIcon from '@lucide/svelte/icons/box-select';
@@ -60,9 +61,7 @@
 	let chartError = $state<string | null>(null);
 	let contextMenuX = $state<number | null>(null);
 	let imageExportBusy = $state(false);
-	let imageExportStatus = $state<{ kind: 'success' | 'error'; message: string } | null>(null);
 	let resizeObserver: ResizeObserver | null = null;
-	let imageExportStatusTimer: ReturnType<typeof setTimeout> | null = null;
 
 	const PLOT_GRID = { left: 64, right: 24, top: 18, bottom: 44 };
 	const GRID_LINE = {
@@ -150,7 +149,6 @@
 
 	onDestroy(() => {
 		if (pushFrame !== null) cancelAnimationFrame(pushFrame);
-		if (imageExportStatusTimer !== null) clearTimeout(imageExportStatusTimer);
 		viewport.domainSource = null;
 		plotWindow.dispose();
 		resizeObserver?.disconnect();
@@ -290,29 +288,16 @@
 			const image = capturePlotImage(plotRoot);
 			if (destination === 'copy') {
 				await copyPlotImage(image);
-				showImageExportStatus('success', 'Image copied to clipboard.');
+				toast.success('Image copied to clipboard.');
 			} else {
 				await savePlotImage(image, plotImageFilename(traceFile.displayName));
-				showImageExportStatus('success', 'Image save started.');
 			}
 		} catch (error) {
 			console.error('Plot image export failed.', error);
-			showImageExportStatus(
-				'error',
-				destination === 'copy' ? 'Could not copy image.' : 'Could not save image.'
-			);
+			toast.error(destination === 'copy' ? 'Could not copy image.' : 'Could not save image.');
 		} finally {
 			imageExportBusy = false;
 		}
-	}
-
-	function showImageExportStatus(kind: 'success' | 'error', message: string): void {
-		if (imageExportStatusTimer !== null) clearTimeout(imageExportStatusTimer);
-		imageExportStatus = { kind, message };
-		imageExportStatusTimer = setTimeout(() => {
-			imageExportStatus = null;
-			imageExportStatusTimer = null;
-		}, 2500);
 	}
 </script>
 
@@ -423,21 +408,6 @@
 			{measurementStartMs}
 			timestampMode={timestampMode.current}
 		/>
-	{/if}
-
-	{#if imageExportStatus}
-		<div
-			data-export-ignore
-			role={imageExportStatus.kind === 'error' ? 'alert' : 'status'}
-			class={[
-				'pointer-events-none absolute bottom-3 left-1/2 z-70 -translate-x-1/2 rounded-md border px-3 py-2 text-xs shadow-sm',
-				imageExportStatus.kind === 'error'
-					? 'border-destructive/30 bg-destructive text-white'
-					: 'border-border/70 bg-popover text-popover-foreground'
-			]}
-		>
-			{imageExportStatus.message}
-		</div>
 	{/if}
 
 	{#if !plotReady || !hasPlottableSignals}
