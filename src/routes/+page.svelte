@@ -19,9 +19,8 @@
 	import { dbcFiles } from '$lib/stores/dbc-files.svelte.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
 	import { onTraceOpened } from '$lib/stores/session.js';
-	import { traceFile } from '$lib/stores/trace-file.svelte.js';
+	import { traceFile, type TraceFileEntry } from '$lib/stores/trace-file.svelte.js';
 	import { TRACE_FILE_ACCEPT } from '$lib/trace-file-types.js';
-	import type { TraceMetadata } from '$lib/wasm.js';
 	import AudioWaveformIcon from '@lucide/svelte/icons/audio-waveform';
 	import CogIcon from '@lucide/svelte/icons/cog';
 	import CircleHelpIcon from '@lucide/svelte/icons/circle-help';
@@ -53,7 +52,7 @@
 	const plotControlsDisabled = $derived(!plotData.hasPlottableSignals || traceFile.isLoading);
 	const canResetZoom = $derived(plotData.hasPlottableSignals && !plotViewport.isFitAll);
 	let traceMetadataTitle = $derived(
-		traceFile.entry ? formatTraceMetadata(traceFile.entry.metadata) : undefined
+		traceFile.entry ? formatTraceMetadata(traceFile.entry) : undefined
 	);
 	const siteTitle = 'CAN Trace Viewer';
 	let browserTitle = $derived(
@@ -72,13 +71,13 @@
 			walkthroughStepId === null &&
 			shouldShowWalkthrough(walkthroughVersion.current)
 	);
-	const shareTitle = 'CAN Trace Viewer — Plot and decode ASC, TRC and BLF logs';
+	const shareTitle = 'CAN Trace Viewer — Plot and decode ASC, TRC, BLF and MF4 logs';
 	const siteDescription =
-		'Plot and decode ASC, TRC, and BLF CAN bus logs in your browser. Free and open source; files stay on your device with no upload, account, or subscription.';
+		'Plot ASC, TRC, BLF and MF4 vehicle data in your browser. Decode raw CAN with DBC files or plot native MF4 channels; files stay on your device.';
 	const siteUrl = 'https://cantraceviewer.com/';
 	const landingTitle = 'Plot CAN bus logs in your browser';
 	const landingDescription =
-		'Open an ASC, TRC, or BLF trace and use a DBC to plot decoded signals. Free and open source; files stay on this device with no upload, account, or subscription.';
+		'Open an ASC, TRC, BLF or MF4 trace. Decode raw CAN with a DBC or plot native MF4 signals. Files stay on this device.';
 	const structuredData = {
 		'@context': 'https://schema.org',
 		'@graph': [
@@ -107,8 +106,9 @@
 				codeRepository: 'https://github.com/tomrford/cantraceviewer',
 				license: 'https://github.com/tomrford/cantraceviewer/blob/main/LICENSE.md',
 				featureList: [
-					'Plot ASC, PCAN TRC 1.x and 2.x, and BLF CAN logs',
+					'Plot ASC, PCAN TRC 1.x and 2.x, BLF, and MF4 data',
 					'Decode CAN signals with DBC files',
+					'Plot native decoded MF4 measurement channels',
 					'Process files locally in the browser'
 				]
 			}
@@ -180,7 +180,7 @@
 	async function openTraceFile(file: File | null) {
 		if (!file || traceFile.isLoading) return;
 		if (await traceFile.openFile(file)) {
-			onTraceOpened();
+			await onTraceOpened();
 			if (walkthroughStepId === 'trace') await showWalkthroughStep('library');
 		}
 	}
@@ -206,18 +206,25 @@
 		await openTraceFile(traceFileFromDrop(filesFromDrop(event)));
 	}
 
-	function formatTraceMetadata(metadata: TraceMetadata): string {
+	function formatTraceMetadata(trace: TraceFileEntry): string {
+		const { metadata } = trace;
 		const start = metadata.measurementStartMs
 			? new Date(metadata.measurementStartMs).toLocaleString()
 			: 'Not available';
 		const duration =
 			metadata.durationNs === null ? 'Not available' : formatDuration(metadata.durationNs);
 
-		return [
-			`Start: ${start}`,
-			`Valid messages: ${metadata.validMessageCount.toLocaleString()}`,
-			`Duration: ${duration}`
-		].join('\n');
+		const nativeSignalCount =
+			trace.mf4Catalog?.groups.reduce((count, group) => count + group.signals.length, 0) ?? 0;
+		const details = [`Start: ${start}`];
+		if (trace.hasRawFrames || nativeSignalCount === 0) {
+			details.push(`Valid CAN messages: ${metadata.validMessageCount.toLocaleString()}`);
+		}
+		if (nativeSignalCount > 0) {
+			details.push(`Native MF4 signals: ${nativeSignalCount.toLocaleString()}`);
+		}
+		details.push(`Duration: ${duration}`);
+		return details.join('\n');
 	}
 
 	function formatDuration(durationNs: number): string {

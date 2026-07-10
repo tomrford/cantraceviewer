@@ -5,6 +5,7 @@ use wasm_bindgen::prelude::*;
 mod asc;
 mod blf;
 mod dbc;
+mod mf4;
 mod series;
 mod trace;
 mod trc;
@@ -64,6 +65,7 @@ impl WasmDbc {
 pub struct WasmTrace {
     inner: ParsedTrace,
     index: Option<FrameIndex>,
+    mf4: Option<mf4::Document>,
 }
 
 #[wasm_bindgen]
@@ -81,6 +83,52 @@ impl WasmTrace {
     #[wasm_bindgen(js_name = parseBlf)]
     pub fn parse_blf(input: &[u8]) -> Result<WasmTrace, JsError> {
         Ok(Self::from_trace(blf::from_bytes(input)?))
+    }
+
+    #[wasm_bindgen(js_name = parseMf4)]
+    pub fn parse_mf4(input: Vec<u8>) -> Result<WasmTrace, JsError> {
+        let (inner, document) = mf4::Document::parse(input)?;
+        Ok(Self {
+            inner,
+            index: None,
+            mf4: Some(document),
+        })
+    }
+
+    #[wasm_bindgen(getter, js_name = hasRawFrames)]
+    pub fn has_raw_frames(&self) -> bool {
+        self.inner.data_frame_count > 0
+    }
+
+    #[wasm_bindgen(js_name = mf4CatalogJson)]
+    pub fn mf4_catalog_json(&self) -> String {
+        self.mf4
+            .as_ref()
+            .map_or_else(|| "{\"groups\":[]}".to_owned(), mf4::Document::catalog_json)
+    }
+
+    #[wasm_bindgen(js_name = mf4EmbeddedDbcsJson)]
+    pub fn mf4_embedded_dbcs_json(&self) -> String {
+        self.mf4
+            .as_ref()
+            .map_or_else(|| "[]".to_owned(), mf4::Document::embedded_dbcs_json)
+    }
+
+    #[wasm_bindgen(js_name = mf4WarningsJson)]
+    pub fn mf4_warnings_json(&self) -> String {
+        self.mf4
+            .as_ref()
+            .map_or_else(|| "[]".to_owned(), mf4::Document::warnings_json)
+    }
+
+    #[wasm_bindgen(js_name = decodeMf4Signal)]
+    pub fn decode_mf4_signal(&self, signal_id: u32) -> Result<Box<[f64]>, JsError> {
+        Ok(self
+            .mf4
+            .as_ref()
+            .ok_or(mf4::Mf4Error::SignalNotFound)?
+            .decode_signal(signal_id)?
+            .into_boxed_slice())
     }
 
     #[wasm_bindgen(getter, js_name = measurementStartMs)]
@@ -106,6 +154,10 @@ impl WasmTrace {
 
 impl WasmTrace {
     fn from_trace(inner: ParsedTrace) -> Self {
-        Self { inner, index: None }
+        Self {
+            inner,
+            index: None,
+            mf4: None,
+        }
     }
 }

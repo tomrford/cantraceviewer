@@ -121,7 +121,7 @@ export function formatDecodedValue(
 
 const EMPTY_SERIES = new Float64Array(0);
 
-export function signalView(signal: PlotSignal): SignalView {
+function signalView(signal: PlotSignal): SignalView {
 	const series = signal.series;
 	const sourceTimes = series?.timesMs ?? EMPTY_SERIES;
 	const sourceValues = series?.values ?? EMPTY_SERIES;

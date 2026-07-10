@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
-import { dbcFiles, signalIdentityKey, type DbcFileEntry } from './dbc-files.svelte';
+import {
+	buildSelectorSearchIndexes,
+	dbcFiles,
+	signalIdentityKey,
+	type DbcFileEntry
+} from './dbc-files.svelte';
 import { listStoredDbcs, putStoredDbcs, resetStoredDbcs } from './dbc-library.js';
 import { closeDbc, openDbc } from '$lib/wasm.js';
 import type { DbcHandle, DbcMessage, DbcSignal, ParsedDbc } from '$lib/wasm.js';
@@ -78,6 +83,46 @@ describe('dbcFiles', () => {
 		expect(dbcFiles.files[1]?.handle).toBe(duplicateHandle);
 		expect(dbcFiles.error).toBe(null);
 		expect(closeDbcMock).not.toHaveBeenCalled();
+	});
+
+	it('keeps embedded MF4 DBCs transient and closes them with their trace', async () => {
+		const handle = dbcHandle(203);
+		openDbcMock.mockResolvedValueOnce(
+			openDbcResult(handle, catalog(message({ name: 'Embedded' })))
+		);
+
+		await dbcFiles.addTransientDbcs(42, [{ name: 'embedded.dbc', text: 'embedded' }]);
+
+		expect(dbcFiles.files).toMatchObject([
+			{
+				id: 'mf4:42:0',
+				name: 'embedded.dbc',
+				origin: 'mf4'
+			}
+		]);
+		expect(dbcFiles.selectorFiles[0]).toMatchObject({
+			name: 'embedded',
+			kind: 'dbc',
+			transient: true
+		});
+		expect(putStoredDbcsMock).not.toHaveBeenCalled();
+
+		await dbcFiles.clearTransientDbcs();
+
+		expect(dbcFiles.files).toEqual([]);
+		expect(closeDbcMock).toHaveBeenCalledExactlyOnceWith(handle);
+	});
+
+	it('clears a failed embedded DBC error when the trace is replaced', async () => {
+		openDbcMock.mockRejectedValueOnce(new Error('embedded catalog failed'));
+
+		await dbcFiles.addTransientDbcs(42, [{ name: 'broken.dbc', text: 'broken' }]);
+		expect(dbcFiles.error).toBe('embedded catalog failed');
+
+		await dbcFiles.addTransientDbcs(43, []);
+
+		expect(dbcFiles.error).toBe(null);
+		expect(dbcFiles.files).toEqual([]);
 	});
 
 	it('skips re-added DBC files with identical content without opening a handle', async () => {
@@ -275,6 +320,62 @@ describe('dbcFiles', () => {
 		]);
 	});
 
+	it('merges prebuilt native MF4 indexes into the tree and fuzzy search', () => {
+		dbcFiles.files = [
+			dbcEntry({
+				id: 'dbc-1',
+				name: 'powertrain.dbc',
+				messages: [
+					message({
+						name: 'PowertrainStatus',
+						canId: 0x101,
+						signals: [signal({ name: 'VehicleSpeed' })]
+					})
+				]
+			})
+		];
+		const nativeIndexes = buildSelectorSearchIndexes([
+			{
+				id: 'mf4:1:native',
+				name: 'Decoded signals',
+				kind: 'mf4-native',
+				transient: true,
+				messages: [
+					{
+						key: 'native-group',
+						name: 'Powertrain',
+						signals: [
+							{
+								key: 'native-motor-speed',
+								label: 'Powertrain.MotorSpeed',
+								messageName: 'Powertrain',
+								signalName: 'MotorSpeed'
+							}
+						]
+					}
+				]
+			}
+		]);
+		const filter = (query: string) => ({
+			query,
+			activeOnly: false,
+			isSignalSelected: () => false,
+			expandedDbcIds: new Set(['dbc-1', 'mf4:1:native']),
+			expandedMessageKeys: new Set<string>()
+		});
+
+		expect(dbcFiles.visibleSelectorTree(filter(''), nativeIndexes)).toMatchObject([
+			{ id: 'dbc-1', expanded: true },
+			{ id: 'mf4:1:native', kind: 'mf4-native', expanded: true, messages: [{ name: 'Powertrain' }] }
+		]);
+		expect(dbcFiles.visibleSelectorTree(filter('motorspeed'), nativeIndexes)).toMatchObject([
+			{
+				id: 'mf4:1:native',
+				messages: [{ name: 'Powertrain', signals: [{ signalName: 'MotorSpeed' }] }]
+			}
+		]);
+	});
+
 	it('filters the selector tree to active signals only', () => {
 		const powertrain = message({
 			name: 'PowertrainStatus',
@@ -444,7 +545,8 @@ describe('dbcFiles', () => {
 				id: 'stored-id',
 				name: 'stored.dbc',
 				handle,
-				catalog: catalog(message({ name: 'Stored' }))
+				catalog: catalog(message({ name: 'Stored' })),
+				origin: 'library'
 			}
 		];
 		dbcFiles.error = 'previous error';
@@ -490,7 +592,8 @@ function dbcEntry({
 		id,
 		name,
 		handle,
-		catalog: catalog(...messages)
+		catalog: catalog(...messages),
+		origin: 'library'
 	};
 }
 

@@ -4,7 +4,9 @@
 
 The current ASAM MDF version is **4.3.0**, released on **23 September 2025**. The open ASAM wiki currently documents the MDF 4.0/4.1 core model, and the full 4.3.0 standard is available through ASAM. Public implementation references are strong enough for a CAN-first parser: `asammdf`, `python-can`, MathWorks Vehicle Network Toolbox examples, CSS Electronics CANedge docs, and MDF validator tools all expose the same bus-logging concepts.
 
-For cantraceviewer, MF4 support means reading MDF4 bus-logging groups and normalizing `CAN_DataFrame` rows into the existing `trace.Trace` model: relative nanosecond timestamp, CAN ID, extended-ID flag, FD flag, DLC, payload length, and payload bytes. DBC signal decoding should stay unchanged after trace normalization.
+CAN Trace Viewer opens MF4 as a hybrid container. Raw `CAN_DataFrame` rows normalize into the existing `trace.Trace` model for normal DBC decoding. Embedded DBC attachments become temporary selector sources owned by the trace. Numeric measurement channels with a time master become native MF4 selector sources and plot directly. These sources can coexist in one file.
+
+Persisted DBC files remain visible for every MF4 layout. MF4-native groups and embedded DBCs carry a visible `MF4` marker and disappear when their owning trace is replaced. Embedded ARXML is recognized but unsupported; first-class ARXML database support is tracked separately in [issue 115](https://github.com/tomrford/cantraceviewer/issues/115).
 
 ## Source materials
 
@@ -48,22 +50,22 @@ The link section has `link_count` 64-bit links. A zero link is nil. Unknown bloc
 
 ## Core blocks for a CAN-first reader
 
-| Block          | Role                                   | CAN parser relevance                                                                                      |
-| -------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `ID`           | File identification and MDF version    | Validate MDF4/MF4 input and reject MDF3 `.mdf` files                                                      |
-| `HD`           | File root, start time, top-level lists | Read measurement start time and first `DG` link                                                           |
-| `DG`           | Data group                             | Find its `CG` list and data-block/data-list link                                                          |
-| `CG`           | Channel group                          | Identify bus-event groups, record ID, cycles, sample bytes, invalidation bytes, and source                |
-| `SI`           | Source information                     | Confirm source type is bus and bus type is CAN                                                            |
-| `CN`           | Channel                                | Locate master time channel and `CAN_DataFrame.*` member channels                                          |
-| `CC`           | Channel conversion                     | Convert master time raw value to seconds when conversion is not identity                                  |
-| `DT`           | Data block                             | Read records directly                                                                                     |
-| `DL`           | Data list                              | Walk distributed `DT`/`DZ` blocks                                                                         |
-| `HL`           | Header list                            | Dispatch linked lists of data blocks, especially compressed data                                          |
-| `DZ`           | Zipped data block                      | Decompress deflate-compressed record sections                                                             |
-| `SD`           | Signal data block                      | Read variable-length signal data if a file stores payloads through VLSD indirection                       |
-| `MD`/`TX`      | Metadata and text                      | Useful for comments, XML names, and diagnostics; not required for frame extraction                        |
-| `FH`/`EV`/`AT` | File history, events, attachments      | Preserve/skip for parsing; attachments may contain DBC/ARXML but are not needed for initial DBC selection |
+| Block          | Role                                   | CAN parser relevance                                                                       |
+| -------------- | -------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `ID`           | File identification and MDF version    | Validate MDF4/MF4 input and reject MDF3 `.mdf` files                                       |
+| `HD`           | File root, start time, top-level lists | Read measurement start time and first `DG` link                                            |
+| `DG`           | Data group                             | Find its `CG` list and data-block/data-list link                                           |
+| `CG`           | Channel group                          | Identify bus-event groups, record ID, cycles, sample bytes, invalidation bytes, and source |
+| `SI`           | Source information                     | Confirm source type is bus and bus type is CAN                                             |
+| `CN`           | Channel                                | Locate master time channel and `CAN_DataFrame.*` member channels                           |
+| `CC`           | Channel conversion                     | Convert master time raw value to seconds when conversion is not identity                   |
+| `DT`           | Data block                             | Read records directly                                                                      |
+| `DL`           | Data list                              | Walk distributed `DT`/`DZ` blocks                                                          |
+| `HL`           | Header list                            | Dispatch linked lists of data blocks, especially compressed data                           |
+| `DZ`           | Zipped data block                      | Decompress deflate-compressed record sections                                              |
+| `SD`           | Signal data block                      | Read variable-length signal data if a file stores payloads through VLSD indirection        |
+| `MD`/`TX`      | Metadata and text                      | Useful for comments, XML names, and diagnostics; not required for frame extraction         |
+| `FH`/`EV`/`AT` | File history, events, attachments      | Follow embedded DBC attachments; report embedded ARXML as unsupported                      |
 
 MDF4 4.1 introduced `DZ` compressed data blocks using Deflate/zlib. MDF 4.3.0 adds newer associated standards and compression options. The first cantraceviewer parser should accept uncompressed `DT` and Deflate `DZ`, and return a clear unsupported-compression error for other compression modes.
 
@@ -141,34 +143,35 @@ Parser policy:
 - Do not derive absolute frame timestamps in the trace rows; keep the current relative-time model.
 - Preserve monotonically increasing expectations per record ID, but do not reject a whole file solely because a producer emits equal or slightly out-of-order bus events. Diagnostics are more useful than strict rejection for real logger output.
 
-## Implementation path in this repo
+## Implementation in this repo
 
-Keep MF4 as a separate parser domain that feeds the shared trace handle, matching ASC/TRC/BLF.
+MF4 is a separate parser domain behind the shared trace handle. One retained MF4 document owns the block index and supports raw, embedded-DBC, native-channel, and hybrid layouts.
 
 ```mermaid
 flowchart LR
-    A["src/lib/stores/trace-file.svelte.ts<br/>.mf4 detection"] --> B["src/lib/wasm.ts<br/>TraceType 'mf4'"]
-    B --> C["wasm/src/lib.rs<br/>Trace.parseMf4 binding"]
-    C --> D["wasm/src/mf4/mod.rs<br/>MDF4 block parser"]
-    D --> E["wasm/src/trace/mod.rs<br/>shared Trace"]
-    E --> F["wasm/src/series.rs<br/>DBC signal decode"]
+    A[".mf4 open"] --> B["wasm/src/mf4<br/>block index"]
+    B --> C["raw CAN frames"]
+    B --> D["embedded DBCs"]
+    B --> E["native numeric channels"]
+    C --> F["shared Trace + DBC decode"]
+    D --> G["trace-owned selector rows"]
+    E --> H["native packed f64 series"]
+    F --> I["shared plot series"]
+    H --> I
 ```
 
-Recommended slices:
+The reader validates linked blocks, handles sorted and unsorted record layouts, walks `DL` and `HL` data chains, and inflates Deflate `DZ` blocks with the same bounded `fdeflate` implementation used by BLF. Raw CAN support covers fixed `DataBytes` channels for classic CAN and CAN FD plus remote and error event groups.
 
-1. Add `wasm/src/mf4/` with a block reader that validates `ID`, reads common headers, follows `HD -> DG -> CG/CN/data`, and skips unknown blocks by length.
-2. Add record extraction for sorted, uncompressed `CAN_DataFrame` with fixed-size `DataBytes`.
-3. Add `DL` traversal and unsorted record-ID dispatch.
-4. Add Deflate `DZ` support using the same bounded `miniz_oxide` approach as BLF.
-5. Add MLSD payload handling for CAN FD.
-6. Add `Trace.parseMf4` to the wasm-bindgen boundary, wire it through the TypeScript trace type, and accept `.mf4` in the file picker.
-7. Extend tests with generated minimal MF4 bytes plus at least one real public CANedge/asammdf sample.
+Native plotting includes scalar little- and big-endian integers and 32/64-bit floats. Identity, linear, rational, interpolated-table, and nearest-table conversions are supported. Master time and invalidation bits are applied before a sample enters the packed time/value series. Unsupported channel encodings stay out of the selector rather than producing incorrect values.
+
+Embedded DBC attachments may be uncompressed or zlib-compressed. The 1 MiB DBC limit applies to the decompressed bytes. External attachment references cannot be opened in the browser and produce a warning.
 
 The browser trace cap remains the existing trace-file cap. The parser should reject oversized internal allocations even when the browser cap has already accepted the file; `DZ.original_size`, `DL` block totals, `CG.cycles_nr * samples_byte_nr`, and `SD` payload lengths are all attacker-controlled.
 
 ## Parser-relevant edge cases
 
 - **MDF3 vs MDF4.** `.mdf` and old MDF3 files are different enough to reject in the MF4 parser.
+- **Unfinalized recordings.** `UnFinMF` files require producer-specific finalization corrections and are rejected with an instruction to finalize the recording first.
 - **Version spread.** MDF 4.00, 4.10, 4.11, 4.20, and 4.30 files exist. Start with the block types needed for 4.10/4.11 CAN bus logging; reject newer unsupported compression explicitly.
 - **Physical order is arbitrary.** Do not parse by sequential block order except for the fixed `ID` then `HD` start. Follow links.
 - **Sorted and unsorted layouts.** CAN loggers commonly write unsorted raw bus data for fast append. A sorted-only parser will miss real files.
@@ -177,8 +180,8 @@ The browser trace cap remains the existing trace-file cap. The parser should rej
 - **Payload storage.** `DataBytes` may be a fixed array, MLSD in-record maximum-length storage, or VLSD/`SD` indirection. Fixed arrays should come first; MLSD is important for CAN FD.
 - **Channel naming.** Public tools use `CAN_DataFrame.ID` style names, but names can also be represented through structure channels. Build lookup from the channel tree, not only flat string matching.
 - **Optional fields.** `Dir`, `IDE`, `EDL`, `BRS`, and `ESI` may be absent. Derive standard vs extended IDs from `IDE` when present; otherwise use value range as a fallback.
-- **Invalidation bits.** MDF can mark channel samples invalid. Initial support can ignore invalidation only if the behavior is documented and tests cover a file without invalidation bytes.
-- **Attachments.** MF4 files may embed DBC/ARXML. cantraceviewer currently asks the user to load DBC files separately, so attachment extraction is optional.
+- **Invalidation bits.** Samples marked invalid are omitted from native MF4 series.
+- **Attachments.** Embedded DBC files are temporary selector sources. External DBC references warn. Embedded ARXML warns and points to issue 115.
 - **Memory pressure.** `DZ` decompression and `DL` aggregation can create large temporary buffers. Prefer streaming per data block and appending normalized frames/payloads rather than materializing whole measurement data.
 
 ## Open-source parser comparison
@@ -203,6 +206,8 @@ The browser trace cap remains the existing trace-file cap. The parser should rej
 - File with `CAN_RemoteFrame`, `CAN_ErrorFrame`, and `CAN_OverloadFrame` groups present beside data frames.
 - File with malformed links, truncated block length, impossible `DZ.original_size`, and oversized record counts.
 - Real public CANedge J1939 or OBD2 MF4 sample paired with a DBC for end-to-end plot validation.
+- Decoded-only MF4 with multiple numeric channels and a shared time master.
+- Hybrid MF4 containing raw CAN frames, native decoded channels, and a compressed embedded DBC.
 
 ## References
 

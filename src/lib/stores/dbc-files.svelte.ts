@@ -5,6 +5,7 @@ import {
 	type DbcMessage,
 	type DbcMessageIdentity,
 	type DbcSignal,
+	type EmbeddedDbc,
 	type ParsedDbc
 } from '$lib/wasm.js';
 import {
@@ -28,28 +29,31 @@ export type DbcFileEntry = {
 	name: string;
 	handle: DbcHandle;
 	catalog: ParsedDbc;
+	origin: 'library' | 'mf4';
 };
 
 export type SelectorDbcFile = {
 	id: string;
 	name: string;
 	messages: SelectorDbcMessage[];
+	kind: 'dbc' | 'mf4-native';
+	transient: boolean;
 };
 
-export type SelectorDbcMessage = {
+type SelectorDbcMessage = {
 	key: string;
 	name: string;
 	signals: SelectorDbcSignal[];
 };
 
-export type SelectorDbcSignal = {
+type SelectorDbcSignal = {
 	key: string;
 	label: string;
 	messageName: string;
 	signalName: string;
 };
 
-export type SelectorFilterOptions = {
+type SelectorFilterOptions = {
 	query: string;
 	activeOnly: boolean;
 	isSignalSelected: (key: string) => boolean;
@@ -57,14 +61,16 @@ export type SelectorFilterOptions = {
 	expandedMessageKeys: ReadonlySet<string>;
 };
 
-export type SelectorTreeDbc = {
+type SelectorTreeDbc = {
 	id: string;
 	name: string;
 	expanded: boolean;
 	messages: SelectorTreeMessage[];
+	kind: 'dbc' | 'mf4-native';
+	transient: boolean;
 };
 
-export type SelectorTreeMessage = {
+type SelectorTreeMessage = {
 	key: string;
 	name: string;
 	expanded: boolean;
@@ -86,7 +92,7 @@ type SelectorSearchEntry = {
 	messageKey: string;
 	signal: SelectorDbcSignal;
 };
-type SelectorSearchIndex = {
+export type SelectorSearchIndex = {
 	dbc: SelectorDbcFile;
 	signals: FuzzySearchIndex<SelectorSearchEntry>;
 };
@@ -103,6 +109,8 @@ class DbcFilesStore {
 		this.files.map((entry) => ({
 			id: entry.id,
 			name: displayDbcName(entry.name),
+			kind: 'dbc',
+			transient: entry.origin === 'mf4',
 			messages: entry.catalog.messages.map((message) => ({
 				key: selectorMessageKey(entry.id, message),
 				name: message.name,
@@ -122,10 +130,14 @@ class DbcFilesStore {
 	// The returned tree is the single source of what the selector renders:
 	// collapsed nodes carry empty children so collapsed content never mounts,
 	// and expansion flips arrive as part of the same tree swap as the data.
-	visibleSelectorTree(filter: SelectorFilterOptions): SelectorTreeDbc[] {
+	visibleSelectorTree(
+		filter: SelectorFilterOptions,
+		additionalIndexes: SelectorSearchIndex[] = []
+	): SelectorTreeDbc[] {
 		const query = normalizeSelectorQuery(filter.query);
+		const selectorFiles = [...this.selectorFiles, ...additionalIndexes.map((index) => index.dbc)];
 		if (!this.isSelectorFilterActive(filter)) {
-			return this.selectorFiles.map((dbc) => {
+			return selectorFiles.map((dbc) => {
 				if (!filter.expandedDbcIds.has(dbc.id)) return { ...dbc, expanded: false, messages: [] };
 
 				return {
@@ -142,7 +154,8 @@ class DbcFilesStore {
 			});
 		}
 
-		return this.selectorSearchIndexes.flatMap((index) => {
+		const indexes = [...this.selectorSearchIndexes, ...additionalIndexes];
+		return indexes.flatMap((index) => {
 			const signalsByMessage: Record<string, SelectorDbcSignal[]> = {};
 			const visibleSignals = searchFuzzyIndex(index.signals, query).filter(
 				({ signal }) => !filter.activeOnly || filter.isSignalSelected(signal.key)
@@ -206,7 +219,35 @@ class DbcFilesStore {
 
 		this.files = this.files.filter((file) => file.id !== id);
 		await closeDbc(entry.handle);
-		await deleteStoredDbc(entry.id);
+		if (entry.origin === 'library') await deleteStoredDbc(entry.id);
+	}
+
+	async addTransientDbcs(ownerTraceId: number, dbcs: EmbeddedDbc[]): Promise<void> {
+		this.error = null;
+		await this.clearTransientDbcs();
+		const entries: DbcFileEntry[] = [];
+		try {
+			for (const [index, dbc] of dbcs.entries()) {
+				const stored = {
+					id: `mf4:${ownerTraceId}:${index}`,
+					name: dbc.name,
+					text: dbc.text
+				};
+				entries.push((await this.openStoredDbc(stored, 'mf4')).entry);
+			}
+			this.files = [...this.files, ...entries];
+		} catch (error) {
+			await closeEntries(entries);
+			this.error = error instanceof Error ? error.message : 'Embedded DBC load failed';
+		}
+	}
+
+	async clearTransientDbcs(): Promise<void> {
+		const removed = this.files.filter((file) => file.origin === 'mf4');
+		if (removed.length === 0) return;
+		const removedIds = new Set(removed.map((file) => file.id));
+		this.files = this.files.filter((file) => !removedIds.has(file.id));
+		await closeEntries(removed);
 	}
 
 	async clear(): Promise<void> {
@@ -243,11 +284,11 @@ class DbcFilesStore {
 				}
 			}
 
-			this.files = candidates;
+			this.files = [...candidates, ...this.files.filter((file) => file.origin === 'mf4')];
 			this.error = failedNames.length > 0 ? failedStoredDbcMessage(failedNames) : null;
 		} catch {
 			await closeEntries(candidates);
-			this.files = [];
+			this.files = this.files.filter((file) => file.origin === 'mf4');
 			this.error = 'Saved DBC library could not be read.';
 		} finally {
 			this.hasLoadedLibrary = true;
@@ -265,7 +306,10 @@ class DbcFilesStore {
 		return { id: await storedDbcId(text), name: file.name, text };
 	}
 
-	private async openStoredDbc(dbc: StoredDbc): Promise<DbcCandidate> {
+	private async openStoredDbc(
+		dbc: StoredDbc,
+		origin: DbcFileEntry['origin'] = 'library'
+	): Promise<DbcCandidate> {
 		const { handle, catalog } = await openDbc(dbc.text);
 
 		try {
@@ -275,7 +319,8 @@ class DbcFilesStore {
 					id: dbc.id,
 					name: dbc.name,
 					handle,
-					catalog
+					catalog,
+					origin
 				},
 				stored: dbc
 			};
@@ -315,11 +360,11 @@ function assertUniqueMessageIdentities(fileName: string, catalog: ParsedDbc): vo
 	}
 }
 
-export function messageIdentityKey(message: DbcMessageIdentity): string {
+function messageIdentityKey(message: DbcMessageIdentity): string {
 	return `${message.isExtended ? 'extended' : 'standard'}:${message.canId}:${message.sizeBytes}`;
 }
 
-export function displayDbcName(fileName: string): string {
+function displayDbcName(fileName: string): string {
 	return fileName.replace(/\.dbc$/i, '');
 }
 
@@ -341,7 +386,7 @@ function buildSignalTargetIndex(files: DbcFileEntry[]): SignalTargetIndex {
 	return index;
 }
 
-function buildSelectorSearchIndexes(files: SelectorDbcFile[]): SelectorSearchIndex[] {
+export function buildSelectorSearchIndexes(files: SelectorDbcFile[]): SelectorSearchIndex[] {
 	return files.map((dbc) => {
 		const signals = dbc.messages.flatMap<SelectorSearchEntry>((message) =>
 			message.signals.map((signal) => ({ messageKey: message.key, signal }))
