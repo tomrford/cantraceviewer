@@ -1,9 +1,24 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="text-scale" content="scale" />
+		<script>
+			(() => {
+				let theme = 'system';
+				try {
+					theme = JSON.parse(localStorage.getItem('cantraceviewer:theme') ?? '"system"');
+				} catch {
+					// Keep the system preference when storage is unavailable or invalid.
+				}
+				document.documentElement.classList.toggle(
+					'dark',
+					theme === 'dark' ||
+						(theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
+				);
+			})();
+		</script>
 		<link rel="icon" href="%sveltekit.assets%/favicon.svg" />
 		%sveltekit.head%
 	</head>

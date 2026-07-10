@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { SIGNAL_COLORS } from '$lib/plot-colors.js';
+	import { normalizedWheelDelta, type PlotRatioPoint } from '$lib/plot-geometry.js';
 	import {
 		capturePlotImage,
 		copyPlotImage,
@@ -64,6 +65,7 @@
 	let resizeObserver: ResizeObserver | null = null;
 
 	const PLOT_GRID = { left: 64, right: 24, top: 18, bottom: 44 };
+	const WHEEL_ZOOM_SPEED = 0.002;
 	const GRID_LINE = {
 		dark: { color: '#f4f4f5', opacity: 0.1 },
 		light: { color: '#71717a', opacity: 0.3 }
@@ -299,6 +301,56 @@
 			imageExportBusy = false;
 		}
 	}
+
+	function handlePlotWheel(event: WheelEvent) {
+		if (
+			activeViewport === null ||
+			!(event.target instanceof Element) ||
+			!event.target.closest('[data-plot-wheel-target]')
+		)
+			return;
+		const point = currentPlotRatio(event);
+		if (point === null) return;
+
+		const plotSize = currentPlotSize();
+		const delta = normalizedWheelDelta(event, plotSize.height);
+		if (delta.x === 0 && delta.y === 0) return;
+
+		if (Math.abs(delta.x) > Math.abs(delta.y) && !event.shiftKey && !event.altKey) {
+			event.preventDefault();
+			viewport.panBy({ x: -delta.x, y: 0 }, plotSize);
+			return;
+		}
+
+		event.preventDefault();
+		const factor = Math.exp(Math.min(200, Math.max(-200, delta.y)) * WHEEL_ZOOM_SPEED);
+		viewport.zoomBy(factor, point, {
+			x: !event.altKey,
+			y: !event.shiftKey
+		});
+	}
+
+	function currentPlotRatio(event: Pick<WheelEvent, 'clientX' | 'clientY'>): PlotRatioPoint | null {
+		const rect = container.getBoundingClientRect();
+		const size = currentPlotSize();
+		if (!(size.width > 0) || !(size.height > 0)) return null;
+
+		const x = event.clientX - rect.left - PLOT_GRID.left;
+		const y = event.clientY - rect.top - PLOT_GRID.top;
+
+		return {
+			xRatio: Math.min(1, Math.max(0, x / size.width)),
+			yRatio: Math.min(1, Math.max(0, y / size.height))
+		};
+	}
+
+	function currentPlotSize(): { width: number; height: number } {
+		const rect = container.getBoundingClientRect();
+		return {
+			width: rect.width - PLOT_GRID.left - PLOT_GRID.right,
+			height: rect.height - PLOT_GRID.top - PLOT_GRID.bottom
+		};
+	}
 </script>
 
 <section
@@ -309,6 +361,7 @@
 		className
 	]}
 	{...restProps}
+	onwheel={handlePlotWheel}
 >
 	{#if dropActive}
 		<div

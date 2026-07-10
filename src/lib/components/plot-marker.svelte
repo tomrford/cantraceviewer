@@ -103,6 +103,7 @@
 		role="separator"
 		aria-label="X marker"
 		aria-orientation="vertical"
+		data-plot-wheel-target
 		tabindex="-1"
 		oncontextmenu={(event) => onContextMenuPoint?.(clientToDataX(event))}
 		onpointerdown={startMarkerDrag}
