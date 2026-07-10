@@ -24,6 +24,8 @@
 	import XIcon from '@lucide/svelte/icons/x';
 	import { SvelteSet } from 'svelte/reactivity';
 
+	let { onDbcAdded, onSignalToggle }: { onDbcAdded?: () => void; onSignalToggle?: () => void } =
+		$props();
 	let dbcInput = $state<HTMLInputElement>();
 	let signalListScroller = $state<HTMLDivElement>();
 	let signalListContent = $state<HTMLUListElement>();
@@ -81,7 +83,14 @@
 	async function addDbcFiles(files: File[]) {
 		if (files.length === 0) return;
 
+		const previousFileCount = dbcFiles.files.length;
 		await dbcFiles.addFiles(files);
+		if (dbcFiles.files.length > previousFileCount) onDbcAdded?.();
+	}
+
+	function toggleSignal(signalKey: string): void {
+		plotData.toggleSignal(signalKey);
+		onSignalToggle?.();
 	}
 
 	function handleDbcDrag(event: DragEvent) {
@@ -166,6 +175,7 @@
 </script>
 
 <Popover.Content
+	data-walkthrough-target="signal-selector-panel"
 	align="start"
 	sideOffset={-32}
 	interactOutsideBehavior="ignore"
@@ -203,6 +213,7 @@
 		<Popover.Title class="text-center">Signal Selector</Popover.Title>
 		<button
 			type="button"
+			data-walkthrough-target="add-dbc"
 			class="{iconButtonClass} justify-self-end"
 			disabled={dbcFiles.isLoading}
 			aria-label={dbcFiles.isLoading ? 'Loading DBC' : 'Add DBC'}
@@ -338,7 +349,7 @@
 																				title={decodeStatus?.decodeError ?? undefined}
 																				class="data-[error=true]:border-destructive/50 data-[error=true]:bg-destructive/10 data-[error=true]:text-destructive data-checked:border-sidebar-primary data-checked:bg-sidebar-primary data-checked:text-sidebar-primary-foreground"
 																				data-error={decodeStatus?.decodeError != null}
-																				onCheckedChange={() => plotData.toggleSignal(signal.key)}
+																				onCheckedChange={() => toggleSignal(signal.key)}
 																			/>
 																			<span class="flex min-w-0 flex-1 items-center gap-2">
 																				<span class="truncate font-mono" title={signal.label}>

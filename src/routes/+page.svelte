@@ -4,6 +4,7 @@
 	import SettingsDialog from '$lib/components/settings-dialog.svelte';
 	import SignalPlot from '$lib/components/signal-plot.svelte';
 	import SignalSelectorDialog from '$lib/components/signal-selector-dialog.svelte';
+	import Walkthrough from '$lib/components/walkthrough.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Empty from '$lib/components/ui/empty/index.js';
 	import {
@@ -23,11 +24,20 @@
 	import type { TraceMetadata } from '$lib/wasm.js';
 	import AudioWaveformIcon from '@lucide/svelte/icons/audio-waveform';
 	import CogIcon from '@lucide/svelte/icons/cog';
+	import CircleHelpIcon from '@lucide/svelte/icons/circle-help';
 	import DatabaseIcon from '@lucide/svelte/icons/database';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import XIcon from '@lucide/svelte/icons/x';
 	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
-	import { onMount } from 'svelte';
+	import { walkthroughVersion } from '$lib/stores/preferences.svelte.js';
+	import {
+		adjacentWalkthroughStep,
+		shouldShowWalkthrough,
+		WALKTHROUGH_STEPS,
+		WALKTHROUGH_VERSION,
+		type WalkthroughStep
+	} from '$lib/walkthrough.js';
+	import { onMount, tick } from 'svelte';
 
 	let traceInput = $state<HTMLInputElement>();
 	let traceDropActive = $state(false);
@@ -36,11 +46,27 @@
 	let legendCrosshairMode = $state<LegendCrosshairMode>('c1');
 	let boxZoomEnabled = $state(false);
 	let legendVisible = $state(true);
+	let signalSelectorOpen = $state(false);
+	let settingsOpen = $state(false);
+	let walkthroughStepId = $state<WalkthroughStep['id'] | null>(null);
 	const plotViewport = new PlotViewportState();
 	const plotControlsDisabled = $derived(!plotData.hasPlottableSignals || traceFile.isLoading);
 	const canResetZoom = $derived(plotData.hasPlottableSignals && !plotViewport.isFitAll);
 	let traceMetadataTitle = $derived(
 		traceFile.entry ? formatTraceMetadata(traceFile.entry.metadata) : undefined
+	);
+	let walkthroughStep = $derived(
+		WALKTHROUGH_STEPS.find((step) => step.id === walkthroughStepId) ?? null
+	);
+	let walkthroughStepIndex = $derived(
+		walkthroughStepId === null
+			? -1
+			: WALKTHROUGH_STEPS.findIndex((step) => step.id === walkthroughStepId)
+	);
+	let walkthroughInvitationVisible = $derived(
+		dbcFiles.hasLoadedLibrary &&
+			walkthroughStepId === null &&
+			shouldShowWalkthrough(walkthroughVersion.current)
 	);
 	const siteTitle = 'CAN Trace Viewer';
 	const pageTitle = 'Free online CAN trace viewer for ASC, TRC and BLF logs';
@@ -95,6 +121,51 @@
 		void dbcFiles.loadLibrary();
 	});
 
+	async function startWalkthrough(): Promise<void> {
+		await showWalkthroughStep('trace');
+	}
+
+	function handleSignalSelectorOpen(open: boolean): void {
+		signalSelectorOpen = open;
+		if (open && walkthroughStepId === 'library') {
+			void showWalkthroughStep('add-dbc');
+		} else if (!open && (walkthroughStepId === 'add-dbc' || walkthroughStepId === 'signals')) {
+			void showWalkthroughStep('library');
+		}
+	}
+
+	function handleDbcAdded(): void {
+		if (walkthroughStepId === 'add-dbc') void showWalkthroughStep('signals');
+	}
+
+	function handleSignalToggle(): void {
+		if (walkthroughStepId === 'signals') void showWalkthroughStep('controls');
+	}
+
+	async function showWalkthroughStep(stepId: WalkthroughStep['id']): Promise<void> {
+		walkthroughStepId = null;
+		settingsOpen = false;
+		signalSelectorOpen = stepId === 'add-dbc' || stepId === 'signals';
+		await tick();
+		walkthroughStepId = stepId;
+	}
+
+	async function advanceWalkthrough(): Promise<void> {
+		if (!walkthroughStepId) return;
+		const nextStep = adjacentWalkthroughStep(walkthroughStepId, 1);
+		if (!nextStep) {
+			finishWalkthrough();
+			return;
+		}
+		await showWalkthroughStep(nextStep.id);
+	}
+
+	function finishWalkthrough(): void {
+		walkthroughVersion.current = WALKTHROUGH_VERSION;
+		walkthroughStepId = null;
+		signalSelectorOpen = false;
+	}
+
 	async function selectTrace(event: Event) {
 		const input = event.currentTarget as HTMLInputElement;
 		const file = input.files?.[0] ?? null;
@@ -107,6 +178,7 @@
 		if (!file || traceFile.isLoading) return;
 		if (await traceFile.openFile(file)) {
 			onTraceOpened();
+			if (walkthroughStepId === 'trace') await showWalkthroughStep('library');
 		}
 	}
 
@@ -218,15 +290,16 @@
 			aria-busy={traceFile.isLoading}
 		>
 			<div class="flex items-center">
-				<Popover.Root>
+				<Popover.Root bind:open={() => signalSelectorOpen, handleSignalSelectorOpen}>
 					<Popover.Trigger
 						class={squircleButtonClass}
+						data-walkthrough-target="signal-selector"
 						aria-label="Open signal selector"
 						title="Signal selector"
 					>
 						<DatabaseIcon class="size-4" />
 					</Popover.Trigger>
-					<SignalSelectorDialog />
+					<SignalSelectorDialog onDbcAdded={handleDbcAdded} onSignalToggle={handleSignalToggle} />
 				</Popover.Root>
 			</div>
 
@@ -236,6 +309,7 @@
 				<button
 					type="button"
 					class="{titleButtonClass} pointer-events-auto w-full lg:w-auto"
+					data-walkthrough-target="trace"
 					disabled={traceFile.isLoading}
 					aria-label={traceFile.isLoading ? 'Loading trace' : 'Load trace'}
 					title={traceMetadataTitle ?? (traceFile.isLoading ? 'Loading trace' : 'Load trace')}
@@ -264,8 +338,8 @@
 				onchange={selectTrace}
 			/>
 
-			<div class="flex items-center gap-2">
-				{#if traceFile.entry}
+			<div class="flex items-center gap-2" data-walkthrough-target="plot-controls">
+				<div class="flex items-center">
 					<PlotToolbar
 						disabled={plotControlsDisabled}
 						{canResetZoom}
@@ -277,12 +351,12 @@
 						onZoomOut={() => plotViewport.zoomBy(2)}
 						onResetZoom={() => plotViewport.reset()}
 					/>
-				{/if}
-				<Popover.Root>
+				</div>
+				<Popover.Root bind:open={settingsOpen}>
 					<Popover.Trigger class={squircleButtonClass} aria-label="Open settings" title="Settings">
 						<CogIcon class="size-4" />
 					</Popover.Trigger>
-					<SettingsDialog />
+					<SettingsDialog onStartWalkthrough={() => void startWalkthrough()} />
 				</Popover.Root>
 			</div>
 		</header>
@@ -321,7 +395,7 @@
 						<h1 class="font-heading text-base font-medium tracking-tight">{landingTitle}</h1>
 						<Empty.Description>{landingDescription}</Empty.Description>
 					</Empty.Header>
-					<Empty.Content>
+					<Empty.Content class="max-w-none flex-row justify-center">
 						<Button size="lg" disabled={traceFile.isLoading} onclick={() => traceInput?.click()}>
 							{#if traceFile.isLoading}
 								<LoaderCircleIcon data-icon="inline-start" class="size-4 animate-spin" />
@@ -331,6 +405,12 @@
 								Open trace
 							{/if}
 						</Button>
+						{#if walkthroughInvitationVisible}
+							<Button variant="outline" size="lg" onclick={() => void startWalkthrough()}>
+								<CircleHelpIcon data-icon="inline-start" class="size-4" />
+								First time? Take a tour
+							</Button>
+						{/if}
 					</Empty.Content>
 				</Empty.Root>
 			</section>
@@ -370,6 +450,15 @@
 				</AlertDialog.Content>
 			{/if}
 		</AlertDialog.Root>
+
+		{#if walkthroughStep}
+			<Walkthrough
+				step={walkthroughStep}
+				stepIndex={walkthroughStepIndex}
+				stepCount={WALKTHROUGH_STEPS.length}
+				onAdvance={() => void advanceWalkthrough()}
+			/>
+		{/if}
 	</div>
 {/if}
 
