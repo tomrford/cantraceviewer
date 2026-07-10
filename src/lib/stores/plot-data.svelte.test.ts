@@ -1,19 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
-import { dbcFiles, signalIdentityKey } from './dbc-files.svelte';
+import { dbcFiles, signalIdentityKey, type DbcFileEntry } from './dbc-files.svelte';
 import { plotData } from './plot-data.svelte';
 import { traceFile, type TraceFileEntry } from './trace-file.svelte';
-import { getSignalValues } from '$lib/wasm.js';
+import { getMf4SignalValues, getSignalValues } from '$lib/wasm.js';
+import { mf4SignalIdentityKey } from '$lib/mf4-signals.js';
 import type { DbcHandle, DbcMessage, DbcSignal, DecodedSignalSeries } from '$lib/wasm.js';
 
 vi.mock('$lib/wasm.js', () => ({
 	closeDbc: vi.fn(() => Promise.resolve()),
 	closeTrace: vi.fn(() => Promise.resolve()),
+	getMf4SignalValues: vi.fn(),
 	getSignalValues: vi.fn(),
 	openDbc: vi.fn()
 }));
 
 const getSignalValuesMock = getSignalValues as Mock<typeof getSignalValues>;
+const getMf4SignalValuesMock = getMf4SignalValues as Mock<typeof getMf4SignalValues>;
 
 describe('plotData', () => {
 	beforeEach(() => {
@@ -49,6 +52,50 @@ describe('plotData', () => {
 			decodeError: null
 		});
 		expect(plotData.hasPlottableSignals).toBe(true);
+	});
+
+	it('plots an MF4-native signal without hiding the DBC catalog', async () => {
+		const trace = traceEntry(9, {
+			hasRawFrames: false,
+			mf4Catalog: {
+				groups: [
+					{
+						name: 'Decoded powertrain',
+						signals: [{ id: 7, name: 'VehicleSpeed', unit: 'km/h' }]
+					}
+				]
+			}
+		});
+		traceFile.entry = trace;
+		const series = signalSeries([100], [12.5]);
+		getMf4SignalValuesMock.mockResolvedValueOnce(series);
+		const nativeKey = mf4SignalIdentityKey(trace.id, 7);
+
+		await plotData.toggleSignal(nativeKey);
+
+		expect(getMf4SignalValuesMock).toHaveBeenCalledExactlyOnceWith(trace, 7);
+		expect(dbcFiles.selectorFiles).toHaveLength(1);
+		expect(plotData.signals).toMatchObject([
+			{
+				key: nativeKey,
+				label: 'Decoded powertrain.VehicleSpeed',
+				unit: 'km/h',
+				series
+			}
+		]);
+	});
+
+	it('reports that DBC signals need raw frames in a decoded-only MF4', async () => {
+		const trace = traceEntry(10, { hasRawFrames: false });
+		traceFile.entry = trace;
+
+		await plotData.toggleSignal(key());
+
+		expect(getSignalValuesMock).not.toHaveBeenCalled();
+		expect(plotData.signalDecodeStatus(key())).toEqual({
+			isDecoding: false,
+			decodeError: 'This trace has no raw CAN frames for DBC decoding.'
+		});
 	});
 
 	it('keeps a stale decode result out of state after the trace changes', async () => {
@@ -203,29 +250,38 @@ function key(): string {
 	return signalIdentityKey('dbc-1', message(), 'VehicleSpeed');
 }
 
-function dbcEntry(overrides: { messages?: DbcMessage[] } = {}) {
+function dbcEntry(overrides: { messages?: DbcMessage[] } = {}): DbcFileEntry {
 	return {
 		id: 'dbc-1',
 		name: 'powertrain.dbc',
-		text: 'dbc',
 		handle: { id: 1 } as DbcHandle,
 		catalog: {
 			messages: overrides.messages ?? [message()]
-		}
+		},
+		origin: 'library',
+		ownerTraceId: null
 	};
 }
 
-function traceEntry(id: number): TraceFileEntry {
+function traceEntry(
+	id: number,
+	overrides: Partial<Pick<TraceFileEntry, 'hasRawFrames' | 'mf4Catalog'>> = {}
+): TraceFileEntry {
 	return {
 		id,
 		file: new File(['trace'], 'drive.asc'),
+		hasRawFrames: true,
+		mf4Catalog: null,
+		embeddedDbcs: [],
+		warnings: [],
+		...overrides,
 		metadata: {
 			measurementStartMs: null,
 			validMessageCount: 1,
 			skippedLineCount: 0,
 			durationNs: 1_000_000
 		}
-	} as TraceFileEntry;
+	} as unknown as TraceFileEntry;
 }
 
 function message(overrides: Partial<DbcMessage> = {}): DbcMessage {

@@ -5,6 +5,7 @@ import {
 	type DbcMessage,
 	type DbcMessageIdentity,
 	type DbcSignal,
+	type EmbeddedDbc,
 	type ParsedDbc
 } from '$lib/wasm.js';
 import {
@@ -28,12 +29,16 @@ export type DbcFileEntry = {
 	name: string;
 	handle: DbcHandle;
 	catalog: ParsedDbc;
+	origin: 'library' | 'mf4';
+	ownerTraceId: number | null;
 };
 
 export type SelectorDbcFile = {
 	id: string;
 	name: string;
 	messages: SelectorDbcMessage[];
+	kind: 'dbc' | 'mf4-native';
+	transient: boolean;
 };
 
 export type SelectorDbcMessage = {
@@ -62,6 +67,8 @@ export type SelectorTreeDbc = {
 	name: string;
 	expanded: boolean;
 	messages: SelectorTreeMessage[];
+	kind: 'dbc' | 'mf4-native';
+	transient: boolean;
 };
 
 export type SelectorTreeMessage = {
@@ -103,6 +110,8 @@ class DbcFilesStore {
 		this.files.map((entry) => ({
 			id: entry.id,
 			name: displayDbcName(entry.name),
+			kind: 'dbc',
+			transient: entry.origin === 'mf4',
 			messages: entry.catalog.messages.map((message) => ({
 				key: selectorMessageKey(entry.id, message),
 				name: message.name,
@@ -122,10 +131,14 @@ class DbcFilesStore {
 	// The returned tree is the single source of what the selector renders:
 	// collapsed nodes carry empty children so collapsed content never mounts,
 	// and expansion flips arrive as part of the same tree swap as the data.
-	visibleSelectorTree(filter: SelectorFilterOptions): SelectorTreeDbc[] {
+	visibleSelectorTree(
+		filter: SelectorFilterOptions,
+		additionalFiles: SelectorDbcFile[] = []
+	): SelectorTreeDbc[] {
 		const query = normalizeSelectorQuery(filter.query);
+		const selectorFiles = [...this.selectorFiles, ...additionalFiles];
 		if (!this.isSelectorFilterActive(filter)) {
-			return this.selectorFiles.map((dbc) => {
+			return selectorFiles.map((dbc) => {
 				if (!filter.expandedDbcIds.has(dbc.id)) return { ...dbc, expanded: false, messages: [] };
 
 				return {
@@ -142,7 +155,8 @@ class DbcFilesStore {
 			});
 		}
 
-		return this.selectorSearchIndexes.flatMap((index) => {
+		const indexes = [...this.selectorSearchIndexes, ...buildSelectorSearchIndexes(additionalFiles)];
+		return indexes.flatMap((index) => {
 			const signalsByMessage: Record<string, SelectorDbcSignal[]> = {};
 			const visibleSignals = searchFuzzyIndex(index.signals, query).filter(
 				({ signal }) => !filter.activeOnly || filter.isSignalSelected(signal.key)
@@ -206,7 +220,44 @@ class DbcFilesStore {
 
 		this.files = this.files.filter((file) => file.id !== id);
 		await closeDbc(entry.handle);
-		await deleteStoredDbc(entry.id);
+		if (entry.origin === 'library') await deleteStoredDbc(entry.id);
+	}
+
+	async addTransientDbcs(ownerTraceId: number, dbcs: EmbeddedDbc[]): Promise<void> {
+		await this.clearTransientDbcs();
+		const entries: DbcFileEntry[] = [];
+		try {
+			for (const [index, dbc] of dbcs.entries()) {
+				const stored = {
+					id: `mf4:${ownerTraceId}:${index}`,
+					name: dbc.name,
+					text: dbc.text
+				};
+				entries.push(
+					(
+						await this.openStoredDbc(stored, {
+							origin: 'mf4',
+							ownerTraceId
+						})
+					).entry
+				);
+			}
+			this.files = [...this.files, ...entries];
+		} catch (error) {
+			await closeEntries(entries);
+			this.error = error instanceof Error ? error.message : 'Embedded DBC load failed';
+		}
+	}
+
+	async clearTransientDbcs(ownerTraceId?: number): Promise<void> {
+		const removed = this.files.filter(
+			(file) =>
+				file.origin === 'mf4' && (ownerTraceId === undefined || file.ownerTraceId === ownerTraceId)
+		);
+		if (removed.length === 0) return;
+		const removedIds = new Set(removed.map((file) => file.id));
+		this.files = this.files.filter((file) => !removedIds.has(file.id));
+		await closeEntries(removed);
 	}
 
 	async clear(): Promise<void> {
@@ -243,11 +294,11 @@ class DbcFilesStore {
 				}
 			}
 
-			this.files = candidates;
+			this.files = [...candidates, ...this.files.filter((file) => file.origin === 'mf4')];
 			this.error = failedNames.length > 0 ? failedStoredDbcMessage(failedNames) : null;
 		} catch {
 			await closeEntries(candidates);
-			this.files = [];
+			this.files = this.files.filter((file) => file.origin === 'mf4');
 			this.error = 'Saved DBC library could not be read.';
 		} finally {
 			this.hasLoadedLibrary = true;
@@ -265,7 +316,13 @@ class DbcFilesStore {
 		return { id: await storedDbcId(text), name: file.name, text };
 	}
 
-	private async openStoredDbc(dbc: StoredDbc): Promise<DbcCandidate> {
+	private async openStoredDbc(
+		dbc: StoredDbc,
+		source: Pick<DbcFileEntry, 'origin' | 'ownerTraceId'> = {
+			origin: 'library',
+			ownerTraceId: null
+		}
+	): Promise<DbcCandidate> {
 		const { handle, catalog } = await openDbc(dbc.text);
 
 		try {
@@ -275,7 +332,8 @@ class DbcFilesStore {
 					id: dbc.id,
 					name: dbc.name,
 					handle,
-					catalog
+					catalog,
+					...source
 				},
 				stored: dbc
 			};

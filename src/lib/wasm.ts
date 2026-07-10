@@ -51,7 +51,28 @@ export type DecodedSignalSeries = {
 	timesMs: Float64Array;
 	values: Float64Array;
 };
-export type TraceType = 'asc' | 'trc' | 'blf';
+
+export type Mf4Signal = {
+	id: number;
+	name: string;
+	unit: string;
+};
+
+export type Mf4SignalGroup = {
+	name: string;
+	signals: Mf4Signal[];
+};
+
+export type Mf4SignalCatalog = {
+	groups: Mf4SignalGroup[];
+};
+
+export type EmbeddedDbc = {
+	name: string;
+	text: string;
+};
+
+export type TraceType = 'asc' | 'trc' | 'blf' | 'mf4';
 
 declare const DbcHandleBrand: unique symbol;
 declare const TraceHandleBrand: unique symbol;
@@ -80,6 +101,10 @@ export type TraceHandle = {
 	readonly [HandleState]: TraceHandleState;
 	readonly id: number;
 	readonly metadata: TraceMetadata;
+	readonly hasRawFrames: boolean;
+	readonly mf4Catalog: Mf4SignalCatalog | null;
+	readonly embeddedDbcs: EmbeddedDbc[];
+	readonly warnings: string[];
 };
 
 let wasmPromise: ReturnType<typeof initWasm> | null = null;
@@ -141,10 +166,17 @@ export async function getSignalValues(
 	);
 
 	const count = packed.length / 2;
-	return {
-		timesMs: packed.subarray(0, count),
-		values: packed.subarray(count)
-	};
+	return unpackSeries(packed, count);
+}
+
+export async function getMf4SignalValues(
+	trace: TraceHandle,
+	signalId: number
+): Promise<DecodedSignalSeries> {
+	await loadWasm();
+	const traceState = assertHandleOpen('trace', trace[HandleState]);
+	const packed = withWasmErrors(() => traceState.wasm.decodeMf4Signal(signalId));
+	return unpackSeries(packed, packed.length / 2);
 }
 
 export async function closeTrace(trace: TraceHandle): Promise<void> {
@@ -155,18 +187,39 @@ export async function closeTrace(trace: TraceHandle): Promise<void> {
 export async function openTrace(traceType: TraceType, bytes: Uint8Array): Promise<TraceHandle> {
 	await loadWasm();
 	const wasm = withWasmErrors(() => parseTrace(traceType, bytes));
-	const metadata: TraceMetadata = {
-		measurementStartMs: wasm.measurementStartMs ?? null,
-		validMessageCount: wasm.validMessageCount,
-		skippedLineCount: wasm.skippedLineCount,
-		durationNs: wasm.durationNs ?? null
-	};
+	try {
+		const metadata: TraceMetadata = {
+			measurementStartMs: wasm.measurementStartMs ?? null,
+			validMessageCount: wasm.validMessageCount,
+			skippedLineCount: wasm.skippedLineCount,
+			durationNs: wasm.durationNs ?? null
+		};
+		const mf4Catalog =
+			traceType === 'mf4'
+				? (JSON.parse(withWasmErrors(() => wasm.mf4CatalogJson())) as Mf4SignalCatalog)
+				: null;
+		const embeddedDbcs =
+			traceType === 'mf4'
+				? (JSON.parse(withWasmErrors(() => wasm.mf4EmbeddedDbcsJson())) as EmbeddedDbc[])
+				: [];
+		const warnings =
+			traceType === 'mf4'
+				? (JSON.parse(withWasmErrors(() => wasm.mf4WarningsJson())) as string[])
+				: [];
 
-	return {
-		id: nextHandleId++,
-		metadata,
-		[HandleState]: { closed: false, wasm }
-	} as TraceHandle;
+		return {
+			id: nextHandleId++,
+			metadata,
+			hasRawFrames: wasm.hasRawFrames,
+			mf4Catalog,
+			embeddedDbcs,
+			warnings,
+			[HandleState]: { closed: false, wasm }
+		} as TraceHandle;
+	} catch (error) {
+		wasm.free();
+		throw error;
+	}
 }
 
 function parseTrace(traceType: TraceType, bytes: Uint8Array): WasmTrace {
@@ -177,7 +230,16 @@ function parseTrace(traceType: TraceType, bytes: Uint8Array): WasmTrace {
 			return WasmTrace.parseTrc(bytes);
 		case 'blf':
 			return WasmTrace.parseBlf(bytes);
+		case 'mf4':
+			return WasmTrace.parseMf4(bytes);
 	}
+}
+
+function unpackSeries(packed: Float64Array, count: number): DecodedSignalSeries {
+	return {
+		timesMs: packed.subarray(0, count),
+		values: packed.subarray(count)
+	};
 }
 
 function assertHandleOpen<T extends DbcHandleState | TraceHandleState>(

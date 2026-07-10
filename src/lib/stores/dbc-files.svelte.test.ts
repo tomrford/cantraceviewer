@@ -80,6 +80,35 @@ describe('dbcFiles', () => {
 		expect(closeDbcMock).not.toHaveBeenCalled();
 	});
 
+	it('keeps embedded MF4 DBCs transient and closes them with their trace', async () => {
+		const handle = dbcHandle(203);
+		openDbcMock.mockResolvedValueOnce(
+			openDbcResult(handle, catalog(message({ name: 'Embedded' })))
+		);
+
+		await dbcFiles.addTransientDbcs(42, [{ name: 'embedded.dbc', text: 'embedded' }]);
+
+		expect(dbcFiles.files).toMatchObject([
+			{
+				id: 'mf4:42:0',
+				name: 'embedded.dbc',
+				origin: 'mf4',
+				ownerTraceId: 42
+			}
+		]);
+		expect(dbcFiles.selectorFiles[0]).toMatchObject({
+			name: 'embedded',
+			kind: 'dbc',
+			transient: true
+		});
+		expect(putStoredDbcsMock).not.toHaveBeenCalled();
+
+		await dbcFiles.clearTransientDbcs(42);
+
+		expect(dbcFiles.files).toEqual([]);
+		expect(closeDbcMock).toHaveBeenCalledExactlyOnceWith(handle);
+	});
+
 	it('skips re-added DBC files with identical content without opening a handle', async () => {
 		const handle = dbcHandle(211);
 		openDbcMock.mockResolvedValueOnce(openDbcResult(handle, catalog(message({ name: 'Vehicle' }))));
@@ -444,7 +473,9 @@ describe('dbcFiles', () => {
 				id: 'stored-id',
 				name: 'stored.dbc',
 				handle,
-				catalog: catalog(message({ name: 'Stored' }))
+				catalog: catalog(message({ name: 'Stored' })),
+				origin: 'library',
+				ownerTraceId: null
 			}
 		];
 		dbcFiles.error = 'previous error';
@@ -490,7 +521,9 @@ function dbcEntry({
 		id,
 		name,
 		handle,
-		catalog: catalog(...messages)
+		catalog: catalog(...messages),
+		origin: 'library',
+		ownerTraceId: null
 	};
 }
 

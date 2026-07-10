@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import {
 	closeDbc,
 	closeTrace,
+	getMf4SignalValues,
 	getSignalValues,
 	openDbc,
 	openTrace,
@@ -232,6 +233,58 @@ describe('WASM adapter integration', () => {
 		}
 	});
 
+	it('opens decoded MF4 channels and reads a native series', async () => {
+		const trace = await openMf4Fixture('decoded-channels.mf4');
+		try {
+			expect(trace.hasRawFrames).toBe(false);
+			expect(trace.metadata).toMatchObject({
+				validMessageCount: 0,
+				durationNs: 300_000_000
+			});
+			expect(trace.mf4Catalog?.groups).toMatchObject([
+				{
+					name: 'Decoded powertrain',
+					signals: [
+						{ id: 0, name: 'VehicleSpeed', unit: 'km/h' },
+						{ id: 1, name: 'EngineSpeed', unit: 'rpm' }
+					]
+				}
+			]);
+			const speed = await getMf4SignalValues(trace, 0);
+			expect(Array.from(speed.timesMs)).toEqual([100, 200, 300]);
+			expect(Array.from(speed.values)).toEqual([12.5, 25, 37.5]);
+		} finally {
+			await closeTrace(trace);
+		}
+	});
+
+	it('keeps raw, native and embedded DBC sources in one MF4 handle', async () => {
+		const trace = await openMf4Fixture('hybrid-embedded-dbc.mf4');
+		const { handle: dbc } = await openDbc(
+			'BO_ 291 RawFrame: 4 ECU\n SG_ FirstByte : 0|8@1+ (1,0) [0|255] "" VIEWER'
+		);
+		try {
+			expect(trace.hasRawFrames).toBe(true);
+			expect(trace.metadata.validMessageCount).toBe(2);
+			expect(trace.mf4Catalog?.groups[0]?.signals).toHaveLength(2);
+			expect(trace.embeddedDbcs).toHaveLength(1);
+			expect(trace.embeddedDbcs[0]).toMatchObject({ name: 'sample.dbc' });
+			expect(trace.embeddedDbcs[0]?.text).toContain('BO_ 2000 WebData_2000');
+
+			const raw = await getSignalValues(
+				dbc,
+				trace,
+				{ canId: 0x123, isExtended: false, sizeBytes: 4 },
+				'FirstByte'
+			);
+			expect(Array.from(raw.values)).toEqual([1]);
+			expect(Array.from((await getMf4SignalValues(trace, 1)).values)).toEqual([900, 1200, 1500]);
+		} finally {
+			await closeDbc(dbc);
+			await closeTrace(trace);
+		}
+	});
+
 	it('normalizes parse and decode failures', async () => {
 		const trace = await openFixtureTrace();
 		const { handle: dbc } = await openFixtureDbc();
@@ -302,6 +355,11 @@ async function openFixtureDbc(): Promise<{
 async function openFixtureTrace(): Promise<TraceHandle> {
 	const bytes = await readFile(resolve(fixturesDir, 'agentic-demo.asc'));
 	return openTrace('asc', bytes);
+}
+
+async function openMf4Fixture(name: string): Promise<TraceHandle> {
+	const bytes = await readFile(resolve(fixturesDir, 'mf4', name));
+	return openTrace('mf4', bytes);
 }
 
 function generatedBlfTrace(): Uint8Array {

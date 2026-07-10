@@ -41,6 +41,7 @@ if [[ "$profile" == "release" ]]; then
 		-Oz \
 		--enable-bulk-memory \
 		--enable-bulk-memory-opt \
+		--enable-nontrapping-float-to-int \
 		-o "$wasm_path.optimized"
 	mv "$wasm_path.optimized" "$wasm_path"
 fi
