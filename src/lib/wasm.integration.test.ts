@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { deflateSync } from 'node:zlib';
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
 	closeDbc,
@@ -7,19 +8,18 @@ import {
 	getSignalValues,
 	openDbc,
 	openTrace,
-	WasmError,
 	type DbcHandle,
 	type ParsedDbc,
 	type TraceHandle
 } from '$lib/wasm.js';
 
-const fixturesDir = resolve('wasm/test/fixtures');
-const wasmAssetPath = resolve('src/lib/assets/cantraceviewer.wasm');
+const fixturesDir = resolve('wasm/tests/fixtures');
+const wasmAssetPath = resolve('src/lib/wasm-bindgen/cantraceviewer_bg.wasm');
 
 beforeAll(() => {
 	globalThis.fetch = async (input: string | URL | Request) => {
 		const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-		if (!url.includes('cantraceviewer.wasm')) {
+		if (!url.includes('cantraceviewer_bg.wasm')) {
 			throw new Error(`Unexpected fetch URL: ${url}`);
 		}
 
@@ -74,6 +74,39 @@ describe('WASM adapter integration', () => {
 		}
 	});
 
+	it('parses and decodes a PCAN TRC trace', async () => {
+		const { handle: dbc } = await openFixtureDbc();
+		const trace = await openTrace(
+			'trc',
+			new TextEncoder().encode(
+				[
+					';$FILEVERSION=2.1',
+					';$COLUMNS=N,O,T,B,I,d,R,L,D',
+					'1 10.000 DT 1 0120 Rx - 8 E8 03 00 00 00 78 00 00',
+					'2 20.000 DT 1 0120 Rx - 8 D2 04 00 00 00 82 00 00'
+				].join('\n')
+			)
+		);
+		try {
+			expect(trace.metadata).toMatchObject({
+				validMessageCount: 2,
+				skippedLineCount: 0,
+				durationNs: 20_000_000
+			});
+			const speed = await getSignalValues(
+				dbc,
+				trace,
+				{ canId: 288, isExtended: false, sizeBytes: 8 },
+				'vehicle_speed'
+			);
+			expect(Array.from(speed.timesMs)).toEqual([10, 20]);
+			expect(Array.from(speed.values)).toEqual([100, 123.4]);
+		} finally {
+			await closeTrace(trace);
+			await closeDbc(dbc);
+		}
+	});
+
 	it('decodes selected signal values through the TypeScript boundary', async () => {
 		const { handle: dbc } = await openFixtureDbc();
 		const trace = await openFixtureTrace();
@@ -119,8 +152,8 @@ describe('WASM adapter integration', () => {
 				expect(Array.from(speed.timesMs).slice(0, 3)).toEqual([10, 110, 210]);
 				expect(Array.from(speed.values).slice(0, 3)).toEqual([100, 123.4, 150]);
 			} catch (error) {
-				expect(error).toBeInstanceOf(WasmError);
-				expect((error as WasmError).code).toBe('HandleClosed');
+				expect(error).toBeInstanceOf(Error);
+				expect((error as Error).message).toBe('trace handle is closed');
 			}
 
 			await closeTrace(trace);
@@ -154,7 +187,7 @@ describe('WASM adapter integration', () => {
 					{ canId: 288, isExtended: false, sizeBytes: 8 },
 					'vehicle_speed'
 				)
-			).rejects.toMatchObject({ code: 'HandleClosed' });
+			).rejects.toThrow('trace handle is closed');
 		} finally {
 			await closeTrace(trace);
 			await closeDbc(dbc);
@@ -186,20 +219,54 @@ describe('WASM adapter integration', () => {
 		}
 	});
 
+	it('opens a dynamically compressed BLF trace through the TypeScript boundary', async () => {
+		const trace = await openTrace('blf', generatedCompressedBlfTrace());
+		try {
+			expect(trace.metadata).toMatchObject({
+				validMessageCount: 257,
+				skippedLineCount: 0,
+				durationNs: 257_000_000
+			});
+		} finally {
+			await closeTrace(trace);
+		}
+	});
+
 	it('normalizes parse and decode failures', async () => {
 		const trace = await openFixtureTrace();
 		const { handle: dbc } = await openFixtureDbc();
 		try {
-			await expectWasmError(openDbc('BO_ broken'));
-			await expectWasmError(
+			await expect(openDbc('BO_ broken')).rejects.toThrow('invalid DBC message record');
+			await expect(
 				openTrace('asc', new TextEncoder().encode('base nope timestamps absolute'))
-			);
+			).rejects.toThrow('invalid ASC base declaration');
+			const invalidBlf = new Uint8Array(144);
+			invalidBlf.set(new TextEncoder().encode('NOPE'));
+			await expect(openTrace('blf', invalidBlf)).rejects.toThrow('invalid BLF file signature');
 			await expect(
 				getSignalValues(dbc, trace, { canId: 288, isExtended: false, sizeBytes: 8 }, 'missing')
-			).rejects.toMatchObject({ code: 'SignalNotFound' });
+			).rejects.toThrow('Signal not found in DBC');
 		} finally {
 			await closeTrace(trace);
 			await closeDbc(dbc);
+		}
+	});
+
+	it('preserves relative timing around non-UTF-8 text', async () => {
+		const prefix = new TextEncoder().encode(
+			'base hex timestamps relative\n0.100 1 123 Rx d 1 aa\n0.200 unknown '
+		);
+		const suffix = new TextEncoder().encode(' event\n0.300 1 123 Rx d 1 bb');
+		const bytes = concatBytes(prefix, new Uint8Array([0xff]), suffix);
+		const trace = await openTrace('asc', bytes);
+		try {
+			expect(trace.metadata).toMatchObject({
+				validMessageCount: 2,
+				skippedLineCount: 0,
+				durationNs: 600_000_000
+			});
+		} finally {
+			await closeTrace(trace);
 		}
 	});
 
@@ -245,6 +312,24 @@ function generatedBlfTrace(): Uint8Array {
 	return concatBytes(blfFileHeader(), blfContainer(inner));
 }
 
+function generatedCompressedBlfTrace(): Uint8Array {
+	const frames = Array.from({ length: 257 }, (_, index) => {
+		const rawSpeed = index % 2500;
+		return blfCanMessage((index + 1) * 1_000_000, 0x120, [
+			rawSpeed & 0xff,
+			rawSpeed >>> 8,
+			index & 0xff,
+			index >>> 8,
+			0,
+			120,
+			0,
+			0
+		]);
+	});
+	const inner = concatBytes(...frames);
+	return concatBytes(blfFileHeader(), blfContainer(inner, true));
+}
+
 function blfFileHeader(): Uint8Array {
 	const bytes = new Uint8Array(144);
 	const view = new DataView(bytes.buffer);
@@ -254,14 +339,18 @@ function blfFileHeader(): Uint8Array {
 	return bytes;
 }
 
-function blfContainer(payload: Uint8Array): Uint8Array {
-	const objectSize = 16 + 16 + payload.byteLength;
+function blfContainer(payload: Uint8Array, compressed = false): Uint8Array {
+	const containerPayload = compressed ? deflateSync(payload) : payload;
+	if (compressed && ((containerPayload[2] >> 1) & 0x03) !== 2) {
+		throw new Error('Expected the BLF fixture to use dynamic Huffman compression');
+	}
+	const objectSize = 16 + 16 + containerPayload.byteLength;
 	const bytes = new Uint8Array(objectSize + paddingSize(objectSize));
 	const view = new DataView(bytes.buffer);
 	writeObjectBase(bytes, view, 0, 16, objectSize, 10);
-	view.setUint16(16, 0, true);
+	view.setUint16(16, compressed ? 2 : 0, true);
 	view.setUint32(24, payload.byteLength, true);
-	bytes.set(payload, 32);
+	bytes.set(containerPayload, 32);
 	return bytes;
 }
 
@@ -324,14 +413,4 @@ function concatBytes(...parts: Uint8Array[]): Uint8Array {
 
 function paddingSize(size: number): number {
 	return size % 4;
-}
-
-async function expectWasmError(promise: Promise<unknown>): Promise<void> {
-	try {
-		await promise;
-		throw new Error('Expected WasmError');
-	} catch (error) {
-		expect(error).toBeInstanceOf(WasmError);
-		expect((error as WasmError).code.length).toBeGreaterThan(0);
-	}
 }
