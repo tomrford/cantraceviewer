@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { normalizedWheelDelta, type PlotRatioPoint } from '$lib/plot-geometry.js';
+	import type { PlotRatioPoint } from '$lib/plot-geometry.js';
 	import { boxViewport, panViewport, type PlotViewport } from '$lib/plot-viewport.js';
 	import { PlotViewportState } from '$lib/plot-viewport-state.svelte.js';
 
@@ -17,7 +17,6 @@
 
 	let overlay: HTMLButtonElement;
 	let dragState = $state<DragState | null>(null);
-	const WHEEL_ZOOM_SPEED = 0.002;
 
 	type DragState =
 		| {
@@ -36,29 +35,6 @@
 
 	function handleContextMenu(event: MouseEvent) {
 		onContextMenuPoint?.(clientToDataX(event));
-	}
-
-	function handlePlotWheel(event: WheelEvent) {
-		const activeViewport = viewport.activeViewport;
-		if (activeViewport === null) return;
-		const point = currentPlotRatio(event);
-		if (point === null) return;
-
-		const delta = normalizedWheelDelta(event, currentPlotSize().height);
-		if (delta.x === 0 && delta.y === 0) return;
-
-		if (Math.abs(delta.x) > Math.abs(delta.y) && !event.shiftKey && !event.altKey) {
-			event.preventDefault();
-			viewport.panBy({ x: -delta.x, y: 0 }, currentPlotSize());
-			return;
-		}
-
-		event.preventDefault();
-		const factor = Math.exp(Math.min(200, Math.max(-200, delta.y)) * WHEEL_ZOOM_SPEED);
-		viewport.zoomBy(factor, point, {
-			x: !event.altKey,
-			y: !event.shiftKey
-		});
 	}
 
 	function startPlotDrag(event: PointerEvent) {
@@ -171,8 +147,8 @@
 	style:left={`${grid.left}px`}
 	style:right={`${grid.right}px`}
 	aria-label="Plot viewport interaction"
+	data-plot-wheel-target
 	oncontextmenu={handleContextMenu}
-	onwheel={handlePlotWheel}
 	onpointerdown={startPlotDrag}
 	onpointermove={dragPlot}
 	onpointerup={stopPlotDrag}
