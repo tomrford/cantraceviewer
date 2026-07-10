@@ -92,8 +92,7 @@ describe('dbcFiles', () => {
 			{
 				id: 'mf4:42:0',
 				name: 'embedded.dbc',
-				origin: 'mf4',
-				ownerTraceId: 42
+				origin: 'mf4'
 			}
 		]);
 		expect(dbcFiles.selectorFiles[0]).toMatchObject({
@@ -103,7 +102,7 @@ describe('dbcFiles', () => {
 		});
 		expect(putStoredDbcsMock).not.toHaveBeenCalled();
 
-		await dbcFiles.clearTransientDbcs(42);
+		await dbcFiles.clearTransientDbcs();
 
 		expect(dbcFiles.files).toEqual([]);
 		expect(closeDbcMock).toHaveBeenCalledExactlyOnceWith(handle);
@@ -486,8 +485,7 @@ describe('dbcFiles', () => {
 				name: 'stored.dbc',
 				handle,
 				catalog: catalog(message({ name: 'Stored' })),
-				origin: 'library',
-				ownerTraceId: null
+				origin: 'library'
 			}
 		];
 		dbcFiles.error = 'previous error';
@@ -534,8 +532,7 @@ function dbcEntry({
 		name,
 		handle,
 		catalog: catalog(...messages),
-		origin: 'library',
-		ownerTraceId: null
+		origin: 'library'
 	};
 }
 

@@ -30,7 +30,6 @@ export type DbcFileEntry = {
 	handle: DbcHandle;
 	catalog: ParsedDbc;
 	origin: 'library' | 'mf4';
-	ownerTraceId: number | null;
 };
 
 export type SelectorDbcFile = {
@@ -234,14 +233,7 @@ class DbcFilesStore {
 					name: dbc.name,
 					text: dbc.text
 				};
-				entries.push(
-					(
-						await this.openStoredDbc(stored, {
-							origin: 'mf4',
-							ownerTraceId
-						})
-					).entry
-				);
+				entries.push((await this.openStoredDbc(stored, 'mf4')).entry);
 			}
 			this.files = [...this.files, ...entries];
 		} catch (error) {
@@ -250,11 +242,8 @@ class DbcFilesStore {
 		}
 	}
 
-	async clearTransientDbcs(ownerTraceId?: number): Promise<void> {
-		const removed = this.files.filter(
-			(file) =>
-				file.origin === 'mf4' && (ownerTraceId === undefined || file.ownerTraceId === ownerTraceId)
-		);
+	async clearTransientDbcs(): Promise<void> {
+		const removed = this.files.filter((file) => file.origin === 'mf4');
 		if (removed.length === 0) return;
 		const removedIds = new Set(removed.map((file) => file.id));
 		this.files = this.files.filter((file) => !removedIds.has(file.id));
@@ -319,10 +308,7 @@ class DbcFilesStore {
 
 	private async openStoredDbc(
 		dbc: StoredDbc,
-		source: Pick<DbcFileEntry, 'origin' | 'ownerTraceId'> = {
-			origin: 'library',
-			ownerTraceId: null
-		}
+		origin: DbcFileEntry['origin'] = 'library'
 	): Promise<DbcCandidate> {
 		const { handle, catalog } = await openDbc(dbc.text);
 
@@ -334,7 +320,7 @@ class DbcFilesStore {
 					name: dbc.name,
 					handle,
 					catalog,
-					...source
+					origin
 				},
 				stored: dbc
 			};
