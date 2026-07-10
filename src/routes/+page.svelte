@@ -14,6 +14,7 @@
 	} from '$lib/file-drop.js';
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import { PlotViewportState } from '$lib/plot-viewport-state.svelte.js';
+	import type { LegendCrosshairMode, PlotCrosshair } from '$lib/plot-crosshair.js';
 	import { dbcFiles } from '$lib/stores/dbc-files.svelte.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
 	import { onTraceOpened } from '$lib/stores/session.js';
@@ -31,8 +32,8 @@
 	let traceInput = $state<HTMLInputElement>();
 	let traceDropActive = $state(false);
 	let webgpuSupported = $state<boolean | null>(null);
-	let markerEnabled = $state(false);
-	let markerX = $state<number | null>(null);
+	let crosshairs = $state<PlotCrosshair[]>([]);
+	let legendCrosshairMode = $state<LegendCrosshairMode>('c1');
 	let boxZoomEnabled = $state(false);
 	let legendVisible = $state(true);
 	const plotViewport = new PlotViewportState();
@@ -268,8 +269,9 @@
 					<PlotToolbar
 						disabled={plotControlsDisabled}
 						{canResetZoom}
+						viewport={plotViewport.activeViewport}
 						bind:boxZoomEnabled
-						bind:markerEnabled
+						bind:crosshairs
 						bind:legendVisible
 						onZoomIn={() => plotViewport.zoomBy(0.5)}
 						onZoomOut={() => plotViewport.zoomBy(2)}
@@ -287,8 +289,8 @@
 		{#if traceFile.entry}
 			<SignalPlot
 				viewport={plotViewport}
-				bind:markerEnabled
-				bind:markerX
+				bind:crosshairs
+				bind:legendCrosshairMode
 				bind:boxZoomEnabled
 				bind:legendVisible
 				dropActive={traceDropActive}

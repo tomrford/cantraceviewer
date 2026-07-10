@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
 	createSignalViewCache,
+	crosshairDeltaValue,
+	crosshairValue,
 	formatAxisValue,
 	formatDecodedValue,
 	formatLegendNumericValue,
+	formatTimeDelta,
 	isOutsideDbcRange,
 	lineSeries,
 	lineSeriesForViews,
@@ -190,6 +193,46 @@ describe('signal plot data', () => {
 			text: '42.4 km/h',
 			outOfRange: false
 		});
+	});
+
+	it('calculates signal deltas from the samples nearest each crosshair', () => {
+		const signal = {
+			...view([0, 10, 20], [5, 10, 25]),
+			unit: 'V',
+			factor: 0.1
+		};
+
+		expect(crosshairValue(signal, 9)).toEqual({
+			key: 'signal',
+			text: '10.0 V',
+			outOfRange: false
+		});
+		expect(crosshairDeltaValue(signal, 9, 19)).toEqual({
+			key: 'signal',
+			text: '15.0 V',
+			outOfRange: false
+		});
+	});
+
+	it('does not calculate numeric deltas for enumerated signals', () => {
+		const signal = {
+			...view([0, 10], [0, 1]),
+			valueDescriptions: [
+				{ rawValue: 0, label: 'Off' },
+				{ rawValue: 1, label: 'On' }
+			]
+		};
+
+		expect(crosshairDeltaValue(signal, 0, 10)).toEqual({
+			key: 'signal',
+			text: 'N/A',
+			outOfRange: false
+		});
+	});
+
+	it('formats signed crosshair time deltas as durations', () => {
+		expect(formatTimeDelta(1234)).toBe('1.234s');
+		expect(formatTimeDelta(-61_250)).toBe('-1m 1.250s');
 	});
 });
 
