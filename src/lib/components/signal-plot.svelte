@@ -436,7 +436,7 @@
 				{#if contextMenuCrosshairId !== null}
 					<ContextMenu.Item onSelect={() => deleteCrosshair(contextMenuCrosshairId!)}>
 						<XIcon />
-						Delete C{contextMenuCrosshairId}
+						Remove C{contextMenuCrosshairId}
 					</ContextMenu.Item>
 				{/if}
 				<ContextMenu.Item onSelect={toggleBoxZoom}>

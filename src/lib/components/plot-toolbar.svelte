@@ -3,7 +3,12 @@
 	import { Button, buttonVariants } from '$lib/components/ui/button/index.js';
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import { Toggle } from '$lib/components/ui/toggle/index.js';
-	import { setCrosshair, type CrosshairId, type PlotCrosshair } from '$lib/plot-crosshair.js';
+	import {
+		crosshairById,
+		setCrosshair,
+		type CrosshairId,
+		type PlotCrosshair
+	} from '$lib/plot-crosshair.js';
 	import { viewportCenter, type PlotViewport } from '$lib/plot-viewport.js';
 	import { cn } from '$lib/utils.js';
 	import BoxSelectIcon from '@lucide/svelte/icons/box-select';
@@ -35,6 +40,8 @@
 		onZoomOut: () => void;
 		onResetZoom: () => void;
 	} = $props();
+	const c1 = $derived(crosshairById(crosshairs, 1));
+	const c2 = $derived(crosshairById(crosshairs, 2));
 
 	const toolbarIconButtonClass =
 		'border-input bg-transparent hover:bg-muted hover:text-foreground dark:bg-transparent dark:hover:bg-muted/50';
@@ -112,7 +119,7 @@
 				onclick={() => placeCrosshair(1)}
 			>
 				<CrosshairIcon />
-				Place C1
+				{c1 === null ? 'Place C1' : 'Center C1'}
 			</Popover.Close>
 			<Popover.Close
 				class={cn(buttonVariants({ variant: 'ghost' }), 'w-full justify-start')}
@@ -120,7 +127,7 @@
 				onclick={() => placeCrosshair(2)}
 			>
 				<CrosshairIcon />
-				Place C2
+				{c2 === null ? 'Place C2' : 'Center C2'}
 			</Popover.Close>
 			<Popover.Close
 				class={cn(
