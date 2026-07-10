@@ -24,13 +24,33 @@ function compareAlphabetical(a: PlotSignal, b: PlotSignal): number {
 }
 
 function compareGrouped(a: PlotSignal, b: PlotSignal): number {
-	const unitOrder = a.unit.localeCompare(b.unit);
-	if (unitOrder !== 0) return unitOrder;
+	const groupOrder = compareGroup(a, b);
+	if (groupOrder !== 0) return groupOrder;
 
 	const scaleOrder = compareScale(a, b);
 	if (scaleOrder !== 0) return scaleOrder;
 
 	return compareAlphabetical(a, b);
+}
+
+function compareGroup(a: PlotSignal, b: PlotSignal): number {
+	const aHasValueTable = a.valueDescriptions.length > 0;
+	const bHasValueTable = b.valueDescriptions.length > 0;
+
+	if (aHasValueTable && bHasValueTable) {
+		return valueTableKey(a).localeCompare(valueTableKey(b));
+	}
+	if (aHasValueTable !== bHasValueTable) return aHasValueTable ? -1 : 1;
+
+	return a.unit.localeCompare(b.unit);
+}
+
+function valueTableKey(signal: PlotSignal): string {
+	const entries = [...signal.valueDescriptions]
+		.sort((a, b) => a.rawValue - b.rawValue || a.label.localeCompare(b.label))
+		.map(({ rawValue, label }) => [rawValue, label]);
+
+	return JSON.stringify(entries);
 }
 
 function compareScale(a: PlotSignal, b: PlotSignal): number {

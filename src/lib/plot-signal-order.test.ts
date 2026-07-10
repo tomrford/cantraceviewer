@@ -60,12 +60,42 @@ describe('orderPlotSignals', () => {
 			'coarse'
 		]);
 	});
+
+	it('groups equivalent value tables before scale and label', () => {
+		const signals = [
+			plotSignal('state-a', 'Msg.StateA', {
+				valueDescriptions: [
+					{ rawValue: 0, label: 'Off' },
+					{ rawValue: 1, label: 'On' }
+				]
+			}),
+			plotSignal('state-b', 'Msg.StateB', {
+				valueDescriptions: [
+					{ rawValue: 0, label: 'Park' },
+					{ rawValue: 1, label: 'Drive' }
+				]
+			}),
+			plotSignal('state-c', 'Msg.StateC', {
+				factor: 2,
+				valueDescriptions: [
+					{ rawValue: 1, label: 'On' },
+					{ rawValue: 0, label: 'Off' }
+				]
+			})
+		];
+
+		expect(orderPlotSignals(signals, 'grouped').map((signal) => signal.key)).toEqual([
+			'state-a',
+			'state-c',
+			'state-b'
+		]);
+	});
 });
 
 function plotSignal(
 	key: string,
 	label: string,
-	overrides: Partial<Pick<PlotSignal, 'unit' | 'factor' | 'offset'>> = {}
+	overrides: Partial<Pick<PlotSignal, 'unit' | 'factor' | 'offset' | 'valueDescriptions'>> = {}
 ): PlotSignal {
 	return {
 		key,
@@ -78,7 +108,7 @@ function plotSignal(
 		minimum: 0,
 		maximum: 1,
 		unit: overrides.unit ?? '',
-		valueDescriptions: [],
+		valueDescriptions: overrides.valueDescriptions ?? [],
 		series: null
 	};
 }
