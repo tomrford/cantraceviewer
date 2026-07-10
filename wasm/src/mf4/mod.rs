@@ -339,7 +339,7 @@ mod tests {
         assert!(
             document.embedded_dbcs[0]
                 .text
-                .contains("BO_ 2000 WebData_2000")
+                .contains("BO_ 291 WebData_2000")
         );
         assert!(document.warnings.is_empty());
     }

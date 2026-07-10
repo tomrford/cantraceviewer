@@ -260,27 +260,36 @@ describe('WASM adapter integration', () => {
 
 	it('keeps raw, native and embedded DBC sources in one MF4 handle', async () => {
 		const trace = await openMf4Fixture('hybrid-embedded-dbc.mf4');
-		const { handle: dbc } = await openDbc(
-			'BO_ 291 RawFrame: 4 ECU\n SG_ FirstByte : 0|8@1+ (1,0) [0|255] "" VIEWER'
-		);
+		let dbc: DbcHandle | null = null;
 		try {
 			expect(trace.hasRawFrames).toBe(true);
 			expect(trace.metadata.validMessageCount).toBe(2);
 			expect(trace.mf4Catalog?.groups[0]?.signals).toHaveLength(2);
 			expect(trace.embeddedDbcs).toHaveLength(1);
 			expect(trace.embeddedDbcs[0]).toMatchObject({ name: 'sample.dbc' });
-			expect(trace.embeddedDbcs[0]?.text).toContain('BO_ 2000 WebData_2000');
+			expect(trace.embeddedDbcs[0]?.text).toContain('BO_ 291 WebData_2000');
+
+			const openedDbc = await openDbc(trace.embeddedDbcs[0]!.text);
+			dbc = openedDbc.handle;
+			const rawMessage = openedDbc.catalog.messages.find(
+				(message) => message.name === 'WebData_2000'
+			);
+			expect(rawMessage).toMatchObject({ canId: 0x123, isExtended: false, sizeBytes: 4 });
 
 			const raw = await getSignalValues(
 				dbc,
 				trace,
-				{ canId: 0x123, isExtended: false, sizeBytes: 4 },
-				'FirstByte'
+				{
+					canId: rawMessage!.canId,
+					isExtended: rawMessage!.isExtended,
+					sizeBytes: rawMessage!.sizeBytes
+				},
+				'Signal_8'
 			);
-			expect(Array.from(raw.values)).toEqual([1]);
+			expect(Array.from(raw.values)).toEqual([4]);
 			expect(Array.from((await getMf4SignalValues(trace, 1)).values)).toEqual([900, 1200, 1500]);
 		} finally {
-			await closeDbc(dbc);
+			if (dbc) await closeDbc(dbc);
 			await closeTrace(trace);
 		}
 	});
