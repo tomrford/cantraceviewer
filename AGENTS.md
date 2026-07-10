@@ -4,7 +4,7 @@ This repo is the source for CAN Trace Viewer, a client-side CAN log inspection a
 
 Live instance: https://cantraceviewer.com
 
-Product shape: open directly into the plotter. Load one ASC, PCAN TRC 1.x/2.x, or BLF trace, save one or more DBC files to the local browser library, select signals from the sidebar, and render decoded signal series on a shared time plot.
+Product shape: open directly into the plotter. Load one ASC, PCAN TRC 1.x/2.x, or BLF trace, save one or more DBC files to the local browser library, select signals from the signal selector popover, and render decoded signal series on a shared time plot.
 
 Implementation shape: SvelteKit/Svelte 5 with Bun, Tailwind, and shadcn-svelte style components. Rust code lives under `wasm/` and compiles through wasm-bindgen for DBC parsing, trace parsing, and signal decode work.
 

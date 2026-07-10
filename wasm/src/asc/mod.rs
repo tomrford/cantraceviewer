@@ -110,6 +110,8 @@ fn trim_line(line: &[u8]) -> &[u8] {
     &line[start..end]
 }
 
+// Prefilter for `parse_header_line`: must cover every form it accepts, or a
+// header line silently degrades into a skipped frame line.
 fn could_be_header(line: &[u8]) -> bool {
     line == b"no internal events logged"
         || line == b"internal events logged"
@@ -120,6 +122,7 @@ fn could_be_header(line: &[u8]) -> bool {
         || line.starts_with(b"base ")
 }
 
+// Accepted forms must stay in sync with the `could_be_header` prefilter.
 fn parse_header_line(state: &mut ParserState, line: &str) -> Result<bool, TraceError> {
     if matches!(line, "no internal events logged" | "internal events logged") {
         return Ok(true);
