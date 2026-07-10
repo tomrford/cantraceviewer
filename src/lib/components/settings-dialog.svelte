@@ -20,6 +20,7 @@
 	import XIcon from '@lucide/svelte/icons/x';
 	import type { Component } from 'svelte';
 
+	let { onStartWalkthrough }: { onStartWalkthrough: () => void } = $props();
 	let helpOpen = $state(false);
 	const iconButtonClass =
 		'flex size-8 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color,box-shadow,scale] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96]';
@@ -63,6 +64,11 @@
 	);
 	async function resetPersistentData(): Promise<void> {
 		await onResetPersistentData();
+	}
+
+	function startWalkthrough(): void {
+		helpOpen = false;
+		onStartWalkthrough();
 	}
 </script>
 
@@ -203,7 +209,8 @@
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 		<AlertDialog.Footer>
-			<AlertDialog.Action onclick={() => (helpOpen = false)}>Close</AlertDialog.Action>
+			<AlertDialog.Cancel onclick={() => (helpOpen = false)}>Close</AlertDialog.Cancel>
+			<AlertDialog.Action onclick={startWalkthrough}>Show quick tour</AlertDialog.Action>
 		</AlertDialog.Footer>
 	</AlertDialog.Content>
 </AlertDialog.Root>

@@ -24,6 +24,10 @@ export const legendOrderMode = new PersistedState<LegendOrderMode>(
 	{ syncTabs: false }
 );
 
+export const walkthroughVersion = new PersistedState('cantraceviewer:walkthrough-version', 0, {
+	syncTabs: false
+});
+
 const systemDark = new MediaQuery('prefers-color-scheme: dark');
 
 export function isDark(): boolean {
@@ -37,4 +41,5 @@ export function resetPreferences(): void {
 	themePreference.current = 'system';
 	timestampMode.current = 'relative';
 	legendOrderMode.current = 'selection';
+	walkthroughVersion.current = 0;
 }

@@ -4,6 +4,7 @@
 	import SettingsDialog from '$lib/components/settings-dialog.svelte';
 	import SignalPlot from '$lib/components/signal-plot.svelte';
 	import SignalSelectorDialog from '$lib/components/signal-selector-dialog.svelte';
+	import Walkthrough from '$lib/components/walkthrough.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Empty from '$lib/components/ui/empty/index.js';
 	import {
@@ -26,7 +27,15 @@
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import XIcon from '@lucide/svelte/icons/x';
 	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
-	import { onMount } from 'svelte';
+	import { walkthroughVersion } from '$lib/stores/preferences.svelte.js';
+	import {
+		adjacentWalkthroughStep,
+		shouldShowWalkthrough,
+		WALKTHROUGH_STEPS,
+		WALKTHROUGH_VERSION,
+		type WalkthroughStep
+	} from '$lib/walkthrough.js';
+	import { onMount, tick } from 'svelte';
 
 	let traceInput = $state<HTMLInputElement>();
 	let traceDropActive = $state(false);
@@ -35,12 +44,48 @@
 	let markerX = $state<number | null>(null);
 	let boxZoomEnabled = $state(false);
 	let legendVisible = $state(true);
+	let signalSelectorOpen = $state(false);
+	let settingsOpen = $state(false);
+	let walkthroughStepId = $state<WalkthroughStep['id'] | null>(null);
 	const plotViewport = new PlotViewportState();
 	const plotControlsDisabled = $derived(!plotData.hasPlottableSignals || traceFile.isLoading);
 	const canResetZoom = $derived(plotData.hasPlottableSignals && !plotViewport.isFitAll);
 	let traceMetadataTitle = $derived(
 		traceFile.entry ? formatTraceMetadata(traceFile.entry.metadata) : undefined
 	);
+	let walkthroughStep = $derived(
+		WALKTHROUGH_STEPS.find((step) => step.id === walkthroughStepId) ?? null
+	);
+	let walkthroughStepIndex = $derived(
+		walkthroughStepId === null
+			? -1
+			: WALKTHROUGH_STEPS.findIndex((step) => step.id === walkthroughStepId)
+	);
+	let walkthroughNextDisabled = $derived.by(() => {
+		switch (walkthroughStepId) {
+			case 'add-dbc':
+				return dbcFiles.files.length === 0;
+			case 'trace':
+				return traceFile.entry === null;
+			case 'signals':
+				return !plotData.hasPlottableSignals;
+			default:
+				return false;
+		}
+	});
+	let walkthroughNextHint = $derived.by(() => {
+		if (!walkthroughNextDisabled) return undefined;
+		switch (walkthroughStepId) {
+			case 'add-dbc':
+				return 'Add a DBC to continue.';
+			case 'trace':
+				return 'Open a trace to continue.';
+			case 'signals':
+				return 'Select a signal to continue.';
+			default:
+				return undefined;
+		}
+	});
 	const siteTitle = 'CAN Trace Viewer';
 	const pageTitle = 'Free online CAN trace viewer for ASC, TRC and BLF logs';
 	const siteDescription =
@@ -91,8 +136,52 @@
 
 	onMount(() => {
 		webgpuSupported = 'gpu' in navigator;
-		void dbcFiles.loadLibrary();
+		void initializePage();
 	});
+
+	$effect(() => {
+		if (
+			!signalSelectorOpen &&
+			(walkthroughStepId === 'add-dbc' || walkthroughStepId === 'signals')
+		) {
+			walkthroughStepId = 'library';
+		}
+	});
+
+	async function initializePage(): Promise<void> {
+		await dbcFiles.loadLibrary();
+		if (shouldShowWalkthrough(walkthroughVersion.current)) {
+			await showWalkthroughStep('library');
+		}
+	}
+
+	async function startWalkthrough(): Promise<void> {
+		await showWalkthroughStep('library');
+	}
+
+	async function showWalkthroughStep(stepId: WalkthroughStep['id']): Promise<void> {
+		walkthroughStepId = null;
+		settingsOpen = false;
+		signalSelectorOpen = stepId === 'add-dbc' || stepId === 'signals';
+		await tick();
+		walkthroughStepId = stepId;
+	}
+
+	async function moveWalkthrough(direction: -1 | 1): Promise<void> {
+		if (!walkthroughStepId) return;
+		const nextStep = adjacentWalkthroughStep(walkthroughStepId, direction);
+		if (!nextStep) {
+			finishWalkthrough();
+			return;
+		}
+		await showWalkthroughStep(nextStep.id);
+	}
+
+	function finishWalkthrough(): void {
+		walkthroughVersion.current = WALKTHROUGH_VERSION;
+		walkthroughStepId = null;
+		signalSelectorOpen = false;
+	}
 
 	async function selectTrace(event: Event) {
 		const input = event.currentTarget as HTMLInputElement;
@@ -217,9 +306,10 @@
 			aria-busy={traceFile.isLoading}
 		>
 			<div class="flex items-center">
-				<Popover.Root>
+				<Popover.Root bind:open={signalSelectorOpen}>
 					<Popover.Trigger
 						class={squircleButtonClass}
+						data-walkthrough-target="signal-selector"
 						aria-label="Open signal selector"
 						title="Signal selector"
 					>
@@ -235,6 +325,7 @@
 				<button
 					type="button"
 					class="{titleButtonClass} pointer-events-auto w-full lg:w-auto"
+					data-walkthrough-target="trace"
 					disabled={traceFile.isLoading}
 					aria-label={traceFile.isLoading ? 'Loading trace' : 'Load trace'}
 					title={traceMetadataTitle ?? (traceFile.isLoading ? 'Loading trace' : 'Load trace')}
@@ -265,22 +356,24 @@
 
 			<div class="flex items-center gap-2">
 				{#if traceFile.entry}
-					<PlotToolbar
-						disabled={plotControlsDisabled}
-						{canResetZoom}
-						bind:boxZoomEnabled
-						bind:markerEnabled
-						bind:legendVisible
-						onZoomIn={() => plotViewport.zoomBy(0.5)}
-						onZoomOut={() => plotViewport.zoomBy(2)}
-						onResetZoom={() => plotViewport.reset()}
-					/>
+					<div class="flex items-center" data-walkthrough-target="plot-controls">
+						<PlotToolbar
+							disabled={plotControlsDisabled}
+							{canResetZoom}
+							bind:boxZoomEnabled
+							bind:markerEnabled
+							bind:legendVisible
+							onZoomIn={() => plotViewport.zoomBy(0.5)}
+							onZoomOut={() => plotViewport.zoomBy(2)}
+							onResetZoom={() => plotViewport.reset()}
+						/>
+					</div>
 				{/if}
-				<Popover.Root>
+				<Popover.Root bind:open={settingsOpen}>
 					<Popover.Trigger class={squircleButtonClass} aria-label="Open settings" title="Settings">
 						<CogIcon class="size-4" />
 					</Popover.Trigger>
-					<SettingsDialog />
+					<SettingsDialog onStartWalkthrough={() => void startWalkthrough()} />
 				</Popover.Root>
 			</div>
 		</header>
@@ -368,6 +461,19 @@
 				</AlertDialog.Content>
 			{/if}
 		</AlertDialog.Root>
+
+		{#if walkthroughStep}
+			<Walkthrough
+				step={walkthroughStep}
+				stepIndex={walkthroughStepIndex}
+				stepCount={WALKTHROUGH_STEPS.length}
+				nextDisabled={walkthroughNextDisabled}
+				nextHint={walkthroughNextHint}
+				onBack={() => void moveWalkthrough(-1)}
+				onNext={() => void moveWalkthrough(1)}
+				onSkip={finishWalkthrough}
+			/>
+		{/if}
 	</div>
 {/if}
 

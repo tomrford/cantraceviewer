@@ -203,6 +203,7 @@
 		<Popover.Title class="text-center">Signal Selector</Popover.Title>
 		<button
 			type="button"
+			data-walkthrough-target="add-dbc"
 			class="{iconButtonClass} justify-self-end"
 			disabled={dbcFiles.isLoading}
 			aria-label={dbcFiles.isLoading ? 'Loading DBC' : 'Add DBC'}
@@ -232,7 +233,7 @@
 		</button>
 	</div>
 
-	<div class="relative min-h-0">
+	<div class="relative min-h-0" data-walkthrough-target="signal-list">
 		<div
 			bind:this={signalListScroller}
 			class="h-full overflow-y-auto pb-4 [--scroll-fade-size:2rem] [scrollbar-gutter:stable]"
