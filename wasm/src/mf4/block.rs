@@ -24,9 +24,11 @@ pub(super) struct Channel {
 
 impl Channel {
     pub(super) fn is_numeric(&self) -> bool {
+        // Values spanning more than 64 bits after the in-byte offset would
+        // silently lose their high byte in the u64 decode fold.
         self.data_type <= 5
             && self.bit_count > 0
-            && self.bit_count <= 64
+            && u32::from(self.bit_offset) + self.bit_count <= 64
             && self.conversion.is_supported()
     }
 }
