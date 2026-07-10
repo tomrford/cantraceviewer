@@ -2,9 +2,8 @@
 mod test_fixture;
 
 use std::fmt;
-use std::iter;
 
-use miniz_oxide::inflate::{TINFLStatus, decompress_slice_iter_to_slice};
+use fdeflate::{DecompressionError, Decompressor};
 
 use crate::trace::{CanId, Frame, FrameKind, Trace, days_from_civil};
 
@@ -134,11 +133,39 @@ fn inflate_zlib(input: &[u8], expected_len: usize) -> Result<Vec<u8>, BlfError> 
         .map_err(|_| BlfError::OutOfMemory)?;
     output.resize(expected_len, 0);
 
-    match decompress_slice_iter_to_slice(&mut output, iter::once(input), true, false) {
-        Ok(actual_len) if actual_len == expected_len => Ok(output),
-        Ok(_) | Err(TINFLStatus::HasMoreOutput) => Err(BlfError::InvalidBlfContainerSize),
-        Err(TINFLStatus::Adler32Mismatch) => Err(BlfError::InvalidZlibChecksum),
-        Err(_) => Err(BlfError::InvalidDeflateStream),
+    let mut decoder = Decompressor::new();
+    let (consumed, produced) = decoder
+        .read(input, &mut output, 0, true)
+        .map_err(map_decompression_error)?;
+    if decoder.is_done() {
+        return (consumed == input.len() && produced == expected_len)
+            .then_some(output)
+            .ok_or(BlfError::InvalidBlfContainerSize);
+    }
+    if produced != expected_len {
+        return Err(BlfError::InvalidBlfContainerSize);
+    }
+
+    // A full output buffer can hide a truncated checksum. Give the decoder one
+    // byte of temporary headroom to distinguish truncation from excess output.
+    output
+        .try_reserve_exact(1)
+        .map_err(|_| BlfError::OutOfMemory)?;
+    output.push(0);
+    let (additional_consumed, additional_produced) = decoder
+        .read(&input[consumed..], &mut output, produced, true)
+        .map_err(map_decompression_error)?;
+    output.truncate(expected_len);
+
+    (decoder.is_done() && consumed + additional_consumed == input.len() && additional_produced == 0)
+        .then_some(output)
+        .ok_or(BlfError::InvalidBlfContainerSize)
+}
+
+fn map_decompression_error(error: DecompressionError) -> BlfError {
+    match error {
+        DecompressionError::WrongChecksum => BlfError::InvalidZlibChecksum,
+        _ => BlfError::InvalidDeflateStream,
     }
 }
 
@@ -678,6 +705,39 @@ mod tests {
         assert_eq!(
             inflate_zlib(&compressed, 5),
             Err(BlfError::InvalidZlibChecksum)
+        );
+    }
+
+    #[test]
+    fn maps_malformed_deflate_streams() {
+        let compressed = [0x78, 0x9c, 0x07, 0x00, 0x00, 0x00, 0x01];
+        assert_eq!(
+            inflate_zlib(&compressed, 0),
+            Err(BlfError::InvalidDeflateStream)
+        );
+    }
+
+    #[test]
+    fn maps_truncated_deflate_streams() {
+        let compressed = [0x78, 0x9c, 0xcb, 0x48, 0xcd, 0xc9, 0xc9, 0x07];
+        assert_eq!(
+            inflate_zlib(&compressed, 5),
+            Err(BlfError::InvalidDeflateStream)
+        );
+    }
+
+    #[test]
+    fn rejects_declared_container_size_mismatches() {
+        let compressed = [
+            0x78, 0x9c, 0xcb, 0x48, 0xcd, 0xc9, 0xc9, 0x07, 0x00, 0x06, 0x2c, 0x02, 0x15,
+        ];
+        assert_eq!(
+            inflate_zlib(&compressed, 4),
+            Err(BlfError::InvalidBlfContainerSize)
+        );
+        assert_eq!(
+            inflate_zlib(&compressed, 6),
+            Err(BlfError::InvalidBlfContainerSize)
         );
     }
 
