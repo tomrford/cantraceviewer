@@ -1,16 +1,18 @@
 # CAN Trace Viewer
 
-https://cantraceviewer.com
+[Open CAN Trace Viewer](https://cantraceviewer.com)
 
-CAN Trace Viewer is a quick and simple browser-based trace viewer for CAN logs that runs completely on your machine. load a trace file, add the matching DBCs, choose the signals you care about, and inspect decoded values on a shared time axis.
+CAN Trace Viewer is a focused browser-based plotter for ASC, PCAN TRC 1.x/2.x, and BLF CAN logs. Add DBC files to decode signals and inspect them on a shared time axis. Your files stay on your device, with no upload, account, or subscription.
 
-I built this for all those times I wanted to "just see quickly what the 3 or 4 important signals were doing" and didn't have time to wait minutes to open large, licence-requiring, slow and old automotive grade desktop apps. It's free for anyone to use since it's purely static and costs me nothing to host on Cloudflare Workers. Feel free to put feature requests in the GitHub issues, but I can't promise I'll add everything as the point of this isn't to become a desktop-grade graphing tool but a convenient alternative for at least 3/4 of my usage.
+I built it for the times I need to see what 3 or 4 important signals were doing. It avoids waiting for a large automotive desktop tool to open or managing a paid licence. The app is free and open source. Its deliberately narrow scope covers about 75% of my trace analysis rather than every desktop graphing feature.
 
-Trace files and decoded series stay in the current browser session. Saved DBCs and display preferences live in the browser storage (via IndexedDB) on the current device, so repeat analysis does not require re-uploading databases. Supported trace inputs are ASC, PCAN TRC 1.x/2.x, and BLF. There are currently (relatively generous) file size limits for traces and dbc files; let me know if you hit these and we can see whether larger files still perform well enough.
+Trace files and decoded series stay in memory for the current browser session. Saved DBC files and display preferences stay in IndexedDB on the current device, so you can reuse them between sessions. Trace files can be up to 500 MiB. Each DBC file can be up to 1 MiB.
+
+[Request a feature or report a file-size problem in GitHub issues](https://github.com/tomrford/cantraceviewer/issues).
 
 ## Development
 
-The UI is SvelteKit/Svelte 5 with Bun, Tailwind, and shadcn-svelte style components. Rust code under `wasm/` compiles through wasm-bindgen for DBC parsing, trace parsing, and signal decoding. TypeScript keeps the generated bindings behind the app's typed browser-facing adapter.
+The UI uses SvelteKit, Svelte 5, Bun, Tailwind, and shadcn-svelte style components. Rust code under `wasm/` compiles through wasm-bindgen for DBC parsing, trace parsing, and signal decoding. TypeScript wraps the generated bindings in typed browser-facing interfaces.
 
 ```sh
 nix develop -c bun install
