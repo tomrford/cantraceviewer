@@ -48,17 +48,17 @@ https://www.sealandtech.com.tw/en/resources/anrot/tutorial/j1939/.
 Basic single-frame J1939 is close to working for all trace formats when the DBC
 uses exact source-address-specific 29-bit IDs:
 
-- `wasm/src/dbc/message.zig` strips the DBC extended-frame flag and stores both
+- `wasm/src/dbc/message.rs` strips the DBC extended-frame flag and stores both
   `dbc_id` and the raw 29-bit `can_id`.
-- `wasm/src/trace/frame.zig` stores `Id.value` plus `is_extended`.
+- `wasm/src/trace/frame.rs` stores `CanId.value` plus `is_extended`.
 - ASC parsing treats `x`-suffixed IDs or IDs above `0x7ff` as extended.
 - TRC parsing treats 8-digit IDs as extended.
 - BLF parsing strips Vector's extended-frame bit and stores the low 29-bit ID.
-- `wasm/src/series.zig` decodes selected signals by matching data frames on CAN
+- `wasm/src/series.rs` decodes selected signals by matching data frames on CAN
   ID, extended flag, and payload length.
 
 That means an 8-byte J1939 frame such as EEC1 can already pass through the
-shared `trace.Trace` shape if the DBC `BO_` resolves to the same full 29-bit
+shared `trace::Trace` shape if the DBC `BO_` resolves to the same full 29-bit
 identifier seen in the trace.
 
 Full J1939 support is not present because identity is still exact CAN-ID
@@ -68,12 +68,12 @@ extended DBC message should match by full CAN ID or by J1939 PGN. The UI catalog
 does not expose PGNs, SPNs, source address, destination address, or J1939 match
 mode.
 
-Long J1939 payloads are outside the current data model. `message.Message`
-stores `size_bytes` as `u8`; `trace.Frame.payload_len` is `u8`; TRC line
-parsers use a 64-byte temporary payload buffer; TRC 2.x parsing rejects classic
-`DT` payload lengths above 8; and selected-signal decode requires the frame
-payload length to equal the DBC message size. That model handles CAN and CAN FD,
-but not J1939 TP/ETP logical payloads up to 1785 bytes.
+Long J1939 payloads are outside the current data model. `Message.size_bytes`
+can represent a `u16` DBC length, but `Frame.payload_len` is `u8`, trace parsers
+cap payloads at 64 bytes, TRC 2.x parsing rejects classic `DT` payload lengths
+above 8, and selected-signal decode rejects messages above the trace payload
+limit. That model handles CAN and CAN FD, but not J1939 TP/ETP logical payloads
+up to 1785 bytes.
 
 ## DBC Work
 
@@ -95,23 +95,23 @@ Do not hard-code numeric enum values without reading the definition.
 The parsed message model needs a protocol identity beside the existing raw CAN
 identity:
 
-```zig
-const MessageIdentity = union(enum) {
-    exact_can: struct {
+```rust
+enum MessageIdentity {
+    ExactCan {
         can_id: u32,
         is_extended: bool,
     },
-    j1939_pgn: struct {
+    J1939Pgn {
         pgn: u32,
-        source_address: ?u8,
-        destination_address: ?u8,
-        priority: ?u8,
+        source_address: Option<u8>,
+        destination_address: Option<u8>,
+        priority: Option<u8>,
     },
-};
+}
 ```
 
-`exact_can` remains the default for normal CAN and plain extended CAN. Use
-`j1939_pgn` when the DBC declares `ProtocolType = J1939` or message
+`ExactCan` remains the default for normal CAN and plain extended CAN. Use
+`J1939Pgn` when the DBC declares `ProtocolType = J1939` or message
 `VFrameFormat = J1939PG`. If both are absent, keep exact matching even for
 29-bit IDs; plenty of proprietary extended-CAN DBCs are not J1939.
 
@@ -126,7 +126,7 @@ initial rule is:
 - Add an optional strict-source-address mode only when the DBC contains an
   explicit source-specific attribute or the UI grows a source filter.
 
-Signal metadata should carry `spn: ?u32`. The sidebar can keep displaying
+Signal metadata should carry `spn: Option<u32>`. The sidebar can keep displaying
 `message.signal`, while details/legend rows can show `PGN 0xF004 / SPN 190`
 when present.
 
@@ -139,21 +139,21 @@ paths.
 For single-frame J1939:
 
 - Keep each parser's existing 29-bit-ID normalization.
-- Add a shared `j1939.zig` helper for `decodeId(can_id)` and `pgnFromId(can_id)`.
-- Update `series.matchesMessage` to dispatch through `MessageIdentity`.
+- Add a shared `j1939.rs` helper for `decode_id(can_id)` and `pgn_from_id(can_id)`.
+- Update series matching to dispatch through `MessageIdentity`.
 - Keep payload-length gating for 8-byte messages.
 - Add one fixture each for ASC, TRC, and BLF using the same J1939 DBC and the
   same PGN with different source addresses.
 
 For long J1939 payloads:
 
-- Widen message and frame payload lengths from `u8` to at least `u16`.
+- Widen frame and parser payload lengths from `u8` to at least `u16`.
 - Replace parser-local `[64]u8` payload buffers with append-style payload
   builders.
-- Decide whether `trace.Frame` represents physical CAN frames only, logical
+- Decide whether `trace::Frame` represents physical CAN frames only, logical
   J1939 reassembled messages only, or both. The least disruptive option is to
   keep raw physical frames and add logical rows for reassembled J1939 messages
-  with `kind = data` and `identity = j1939_pgn`.
+  with `kind = Data` and `identity = J1939Pgn`.
 - Implement TP.BAM / TP.RTS-CTS reassembly over ASC and BLF raw frame streams.
   The Linux docs describe TP and ETP payload size classes; the initial app
   likely only needs the 1785-byte TP range that common DBC/TRC tooling exposes.
@@ -168,9 +168,9 @@ data-transfer frames.
 
 ## Decode And Plot Semantics
 
-Selected-signal decode can still return parallel `f64` arrays. The decode plan
-already uses `usize` internally for required payload length, but the public
-message size and trace row length types need widening first.
+Selected-signal decode can still return parallel `f64` arrays. Message size is
+already `u16` and the decode plan uses `usize` internally for required payload
+length, but the trace row length and parser payload types need widening first.
 
 J1939 invalid/not-available values are a real plotting issue. Standard J1939
 SPNs often use all-ones byte patterns such as `0xFF` to mean unavailable. The

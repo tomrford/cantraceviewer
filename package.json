@@ -6,9 +6,10 @@
 	"scripts": {
 		"dev": "vite dev",
 		"build": "bun --bun vite build",
-		"wasm:build": "cd wasm && zig build",
-		"wasm:build:release": "cd wasm && zig build -Doptimize=ReleaseSmall && cp zig-out/bin/cantraceviewer.wasm ../src/lib/assets/cantraceviewer.wasm",
-		"wasm:test": "cd wasm && zig build test",
+		"wasm:build": "./scripts/build-wasm.sh dev",
+		"wasm:build:release": "./scripts/build-wasm.sh release",
+		"wasm:check": "cargo fmt --manifest-path wasm/Cargo.toml --check && cargo clippy --locked --manifest-path wasm/Cargo.toml --all-targets -- -D warnings",
+		"wasm:test": "cargo test --locked --manifest-path wasm/Cargo.toml",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
@@ -58,8 +59,7 @@
 		"chartgpu": "0.3.2",
 		"idb": "8.0.3",
 		"minisearch": "7.2.0",
-		"runed": "0.37.1",
-		"zod": "4.3.6"
+		"runed": "0.37.1"
 	},
 	"patchedDependencies": {
 		"chartgpu@0.3.2": "patches/chartgpu@0.3.2.patch"

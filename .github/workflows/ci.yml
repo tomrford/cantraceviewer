@@ -1,7 +1,5 @@
-# CI runs everything through `nix develop -c` so the toolchain (bun, zig)
-# comes from flake.lock — identical to local dev. This matters for the WASM
-# drift check: the committed binary must be byte-identical to what CI's zig
-# produces, which a separately-pinned setup-zig action can't guarantee.
+# CI runs everything through `nix develop -c` so Bun, Rust, wasm-bindgen, and
+# Binaryen come from flake.lock, matching local tool versions.
 # Nix install + devshell eval costs ~30s on ubuntu runners; acceptable.
 name: CI
 
@@ -30,10 +28,8 @@ jobs:
       - name: Test
         run: nix develop -c bun run test
 
-      - name: Zig tests
-        run: nix develop -c bun run wasm:test
+      - name: Rust WASM checks
+        run: nix develop -c bun run wasm:check
 
-      - name: WASM binary up to date
-        run: |
-          nix develop -c bun run wasm:build:release
-          git diff --exit-code
+      - name: Rust WASM tests
+        run: nix develop -c bun run wasm:test
