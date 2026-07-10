@@ -26,7 +26,7 @@ export type SignalView = {
 	valueDescriptions: PlotSignal['valueDescriptions'];
 };
 
-export type LegendMarkerValue = {
+export type LegendSignalValue = {
 	key: string;
 	text: string;
 	outOfRange: boolean;
@@ -204,12 +204,35 @@ export function lineSeriesForViews(views: WindowedSignalView[]): SeriesConfig[] 
 	return views.filter((view) => view.points > 0).map((view) => lineSeries(view));
 }
 
-export function markerValue(view: SignalView, x: number): LegendMarkerValue {
+export function crosshairValue(view: SignalView, x: number): LegendSignalValue {
 	const formatted = formatDecodedValue(nearestValue(view, x), view);
 	return {
 		key: view.key,
 		text: formatted.text,
 		outOfRange: formatted.outOfRange
+	};
+}
+
+export function crosshairDeltaValue(
+	view: SignalView,
+	fromX: number,
+	toX: number
+): LegendSignalValue {
+	if (view.valueDescriptions.length > 0) {
+		return { key: view.key, text: 'N/A', outOfRange: false };
+	}
+
+	const from = nearestValue(view, fromX);
+	const to = nearestValue(view, toX);
+	if (from === null || to === null || !Number.isFinite(from) || !Number.isFinite(to)) {
+		return { key: view.key, text: '-', outOfRange: false };
+	}
+
+	const formatted = formatLegendNumericValue(to - from, view.factor);
+	return {
+		key: view.key,
+		text: view.unit ? `${formatted} ${view.unit}` : formatted,
+		outOfRange: false
 	};
 }
 
@@ -254,6 +277,15 @@ export function formatAxisTime(
 	if (seconds < 60) return `${seconds.toFixed(3)}s`;
 	const minutes = Math.floor(seconds / 60);
 	return `${minutes}m ${(seconds - minutes * 60).toFixed(3)}s`;
+}
+
+export function formatTimeDelta(valueMs: number): string {
+	if (!Number.isFinite(valueMs)) return '';
+	const sign = valueMs < 0 ? '-' : '';
+	const seconds = Math.abs(valueMs) / 1000;
+	if (seconds < 60) return `${sign}${seconds.toFixed(3)}s`;
+	const minutes = Math.floor(seconds / 60);
+	return `${sign}${minutes}m ${(seconds - minutes * 60).toFixed(3)}s`;
 }
 
 export function formatAxisValue(value: number): string | null {

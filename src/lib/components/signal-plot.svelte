@@ -7,19 +7,29 @@
 		plotImageFilename,
 		savePlotImage
 	} from '$lib/plot-image-export.js';
-	import { type PlotViewport, viewportCenterX } from '$lib/plot-viewport.js';
+	import type { PlotPoint, PlotViewport } from '$lib/plot-viewport.js';
+	import {
+		crosshairById,
+		nextCrosshairId,
+		removeCrosshair,
+		setCrosshair,
+		type CrosshairId,
+		type LegendCrosshairMode,
+		type PlotCrosshair
+	} from '$lib/plot-crosshair.js';
 	import {
 		createSignalViewCache,
+		crosshairDeltaValue,
+		crosshairValue,
 		formatAxisValue,
 		formatAxisTime,
 		lineSeriesForViews,
-		markerValue,
 		signalDomain
 	} from '$lib/signal-plot-data.js';
 	import { PlotWindow } from '$lib/plot-window.svelte.js';
 	import { PlotViewportState } from '$lib/plot-viewport-state.svelte.js';
 	import PlotInteraction from './plot-interaction.svelte';
-	import PlotMarker from './plot-marker.svelte';
+	import PlotCrosshairOverlay from './plot-crosshair.svelte';
 	import * as ContextMenu from '$lib/components/ui/context-menu/index.js';
 	import SignalPlotLegend from './signal-plot-legend.svelte';
 	import { createPlotPerfStats } from '$lib/plot-perf.js';
@@ -31,18 +41,19 @@
 	import type { HTMLAttributes } from 'svelte/elements';
 	import type { ChartGPUInstance, ChartGPUOptions } from 'chartgpu';
 	import BoxSelectIcon from '@lucide/svelte/icons/box-select';
+	import CrosshairIcon from '@lucide/svelte/icons/crosshair';
 	import CopyIcon from '@lucide/svelte/icons/copy';
 	import DownloadIcon from '@lucide/svelte/icons/download';
 	import ExpandIcon from '@lucide/svelte/icons/expand';
 	import MinusIcon from '@lucide/svelte/icons/minus';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
-	import SeparatorVerticalIcon from '@lucide/svelte/icons/separator-vertical';
+	import XIcon from '@lucide/svelte/icons/x';
 
 	let {
 		dropActive = false,
-		markerEnabled = $bindable(false),
-		markerX = $bindable<number | null>(null),
+		crosshairs = $bindable<PlotCrosshair[]>([]),
+		legendCrosshairMode = $bindable<LegendCrosshairMode>('c1'),
 		boxZoomEnabled = $bindable(false),
 		legendVisible = $bindable(true),
 		viewport,
@@ -50,8 +61,8 @@
 		...restProps
 	}: HTMLAttributes<HTMLElement> & {
 		dropActive?: boolean;
-		markerEnabled?: boolean;
-		markerX?: number | null;
+		crosshairs?: PlotCrosshair[];
+		legendCrosshairMode?: LegendCrosshairMode;
 		boxZoomEnabled?: boolean;
 		legendVisible?: boolean;
 		viewport: PlotViewportState;
@@ -60,7 +71,8 @@
 	let container: HTMLDivElement;
 	let chart: ChartGPUInstance | null = null;
 	let chartError = $state<string | null>(null);
-	let contextMenuX = $state<number | null>(null);
+	let contextMenuPoint = $state<PlotPoint | null>(null);
+	let contextMenuCrosshairId = $state<CrosshairId | null>(null);
 	let imageExportBusy = $state(false);
 	let resizeObserver: ResizeObserver | null = null;
 
@@ -99,34 +111,20 @@
 	const plotWindow = new PlotWindow();
 	const windowedViews = $derived(plotWindow.viewsFor(signalViews, activeViewport));
 	const chartSeries = $derived(lineSeriesForViews(windowedViews));
+	const c1 = $derived(crosshairById(crosshairs, 1));
+	const c2 = $derived(crosshairById(crosshairs, 2));
+	const nextId = $derived(nextCrosshairId(crosshairs));
 
 	$effect(() => {
 		plotWindow.settleAfter(signalViews, activeViewport);
 	});
 	const isFitAll = $derived(viewport.isFitAll);
-	const displayedMarkerX = $derived.by(() => {
-		if (!hasPlottableSignals || !markerEnabled || markerX === null) return null;
-		return markerX;
-	});
-	const markerPercent = $derived.by(() => {
-		if (displayedMarkerX === null || activeViewport === null) return null;
-		const span = activeViewport.xMax - activeViewport.xMin;
-		if (!(span > 0)) return null;
-		const percent = ((displayedMarkerX - activeViewport.xMin) / span) * 100;
-		if (percent < 0 || percent > 100) return null;
-		return percent;
-	});
-	const markerValues = $derived.by(() => {
-		const x = displayedMarkerX;
-		if (x === null) {
-			return signalViews.map((view) => ({
-				key: view.key,
-				text: view.latestText,
-				outOfRange: false
-			}));
+	const legendSignalValues = $derived.by(() => {
+		if (legendCrosshairMode === 'delta' && c1 !== null && c2 !== null) {
+			return signalViews.map((view) => crosshairDeltaValue(view, c1.x, c2.x));
 		}
-
-		return signalViews.map((view) => markerValue(view, x));
+		const crosshair = legendCrosshairMode === 'c2' ? c2 : c1;
+		return crosshair === null ? [] : signalViews.map((view) => crosshairValue(view, crosshair.x));
 	});
 	onMount(() => {
 		viewport.domainSource = () => fullDomain;
@@ -159,21 +157,21 @@
 
 	$effect(() => {
 		if (!hasPlottableSignals) {
-			markerEnabled = false;
-			markerX = null;
+			crosshairs = [];
 			boxZoomEnabled = false;
-			contextMenuX = null;
+			contextMenuPoint = null;
+			contextMenuCrosshairId = null;
 			viewport.reset();
-			return;
 		}
+	});
 
-		if (!markerEnabled) {
-			markerX = null;
-			return;
-		}
-
-		if (markerX === null && activeViewport !== null) {
-			markerX = viewportCenterX(activeViewport);
+	$effect(() => {
+		if (legendCrosshairMode === 'delta' && (c1 === null || c2 === null)) {
+			legendCrosshairMode = c1 !== null ? 'c1' : c2 !== null ? 'c2' : 'c1';
+		} else if (legendCrosshairMode === 'c1' && c1 === null && c2 !== null) {
+			legendCrosshairMode = 'c2';
+		} else if (legendCrosshairMode === 'c2' && c2 === null && c1 !== null) {
+			legendCrosshairMode = 'c1';
 		}
 	});
 
@@ -195,20 +193,23 @@
 		});
 	});
 
-	function toggleMarker() {
-		if (!hasPlottableSignals) return;
-		markerEnabled = !markerEnabled;
-	}
-
 	function toggleBoxZoom() {
 		if (!hasPlottableSignals) return;
 		boxZoomEnabled = !boxZoomEnabled;
 	}
 
-	function placeMarkerAt(x: number): void {
+	function updateCrosshair(crosshair: PlotCrosshair): void {
 		if (!hasPlottableSignals) return;
-		if (!markerEnabled) markerEnabled = true;
-		markerX = x;
+		crosshairs = setCrosshair(crosshairs, crosshair);
+	}
+
+	function addCrosshairAtContextPoint(): void {
+		if (contextMenuPoint === null || nextId === null) return;
+		updateCrosshair({ id: nextId, ...contextMenuPoint });
+	}
+
+	function deleteCrosshair(id: CrosshairId): void {
+		crosshairs = removeCrosshair(crosshairs, id);
 	}
 
 	function chartOptions(): ChartGPUOptions {
@@ -278,8 +279,9 @@
 		viewport.reset();
 	}
 
-	function rememberContextMenuPoint(x: number | null) {
-		contextMenuX = x;
+	function rememberContextMenuPoint(point: PlotPoint | null, crosshair?: PlotCrosshair) {
+		contextMenuPoint = point;
+		contextMenuCrosshairId = crosshair?.id ?? null;
 	}
 
 	async function exportCurrentView(destination: 'copy' | 'save'): Promise<void> {
@@ -383,15 +385,15 @@
 					onContextMenuPoint={rememberContextMenuPoint}
 				/>
 
-				{#if markerPercent !== null}
-					<PlotMarker
+				{#each crosshairs as crosshair (crosshair.id)}
+					<PlotCrosshairOverlay
+						{crosshair}
 						viewport={activeViewport}
 						grid={PLOT_GRID}
-						percent={markerPercent}
-						onMarkerX={placeMarkerAt}
+						onCrosshair={updateCrosshair}
 						onContextMenuPoint={rememberContextMenuPoint}
 					/>
-				{/if}
+				{/each}
 			</ContextMenu.Trigger>
 			<ContextMenu.Content class="w-52">
 				<ContextMenu.Item onSelect={() => zoomBy(0.5)}>
@@ -407,19 +409,25 @@
 					Zoom to full extent
 				</ContextMenu.Item>
 				<ContextMenu.Separator />
-				<ContextMenu.Item
-					disabled={contextMenuX === null}
-					onSelect={() => {
-						if (contextMenuX !== null) placeMarkerAt(contextMenuX);
-					}}
-				>
-					<SeparatorVerticalIcon />
-					Place marker here
-				</ContextMenu.Item>
-				<ContextMenu.Item onSelect={toggleMarker}>
-					<SeparatorVerticalIcon />
-					{markerEnabled ? 'Hide x marker' : 'Show x marker'}
-				</ContextMenu.Item>
+				{#if contextMenuCrosshairId !== null}
+					<ContextMenu.Item onSelect={() => deleteCrosshair(contextMenuCrosshairId!)}>
+						<XIcon />
+						Remove crosshair {contextMenuCrosshairId}
+					</ContextMenu.Item>
+				{:else if nextId !== null}
+					<ContextMenu.Item
+						disabled={contextMenuPoint === null}
+						onSelect={addCrosshairAtContextPoint}
+					>
+						<CrosshairIcon />
+						Add crosshair {nextId} here
+					</ContextMenu.Item>
+				{:else}
+					<ContextMenu.Item onSelect={() => (crosshairs = [])}>
+						<XIcon />
+						Remove all crosshairs
+					</ContextMenu.Item>
+				{/if}
 				<ContextMenu.Item onSelect={toggleBoxZoom}>
 					<BoxSelectIcon />
 					{boxZoomEnabled ? 'Use drag pan' : 'Use box zoom'}
@@ -456,8 +464,9 @@
 	{#if hasPlottableSignals && legendVisible}
 		<SignalPlotLegend
 			views={signalViews}
-			{displayedMarkerX}
-			{markerValues}
+			{crosshairs}
+			bind:mode={legendCrosshairMode}
+			signalValues={legendSignalValues}
 			{measurementStartMs}
 			timestampMode={timestampMode.current}
 		/>
