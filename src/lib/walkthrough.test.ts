@@ -18,8 +18,10 @@ const target: WalkthroughRect = {
 
 describe('walkthrough steps', () => {
 	it('moves through the ordered walkthrough and stops at its bounds', () => {
-		expect(adjacentWalkthroughStep('library', -1)).toBeNull();
+		expect(adjacentWalkthroughStep('trace', -1)).toBeNull();
+		expect(adjacentWalkthroughStep('trace', 1)?.id).toBe('library');
 		expect(adjacentWalkthroughStep('library', 1)?.id).toBe('add-dbc');
+		expect(adjacentWalkthroughStep('add-dbc', 1)?.id).toBe('signals');
 		expect(adjacentWalkthroughStep('controls', 1)).toBeNull();
 	});
 

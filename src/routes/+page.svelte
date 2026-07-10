@@ -121,7 +121,7 @@
 	});
 
 	async function startWalkthrough(): Promise<void> {
-		await showWalkthroughStep('library');
+		await showWalkthroughStep('trace');
 	}
 
 	function handleSignalSelectorOpen(open: boolean): void {
@@ -134,7 +134,7 @@
 	}
 
 	function handleAddDbc(): void {
-		if (walkthroughStepId === 'add-dbc') void showWalkthroughStep('trace');
+		if (walkthroughStepId === 'add-dbc') void showWalkthroughStep('signals');
 	}
 
 	function handleSignalToggle(): void {
@@ -177,7 +177,7 @@
 		if (!file || traceFile.isLoading) return;
 		if (await traceFile.openFile(file)) {
 			onTraceOpened();
-			if (walkthroughStepId === 'trace') await showWalkthroughStep('signals');
+			if (walkthroughStepId === 'trace') await showWalkthroughStep('library');
 		}
 	}
 
@@ -338,20 +338,18 @@
 			/>
 
 			<div class="flex items-center gap-2" data-walkthrough-target="plot-controls">
-				{#if traceFile.entry}
-					<div class="flex items-center">
-						<PlotToolbar
-							disabled={plotControlsDisabled}
-							{canResetZoom}
-							bind:boxZoomEnabled
-							bind:markerEnabled
-							bind:legendVisible
-							onZoomIn={() => plotViewport.zoomBy(0.5)}
-							onZoomOut={() => plotViewport.zoomBy(2)}
-							onResetZoom={() => plotViewport.reset()}
-						/>
-					</div>
-				{/if}
+				<div class="flex items-center">
+					<PlotToolbar
+						disabled={plotControlsDisabled}
+						{canResetZoom}
+						bind:boxZoomEnabled
+						bind:markerEnabled
+						bind:legendVisible
+						onZoomIn={() => plotViewport.zoomBy(0.5)}
+						onZoomOut={() => plotViewport.zoomBy(2)}
+						onResetZoom={() => plotViewport.reset()}
+					/>
+				</div>
 				<Popover.Root bind:open={settingsOpen}>
 					<Popover.Trigger class={squircleButtonClass} aria-label="Open settings" title="Settings">
 						<CogIcon class="size-4" />

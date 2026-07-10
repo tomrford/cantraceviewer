@@ -12,6 +12,13 @@ export type WalkthroughStep = {
 
 export const WALKTHROUGH_STEPS: WalkthroughStep[] = [
 	{
+		id: 'trace',
+		target: 'trace',
+		placement: 'bottom-start',
+		title: 'Open a trace',
+		description: 'Open or drop an ASC, TRC or BLF file. The trace stays in this tab.'
+	},
+	{
 		id: 'library',
 		target: 'signal-selector',
 		placement: 'bottom-start',
@@ -25,13 +32,6 @@ export const WALKTHROUGH_STEPS: WalkthroughStep[] = [
 		title: 'Add a DBC',
 		description:
 			'Use the plus button to add one or more DBC files. They stay in this browser for your next visit.'
-	},
-	{
-		id: 'trace',
-		target: 'trace',
-		placement: 'bottom-start',
-		title: 'Open a trace',
-		description: 'Open or drop an ASC, TRC or BLF file. The trace stays in this tab.'
 	},
 	{
 		id: 'signals',

@@ -91,6 +91,7 @@
 	</Toggle>
 	<Toggle
 		bind:pressed={legendVisible}
+		{disabled}
 		variant="outline"
 		size="default"
 		aria-label={legendVisible ? 'Hide legend' : 'Show legend'}
