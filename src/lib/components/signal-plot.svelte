@@ -1,5 +1,11 @@
 <script lang="ts">
 	import { SIGNAL_COLORS } from '$lib/plot-colors.js';
+	import {
+		capturePlotImage,
+		copyPlotImage,
+		plotImageFilename,
+		savePlotImage
+	} from '$lib/plot-image-export.js';
 	import { type PlotViewport, viewportCenterX } from '$lib/plot-viewport.js';
 	import {
 		createSignalViewCache,
@@ -23,6 +29,8 @@
 	import type { HTMLAttributes } from 'svelte/elements';
 	import type { ChartGPUInstance, ChartGPUOptions } from 'chartgpu';
 	import BoxSelectIcon from '@lucide/svelte/icons/box-select';
+	import CopyIcon from '@lucide/svelte/icons/copy';
+	import DownloadIcon from '@lucide/svelte/icons/download';
 	import ExpandIcon from '@lucide/svelte/icons/expand';
 	import MinusIcon from '@lucide/svelte/icons/minus';
 	import PlusIcon from '@lucide/svelte/icons/plus';
@@ -46,11 +54,15 @@
 		legendVisible?: boolean;
 		viewport: PlotViewportState;
 	} = $props();
+	let plotRoot: HTMLElement;
 	let container: HTMLDivElement;
 	let chart: ChartGPUInstance | null = null;
 	let chartError = $state<string | null>(null);
 	let contextMenuX = $state<number | null>(null);
+	let imageExportBusy = $state(false);
+	let imageExportStatus = $state<{ kind: 'success' | 'error'; message: string } | null>(null);
 	let resizeObserver: ResizeObserver | null = null;
+	let imageExportStatusTimer: ReturnType<typeof setTimeout> | null = null;
 
 	const PLOT_GRID = { left: 64, right: 24, top: 18, bottom: 44 };
 	const GRID_LINE = {
@@ -138,6 +150,7 @@
 
 	onDestroy(() => {
 		if (pushFrame !== null) cancelAnimationFrame(pushFrame);
+		if (imageExportStatusTimer !== null) clearTimeout(imageExportStatusTimer);
 		viewport.domainSource = null;
 		plotWindow.dispose();
 		resizeObserver?.disconnect();
@@ -268,9 +281,43 @@
 	function rememberContextMenuPoint(x: number | null) {
 		contextMenuX = x;
 	}
+
+	async function exportCurrentView(destination: 'copy' | 'save'): Promise<void> {
+		if (imageExportBusy) return;
+		imageExportBusy = true;
+
+		try {
+			const image = capturePlotImage(plotRoot);
+			if (destination === 'copy') {
+				await copyPlotImage(image);
+				showImageExportStatus('success', 'Image copied to clipboard.');
+			} else {
+				await savePlotImage(image, plotImageFilename(traceFile.displayName));
+				showImageExportStatus('success', 'Image save started.');
+			}
+		} catch (error) {
+			console.error('Plot image export failed.', error);
+			showImageExportStatus(
+				'error',
+				destination === 'copy' ? 'Could not copy image.' : 'Could not save image.'
+			);
+		} finally {
+			imageExportBusy = false;
+		}
+	}
+
+	function showImageExportStatus(kind: 'success' | 'error', message: string): void {
+		if (imageExportStatusTimer !== null) clearTimeout(imageExportStatusTimer);
+		imageExportStatus = { kind, message };
+		imageExportStatusTimer = setTimeout(() => {
+			imageExportStatus = null;
+			imageExportStatusTimer = null;
+		}, 2500);
+	}
 </script>
 
 <section
+	bind:this={plotRoot}
 	class={[
 		'relative min-h-0 flex-1 overflow-hidden bg-background',
 		dropActive ? 'outline-2 -outline-offset-2 outline-emerald-500/70' : '',
@@ -280,6 +327,7 @@
 >
 	{#if dropActive}
 		<div
+			data-export-ignore
 			class="pointer-events-none absolute inset-0 z-60 flex items-center justify-center bg-background/25 text-sm font-medium text-foreground backdrop-blur-[1px]"
 		>
 			Drop trace to open
@@ -340,6 +388,21 @@
 				</ContextMenu.Item>
 				<ContextMenu.Separator />
 				<ContextMenu.Item
+					disabled={imageExportBusy}
+					onSelect={() => void exportCurrentView('copy')}
+				>
+					<CopyIcon />
+					Copy image
+				</ContextMenu.Item>
+				<ContextMenu.Item
+					disabled={imageExportBusy}
+					onSelect={() => void exportCurrentView('save')}
+				>
+					<DownloadIcon />
+					Save image
+				</ContextMenu.Item>
+				<ContextMenu.Separator />
+				<ContextMenu.Item
 					disabled={plotData.selectedSignals.size === 0}
 					variant="destructive"
 					class="!text-destructive focus:!bg-destructive/10 focus:!text-destructive data-highlighted:!text-destructive dark:focus:!bg-destructive/20 [&_svg]:!text-destructive"
@@ -360,6 +423,21 @@
 			{measurementStartMs}
 			timestampMode={timestampMode.current}
 		/>
+	{/if}
+
+	{#if imageExportStatus}
+		<div
+			data-export-ignore
+			role={imageExportStatus.kind === 'error' ? 'alert' : 'status'}
+			class={[
+				'pointer-events-none absolute bottom-3 left-1/2 z-70 -translate-x-1/2 rounded-md border px-3 py-2 text-xs shadow-sm',
+				imageExportStatus.kind === 'error'
+					? 'border-destructive/30 bg-destructive text-white'
+					: 'border-border/70 bg-popover text-popover-foreground'
+			]}
+		>
+			{imageExportStatus.message}
+		</div>
 	{/if}
 
 	{#if !plotReady || !hasPlottableSignals}
