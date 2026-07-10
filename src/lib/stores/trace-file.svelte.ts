@@ -63,15 +63,6 @@ class TraceFileStore {
 		}
 	}
 
-	async clear(): Promise<void> {
-		const previous = this.entry;
-		this.entry = null;
-
-		if (previous) {
-			await closeTrace(previous);
-		}
-	}
-
 	clearError(): void {
 		this.error = null;
 	}
