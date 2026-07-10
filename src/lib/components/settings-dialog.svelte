@@ -51,7 +51,7 @@
 		{
 			value: 'grouped',
 			label: 'Grouped',
-			description: 'Group by unit, then scale, then alphabetically'
+			description: 'Group by value table or unit, then scale, then alphabetically'
 		}
 	];
 
