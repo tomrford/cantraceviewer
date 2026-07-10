@@ -8,7 +8,7 @@ publish = false
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-miniz_oxide = { version = "=0.9.1", default-features = false }
+fdeflate = "=0.3.7"
 wasm-bindgen = "=0.2.121"
 
 [profile.release]
