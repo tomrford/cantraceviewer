@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
-import { dbcFiles, signalIdentityKey, type DbcFileEntry } from './dbc-files.svelte';
+import {
+	buildSelectorSearchIndexes,
+	dbcFiles,
+	signalIdentityKey,
+	type DbcFileEntry
+} from './dbc-files.svelte';
 import { listStoredDbcs, putStoredDbcs, resetStoredDbcs } from './dbc-library.js';
 import { closeDbc, openDbc } from '$lib/wasm.js';
 import type { DbcHandle, DbcMessage, DbcSignal, ParsedDbc } from '$lib/wasm.js';
@@ -311,6 +316,62 @@ describe('dbcFiles', () => {
 						signals: [{ signalName: 'VehicleSpeed' }]
 					}
 				]
+			}
+		]);
+	});
+
+	it('merges prebuilt native MF4 indexes into the tree and fuzzy search', () => {
+		dbcFiles.files = [
+			dbcEntry({
+				id: 'dbc-1',
+				name: 'powertrain.dbc',
+				messages: [
+					message({
+						name: 'PowertrainStatus',
+						canId: 0x101,
+						signals: [signal({ name: 'VehicleSpeed' })]
+					})
+				]
+			})
+		];
+		const nativeIndexes = buildSelectorSearchIndexes([
+			{
+				id: 'mf4:1:native',
+				name: 'Decoded signals',
+				kind: 'mf4-native',
+				transient: true,
+				messages: [
+					{
+						key: 'native-group',
+						name: 'Powertrain',
+						signals: [
+							{
+								key: 'native-motor-speed',
+								label: 'Powertrain.MotorSpeed',
+								messageName: 'Powertrain',
+								signalName: 'MotorSpeed'
+							}
+						]
+					}
+				]
+			}
+		]);
+		const filter = (query: string) => ({
+			query,
+			activeOnly: false,
+			isSignalSelected: () => false,
+			expandedDbcIds: new Set(['dbc-1', 'mf4:1:native']),
+			expandedMessageKeys: new Set<string>()
+		});
+
+		expect(dbcFiles.visibleSelectorTree(filter(''), nativeIndexes)).toMatchObject([
+			{ id: 'dbc-1', expanded: true },
+			{ id: 'mf4:1:native', kind: 'mf4-native', expanded: true, messages: [{ name: 'Powertrain' }] }
+		]);
+		expect(dbcFiles.visibleSelectorTree(filter('motorspeed'), nativeIndexes)).toMatchObject([
+			{
+				id: 'mf4:1:native',
+				messages: [{ name: 'Powertrain', signals: [{ signalName: 'MotorSpeed' }] }]
 			}
 		]);
 	});

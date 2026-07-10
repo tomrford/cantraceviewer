@@ -92,7 +92,7 @@ type SelectorSearchEntry = {
 	messageKey: string;
 	signal: SelectorDbcSignal;
 };
-type SelectorSearchIndex = {
+export type SelectorSearchIndex = {
 	dbc: SelectorDbcFile;
 	signals: FuzzySearchIndex<SelectorSearchEntry>;
 };
@@ -132,10 +132,10 @@ class DbcFilesStore {
 	// and expansion flips arrive as part of the same tree swap as the data.
 	visibleSelectorTree(
 		filter: SelectorFilterOptions,
-		additionalFiles: SelectorDbcFile[] = []
+		additionalIndexes: SelectorSearchIndex[] = []
 	): SelectorTreeDbc[] {
 		const query = normalizeSelectorQuery(filter.query);
-		const selectorFiles = [...this.selectorFiles, ...additionalFiles];
+		const selectorFiles = [...this.selectorFiles, ...additionalIndexes.map((index) => index.dbc)];
 		if (!this.isSelectorFilterActive(filter)) {
 			return selectorFiles.map((dbc) => {
 				if (!filter.expandedDbcIds.has(dbc.id)) return { ...dbc, expanded: false, messages: [] };
@@ -154,7 +154,7 @@ class DbcFilesStore {
 			});
 		}
 
-		const indexes = [...this.selectorSearchIndexes, ...buildSelectorSearchIndexes(additionalFiles)];
+		const indexes = [...this.selectorSearchIndexes, ...additionalIndexes];
 		return indexes.flatMap((index) => {
 			const signalsByMessage: Record<string, SelectorDbcSignal[]> = {};
 			const visibleSignals = searchFuzzyIndex(index.signals, query).filter(
@@ -386,7 +386,7 @@ function buildSignalTargetIndex(files: DbcFileEntry[]): SignalTargetIndex {
 	return index;
 }
 
-function buildSelectorSearchIndexes(files: SelectorDbcFile[]): SelectorSearchIndex[] {
+export function buildSelectorSearchIndexes(files: SelectorDbcFile[]): SelectorSearchIndex[] {
 	return files.map((dbc) => {
 		const signals = dbc.messages.flatMap<SelectorSearchEntry>((message) =>
 			message.signals.map((signal) => ({ messageKey: message.key, signal }))

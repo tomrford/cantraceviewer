@@ -1,4 +1,8 @@
-import type { SelectorDbcFile } from '$lib/stores/dbc-files.svelte.js';
+import {
+	buildSelectorSearchIndexes,
+	type SelectorDbcFile,
+	type SelectorSearchIndex
+} from '$lib/stores/dbc-files.svelte.js';
 import type { Mf4Signal, Mf4SignalGroup, TraceHandle } from '$lib/wasm.js';
 
 export type Mf4SignalTarget = {
@@ -32,6 +36,10 @@ export function mf4SelectorFiles(trace: TraceHandle | null): SelectorDbcFile[] {
 			}))
 		}
 	];
+}
+
+export function mf4SelectorSearchIndexes(trace: TraceHandle | null): SelectorSearchIndex[] {
+	return buildSelectorSearchIndexes(mf4SelectorFiles(trace));
 }
 
 export function buildMf4SignalTargetIndex(

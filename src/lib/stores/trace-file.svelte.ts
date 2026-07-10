@@ -1,7 +1,7 @@
 import { closeTrace, openTrace, type TraceHandle, type TraceType } from '$lib/wasm.js';
 import { TRACE_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '$lib/file-limits.js';
 import { assertTraceFileContent } from '$lib/file-preflight.js';
-import { buildMf4SignalTargetIndex } from '$lib/mf4-signals.js';
+import { buildMf4SignalTargetIndex, mf4SelectorSearchIndexes } from '$lib/mf4-signals.js';
 import {
 	TRACE_FILE_DESCRIPTION,
 	displayTraceName,
@@ -18,6 +18,7 @@ class TraceFileStore {
 
 	displayName = $derived(this.entry ? displayTraceName(this.entry.file.name) : 'CAN Trace Viewer');
 	mf4SignalTargetByKey = $derived.by(() => buildMf4SignalTargetIndex(this.entry));
+	mf4SelectorIndexes = $derived.by(() => mf4SelectorSearchIndexes(this.entry));
 	warning = $derived.by(() => {
 		if (!this.entry || this.entry === this.dismissedWarningEntry) return null;
 		const warnings = [...(this.entry.warnings ?? [])];

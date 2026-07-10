@@ -13,7 +13,6 @@
 	import { dbcFiles } from '$lib/stores/dbc-files.svelte.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
-	import { mf4SelectorFiles } from '$lib/mf4-signals.js';
 	import { onDbcRemoved } from '$lib/stores/session.js';
 	import SearchForm from './search-form.svelte';
 	import CheckIcon from '@lucide/svelte/icons/check';
@@ -53,8 +52,9 @@
 		expandedDbcIds,
 		expandedMessageKeys
 	});
-	let nativeSelectorFiles = $derived(mf4SelectorFiles(traceFile.entry));
-	let visibleDbcFiles = $derived(dbcFiles.visibleSelectorTree(selectorFilter, nativeSelectorFiles));
+	let visibleDbcFiles = $derived(
+		dbcFiles.visibleSelectorTree(selectorFilter, traceFile.mf4SelectorIndexes)
+	);
 
 	const menuButtonClass =
 		'flex w-full min-w-0 items-center gap-2 overflow-hidden rounded-[calc(var(--radius-sm)+2px)] p-2 text-left text-xs text-popover-foreground transition-[background-color,color,box-shadow] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden';
