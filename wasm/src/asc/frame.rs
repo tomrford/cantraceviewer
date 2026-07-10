@@ -1,9 +1,4 @@
-use std::num::IntErrorKind;
-use std::str::SplitWhitespace;
-
-use crate::trace::{
-    CanId, ExtraPrecision, Frame, FrameKind, TraceError, decimal_fraction_to_units,
-};
+use crate::trace::{CanId, Frame, FrameKind, TraceError};
 
 pub(crate) use crate::trace::fd_payload_length_from_dlc;
 
@@ -14,7 +9,7 @@ pub(crate) enum Base {
 }
 
 impl Base {
-    const fn radix(self) -> u32 {
+    const fn radix(self) -> u8 {
         match self {
             Self::Hex => 16,
             Self::Dec => 10,
@@ -22,12 +17,53 @@ impl Base {
     }
 }
 
+struct LineTokens<'a> {
+    line: &'a [u8],
+    index: usize,
+}
+
+impl<'a> LineTokens<'a> {
+    const fn new(line: &'a [u8]) -> Self {
+        Self { line, index: 0 }
+    }
+
+    #[inline]
+    fn next(&mut self) -> Option<&'a [u8]> {
+        let mut index = self.index;
+        while index < self.line.len() && is_whitespace(self.line[index]) {
+            index += 1;
+        }
+        if index == self.line.len() {
+            self.index = index;
+            return None;
+        }
+
+        let start = index;
+        while index < self.line.len() && !is_whitespace(self.line[index]) {
+            index += 1;
+        }
+        self.index = index;
+        Some(&self.line[start..index])
+    }
+}
+
+#[inline]
+const fn is_whitespace(byte: u8) -> bool {
+    matches!(byte, b' ' | b'\t' | b'\r')
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ParseUnsignedError {
+    Invalid,
+    Overflow,
+}
+
 pub(crate) fn parse_line(
     base: Base,
-    line: &str,
+    line: impl AsRef<[u8]>,
     payload_out: &mut [u8; 64],
 ) -> Result<Option<Frame>, TraceError> {
-    let mut tokens = line.split_whitespace();
+    let mut tokens = LineTokens::new(line.as_ref());
     let Some(timestamp_text) = tokens.next() else {
         return Ok(None);
     };
@@ -44,7 +80,7 @@ pub(crate) fn parse_line(
             ..Frame::default()
         }));
     };
-    if first == "CANFD" {
+    if first == b"CANFD" {
         return parse_can_fd(base, timestamp_ns, &mut tokens, payload_out).map(Some);
     }
 
@@ -55,7 +91,7 @@ pub(crate) fn parse_line(
             ..Frame::default()
         }));
     };
-    if id_or_kind == "ErrorFrame" {
+    if id_or_kind == b"ErrorFrame" {
         return Ok(Some(Frame {
             timestamp_ns,
             kind: FrameKind::Error,
@@ -81,7 +117,7 @@ pub(crate) fn parse_line(
     };
 
     match frame_kind {
-        "d" => {
+        b"d" => {
             let dlc = parse_dlc(tokens.next().ok_or(TraceError::InvalidFrameLine)?)?;
             if dlc > 8 {
                 return Err(TraceError::InvalidDlc);
@@ -98,7 +134,7 @@ pub(crate) fn parse_line(
                 ..Frame::default()
             }))
         }
-        "r" => {
+        b"r" => {
             let dlc = tokens.next().map(parse_dlc).transpose()?.unwrap_or(0);
             Ok(Some(Frame {
                 timestamp_ns,
@@ -115,7 +151,7 @@ pub(crate) fn parse_line(
 fn parse_can_fd(
     base: Base,
     timestamp_ns: u64,
-    tokens: &mut SplitWhitespace<'_>,
+    tokens: &mut LineTokens<'_>,
     payload_out: &mut [u8; 64],
 ) -> Result<Frame, TraceError> {
     tokens.next().ok_or(TraceError::InvalidFrameLine)?;
@@ -155,16 +191,17 @@ fn unknown_frame(timestamp_ns: u64) -> Frame {
     }
 }
 
-fn is_unsigned_decimal(text: &str) -> bool {
-    !text.is_empty() && text.bytes().all(|byte| byte.is_ascii_digit())
+fn is_unsigned_decimal(text: &[u8]) -> bool {
+    !text.is_empty() && text.iter().all(u8::is_ascii_digit)
 }
 
-fn parse_id(base: Base, text: &str) -> Result<CanId, TraceError> {
-    let (id_text, explicitly_extended) = match text.strip_suffix(['x', 'X']) {
-        Some(id) => (id, true),
-        None => (text, false),
+fn parse_id(base: Base, text: &[u8]) -> Result<CanId, TraceError> {
+    let (id_text, explicitly_extended) = match text.last() {
+        Some(b'x' | b'X') => (&text[..text.len() - 1], true),
+        _ => (text, false),
     };
-    let value = u32::from_str_radix(id_text, base.radix()).map_err(|_| TraceError::InvalidId)?;
+    let value = parse_unsigned(id_text, base.radix(), u64::from(u32::MAX))
+        .map_err(|_| TraceError::InvalidId)? as u32;
     if explicitly_extended || value > 0x7ff {
         CanId::extended(value)
     } else {
@@ -172,52 +209,88 @@ fn parse_id(base: Base, text: &str) -> Result<CanId, TraceError> {
     }
 }
 
-fn parse_dlc(text: &str) -> Result<u8, TraceError> {
-    let dlc = text.parse::<u8>().map_err(|_| TraceError::InvalidDlc)?;
+fn parse_dlc(text: &[u8]) -> Result<u8, TraceError> {
+    let dlc =
+        parse_unsigned(text, 10, u64::from(u8::MAX)).map_err(|_| TraceError::InvalidDlc)? as u8;
     (dlc <= 15).then_some(dlc).ok_or(TraceError::InvalidDlc)
 }
 
-fn parse_payload_length(text: &str) -> Result<u8, TraceError> {
-    let payload_len = text
-        .parse::<u8>()
-        .map_err(|_| TraceError::InvalidPayloadLength)?;
+fn parse_payload_length(text: &[u8]) -> Result<u8, TraceError> {
+    let payload_len = parse_unsigned(text, 10, u64::from(u8::MAX))
+        .map_err(|_| TraceError::InvalidPayloadLength)? as u8;
     (payload_len <= 64)
         .then_some(payload_len)
         .ok_or(TraceError::InvalidPayloadLength)
 }
 
-fn parse_byte(base: Base, text: &str) -> Result<u8, TraceError> {
-    u8::from_str_radix(text, base.radix()).map_err(|_| TraceError::InvalidFrameLine)
+fn parse_byte(base: Base, text: &[u8]) -> Result<u8, TraceError> {
+    parse_unsigned(text, base.radix(), u64::from(u8::MAX))
+        .map(|value| value as u8)
+        .map_err(|_| TraceError::InvalidFrameLine)
 }
 
-pub(crate) fn parse_decimal_seconds_to_ns(text: &str) -> Result<u64, TraceError> {
+pub(crate) fn parse_decimal_seconds_to_ns(text: impl AsRef<[u8]>) -> Result<u64, TraceError> {
+    let text = text.as_ref();
     if text.is_empty() {
         return Err(TraceError::InvalidTimestamp);
     }
-    let mut parts = text.split('.');
-    let seconds_text = parts.next().ok_or(TraceError::InvalidTimestamp)?;
-    let fraction = parts.next();
-    if parts.next().is_some() {
-        return Err(TraceError::InvalidTimestamp);
-    }
 
-    let seconds = seconds_text
-        .parse::<u64>()
-        .map_err(|error| match error.kind() {
-            IntErrorKind::PosOverflow => TraceError::TimestampOverflow,
-            _ => TraceError::InvalidTimestamp,
-        })?;
-    let mut nanoseconds = seconds
-        .checked_mul(1_000_000_000)
-        .ok_or(TraceError::TimestampOverflow)?;
-    if let Some(fraction) = fraction {
-        let fraction_ns =
-            decimal_fraction_to_units(fraction, 1_000_000_000, 9, ExtraPrecision::Reject)?;
+    let decimal = text.iter().position(|&byte| byte == b'.');
+    let seconds_text = decimal.map_or(text, |index| &text[..index]);
+    let seconds =
+        parse_unsigned(seconds_text, 10, u64::MAX / 1_000_000_000).map_err(
+            |error| match error {
+                ParseUnsignedError::Invalid => TraceError::InvalidTimestamp,
+                ParseUnsignedError::Overflow => TraceError::TimestampOverflow,
+            },
+        )?;
+    let mut nanoseconds = seconds * 1_000_000_000;
+
+    if let Some(index) = decimal {
+        let fraction = &text[index + 1..];
+        if fraction.contains(&b'.') {
+            return Err(TraceError::InvalidTimestamp);
+        }
+        if fraction.len() > 9 {
+            return Err(TraceError::TimestampTooPrecise);
+        }
+        let fraction_value = parse_unsigned(fraction, 10, u64::from(u32::MAX))
+            .map_err(|_| TraceError::InvalidTimestamp)?;
+        let scale = 10_u64.pow((9 - fraction.len()) as u32);
         nanoseconds = nanoseconds
-            .checked_add(fraction_ns)
+            .checked_add(fraction_value * scale)
             .ok_or(TraceError::TimestampOverflow)?;
     }
     Ok(nanoseconds)
+}
+
+pub(crate) fn leading_timestamp_ns(line: &[u8]) -> Option<u64> {
+    let mut tokens = LineTokens::new(line);
+    parse_decimal_seconds_to_ns(tokens.next()?).ok()
+}
+
+fn parse_unsigned(text: &[u8], radix: u8, max_value: u64) -> Result<u64, ParseUnsignedError> {
+    if text.is_empty() {
+        return Err(ParseUnsignedError::Invalid);
+    }
+
+    let mut value = 0_u64;
+    for &byte in text {
+        let digit = match byte {
+            b'0'..=b'9' => byte - b'0',
+            b'a'..=b'f' => byte - b'a' + 10,
+            b'A'..=b'F' => byte - b'A' + 10,
+            _ => return Err(ParseUnsignedError::Invalid),
+        };
+        if digit >= radix {
+            return Err(ParseUnsignedError::Invalid);
+        }
+        if value > (max_value - u64::from(digit)) / u64::from(radix) {
+            return Err(ParseUnsignedError::Overflow);
+        }
+        value = value * u64::from(radix) + u64::from(digit);
+    }
+    Ok(value)
 }
 
 #[cfg(test)]

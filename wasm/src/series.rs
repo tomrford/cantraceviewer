@@ -53,37 +53,63 @@ pub(crate) fn selected_signal_values(
         .find_signal(can_id, is_extended, size_bytes, signal_name)
         .ok_or(SeriesError::SignalNotFound)?;
     let plan = signal.plan_decode(message.size_bytes)?;
-    let frame_indices = index.lookup(message.can_id, message.is_extended);
+    let lookup = index.lookup(message.can_id, message.is_extended, message.size_bytes);
+    let frame_indices = lookup.frame_indices;
 
-    let sample_count = frame_indices
-        .iter()
-        .filter(|&&frame_index| {
-            trace
-                .frames
-                .get(frame_index as usize)
-                .and_then(|frame| payload_prefix_for_message(trace, frame, message))
-                .is_some()
-        })
-        .count();
+    let sample_count = if lookup.all_frames_carry {
+        frame_indices.len()
+    } else {
+        frame_indices
+            .iter()
+            .filter(|&&frame_index| {
+                trace
+                    .frames
+                    .get(frame_index as usize)
+                    .and_then(|frame| payload_prefix_for_message(trace, frame, message))
+                    .is_some()
+            })
+            .count()
+    };
 
     let mut packed = vec![0.0; sample_count * 2];
-    let values_offset = sample_count;
-    let mut sample_index = 0;
+    let (times, values) = packed.split_at_mut(sample_count);
 
-    for &frame_index in frame_indices {
-        let Some(frame) = trace.frames.get(frame_index as usize) else {
-            continue;
-        };
-        let Some(payload) = payload_prefix_for_message(trace, frame, message) else {
-            continue;
-        };
-
-        packed[sample_index] = frame.timestamp_ns as f64 / 1_000_000.0;
-        packed[values_offset + sample_index] = plan.decode(payload)?;
-        sample_index += 1;
+    if lookup.all_frames_carry {
+        for ((time, value), &frame_index) in
+            times.iter_mut().zip(values.iter_mut()).zip(frame_indices)
+        {
+            let frame = &trace.frames[frame_index as usize];
+            let payload = payload_for_compatible_frame(trace, frame, message.size_bytes);
+            *time = frame.timestamp_ns as f64 / 1_000_000.0;
+            *value = plan.decode(payload)?;
+        }
+    } else {
+        let compatible_frames = frame_indices.iter().filter_map(|&frame_index| {
+            let frame = trace.frames.get(frame_index as usize)?;
+            let payload = payload_prefix_for_message(trace, frame, message)?;
+            Some((frame, payload))
+        });
+        for ((time, value), (frame, payload)) in times
+            .iter_mut()
+            .zip(values.iter_mut())
+            .zip(compatible_frames)
+        {
+            *time = frame.timestamp_ns as f64 / 1_000_000.0;
+            *value = plan.decode(payload)?;
+        }
     }
 
     Ok(packed)
+}
+
+fn payload_for_compatible_frame<'a>(
+    trace: &'a Trace,
+    frame: &Frame,
+    message_size_bytes: u16,
+) -> &'a [u8] {
+    let start = frame.payload_offset as usize;
+    let end = start + usize::from(message_size_bytes);
+    &trace.payloads[start..end]
 }
 
 fn payload_prefix_for_message<'a>(

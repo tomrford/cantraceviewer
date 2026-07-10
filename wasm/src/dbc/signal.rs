@@ -58,7 +58,7 @@ pub struct DecodePlan {
 
 impl DecodePlan {
     /// Decodes one raw CAN payload into the signal's physical value.
-    #[inline]
+    #[inline(always)]
     pub fn decode(self, payload: &[u8]) -> Result<f64, DbcError> {
         if payload.len() != self.required_payload_len {
             return Err(DbcError::InvalidPayloadLength {
@@ -314,7 +314,7 @@ fn parse_finite_float(field: &'static str, text: &str) -> Result<f64, DbcError> 
     Ok(value)
 }
 
-#[inline]
+#[inline(always)]
 fn read_packed_bits(
     payload: &[u8],
     bit_offset: usize,

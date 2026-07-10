@@ -2,7 +2,9 @@ mod frame;
 
 use crate::trace::{FrameKind, Trace, TraceError, days_from_civil, lossy_utf8_line};
 
-pub(crate) use frame::{Base, parse_decimal_seconds_to_ns};
+pub(crate) use frame::Base;
+#[cfg(test)]
+use frame::parse_decimal_seconds_to_ns;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum TimestampMode {
@@ -35,14 +37,16 @@ pub(crate) fn parse_bytes(bytes: &[u8]) -> Result<Trace, TraceError> {
     let mut line_scratch = String::new();
 
     for raw_line_bytes in bytes.split(|&byte| byte == b'\n') {
-        let raw_line = lossy_utf8_line(raw_line_bytes, &mut line_scratch);
-        let line = raw_line.trim_matches([' ', '\t', '\r']);
+        let line = trim_line(raw_line_bytes);
         if line.is_empty() {
             continue;
         }
 
-        if parse_header_line(&mut state, line)? {
-            continue;
+        if could_be_header(line) {
+            let header = lossy_utf8_line(line, &mut line_scratch);
+            if parse_header_line(&mut state, header)? {
+                continue;
+            }
         }
 
         let parsed_frame = match frame::parse_line(state.base, line, &mut payload_buffer) {
@@ -50,7 +54,7 @@ pub(crate) fn parse_bytes(bytes: &[u8]) -> Result<Trace, TraceError> {
             Err(_) => {
                 trace.skipped_line_count += 1;
                 if state.timestamp_mode == TimestampMode::Relative
-                    && let Some(delta) = leading_timestamp_ns(line)
+                    && let Some(delta) = frame::leading_timestamp_ns(line)
                 {
                     relative_timestamp_ns = relative_timestamp_ns
                         .checked_add(delta)
@@ -94,8 +98,26 @@ pub(crate) fn parse(text: &str) -> Result<Trace, TraceError> {
     parse_bytes(text.as_bytes())
 }
 
-fn leading_timestamp_ns(line: &str) -> Option<u64> {
-    parse_decimal_seconds_to_ns(line.split_whitespace().next()?).ok()
+fn trim_line(line: &[u8]) -> &[u8] {
+    let start = line
+        .iter()
+        .position(|&byte| !matches!(byte, b' ' | b'\t' | b'\r'))
+        .unwrap_or(line.len());
+    let end = line
+        .iter()
+        .rposition(|&byte| !matches!(byte, b' ' | b'\t' | b'\r'))
+        .map_or(start, |index| index + 1);
+    &line[start..end]
+}
+
+fn could_be_header(line: &[u8]) -> bool {
+    line == b"no internal events logged"
+        || line == b"internal events logged"
+        || line.starts_with(b"date ")
+        || line.starts_with(b"Begin Triggerblock ")
+        || line.starts_with(b"End TriggerBlock")
+        || line.starts_with(b"// version ")
+        || line.starts_with(b"base ")
 }
 
 fn parse_header_line(state: &mut ParserState, line: &str) -> Result<bool, TraceError> {
