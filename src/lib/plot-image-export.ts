@@ -47,16 +47,18 @@ function addExportBrand(cloned: Node): void {
 	brand.textContent = EXPORT_BRAND;
 	Object.assign(brand.style, {
 		position: 'absolute',
-		top: '5px',
-		left: '12px',
+		top: '6px',
+		left: '50%',
 		zIndex: '60',
 		color: 'currentColor',
 		fontFamily: 'Geist Variable, sans-serif',
-		fontSize: '10px',
+		fontSize: '12px',
 		fontWeight: '500',
 		lineHeight: '1',
-		opacity: '0.5',
-		pointerEvents: 'none'
+		opacity: '0.55',
+		pointerEvents: 'none',
+		transform: 'translateX(-50%)',
+		whiteSpace: 'nowrap'
 	});
 	cloned.appendChild(brand);
 }
