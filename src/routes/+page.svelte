@@ -55,6 +55,10 @@
 	let traceMetadataTitle = $derived(
 		traceFile.entry ? formatTraceMetadata(traceFile.entry.metadata) : undefined
 	);
+	const siteTitle = 'CAN Trace Viewer';
+	let browserTitle = $derived(
+		traceFile.entry ? `${traceFile.displayName} | ${siteTitle}` : siteTitle
+	);
 	let walkthroughStep = $derived(
 		WALKTHROUGH_STEPS.find((step) => step.id === walkthroughStepId) ?? null
 	);
@@ -68,8 +72,7 @@
 			walkthroughStepId === null &&
 			shouldShowWalkthrough(walkthroughVersion.current)
 	);
-	const siteTitle = 'CAN Trace Viewer';
-	const pageTitle = 'Free online CAN trace viewer for ASC, TRC and BLF logs';
+	const shareTitle = 'CAN Trace Viewer — Plot and decode ASC, TRC and BLF logs';
 	const siteDescription =
 		'Plot and decode ASC, TRC, and BLF CAN bus logs in your browser. Free and open source; files stay on your device with no upload, account, or subscription.';
 	const siteUrl = 'https://cantraceviewer.com/';
@@ -232,14 +235,14 @@
 </script>
 
 <svelte:head>
-	<title>{pageTitle}</title>
+	<title>{browserTitle}</title>
 	<meta name="description" content={siteDescription} />
 	<meta name="theme-color" content="#09090b" />
 	<link rel="canonical" href={siteUrl} />
 
 	<meta property="og:type" content="website" />
 	<meta property="og:site_name" content={siteTitle} />
-	<meta property="og:title" content={pageTitle} />
+	<meta property="og:title" content={shareTitle} />
 	<meta property="og:description" content={siteDescription} />
 	<meta property="og:url" content={siteUrl} />
 	<meta property="og:image" content="https://cantraceviewer.com/og-image.png" />
@@ -248,7 +251,7 @@
 	<meta property="og:image:height" content="630" />
 
 	<meta name="twitter:card" content="summary_large_image" />
-	<meta name="twitter:title" content={pageTitle} />
+	<meta name="twitter:title" content={shareTitle} />
 	<meta name="twitter:description" content={siteDescription} />
 	<meta name="twitter:image" content="https://cantraceviewer.com/og-image.png" />
 	<meta name="twitter:image:alt" content="CAN Trace Viewer plotting decoded CAN bus signals" />
