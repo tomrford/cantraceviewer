@@ -6,7 +6,7 @@ settings:
 
 patchedDependencies:
   chartgpu@0.3.3: d8e101bef704f1d675f9387ce3f8570cbc84317d0fe47b7b9051b92ec1538c5c
-  svelte-check@4.7.1: 89350128e16b8635e8d9c05f386690b1e7e7429626913fefe759b6ad5d88b12c
+  svelte-check@4.7.1: 3c2f7a0fe65a25be4d9b4b0b09e3abfa407bfc3d169156b5579aa1a881d29825
 
 importers:
 
@@ -96,7 +96,7 @@ importers:
         version: 5.56.4(@typescript-eslint/types@8.62.1)
       svelte-check:
         specifier: ^4.4.6
-        version: 4.7.1(patch_hash=89350128e16b8635e8d9c05f386690b1e7e7429626913fefe759b6ad5d88b12c)(picomatch@4.0.5)(svelte@5.56.4(@typescript-eslint/types@8.62.1))(typescript@6.0.3)
+        version: 4.7.1(patch_hash=3c2f7a0fe65a25be4d9b4b0b09e3abfa407bfc3d169156b5579aa1a881d29825)(picomatch@4.0.5)(svelte@5.56.4(@typescript-eslint/types@8.62.1))(typescript@6.0.3)
       svelte-language-server:
         specifier: 0.18.0
         version: 0.18.0(picomatch@4.0.5)(typescript@6.0.3)
@@ -3773,7 +3773,7 @@ snapshots:
 
   supports-color@10.2.2: {}
 
-  svelte-check@4.7.1(patch_hash=89350128e16b8635e8d9c05f386690b1e7e7429626913fefe759b6ad5d88b12c)(picomatch@4.0.5)(svelte@5.56.4(@typescript-eslint/types@8.62.1))(typescript@6.0.3):
+  svelte-check@4.7.1(patch_hash=3c2f7a0fe65a25be4d9b4b0b09e3abfa407bfc3d169156b5579aa1a881d29825)(picomatch@4.0.5)(svelte@5.56.4(@typescript-eslint/types@8.62.1))(typescript@6.0.3):
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       '@sveltejs/load-config': 0.2.0

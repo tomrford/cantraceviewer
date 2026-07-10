@@ -2,9 +2,7 @@ diff --git a/dist/src/index.js b/dist/src/index.js
 index 6b31b5f5f4f420a3a7fda973a4414471a3dc1986..188c1d048c4974d2ccc99d49ab4f566861a186f4 100644
 --- a/dist/src/index.js
 +++ b/dist/src/index.js
-@@ -129834,9 +129834,8 @@ function resolveSvelte2tsxShims() {
- }
- 
+@@ -129836,7 +129836,6 @@ function resolveSvelte2tsxShims() {
  function tryParseTsGoVersion(tsconfigPath) {
 -    // TODO: Most likely it'll eventually be released under the 'typescript' package.
 -    // When it happened, check where the nightly versions are released and decide which package to prioritize.
