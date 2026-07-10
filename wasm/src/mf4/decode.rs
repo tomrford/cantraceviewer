@@ -301,27 +301,30 @@ fn append_raw_frame(
     }
     .map_err(|_| Mf4Error::InvalidCanId)?;
     let dlc = decode_raw(record, &plan.dlc)?.min(u64::from(u8::MAX)) as u8;
+    let data_length = if matches!(plan.kind, FrameKind::Data | FrameKind::Error) {
+        plan.data_length
+            .as_ref()
+            .map(|channel| decode_raw(record, channel))
+            .transpose()?
+    } else {
+        None
+    };
+    let explicit_edl = plan
+        .edl
+        .as_ref()
+        .map(|channel| decode_raw(record, channel))
+        .transpose()?;
     let mut frame = Frame {
         timestamp_ns,
         kind: plan.kind,
         id: Some(id),
         dlc,
-        is_fd: plan
-            .edl
-            .as_ref()
-            .map(|channel| decode_raw(record, channel).map(|value| value != 0))
-            .transpose()?
-            .unwrap_or(false),
+        is_fd: frame_is_fd(plan.kind, explicit_edl, dlc, data_length),
         ..Frame::default()
     };
 
     if matches!(plan.kind, FrameKind::Data | FrameKind::Error) {
-        let explicit_payload_len = plan
-            .data_length
-            .as_ref()
-            .map(|channel| decode_raw(record, channel))
-            .transpose()?;
-        let payload_len = payload_length(explicit_payload_len, dlc, frame.is_fd)?;
+        let payload_len = payload_length(data_length, dlc, frame.is_fd)?;
         if payload_len > 0 {
             let channel = plan.data_bytes.as_ref().ok_or(Mf4Error::InvalidRecord)?;
             let payload = decode_bytes(record, channel, payload_len)?;
@@ -342,6 +345,18 @@ fn append_raw_frame(
     }
     trace.frames.push(frame);
     Ok(())
+}
+
+fn frame_is_fd(
+    kind: FrameKind,
+    explicit_edl: Option<u64>,
+    dlc: u8,
+    data_length: Option<u64>,
+) -> bool {
+    explicit_edl.map_or_else(
+        || kind == FrameKind::Data && (dlc > 8 || data_length.is_some_and(|length| length > 8)),
+        |edl| edl != 0,
+    )
 }
 
 fn payload_length(explicit: Option<u64>, dlc: u8, is_fd: bool) -> Result<usize, Mf4Error> {
@@ -471,6 +486,24 @@ fn seconds_to_ns(seconds: f64) -> Result<u64, Mf4Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn infers_can_fd_from_long_payloads_when_edl_is_absent() {
+        assert!(frame_is_fd(FrameKind::Data, None, 9, None));
+        assert_eq!(
+            payload_length(None, 9, frame_is_fd(FrameKind::Data, None, 9, None)).unwrap(),
+            12
+        );
+        assert!(frame_is_fd(FrameKind::Data, None, 8, Some(12)));
+        assert!(!frame_is_fd(FrameKind::Data, None, 8, Some(8)));
+        assert!(!frame_is_fd(FrameKind::Remote, None, 9, Some(12)));
+    }
+
+    #[test]
+    fn treats_an_explicit_edl_as_authoritative() {
+        assert!(!frame_is_fd(FrameKind::Data, Some(0), 9, Some(12)));
+        assert!(frame_is_fd(FrameKind::Data, Some(1), 8, Some(8)));
+    }
 
     #[test]
     fn derives_payload_length_from_dlc_when_data_length_is_absent() {

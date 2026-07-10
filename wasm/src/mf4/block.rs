@@ -370,6 +370,23 @@ pub(super) fn collect_data(bytes: &[u8], address: u64) -> Result<Vec<u8>, Mf4Err
     Ok(output)
 }
 
+fn checked_materialized_size(current: usize, additional: usize) -> Result<usize, Mf4Error> {
+    let total = current
+        .checked_add(additional)
+        .ok_or(Mf4Error::DecompressedBlockTooLarge)?;
+    if total > MAX_DECOMPRESSED_BYTES {
+        return Err(Mf4Error::DecompressedBlockTooLarge);
+    }
+    Ok(total)
+}
+
+fn reserve_materialized_data(output: &mut Vec<u8>, additional: usize) -> Result<(), Mf4Error> {
+    checked_materialized_size(output.len(), additional)?;
+    output
+        .try_reserve(additional)
+        .map_err(|_| Mf4Error::DecompressedBlockTooLarge)
+}
+
 fn collect_data_at(
     bytes: &[u8],
     address: u64,
@@ -384,7 +401,10 @@ fn collect_data_at(
     }
     let block = read_block(bytes, address)?;
     match block.id() {
-        b"##DT" | b"##DV" => output.extend_from_slice(block.data()),
+        b"##DT" | b"##DV" => {
+            reserve_materialized_data(output, block.data().len())?;
+            output.extend_from_slice(block.data());
+        }
         b"##DZ" => {
             let data = block.data();
             if data.len() < 24 {
@@ -397,18 +417,18 @@ fn collect_data_at(
                 .map_err(|_| Mf4Error::DecompressedBlockTooLarge)?;
             let compressed_size = usize::try_from(read_u64(data, 16)?)
                 .map_err(|_| Mf4Error::InvalidBlock("compressed data"))?;
-            if original_size > MAX_DECOMPRESSED_BYTES {
-                return Err(Mf4Error::DecompressedBlockTooLarge);
-            }
+            checked_materialized_size(output.len(), original_size)?;
             let compressed = data
                 .get(24..24usize.saturating_add(compressed_size))
                 .ok_or(Mf4Error::Truncated("compressed data"))?;
             let inflated = inflate_zlib(compressed, original_size)?;
-            match method {
-                0 => output.extend_from_slice(&inflated),
-                1 if row_size != 0 => output.extend_from_slice(&untranspose(inflated, row_size)?),
+            let materialized = match method {
+                0 => inflated,
+                1 if row_size != 0 => untranspose(inflated, row_size)?,
                 method => return Err(Mf4Error::UnsupportedCompression(method)),
-            }
+            };
+            reserve_materialized_data(output, materialized.len())?;
+            output.extend_from_slice(&materialized);
         }
         b"##DL" => {
             for index in 1..block.link_count {
@@ -568,6 +588,22 @@ fn interpolate_table(values: &[f64], raw: f64) -> Option<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn caps_the_combined_materialized_data_size() {
+        assert_eq!(
+            checked_materialized_size(MAX_DECOMPRESSED_BYTES - 1, 1).unwrap(),
+            MAX_DECOMPRESSED_BYTES
+        );
+        assert!(matches!(
+            checked_materialized_size(MAX_DECOMPRESSED_BYTES, 1),
+            Err(Mf4Error::DecompressedBlockTooLarge)
+        ));
+        assert!(matches!(
+            checked_materialized_size(1, usize::MAX),
+            Err(Mf4Error::DecompressedBlockTooLarge)
+        ));
+    }
 
     #[test]
     fn materializes_only_embedded_dbcs_within_the_dbc_limit() {
