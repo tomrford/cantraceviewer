@@ -158,6 +158,7 @@
 <button
 	bind:this={overlay}
 	type="button"
+	data-export-ignore
 	class={`absolute z-30 border-0 bg-transparent p-0 text-left outline-none ${
 		boxZoomEnabled
 			? 'cursor-crosshair'

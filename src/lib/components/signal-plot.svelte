@@ -1,5 +1,11 @@
 <script lang="ts">
 	import { SIGNAL_COLORS } from '$lib/plot-colors.js';
+	import {
+		capturePlotImage,
+		copyPlotImage,
+		plotImageFilename,
+		savePlotImage
+	} from '$lib/plot-image-export.js';
 	import { type PlotViewport, viewportCenterX } from '$lib/plot-viewport.js';
 	import {
 		createSignalViewCache,
@@ -20,9 +26,12 @@
 	import { isDark, timestampMode } from '$lib/stores/preferences.svelte.js';
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
 	import { onDestroy, onMount } from 'svelte';
+	import { toast } from 'svelte-sonner';
 	import type { HTMLAttributes } from 'svelte/elements';
 	import type { ChartGPUInstance, ChartGPUOptions } from 'chartgpu';
 	import BoxSelectIcon from '@lucide/svelte/icons/box-select';
+	import CopyIcon from '@lucide/svelte/icons/copy';
+	import DownloadIcon from '@lucide/svelte/icons/download';
 	import ExpandIcon from '@lucide/svelte/icons/expand';
 	import MinusIcon from '@lucide/svelte/icons/minus';
 	import PlusIcon from '@lucide/svelte/icons/plus';
@@ -46,10 +55,12 @@
 		legendVisible?: boolean;
 		viewport: PlotViewportState;
 	} = $props();
+	let plotRoot: HTMLElement;
 	let container: HTMLDivElement;
 	let chart: ChartGPUInstance | null = null;
 	let chartError = $state<string | null>(null);
 	let contextMenuX = $state<number | null>(null);
+	let imageExportBusy = $state(false);
 	let resizeObserver: ResizeObserver | null = null;
 
 	const PLOT_GRID = { left: 64, right: 24, top: 18, bottom: 44 };
@@ -268,9 +279,30 @@
 	function rememberContextMenuPoint(x: number | null) {
 		contextMenuX = x;
 	}
+
+	async function exportCurrentView(destination: 'copy' | 'save'): Promise<void> {
+		if (imageExportBusy) return;
+		imageExportBusy = true;
+
+		try {
+			const image = capturePlotImage(plotRoot);
+			if (destination === 'copy') {
+				await copyPlotImage(image);
+				toast.success('Image copied to clipboard.');
+			} else {
+				await savePlotImage(image, plotImageFilename(traceFile.displayName));
+			}
+		} catch (error) {
+			console.error('Plot image export failed.', error);
+			toast.error(destination === 'copy' ? 'Could not copy image.' : 'Could not save image.');
+		} finally {
+			imageExportBusy = false;
+		}
+	}
 </script>
 
 <section
+	bind:this={plotRoot}
 	class={[
 		'relative min-h-0 flex-1 overflow-hidden bg-background',
 		dropActive ? 'outline-2 -outline-offset-2 outline-emerald-500/70' : '',
@@ -280,6 +312,7 @@
 >
 	{#if dropActive}
 		<div
+			data-export-ignore
 			class="pointer-events-none absolute inset-0 z-60 flex items-center justify-center bg-background/25 text-sm font-medium text-foreground backdrop-blur-[1px]"
 		>
 			Drop trace to open
@@ -337,6 +370,21 @@
 				<ContextMenu.Item onSelect={toggleBoxZoom}>
 					<BoxSelectIcon />
 					{boxZoomEnabled ? 'Use drag pan' : 'Use box zoom'}
+				</ContextMenu.Item>
+				<ContextMenu.Separator />
+				<ContextMenu.Item
+					disabled={imageExportBusy}
+					onSelect={() => void exportCurrentView('copy')}
+				>
+					<CopyIcon />
+					Copy image
+				</ContextMenu.Item>
+				<ContextMenu.Item
+					disabled={imageExportBusy}
+					onSelect={() => void exportCurrentView('save')}
+				>
+					<DownloadIcon />
+					Save image
 				</ContextMenu.Item>
 				<ContextMenu.Separator />
 				<ContextMenu.Item
