@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use crate::trace::{CanId, Frame, FrameKind, Trace, fd_payload_length_from_dlc};
 
 use super::Mf4Error;
@@ -159,10 +157,22 @@ pub(super) fn duration_ns(seconds: f64) -> Result<u64, Mf4Error> {
     seconds_to_ns(seconds)
 }
 
+type RecordVisitor<'a> = &'a mut dyn FnMut(usize, &[u8]) -> Result<(), Mf4Error>;
+
 fn walk_records(
     data_group: &DataGroup,
     data: &[u8],
     mut visit: impl FnMut(usize, &[u8]) -> Result<(), Mf4Error>,
+) -> Result<(), Mf4Error> {
+    walk_records_dyn(data_group, data, &mut visit)
+}
+
+// Monomorphizing the record walk per visitor closure triples its code in the
+// wasm bundle; a dynamic visitor keeps one copy.
+fn walk_records_dyn(
+    data_group: &DataGroup,
+    data: &[u8],
+    visit: RecordVisitor<'_>,
 ) -> Result<(), Mf4Error> {
     match data_group.record_id_size {
         0 => {
@@ -185,12 +195,6 @@ fn walk_records(
         }
         id_size @ (1 | 2 | 4 | 8) => {
             let id_size = usize::from(id_size);
-            let groups: BTreeMap<_, _> = data_group
-                .groups
-                .iter()
-                .enumerate()
-                .map(|(index, group)| (group.record_id, (index, group)))
-                .collect();
             let mut position = 0;
             while position < data.len() {
                 let id_bytes = data
@@ -203,12 +207,17 @@ fn walk_records(
                         value | (u64::from(*byte) << (index * 8))
                     });
                 position += id_size;
-                let (group_index, group) = groups.get(&record_id).ok_or(Mf4Error::InvalidRecord)?;
+                let (group_index, group) = data_group
+                    .groups
+                    .iter()
+                    .enumerate()
+                    .find(|(_, group)| group.record_id == record_id)
+                    .ok_or(Mf4Error::InvalidRecord)?;
                 let size = group.record_size().ok_or(Mf4Error::InvalidRecord)?;
                 let record = data
                     .get(position..position + size)
                     .ok_or(Mf4Error::InvalidRecord)?;
-                visit(*group_index, record)?;
+                visit(group_index, record)?;
                 position += size;
             }
         }
