@@ -10,6 +10,7 @@
 		type PlotCrosshair
 	} from '$lib/plot-crosshair.js';
 	import { viewportCenter, type PlotViewport } from '$lib/plot-viewport.js';
+	import { shortcutLabel, shortcutTitle, type ShortcutPlatform } from '$lib/keyboard-shortcuts.js';
 	import { cn } from '$lib/utils.js';
 	import BoxSelectIcon from '@lucide/svelte/icons/box-select';
 	import CrosshairIcon from '@lucide/svelte/icons/crosshair';
@@ -26,6 +27,7 @@
 		boxZoomEnabled = $bindable(false),
 		crosshairs = $bindable<PlotCrosshair[]>([]),
 		legendVisible = $bindable(true),
+		shortcutPlatform,
 		onZoomIn,
 		onZoomOut,
 		onResetZoom
@@ -36,6 +38,7 @@
 		boxZoomEnabled?: boolean;
 		crosshairs?: PlotCrosshair[];
 		legendVisible?: boolean;
+		shortcutPlatform: ShortcutPlatform;
 		onZoomIn: () => void;
 		onZoomOut: () => void;
 		onResetZoom: () => void;
@@ -59,7 +62,7 @@
 		size="icon"
 		class={toolbarIconButtonClass}
 		aria-label="Zoom in"
-		title="Zoom in"
+		title={shortcutTitle('Zoom in', 'zoomIn', shortcutPlatform)}
 		{disabled}
 		onclick={onZoomIn}
 	>
@@ -70,7 +73,7 @@
 		size="icon"
 		class={toolbarIconButtonClass}
 		aria-label="Zoom out"
-		title="Zoom out"
+		title={shortcutTitle('Zoom out', 'zoomOut', shortcutPlatform)}
 		{disabled}
 		onclick={onZoomOut}
 	>
@@ -81,7 +84,7 @@
 		size="icon"
 		class={toolbarIconButtonClass}
 		aria-label="Zoom to full extent"
-		title="Zoom to full extent"
+		title={shortcutTitle('Zoom to full extent', 'resetZoom', shortcutPlatform)}
 		disabled={disabled || !canResetZoom}
 		onclick={onResetZoom}
 	>
@@ -95,7 +98,11 @@
 		variant="outline"
 		size="default"
 		aria-label={boxZoomEnabled ? 'Use drag pan' : 'Use box zoom'}
-		title={boxZoomEnabled ? 'Use drag pan' : 'Use box zoom'}
+		title={shortcutTitle(
+			boxZoomEnabled ? 'Use drag pan' : 'Use box zoom',
+			'toggleBoxZoom',
+			shortcutPlatform
+		)}
 	>
 		<BoxSelectIcon class="size-3.5" />
 	</Toggle>
@@ -120,6 +127,9 @@
 			>
 				<CrosshairIcon />
 				{c1 === null ? 'Place C1' : 'Center C1'}
+				<span class="ml-auto text-[0.625rem] text-muted-foreground">
+					{shortcutLabel('placeC1', shortcutPlatform)}
+				</span>
 			</Popover.Close>
 			<Popover.Close
 				class={cn(buttonVariants({ variant: 'ghost' }), 'w-full justify-start')}
@@ -128,6 +138,9 @@
 			>
 				<CrosshairIcon />
 				{c2 === null ? 'Place C2' : 'Center C2'}
+				<span class="ml-auto text-[0.625rem] text-muted-foreground">
+					{shortcutLabel('placeC2', shortcutPlatform)}
+				</span>
 			</Popover.Close>
 			<Popover.Close
 				class={cn(
@@ -148,7 +161,11 @@
 		variant="outline"
 		size="default"
 		aria-label={legendVisible ? 'Hide legend' : 'Show legend'}
-		title={legendVisible ? 'Hide legend' : 'Show legend'}
+		title={shortcutTitle(
+			legendVisible ? 'Hide legend' : 'Show legend',
+			'toggleLegend',
+			shortcutPlatform
+		)}
 	>
 		<ListIcon class="size-3.5" />
 	</Toggle>

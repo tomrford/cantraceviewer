@@ -25,9 +25,17 @@
 	import XIcon from '@lucide/svelte/icons/x';
 	import { SvelteSet } from 'svelte/reactivity';
 
-	let { onDbcAdded, onSignalToggle }: { onDbcAdded?: () => void; onSignalToggle?: () => void } =
-		$props();
+	let {
+		focusSearchRequest = 0,
+		onDbcAdded,
+		onSignalToggle
+	}: {
+		focusSearchRequest?: number;
+		onDbcAdded?: () => void;
+		onSignalToggle?: () => void;
+	} = $props();
 	let dbcInput = $state<HTMLInputElement>();
+	let signalSearchForm = $state<HTMLFormElement | null>(null);
 	let signalListScroller = $state<HTMLDivElement>();
 	let signalListContent = $state<HTMLUListElement>();
 	let signalSearch = $state('');
@@ -62,6 +70,11 @@
 		'flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color,box-shadow,scale] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96] disabled:pointer-events-none disabled:opacity-50';
 	const closeButtonClass =
 		'flex size-8 shrink-0 items-center justify-center rounded-md text-destructive transition-[background-color,color,box-shadow,scale] hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96]';
+
+	$effect(() => {
+		if (focusSearchRequest === 0 || signalSearchForm === null) return;
+		signalSearchForm.querySelector<HTMLInputElement>('input')?.focus();
+	});
 
 	$effect(() => {
 		if (!signalListScroller || !signalListContent) return;
@@ -228,7 +241,12 @@
 	</div>
 
 	<div class="flex items-center gap-2">
-		<SearchForm class="min-w-0 flex-1" bind:value={signalSearch} placeholder="Filter signals..." />
+		<SearchForm
+			bind:ref={signalSearchForm}
+			class="min-w-0 flex-1"
+			bind:value={signalSearch}
+			placeholder="Filter signals..."
+		/>
 		<button
 			type="button"
 			class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border/70 text-muted-foreground transition-[background-color,border-color,color,box-shadow,scale] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96] data-[active=true]:border-sidebar-primary/60 data-[active=true]:bg-sidebar-primary/15 data-[active=true]:text-sidebar-primary"

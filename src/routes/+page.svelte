@@ -15,7 +15,20 @@
 	} from '$lib/file-drop.js';
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import { PlotViewportState } from '$lib/plot-viewport-state.svelte.js';
-	import type { LegendCrosshairMode, PlotCrosshair } from '$lib/plot-crosshair.js';
+	import {
+		setCrosshair,
+		type CrosshairId,
+		type LegendCrosshairMode,
+		type PlotCrosshair
+	} from '$lib/plot-crosshair.js';
+	import { viewportCenter } from '$lib/plot-viewport.js';
+	import {
+		detectShortcutPlatform,
+		shortcutEnabled,
+		shortcutFromEvent,
+		shortcutTitle,
+		type ShortcutPlatform
+	} from '$lib/keyboard-shortcuts.js';
 	import { dbcFiles } from '$lib/stores/dbc-files.svelte.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
 	import { onTraceOpened } from '$lib/stores/session.js';
@@ -47,12 +60,19 @@
 	let legendVisible = $state(true);
 	let signalSelectorOpen = $state(false);
 	let settingsOpen = $state(false);
+	let signalSearchFocusRequest = $state(0);
+	let shortcutPlatform = $state<ShortcutPlatform>('other');
 	let walkthroughStepId = $state<WalkthroughStep['id'] | null>(null);
 	const plotViewport = new PlotViewportState();
 	const plotControlsDisabled = $derived(!plotData.hasPlottableSignals || traceFile.isLoading);
 	const canResetZoom = $derived(plotData.hasPlottableSignals && !plotViewport.isFitAll);
 	let traceMetadataTitle = $derived(
 		traceFile.entry ? formatTraceMetadata(traceFile.entry) : undefined
+	);
+	let traceActionTitle = $derived(
+		[traceMetadataTitle, shortcutTitle('Open trace', 'openTrace', shortcutPlatform)]
+			.filter(Boolean)
+			.join('\n')
 	);
 	const siteTitle = 'CAN Trace Viewer';
 	let browserTitle = $derived(
@@ -121,8 +141,72 @@
 
 	onMount(() => {
 		webgpuSupported = 'gpu' in navigator;
+		shortcutPlatform = detectShortcutPlatform();
 		void dbcFiles.loadLibrary();
 	});
+
+	function handleShortcut(event: KeyboardEvent): void {
+		const action = shortcutFromEvent(event, shortcutPlatform);
+		if (action === null || action === 'cancel') return;
+		if (
+			!shortcutEnabled(action, {
+				traceLoading: traceFile.isLoading,
+				plotControlsDisabled,
+				canResetZoom
+			})
+		) {
+			return;
+		}
+
+		switch (action) {
+			case 'openTrace':
+				traceInput?.click();
+				break;
+			case 'selectSignals':
+				void focusSignalSearch();
+				break;
+			case 'openSettings':
+				signalSelectorOpen = false;
+				settingsOpen = true;
+				break;
+			case 'zoomIn':
+				plotViewport.zoomBy(0.5);
+				break;
+			case 'zoomOut':
+				plotViewport.zoomBy(2);
+				break;
+			case 'resetZoom':
+				plotViewport.reset();
+				break;
+			case 'toggleBoxZoom':
+				boxZoomEnabled = !boxZoomEnabled;
+				break;
+			case 'toggleLegend':
+				legendVisible = !legendVisible;
+				break;
+			case 'placeC1':
+				placeCrosshairAtCenter(1);
+				break;
+			case 'placeC2':
+				placeCrosshairAtCenter(2);
+				break;
+		}
+
+		event.preventDefault();
+	}
+
+	async function focusSignalSearch(): Promise<void> {
+		settingsOpen = false;
+		signalSelectorOpen = true;
+		await tick();
+		signalSearchFocusRequest += 1;
+	}
+
+	function placeCrosshairAtCenter(id: CrosshairId): void {
+		const activeViewport = plotViewport.activeViewport;
+		if (activeViewport === null) return;
+		crosshairs = setCrosshair(crosshairs, { id, ...viewportCenter(activeViewport) });
+	}
 
 	async function startWalkthrough(): Promise<void> {
 		await showWalkthroughStep('trace');
@@ -241,6 +325,8 @@
 	}
 </script>
 
+<svelte:window onkeydown={handleShortcut} />
+
 <svelte:head>
 	<title>{browserTitle}</title>
 	<meta name="description" content={siteDescription} />
@@ -305,11 +391,15 @@
 						class={squircleButtonClass}
 						data-walkthrough-target="signal-selector"
 						aria-label="Open signal selector"
-						title="Signal selector"
+						title={shortcutTitle('Signal selector', 'selectSignals', shortcutPlatform)}
 					>
 						<DatabaseIcon class="size-4" />
 					</Popover.Trigger>
-					<SignalSelectorDialog onDbcAdded={handleDbcAdded} onSignalToggle={handleSignalToggle} />
+					<SignalSelectorDialog
+						focusSearchRequest={signalSearchFocusRequest}
+						onDbcAdded={handleDbcAdded}
+						onSignalToggle={handleSignalToggle}
+					/>
 				</Popover.Root>
 			</div>
 
@@ -322,7 +412,7 @@
 					data-walkthrough-target="trace"
 					disabled={traceFile.isLoading}
 					aria-label={traceFile.isLoading ? 'Loading trace' : 'Load trace'}
-					title={traceMetadataTitle ?? (traceFile.isLoading ? 'Loading trace' : 'Load trace')}
+					title={traceFile.isLoading ? 'Loading trace' : traceActionTitle}
 					onclick={() => traceInput?.click()}
 				>
 					<AudioWaveformIcon class="size-4 shrink-0 text-sidebar-primary" />
@@ -357,13 +447,18 @@
 						bind:boxZoomEnabled
 						bind:crosshairs
 						bind:legendVisible
+						{shortcutPlatform}
 						onZoomIn={() => plotViewport.zoomBy(0.5)}
 						onZoomOut={() => plotViewport.zoomBy(2)}
 						onResetZoom={() => plotViewport.reset()}
 					/>
 				</div>
 				<Popover.Root bind:open={settingsOpen}>
-					<Popover.Trigger class={squircleButtonClass} aria-label="Open settings" title="Settings">
+					<Popover.Trigger
+						class={squircleButtonClass}
+						aria-label="Open settings"
+						title={shortcutTitle('Settings', 'openSettings', shortcutPlatform)}
+					>
 						<CogIcon class="size-4" />
 					</Popover.Trigger>
 					<SettingsDialog onStartWalkthrough={() => void startWalkthrough()} />
@@ -377,6 +472,7 @@
 				bind:legendCrosshairMode
 				bind:boxZoomEnabled
 				bind:legendVisible
+				{shortcutPlatform}
 				dropActive={traceDropActive}
 				ondragenter={handleTraceDrag}
 				ondragover={handleTraceDrag}
