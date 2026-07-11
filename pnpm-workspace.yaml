@@ -1,0 +1,6 @@
+allowBuilds:
+  esbuild: true
+  sharp: true
+  workerd: true
+patchedDependencies:
+  chartgpu@0.3.2: patches/chartgpu@0.3.2.patch
