@@ -28,6 +28,7 @@ export type ShortcutState = {
 	traceLoading: boolean;
 	plotControlsDisabled: boolean;
 	canResetZoom: boolean;
+	canPlaceCrosshair: boolean;
 };
 
 export const SHORTCUTS: Record<ShortcutAction, ShortcutDefinition> = {
@@ -53,14 +54,6 @@ export function detectShortcutPlatform(
 export function shortcutLabel(action: ShortcutAction, platform: ShortcutPlatform): string {
 	const shortcut = SHORTCUTS[action];
 	return `${shortcut.primary ? (platform === 'mac' ? 'Cmd+' : 'Ctrl+') : ''}${shortcut.displayKey}`;
-}
-
-export function shortcutTitle(
-	label: string,
-	action: ShortcutAction,
-	platform: ShortcutPlatform
-): string {
-	return `${label} (${shortcutLabel(action, platform)})`;
 }
 
 export function shortcutFromEvent(
@@ -109,9 +102,10 @@ export function shortcutEnabled(action: ShortcutAction, state: ShortcutState): b
 		case 'zoomOut':
 		case 'toggleBoxZoom':
 		case 'toggleLegend':
+			return !state.plotControlsDisabled;
 		case 'placeC1':
 		case 'placeC2':
-			return !state.plotControlsDisabled;
+			return !state.plotControlsDisabled && state.canPlaceCrosshair;
 		case 'resetZoom':
 			return !state.plotControlsDisabled && state.canResetZoom;
 		default:
@@ -123,7 +117,13 @@ export function isEditableShortcutTarget(target: EventTarget | null): boolean {
 	const element = shortcutTargetElement(target);
 	if (element === null) return false;
 	const tagName = element.tagName?.toLowerCase();
-	if (tagName === 'input' || tagName === 'textarea' || tagName === 'select') return true;
+	if (tagName === 'input') {
+		const inputType = element.getAttribute?.('type')?.toLowerCase() ?? 'text';
+		return !['button', 'checkbox', 'color', 'radio', 'range', 'reset', 'submit'].includes(
+			inputType
+		);
+	}
+	if (tagName === 'textarea' || tagName === 'select') return true;
 	if (element.isContentEditable) return true;
 	return element.closest?.('[contenteditable=""], [contenteditable="true"]') != null;
 }
@@ -132,7 +132,7 @@ function isTransientSurfaceTarget(target: EventTarget | null): boolean {
 	const element = shortcutTargetElement(target);
 	return Boolean(
 		element?.closest?.(
-			'[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-slot="popover-content"], [data-slot="context-menu-content"], [data-slot="context-menu-sub-content"], [data-slot="select-content"], [data-slot="alert-dialog-content"]'
+			'[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-slot="context-menu-content"], [data-slot="context-menu-sub-content"], [data-slot="select-content"], [data-slot="alert-dialog-content"]'
 		)
 	);
 }
@@ -141,11 +141,13 @@ function shortcutTargetElement(target: EventTarget | null): {
 	tagName?: string;
 	isContentEditable?: boolean;
 	closest?: (selector: string) => unknown;
+	getAttribute?: (name: string) => string | null;
 } | null {
 	if (target === null || typeof target !== 'object') return null;
 	return target as {
 		tagName?: string;
 		isContentEditable?: boolean;
 		closest?: (selector: string) => unknown;
+		getAttribute?: (name: string) => string | null;
 	};
 }

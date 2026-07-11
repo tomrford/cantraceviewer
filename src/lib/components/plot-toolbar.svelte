@@ -3,6 +3,8 @@
 	import { Button, buttonVariants } from '$lib/components/ui/button/index.js';
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import { Toggle } from '$lib/components/ui/toggle/index.js';
+	import ShortcutKey from './shortcut-key.svelte';
+	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
 	import {
 		crosshairById,
 		setCrosshair,
@@ -10,7 +12,7 @@
 		type PlotCrosshair
 	} from '$lib/plot-crosshair.js';
 	import { viewportCenter, type PlotViewport } from '$lib/plot-viewport.js';
-	import { shortcutLabel, shortcutTitle, type ShortcutPlatform } from '$lib/keyboard-shortcuts.js';
+	import { shortcutLabel, type ShortcutPlatform } from '$lib/keyboard-shortcuts.js';
 	import { cn } from '$lib/utils.js';
 	import BoxSelectIcon from '@lucide/svelte/icons/box-select';
 	import CrosshairIcon from '@lucide/svelte/icons/crosshair';
@@ -57,68 +59,111 @@
 </script>
 
 <ButtonGroup.Root aria-label="Plot zoom controls">
-	<Button
-		variant="outline"
-		size="icon"
-		class={toolbarIconButtonClass}
-		aria-label="Zoom in"
-		title={shortcutTitle('Zoom in', 'zoomIn', shortcutPlatform)}
-		{disabled}
-		onclick={onZoomIn}
-	>
-		<PlusIcon class="size-3.5" />
-	</Button>
-	<Button
-		variant="outline"
-		size="icon"
-		class={toolbarIconButtonClass}
-		aria-label="Zoom out"
-		title={shortcutTitle('Zoom out', 'zoomOut', shortcutPlatform)}
-		{disabled}
-		onclick={onZoomOut}
-	>
-		<MinusIcon class="size-3.5" />
-	</Button>
-	<Button
-		variant="outline"
-		size="icon"
-		class={toolbarIconButtonClass}
-		aria-label="Zoom to full extent"
-		title={shortcutTitle('Zoom to full extent', 'resetZoom', shortcutPlatform)}
-		disabled={disabled || !canResetZoom}
-		onclick={onResetZoom}
-	>
-		<ExpandIcon class="size-3.5" />
-	</Button>
+	<Tooltip.Root>
+		<Tooltip.Trigger>
+			{#snippet child({ props })}
+				<Button
+					{...props}
+					variant="outline"
+					size="icon"
+					class={toolbarIconButtonClass}
+					aria-label="Zoom in"
+					{disabled}
+					onclick={onZoomIn}
+				>
+					<PlusIcon class="size-3.5" />
+				</Button>
+			{/snippet}
+		</Tooltip.Trigger>
+		<Tooltip.Content sideOffset={6}>
+			Zoom in
+			<ShortcutKey shortcut={shortcutLabel('zoomIn', shortcutPlatform)} />
+		</Tooltip.Content>
+	</Tooltip.Root>
+	<Tooltip.Root>
+		<Tooltip.Trigger>
+			{#snippet child({ props })}
+				<Button
+					{...props}
+					variant="outline"
+					size="icon"
+					class={toolbarIconButtonClass}
+					aria-label="Zoom out"
+					{disabled}
+					onclick={onZoomOut}
+				>
+					<MinusIcon class="size-3.5" />
+				</Button>
+			{/snippet}
+		</Tooltip.Trigger>
+		<Tooltip.Content sideOffset={6}>
+			Zoom out
+			<ShortcutKey shortcut={shortcutLabel('zoomOut', shortcutPlatform)} />
+		</Tooltip.Content>
+	</Tooltip.Root>
+	<Tooltip.Root>
+		<Tooltip.Trigger>
+			{#snippet child({ props })}
+				<Button
+					{...props}
+					variant="outline"
+					size="icon"
+					class={toolbarIconButtonClass}
+					aria-label="Zoom to full extent"
+					disabled={disabled || !canResetZoom}
+					onclick={onResetZoom}
+				>
+					<ExpandIcon class="size-3.5" />
+				</Button>
+			{/snippet}
+		</Tooltip.Trigger>
+		<Tooltip.Content sideOffset={6}>
+			Zoom to full extent
+			<ShortcutKey shortcut={shortcutLabel('resetZoom', shortcutPlatform)} />
+		</Tooltip.Content>
+	</Tooltip.Root>
 </ButtonGroup.Root>
 <ButtonGroup.Root aria-label="Plot display controls">
-	<Toggle
-		bind:pressed={boxZoomEnabled}
-		{disabled}
-		variant="outline"
-		size="default"
-		aria-label={boxZoomEnabled ? 'Use drag pan' : 'Use box zoom'}
-		title={shortcutTitle(
-			boxZoomEnabled ? 'Use drag pan' : 'Use box zoom',
-			'toggleBoxZoom',
-			shortcutPlatform
-		)}
-	>
-		<BoxSelectIcon class="size-3.5" />
-	</Toggle>
+	<Tooltip.Root>
+		<Tooltip.Trigger>
+			{#snippet child({ props })}
+				<Toggle
+					{...props}
+					bind:pressed={boxZoomEnabled}
+					{disabled}
+					variant="outline"
+					size="default"
+					aria-label={boxZoomEnabled ? 'Use drag pan' : 'Use box zoom'}
+				>
+					<BoxSelectIcon class="size-3.5" />
+				</Toggle>
+			{/snippet}
+		</Tooltip.Trigger>
+		<Tooltip.Content sideOffset={6}>
+			{boxZoomEnabled ? 'Use drag pan' : 'Use box zoom'}
+			<ShortcutKey shortcut={shortcutLabel('toggleBoxZoom', shortcutPlatform)} />
+		</Tooltip.Content>
+	</Tooltip.Root>
 	<Popover.Root>
-		<Popover.Trigger
-			class={cn(
-				buttonVariants({ variant: 'outline', size: 'default' }),
-				toolbarIconButtonClass,
-				crosshairs.length > 0 && 'bg-muted text-foreground'
-			)}
-			{disabled}
-			aria-label="Manage crosshairs"
-			title="Crosshairs"
-		>
-			<CrosshairIcon class="size-3.5" />
-		</Popover.Trigger>
+		<Tooltip.Root>
+			<Tooltip.Trigger>
+				{#snippet child({ props })}
+					<Popover.Trigger
+						{...props}
+						class={cn(
+							buttonVariants({ variant: 'outline', size: 'default' }),
+							toolbarIconButtonClass,
+							crosshairs.length > 0 && 'bg-muted text-foreground'
+						)}
+						{disabled}
+						aria-label="Manage crosshairs"
+					>
+						<CrosshairIcon class="size-3.5" />
+					</Popover.Trigger>
+				{/snippet}
+			</Tooltip.Trigger>
+			<Tooltip.Content sideOffset={6}>Crosshairs</Tooltip.Content>
+		</Tooltip.Root>
 		<Popover.Content align="end" class="w-52 gap-1 p-1.5">
 			<Popover.Close
 				class={cn(buttonVariants({ variant: 'ghost' }), 'w-full justify-start')}
@@ -127,9 +172,7 @@
 			>
 				<CrosshairIcon />
 				{c1 === null ? 'Place C1' : 'Center C1'}
-				<span class="ml-auto text-[0.625rem] text-muted-foreground">
-					{shortcutLabel('placeC1', shortcutPlatform)}
-				</span>
+				<ShortcutKey shortcut={shortcutLabel('placeC1', shortcutPlatform)} class="ml-auto" />
 			</Popover.Close>
 			<Popover.Close
 				class={cn(buttonVariants({ variant: 'ghost' }), 'w-full justify-start')}
@@ -138,9 +181,7 @@
 			>
 				<CrosshairIcon />
 				{c2 === null ? 'Place C2' : 'Center C2'}
-				<span class="ml-auto text-[0.625rem] text-muted-foreground">
-					{shortcutLabel('placeC2', shortcutPlatform)}
-				</span>
+				<ShortcutKey shortcut={shortcutLabel('placeC2', shortcutPlatform)} class="ml-auto" />
 			</Popover.Close>
 			<Popover.Close
 				class={cn(
@@ -155,18 +196,24 @@
 			</Popover.Close>
 		</Popover.Content>
 	</Popover.Root>
-	<Toggle
-		bind:pressed={legendVisible}
-		{disabled}
-		variant="outline"
-		size="default"
-		aria-label={legendVisible ? 'Hide legend' : 'Show legend'}
-		title={shortcutTitle(
-			legendVisible ? 'Hide legend' : 'Show legend',
-			'toggleLegend',
-			shortcutPlatform
-		)}
-	>
-		<ListIcon class="size-3.5" />
-	</Toggle>
+	<Tooltip.Root>
+		<Tooltip.Trigger>
+			{#snippet child({ props })}
+				<Toggle
+					{...props}
+					bind:pressed={legendVisible}
+					{disabled}
+					variant="outline"
+					size="default"
+					aria-label={legendVisible ? 'Hide legend' : 'Show legend'}
+				>
+					<ListIcon class="size-3.5" />
+				</Toggle>
+			{/snippet}
+		</Tooltip.Trigger>
+		<Tooltip.Content sideOffset={6}>
+			{legendVisible ? 'Hide legend' : 'Show legend'}
+			<ShortcutKey shortcut={shortcutLabel('toggleLegend', shortcutPlatform)} />
+		</Tooltip.Content>
+	</Tooltip.Root>
 </ButtonGroup.Root>

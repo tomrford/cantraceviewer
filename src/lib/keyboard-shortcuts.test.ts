@@ -59,26 +59,58 @@ describe('keyboard shortcuts', () => {
 		expect(shortcutFromEvent(keyEvent('b', { target }), 'other')).toBeNull();
 	});
 
-	it('ignores editable descendants and transient surfaces', () => {
+	it('allows shortcuts from non-editing input controls', () => {
+		const checkbox = {
+			tagName: 'input',
+			getAttribute: (name: string) => (name === 'type' ? 'checkbox' : null)
+		} as unknown as EventTarget;
+		expect(isEditableShortcutTarget(checkbox)).toBe(false);
+		expect(shortcutFromEvent(keyEvent('b', { target: checkbox }), 'other')).toBe('toggleBoxZoom');
+	});
+
+	it('ignores editable descendants and menu surfaces while leaving side panels active', () => {
 		const editable = {
 			tagName: 'span',
 			closest: (selector: string) => (selector.includes('contenteditable') ? {} : null)
 		} as unknown as EventTarget;
-		const popover = {
+		const popoverButton = {
 			tagName: 'button',
 			closest: (selector: string) => (selector.includes('popover-content') ? {} : null)
 		} as unknown as EventTarget;
+		const menuButton = {
+			tagName: 'button',
+			closest: (selector: string) => (selector.includes('role="menu"') ? {} : null)
+		} as unknown as EventTarget;
 
 		expect(isEditableShortcutTarget(editable)).toBe(true);
-		expect(shortcutFromEvent(keyEvent('l', { target: popover }), 'other')).toBeNull();
+		expect(shortcutFromEvent(keyEvent('l', { target: popoverButton }), 'other')).toBe(
+			'toggleLegend'
+		);
+		expect(shortcutFromEvent(keyEvent('l', { target: menuButton }), 'other')).toBeNull();
 	});
 
 	it('leaves disabled actions unchanged', () => {
-		const disabled = { traceLoading: true, plotControlsDisabled: true, canResetZoom: false };
+		const disabled = {
+			traceLoading: true,
+			plotControlsDisabled: true,
+			canResetZoom: false,
+			canPlaceCrosshair: false
+		};
 		expect(shortcutEnabled('openTrace', disabled)).toBe(false);
 		expect(shortcutEnabled('zoomIn', disabled)).toBe(false);
 		expect(shortcutEnabled('resetZoom', disabled)).toBe(false);
 		expect(shortcutEnabled('selectSignals', disabled)).toBe(true);
+	});
+
+	it('requires a plot pointer position for crosshair shortcuts', () => {
+		const state = {
+			traceLoading: false,
+			plotControlsDisabled: false,
+			canResetZoom: true,
+			canPlaceCrosshair: false
+		};
+		expect(shortcutEnabled('placeC1', state)).toBe(false);
+		expect(shortcutEnabled('placeC2', { ...state, canPlaceCrosshair: true })).toBe(true);
 	});
 
 	it.each<[string, ShortcutPlatform, string]>([

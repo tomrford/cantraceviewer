@@ -19,6 +19,7 @@
 	import SunIcon from '@lucide/svelte/icons/sun';
 	import XIcon from '@lucide/svelte/icons/x';
 	import type { Component } from 'svelte';
+	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
 
 	let { onStartWalkthrough }: { onStartWalkthrough: () => void } = $props();
 	let helpOpen = $state(false);
@@ -70,6 +71,10 @@
 		helpOpen = false;
 		onStartWalkthrough();
 	}
+
+	function preventOpenAutoFocus(event: Event): void {
+		event.preventDefault();
+	}
 </script>
 
 <Popover.Content
@@ -77,6 +82,7 @@
 	sideOffset={-32}
 	interactOutsideBehavior="ignore"
 	trapFocus={false}
+	onOpenAutoFocus={preventOpenAutoFocus}
 	class="relative grid w-[min(22rem,calc(100vw-1rem))] translate-x-2 -translate-y-2 gap-4 rounded-lg border border-border/70 bg-popover/90 p-4 pt-14 text-popover-foreground backdrop-blur-md"
 	style="box-shadow: 0 1px 2px rgb(0 0 0 / 0.08)"
 >
@@ -84,25 +90,39 @@
 		class="absolute top-[6.5px] right-[7px] left-[7px] grid h-8 grid-cols-[1fr_auto_1fr] items-center"
 	>
 		<div class="flex items-center gap-1">
-			<button
-				type="button"
-				class={iconButtonClass}
-				aria-label="Open help"
-				title="Help"
-				onclick={() => (helpOpen = true)}
-			>
-				<CircleHelpIcon class="size-4" />
-			</button>
-			<a
-				href="https://github.com/tomrford/cantraceviewer"
-				target="_blank"
-				rel="noreferrer"
-				class={iconButtonClass}
-				aria-label="Open source code on GitHub"
-				title="Source code"
-			>
-				<GithubIcon class="size-4" />
-			</a>
+			<Tooltip.Root>
+				<Tooltip.Trigger>
+					{#snippet child({ props })}
+						<button
+							{...props}
+							type="button"
+							class={iconButtonClass}
+							aria-label="Open help"
+							onclick={() => (helpOpen = true)}
+						>
+							<CircleHelpIcon class="size-4" />
+						</button>
+					{/snippet}
+				</Tooltip.Trigger>
+				<Tooltip.Content sideOffset={6}>Help</Tooltip.Content>
+			</Tooltip.Root>
+			<Tooltip.Root>
+				<Tooltip.Trigger>
+					{#snippet child({ props })}
+						<a
+							{...props}
+							href="https://github.com/tomrford/cantraceviewer"
+							target="_blank"
+							rel="noreferrer"
+							class={iconButtonClass}
+							aria-label="Open source code on GitHub"
+						>
+							<GithubIcon class="size-4" />
+						</a>
+					{/snippet}
+				</Tooltip.Trigger>
+				<Tooltip.Content sideOffset={6}>Source code</Tooltip.Content>
+			</Tooltip.Root>
 		</div>
 		<Popover.Title class="text-center">Settings</Popover.Title>
 		<Popover.Close class="{closeButtonClass} justify-self-end" aria-label="Close settings">

@@ -15,6 +15,7 @@
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
 	import { onDbcRemoved } from '$lib/stores/session.js';
 	import SearchForm from './search-form.svelte';
+	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
@@ -73,8 +74,15 @@
 
 	$effect(() => {
 		if (focusSearchRequest === 0 || signalSearchForm === null) return;
-		signalSearchForm.querySelector<HTMLInputElement>('input')?.focus();
+		const frame = requestAnimationFrame(() => {
+			signalSearchForm?.querySelector<HTMLInputElement>('input')?.focus();
+		});
+		return () => cancelAnimationFrame(frame);
 	});
+
+	function preventOpenAutoFocus(event: Event): void {
+		event.preventDefault();
+	}
 
 	$effect(() => {
 		if (!signalListScroller || !signalListContent) return;
@@ -196,6 +204,7 @@
 	sideOffset={-32}
 	interactOutsideBehavior="ignore"
 	trapFocus={false}
+	onOpenAutoFocus={preventOpenAutoFocus}
 	class="relative grid h-[calc(100vh-1rem)] w-[min(26rem,calc(100vw-1rem))] -translate-x-2 -translate-y-2 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden rounded-lg border border-border/70 bg-popover/90 p-4 pt-14 text-popover-foreground backdrop-blur-md"
 	style="box-shadow: 0 1px 2px rgb(0 0 0 / 0.08)"
 	ondragenter={handleDbcDrag}
@@ -227,17 +236,26 @@
 			<XIcon class="size-4" />
 		</Popover.Close>
 		<Popover.Title class="text-center">Signal Selector</Popover.Title>
-		<button
-			type="button"
-			data-walkthrough-target="add-dbc"
-			class="{iconButtonClass} justify-self-end"
-			disabled={dbcFiles.isLoading}
-			aria-label={dbcFiles.isLoading ? 'Loading DBC' : 'Add DBC'}
-			title={dbcFiles.isLoading ? 'Loading DBC' : 'Add DBC'}
-			onclick={() => dbcInput?.click()}
-		>
-			<PlusIcon class="size-4" />
-		</button>
+		<Tooltip.Root>
+			<Tooltip.Trigger>
+				{#snippet child({ props })}
+					<button
+						{...props}
+						type="button"
+						data-walkthrough-target="add-dbc"
+						class="{iconButtonClass} justify-self-end"
+						disabled={dbcFiles.isLoading}
+						aria-label={dbcFiles.isLoading ? 'Loading DBC' : 'Add DBC'}
+						onclick={() => dbcInput?.click()}
+					>
+						<PlusIcon class="size-4" />
+					</button>
+				{/snippet}
+			</Tooltip.Trigger>
+			<Tooltip.Content sideOffset={6}>
+				{dbcFiles.isLoading ? 'Loading DBC' : 'Add DBC'}
+			</Tooltip.Content>
+		</Tooltip.Root>
 	</div>
 
 	<div class="flex items-center gap-2">
@@ -247,17 +265,26 @@
 			bind:value={signalSearch}
 			placeholder="Filter signals..."
 		/>
-		<button
-			type="button"
-			class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border/70 text-muted-foreground transition-[background-color,border-color,color,box-shadow,scale] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96] data-[active=true]:border-sidebar-primary/60 data-[active=true]:bg-sidebar-primary/15 data-[active=true]:text-sidebar-primary"
-			data-active={showActiveOnly}
-			aria-pressed={showActiveOnly}
-			aria-label={showActiveOnly ? 'Show all DBC signals' : 'Show selected DBC signals only'}
-			title={showActiveOnly ? 'Show all DBC signals' : 'Show selected DBC signals only'}
-			onclick={() => (showActiveOnly = !showActiveOnly)}
-		>
-			<CheckIcon class="size-4" />
-		</button>
+		<Tooltip.Root>
+			<Tooltip.Trigger>
+				{#snippet child({ props })}
+					<button
+						{...props}
+						type="button"
+						class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border/70 text-muted-foreground transition-[background-color,border-color,color,box-shadow,scale] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96] data-[active=true]:border-sidebar-primary/60 data-[active=true]:bg-sidebar-primary/15 data-[active=true]:text-sidebar-primary"
+						data-active={showActiveOnly}
+						aria-pressed={showActiveOnly}
+						aria-label={showActiveOnly ? 'Show all DBC signals' : 'Show selected DBC signals only'}
+						onclick={() => (showActiveOnly = !showActiveOnly)}
+					>
+						<CheckIcon class="size-4" />
+					</button>
+				{/snippet}
+			</Tooltip.Trigger>
+			<Tooltip.Content sideOffset={6}>
+				{showActiveOnly ? 'Show all DBC signals' : 'Show selected DBC signals only'}
+			</Tooltip.Content>
+		</Tooltip.Root>
 	</div>
 
 	<div class="relative min-h-0">

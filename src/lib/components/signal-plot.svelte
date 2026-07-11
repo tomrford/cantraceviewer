@@ -33,6 +33,7 @@
 	import PlotCrosshairOverlay from './plot-crosshair.svelte';
 	import * as ContextMenu from '$lib/components/ui/context-menu/index.js';
 	import SignalPlotLegend from './signal-plot-legend.svelte';
+	import ShortcutKey from './shortcut-key.svelte';
 	import { createPlotPerfStats } from '$lib/plot-perf.js';
 	import { isPlottableSignal, plotData } from '$lib/stores/plot-data.svelte.js';
 	import { isDark, timestampMode } from '$lib/stores/preferences.svelte.js';
@@ -57,6 +58,7 @@
 		legendCrosshairMode = $bindable<LegendCrosshairMode>('c1'),
 		boxZoomEnabled = $bindable(false),
 		legendVisible = $bindable(true),
+		pointerRatio = $bindable<PlotRatioPoint | null>(null), // eslint-disable-line no-useless-assignment
 		viewport,
 		shortcutPlatform,
 		class: className,
@@ -67,6 +69,7 @@
 		legendCrosshairMode?: LegendCrosshairMode;
 		boxZoomEnabled?: boolean;
 		legendVisible?: boolean;
+		pointerRatio?: PlotRatioPoint | null;
 		viewport: PlotViewportState;
 		shortcutPlatform: ShortcutPlatform;
 	} = $props();
@@ -387,6 +390,10 @@
 		if (event.button === 1 && isPlotInteractionTarget(event.target)) event.preventDefault();
 	}
 
+	function trackPlotPointer(event: PointerEvent): void {
+		pointerRatio = isPlotInteractionTarget(event.target) ? currentPlotRatio(event) : null;
+	}
+
 	function isPlotInteractionTarget(target: EventTarget | null): boolean {
 		return (
 			target instanceof Element &&
@@ -427,10 +434,12 @@
 	{...restProps}
 	onwheel={handlePlotWheel}
 	onpointerdowncapture={startMiddleDrag}
+	onpointermovecapture={trackPlotPointer}
 	onpointermove={dragMiddle}
 	onpointerup={stopMiddleDrag}
 	onpointercancel={stopMiddleDrag}
 	onauxclick={preventMiddleAutoscroll}
+	onpointerleave={() => (pointerRatio = null)}
 >
 	{#if dropActive}
 		<div
@@ -468,18 +477,23 @@
 				<ContextMenu.Item onSelect={() => zoomBy(0.5)}>
 					<PlusIcon />
 					Zoom in
-					<ContextMenu.Shortcut>{shortcutLabel('zoomIn', shortcutPlatform)}</ContextMenu.Shortcut>
+					<ContextMenu.Shortcut>
+						<ShortcutKey shortcut={shortcutLabel('zoomIn', shortcutPlatform)} />
+					</ContextMenu.Shortcut>
 				</ContextMenu.Item>
 				<ContextMenu.Item onSelect={() => zoomBy(2)}>
 					<MinusIcon />
 					Zoom out
-					<ContextMenu.Shortcut>{shortcutLabel('zoomOut', shortcutPlatform)}</ContextMenu.Shortcut>
+					<ContextMenu.Shortcut>
+						<ShortcutKey shortcut={shortcutLabel('zoomOut', shortcutPlatform)} />
+					</ContextMenu.Shortcut>
 				</ContextMenu.Item>
 				<ContextMenu.Item disabled={isFitAll} onSelect={resetZoom}>
 					<ExpandIcon />
 					Zoom to full extent
-					<ContextMenu.Shortcut>{shortcutLabel('resetZoom', shortcutPlatform)}</ContextMenu.Shortcut
-					>
+					<ContextMenu.Shortcut>
+						<ShortcutKey shortcut={shortcutLabel('resetZoom', shortcutPlatform)} />
+					</ContextMenu.Shortcut>
 				</ContextMenu.Item>
 				<ContextMenu.Separator />
 				<ContextMenu.Sub>
@@ -494,9 +508,9 @@
 						>
 							<CrosshairIcon />
 							Place C1
-							<ContextMenu.Shortcut
-								>{shortcutLabel('placeC1', shortcutPlatform)}</ContextMenu.Shortcut
-							>
+							<ContextMenu.Shortcut>
+								<ShortcutKey shortcut={shortcutLabel('placeC1', shortcutPlatform)} />
+							</ContextMenu.Shortcut>
 						</ContextMenu.Item>
 						<ContextMenu.Item
 							disabled={contextMenuPoint === null}
@@ -504,9 +518,9 @@
 						>
 							<CrosshairIcon />
 							Place C2
-							<ContextMenu.Shortcut
-								>{shortcutLabel('placeC2', shortcutPlatform)}</ContextMenu.Shortcut
-							>
+							<ContextMenu.Shortcut>
+								<ShortcutKey shortcut={shortcutLabel('placeC2', shortcutPlatform)} />
+							</ContextMenu.Shortcut>
 						</ContextMenu.Item>
 						<ContextMenu.Item disabled={crosshairs.length === 0} onSelect={() => (crosshairs = [])}>
 							<XIcon />
@@ -523,9 +537,9 @@
 				<ContextMenu.Item onSelect={toggleBoxZoom}>
 					<BoxSelectIcon />
 					{boxZoomEnabled ? 'Use drag pan' : 'Use box zoom'}
-					<ContextMenu.Shortcut
-						>{shortcutLabel('toggleBoxZoom', shortcutPlatform)}</ContextMenu.Shortcut
-					>
+					<ContextMenu.Shortcut>
+						<ShortcutKey shortcut={shortcutLabel('toggleBoxZoom', shortcutPlatform)} />
+					</ContextMenu.Shortcut>
 				</ContextMenu.Item>
 				<ContextMenu.Separator />
 				<ContextMenu.Item

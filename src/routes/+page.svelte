@@ -4,6 +4,8 @@
 	import SettingsDialog from '$lib/components/settings-dialog.svelte';
 	import SignalPlot from '$lib/components/signal-plot.svelte';
 	import SignalSelectorDialog from '$lib/components/signal-selector-dialog.svelte';
+	import ShortcutKey from '$lib/components/shortcut-key.svelte';
+	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
 	import Walkthrough from '$lib/components/walkthrough.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Empty from '$lib/components/ui/empty/index.js';
@@ -21,12 +23,13 @@
 		type LegendCrosshairMode,
 		type PlotCrosshair
 	} from '$lib/plot-crosshair.js';
-	import { viewportCenter } from '$lib/plot-viewport.js';
+	import { dataPointAtRatio } from '$lib/plot-viewport.js';
+	import type { PlotRatioPoint } from '$lib/plot-geometry.js';
 	import {
 		detectShortcutPlatform,
 		shortcutEnabled,
 		shortcutFromEvent,
-		shortcutTitle,
+		shortcutLabel,
 		type ShortcutPlatform
 	} from '$lib/keyboard-shortcuts.js';
 	import { dbcFiles } from '$lib/stores/dbc-files.svelte.js';
@@ -61,6 +64,7 @@
 	let signalSelectorOpen = $state(false);
 	let settingsOpen = $state(false);
 	let signalSearchFocusRequest = $state(0);
+	let plotPointerRatio = $state<PlotRatioPoint | null>(null);
 	let shortcutPlatform = $state<ShortcutPlatform>('other');
 	let walkthroughStepId = $state<WalkthroughStep['id'] | null>(null);
 	const plotViewport = new PlotViewportState();
@@ -69,10 +73,8 @@
 	let traceMetadataTitle = $derived(
 		traceFile.entry ? formatTraceMetadata(traceFile.entry) : undefined
 	);
-	let traceActionTitle = $derived(
-		[traceMetadataTitle, shortcutTitle('Open trace', 'openTrace', shortcutPlatform)]
-			.filter(Boolean)
-			.join('\n')
+	let traceTooltipLabel = $derived(
+		traceFile.isLoading ? 'Loading trace' : (traceMetadataTitle ?? 'Open trace')
 	);
 	const siteTitle = 'CAN Trace Viewer';
 	let browserTitle = $derived(
@@ -152,7 +154,8 @@
 			!shortcutEnabled(action, {
 				traceLoading: traceFile.isLoading,
 				plotControlsDisabled,
-				canResetZoom
+				canResetZoom,
+				canPlaceCrosshair: plotPointerRatio !== null
 			})
 		) {
 			return;
@@ -185,10 +188,10 @@
 				legendVisible = !legendVisible;
 				break;
 			case 'placeC1':
-				placeCrosshairAtCenter(1);
+				placeCrosshairAtPointer(1);
 				break;
 			case 'placeC2':
-				placeCrosshairAtCenter(2);
+				placeCrosshairAtPointer(2);
 				break;
 		}
 
@@ -202,10 +205,13 @@
 		signalSearchFocusRequest += 1;
 	}
 
-	function placeCrosshairAtCenter(id: CrosshairId): void {
+	function placeCrosshairAtPointer(id: CrosshairId): void {
 		const activeViewport = plotViewport.activeViewport;
-		if (activeViewport === null) return;
-		crosshairs = setCrosshair(crosshairs, { id, ...viewportCenter(activeViewport) });
+		if (activeViewport === null || plotPointerRatio === null) return;
+		crosshairs = setCrosshair(crosshairs, {
+			id,
+			...dataPointAtRatio(activeViewport, plotPointerRatio)
+		});
 	}
 
 	async function startWalkthrough(): Promise<void> {
@@ -387,14 +393,24 @@
 		>
 			<div class="flex items-center">
 				<Popover.Root bind:open={() => signalSelectorOpen, handleSignalSelectorOpen}>
-					<Popover.Trigger
-						class={squircleButtonClass}
-						data-walkthrough-target="signal-selector"
-						aria-label="Open signal selector"
-						title={shortcutTitle('Signal selector', 'selectSignals', shortcutPlatform)}
-					>
-						<DatabaseIcon class="size-4" />
-					</Popover.Trigger>
+					<Tooltip.Root>
+						<Tooltip.Trigger>
+							{#snippet child({ props })}
+								<Popover.Trigger
+									{...props}
+									class={squircleButtonClass}
+									data-walkthrough-target="signal-selector"
+									aria-label="Open signal selector"
+								>
+									<DatabaseIcon class="size-4" />
+								</Popover.Trigger>
+							{/snippet}
+						</Tooltip.Trigger>
+						<Tooltip.Content sideOffset={6}>
+							Signal selector
+							<ShortcutKey shortcut={shortcutLabel('selectSignals', shortcutPlatform)} />
+						</Tooltip.Content>
+					</Tooltip.Root>
 					<SignalSelectorDialog
 						focusSearchRequest={signalSearchFocusRequest}
 						onDbcAdded={handleDbcAdded}
@@ -406,27 +422,37 @@
 			<div
 				class="pointer-events-none flex min-w-0 flex-1 items-center justify-center lg:absolute lg:inset-0 lg:px-20"
 			>
-				<button
-					type="button"
-					class="{titleButtonClass} pointer-events-auto w-full lg:w-auto"
-					data-walkthrough-target="trace"
-					disabled={traceFile.isLoading}
-					aria-label={traceFile.isLoading ? 'Loading trace' : 'Load trace'}
-					title={traceFile.isLoading ? 'Loading trace' : traceActionTitle}
-					onclick={() => traceInput?.click()}
-				>
-					<AudioWaveformIcon class="size-4 shrink-0 text-sidebar-primary" />
-					<span class="min-w-0 truncate text-sm font-medium" title={traceMetadataTitle}
-						>{traceFile.displayName}</span
-					>
-					{#if traceFile.isLoading}
-						<LoaderCircleIcon
-							class="size-4 shrink-0 animate-spin text-muted-foreground"
-							aria-hidden="true"
-						/>
-						<span class="sr-only">Loading trace</span>
-					{/if}
-				</button>
+				<Tooltip.Root>
+					<Tooltip.Trigger>
+						{#snippet child({ props })}
+							<button
+								{...props}
+								type="button"
+								class="{titleButtonClass} pointer-events-auto w-full lg:w-auto"
+								data-walkthrough-target="trace"
+								disabled={traceFile.isLoading}
+								aria-label={traceFile.isLoading ? 'Loading trace' : 'Load trace'}
+								onclick={() => traceInput?.click()}
+							>
+								<AudioWaveformIcon class="size-4 shrink-0 text-sidebar-primary" />
+								<span class="min-w-0 truncate text-sm font-medium">{traceFile.displayName}</span>
+								{#if traceFile.isLoading}
+									<LoaderCircleIcon
+										class="size-4 shrink-0 animate-spin text-muted-foreground"
+										aria-hidden="true"
+									/>
+									<span class="sr-only">Loading trace</span>
+								{/if}
+							</button>
+						{/snippet}
+					</Tooltip.Trigger>
+					<Tooltip.Content sideOffset={6}>
+						<span class="whitespace-pre-line">{traceTooltipLabel}</span>
+						{#if !traceFile.isLoading}
+							<ShortcutKey shortcut={shortcutLabel('openTrace', shortcutPlatform)} />
+						{/if}
+					</Tooltip.Content>
+				</Tooltip.Root>
 			</div>
 
 			<input
@@ -454,13 +480,19 @@
 					/>
 				</div>
 				<Popover.Root bind:open={settingsOpen}>
-					<Popover.Trigger
-						class={squircleButtonClass}
-						aria-label="Open settings"
-						title={shortcutTitle('Settings', 'openSettings', shortcutPlatform)}
-					>
-						<CogIcon class="size-4" />
-					</Popover.Trigger>
+					<Tooltip.Root>
+						<Tooltip.Trigger>
+							{#snippet child({ props })}
+								<Popover.Trigger {...props} class={squircleButtonClass} aria-label="Open settings">
+									<CogIcon class="size-4" />
+								</Popover.Trigger>
+							{/snippet}
+						</Tooltip.Trigger>
+						<Tooltip.Content sideOffset={6}>
+							Settings
+							<ShortcutKey shortcut={shortcutLabel('openSettings', shortcutPlatform)} />
+						</Tooltip.Content>
+					</Tooltip.Root>
 					<SettingsDialog onStartWalkthrough={() => void startWalkthrough()} />
 				</Popover.Root>
 			</div>
@@ -472,6 +504,7 @@
 				bind:legendCrosshairMode
 				bind:boxZoomEnabled
 				bind:legendVisible
+				bind:pointerRatio={plotPointerRatio}
 				{shortcutPlatform}
 				dropActive={traceDropActive}
 				ondragenter={handleTraceDrag}
