@@ -6,7 +6,7 @@ This repo is the source for CAN Trace Viewer, a client-side CAN log plotter.
 
 The app opens directly into the plotter. Users load one ASC, PCAN TRC 1.x/2.x, BLF, or MF4 trace, save one or more DBC files to the local browser library, select signals from the signal selector popover, and render decoded signal series on a shared time plot. MF4 files may contribute raw CAN frames, temporary embedded DBCs, native decoded measurement channels, or all three.
 
-The UI uses SvelteKit, Svelte 5, Bun, Tailwind, and shadcn-svelte style components. Rust code lives under `wasm/` and compiles through wasm-bindgen for DBC parsing, trace parsing, and signal decoding.
+The UI uses SvelteKit, Svelte 5, Node.js, pnpm, Tailwind, and shadcn-svelte style components. Rust code lives under `wasm/` and compiles through wasm-bindgen for DBC parsing, trace parsing, and signal decoding.
 
 Keep TypeScript as the glue between the Svelte UI and generated wasm-bindgen classes. Keep WASM details behind typed browser-facing interfaces.
 
@@ -17,15 +17,15 @@ Enforce browser file-size caps in TypeScript before reading file contents: DBC f
 Use repo-native commands through `nix develop -c`:
 
 ```sh
-nix develop -c bun run dev
-nix develop -c bun run test
-nix develop -c bun run check
-nix develop -c bun run wasm:build:release
-nix develop -c bun run wasm:check
-nix develop -c bun run wasm:test
+nix develop -c pnpm run dev
+nix develop -c pnpm run test
+nix develop -c pnpm run check
+nix develop -c pnpm run wasm:build:release
+nix develop -c pnpm run wasm:check
+nix develop -c pnpm run wasm:test
 ```
 
-The repo commits the release WASM binary and generated wasm-bindgen JavaScript and TypeScript declarations for git-based deployment on Cloudflare Workers. If you change Rust code or its exported interface, run `bun run wasm:build:release` before committing so every generated artifact is updated.
+The repo commits the release WASM binary and generated wasm-bindgen JavaScript and TypeScript declarations for git-based deployment on Cloudflare Workers. If you change Rust code or its exported interface, run `pnpm run wasm:build:release` before committing so every generated artifact is updated.
 
 Track backlog work in [GitHub issues](https://github.com/tomrford/cantraceviewer/issues).
 

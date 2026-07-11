@@ -1,4 +1,4 @@
-# CI runs everything through `nix develop -c` so Bun, Rust, wasm-bindgen, and
+# CI runs everything through `nix develop -c` so Node, pnpm, Rust, wasm-bindgen, and
 # Binaryen come from flake.lock, matching local tool versions.
 # Nix install + devshell eval costs ~30s on ubuntu runners; acceptable.
 name: CI
@@ -17,19 +17,19 @@ jobs:
       - uses: cachix/install-nix-action@v31
 
       - name: Install dependencies
-        run: nix develop -c bun install --frozen-lockfile
+        run: nix develop -c pnpm install --frozen-lockfile
 
       - name: Svelte check
-        run: nix develop -c bun run check
+        run: nix develop -c pnpm run check
 
       - name: Lint
-        run: nix develop -c bun run lint
+        run: nix develop -c pnpm run lint
 
       - name: Test
-        run: nix develop -c bun run test
+        run: nix develop -c pnpm run test
 
       - name: Rust WASM checks
-        run: nix develop -c bun run wasm:check
+        run: nix develop -c pnpm run wasm:check
 
       - name: Rust WASM tests
-        run: nix develop -c bun run wasm:test
+        run: nix develop -c pnpm run wasm:test

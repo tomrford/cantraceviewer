@@ -245,7 +245,7 @@
 	<div class="relative min-h-0">
 		<div
 			bind:this={signalListScroller}
-			class="h-full overflow-y-auto pb-4 [--scroll-fade-size:2rem] [scrollbar-gutter:stable]"
+			class="h-full [scrollbar-gutter:stable] overflow-y-auto pb-4 [--scroll-fade-size:2rem]"
 			class:scroll-fade={signalListOverflows}
 			onscroll={persistScrollPosition}
 		>
