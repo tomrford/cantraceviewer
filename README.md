@@ -14,20 +14,20 @@ Trace files and decoded series stay in memory for the current browser session. S
 
 ## Development
 
-The UI uses SvelteKit, Svelte 5, Bun, Tailwind, and shadcn-svelte style components. Rust code under `wasm/` compiles through wasm-bindgen for DBC parsing, trace parsing, and signal decoding. TypeScript wraps the generated bindings in typed browser-facing interfaces.
+The UI uses SvelteKit, Svelte 5, Node.js, pnpm, Tailwind, and shadcn-svelte style components. Rust code under `wasm/` compiles through wasm-bindgen for DBC parsing, trace parsing, and signal decoding. TypeScript wraps the generated bindings in typed browser-facing interfaces.
 
 ```sh
-nix develop -c bun install
-nix develop -c bun run dev
-nix develop -c bun run wasm:build
+nix develop -c pnpm install
+nix develop -c pnpm run dev
+nix develop -c pnpm run wasm:build
 ```
 
 Useful checks:
 
 ```sh
-nix develop -c bun run test
-nix develop -c bun run check
-nix develop -c bun run wasm:check
-nix develop -c bun run wasm:test
-nix develop -c bun run wasm:build:release
+nix develop -c pnpm run test
+nix develop -c pnpm run check
+nix develop -c pnpm run wasm:check
+nix develop -c pnpm run wasm:test
+nix develop -c pnpm run wasm:build:release
 ```

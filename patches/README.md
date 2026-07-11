@@ -1,6 +1,6 @@
 # chartgpu@0.3.2 patch
 
-Bun `patchedDependencies` applies `chartgpu@0.3.2.patch` to the published minified bundle (`dist/index.js`). chartgpu stays pinned at 0.3.2; this file is the inventory of behavioral edits for re-rolling the patch or porting to a fork.
+pnpm `patchedDependencies` applies `chartgpu@0.3.2.patch` to the published minified bundle (`dist/index.js`). chartgpu stays pinned at 0.3.2; this file is the inventory of behavioral edits for re-rolling the patch or porting to a fork.
 
 Identifiers below (`Ic`, `oc`, …) are minifier names in the 0.3.2 bundle. Search `dist/index.js` inside `node_modules/chartgpu` after patching.
 

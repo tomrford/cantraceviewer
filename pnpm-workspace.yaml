@@ -1,0 +1,2 @@
+patchedDependencies:
+  chartgpu@0.3.2: patches/chartgpu@0.3.2.patch

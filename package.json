@@ -3,9 +3,13 @@
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
+	"packageManager": "pnpm@11.9.0",
+	"engines": {
+		"node": ">=24"
+	},
 	"scripts": {
 		"dev": "vite dev",
-		"build": "bun --bun vite build",
+		"build": "vite build",
 		"wasm:build": "./scripts/build-wasm.sh dev",
 		"wasm:build:release": "./scripts/build-wasm.sh release",
 		"wasm:check": "cargo fmt --manifest-path wasm/Cargo.toml --check && cargo clippy --locked --manifest-path wasm/Cargo.toml --all-targets -- -D warnings",
@@ -62,8 +66,5 @@
 		"minisearch": "7.2.0",
 		"modern-screenshot": "4.7.0",
 		"runed": "0.37.1"
-	},
-	"patchedDependencies": {
-		"chartgpu@0.3.2": "patches/chartgpu@0.3.2.patch"
 	}
 }

@@ -25,7 +25,8 @@
       in {
         devShells.default = pkgs.mkShell {
           packages = [
-            pkgs.bun
+            pkgs.nodejs_24
+            pkgs.pnpm
             rustToolchain
             pkgs.wasm-bindgen-cli
             pkgs.binaryen
