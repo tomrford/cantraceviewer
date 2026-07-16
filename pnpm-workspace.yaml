@@ -2,5 +2,11 @@ allowBuilds:
   esbuild: true
   sharp: true
   workerd: true
+
+packages:
+  - .
+
+minimumReleaseAge: 10080
 patchedDependencies:
-  chartgpu@0.3.2: patches/chartgpu@0.3.2.patch
+  chartgpu@0.3.3: patches/chartgpu@0.3.3.patch
+  svelte-check@4.7.1: patches/svelte-check@4.7.1.patch
