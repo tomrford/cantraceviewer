@@ -30,4 +30,3 @@ Track backlog work in [GitHub issues](https://github.com/tomrford/cantraceviewer
 ### Rust
 
 The Rust toolchain, wasm-bindgen CLI, and Binaryen are pinned by `flake.lock`. Keep CAN, DBC, and trace parsing in this crate rather than introducing format-parser dependencies. Compression implementations may use a focused, WASM-compatible crate. BLF decompression uses `fdeflate`.
-
