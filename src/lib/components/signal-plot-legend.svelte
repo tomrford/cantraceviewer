@@ -18,6 +18,7 @@
 		measurementStartMs,
 		crosshairs,
 		mode = $bindable('c1'),
+		selectOpen = $bindable(false),
 		signalValues,
 		timestampMode,
 		views
@@ -25,6 +26,7 @@
 		measurementStartMs?: number | null;
 		crosshairs: PlotCrosshair[];
 		mode?: LegendCrosshairMode;
+		selectOpen?: boolean;
 		signalValues: LegendSignalValue[];
 		timestampMode: TimestampMode;
 		views: SignalView[];
@@ -57,13 +59,14 @@
 			<span class="text-xs font-medium text-muted-foreground">Legend values</span>
 			<Select.Root
 				type="single"
+				bind:open={selectOpen}
 				value={mode}
 				onValueChange={(value: string) => (mode = value as LegendCrosshairMode)}
 			>
 				<Select.Trigger class="w-36">
 					<span>{selectedOption.label}</span>
 				</Select.Trigger>
-				<Select.Content>
+				<Select.Content preventScroll={false}>
 					{#each options as option (option.value)}
 						<Select.Item value={option.value} label={option.label} />
 					{/each}
