@@ -14,7 +14,16 @@ export type * from '@cantraceviewer/core';
 let clientPromise: Promise<CanTraceClient> | null = null;
 
 function client(): Promise<CanTraceClient> {
-	return (clientPromise ??= createCanTraceClient());
+	if (clientPromise) return clientPromise;
+
+	const pending = createCanTraceClient();
+	clientPromise = pending;
+	void pending.catch(() => {
+		// A rejected factory produced no client. Let a later user operation retry startup without
+		// restarting a client that had already become fatal during normal operation.
+		if (clientPromise === pending) clientPromise = null;
+	});
+	return pending;
 }
 
 export async function openDbc(text: string): Promise<{ handle: DbcHandle; catalog: ParsedDbc }> {
