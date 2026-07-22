@@ -213,6 +213,8 @@
 	function chartOptions(): ChartGPUOptions {
 		const dark = isDark();
 		const gridLine = dark ? GRID_LINE.dark : GRID_LINE.light;
+		const axisMeasurementStartMs = measurementStartMs;
+		const axisTimestampMode = timestampMode.current;
 
 		return {
 			theme: {
@@ -236,8 +238,8 @@
 				max: activeViewport?.xMax,
 				tickFormatter: (value) =>
 					formatAxisTime(value, {
-						measurementStartMs,
-						mode: timestampMode.current
+						measurementStartMs: axisMeasurementStartMs,
+						mode: axisTimestampMode
 					})
 			},
 			yAxis: {
