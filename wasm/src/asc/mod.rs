@@ -1,6 +1,6 @@
 mod frame;
 
-use crate::trace::{FrameKind, Trace, TraceError, days_from_civil, lossy_utf8_line};
+use crate::trace::{FrameKind, Trace, TraceError, byte_lines, days_from_civil, lossy_utf8_line};
 
 pub(crate) use frame::Base;
 #[cfg(test)]
@@ -36,7 +36,7 @@ pub(crate) fn parse_bytes(bytes: &[u8]) -> Result<Trace, TraceError> {
     let mut relative_timestamp_ns = 0_u64;
     let mut line_scratch = String::new();
 
-    for raw_line_bytes in bytes.split(|&byte| byte == b'\n') {
+    for raw_line_bytes in byte_lines(bytes) {
         let line = trim_line(raw_line_bytes);
         if line.is_empty() {
             continue;

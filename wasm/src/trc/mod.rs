@@ -3,7 +3,8 @@ mod line_v1;
 mod line_v2;
 
 use crate::trace::{
-    ExtraPrecision, FrameKind, Trace, TraceError, decimal_fraction_to_units, lossy_utf8_line,
+    ExtraPrecision, FrameKind, Trace, TraceError, byte_lines, decimal_fraction_to_units,
+    lossy_utf8_line,
 };
 
 use frame::{ColumnMap, Version};
@@ -31,7 +32,7 @@ pub(crate) fn parse_bytes(bytes: &[u8]) -> Result<Trace, TraceError> {
     let mut payload_buffer = [0_u8; 64];
     let mut line_scratch = String::new();
 
-    for raw_line_bytes in bytes.split(|&byte| byte == b'\n') {
+    for raw_line_bytes in byte_lines(bytes) {
         let raw_line = lossy_utf8_line(raw_line_bytes, &mut line_scratch);
         let line = raw_line.trim_matches([' ', '\t', '\r']);
         if line.is_empty() {

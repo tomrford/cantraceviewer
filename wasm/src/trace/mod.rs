@@ -2,12 +2,14 @@ mod dlc;
 mod error;
 mod frame;
 mod frame_index;
+mod lines;
 mod time;
 
 pub(crate) use dlc::fd_payload_length_from_dlc;
 pub(crate) use error::TraceError;
 pub(crate) use frame::{CanId, Frame, FrameKind};
 pub(crate) use frame_index::FrameIndex;
+pub(crate) use lines::byte_lines;
 pub(crate) use time::{ExtraPrecision, days_from_civil, decimal_fraction_to_units};
 
 pub(crate) fn lossy_utf8_line<'a>(bytes: &'a [u8], scratch: &'a mut String) -> &'a str {

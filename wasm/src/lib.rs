@@ -1,4 +1,5 @@
 #![forbid(unsafe_code)]
+#![cfg_attr(feature = "simd-newlines", feature(portable_simd))]
 
 use wasm_bindgen::prelude::*;
 
