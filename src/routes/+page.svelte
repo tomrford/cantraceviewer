@@ -96,7 +96,7 @@
 				description: siteDescription,
 				applicationCategory: 'UtilitiesApplication',
 				operatingSystem: 'Any operating system with a WebGPU-capable browser',
-				browserRequirements: 'WebGPU support and a viewport of at least 600 by 600 pixels',
+				browserRequirements: 'WebGPU support and a viewport of at least 600 by 500 pixels',
 				softwareRequirements: 'WebGPU',
 				isAccessibleForFree: true,
 				offers: {
@@ -275,8 +275,8 @@
 		<h1 class="text-base font-medium text-foreground">{landingTitle}</h1>
 		<p class="text-sm text-muted-foreground">{landingDescription}</p>
 		<p class="text-sm text-muted-foreground">
-			CAN Trace Viewer needs a viewport of at least 600 px in both width and height. It works best
-			on desktop or tablet.
+			CAN Trace Viewer needs a viewport of at least 600 px wide and 500 px tall. It works best on
+			desktop or tablet.
 		</p>
 	</div>
 </main>
@@ -477,7 +477,7 @@
 		display: none;
 	}
 
-	@media (max-width: 599px), (max-height: 599px) {
+	@media (max-width: 599px), (max-height: 499px) {
 		.viewport-gate {
 			display: flex;
 		}
