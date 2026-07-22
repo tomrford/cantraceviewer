@@ -386,6 +386,7 @@
 				<PlotInteraction
 					{viewport}
 					{boxZoomEnabled}
+					suspended={legendSelectOpen}
 					grid={PLOT_GRID}
 					onContextMenuPoint={rememberContextMenuPoint}
 				/>
@@ -394,6 +395,7 @@
 					<PlotCrosshairOverlay
 						{crosshair}
 						viewport={activeViewport}
+						suspended={legendSelectOpen}
 						grid={PLOT_GRID}
 						onCrosshair={updateCrosshair}
 						onContextMenuPoint={rememberContextMenuPoint}

@@ -12,11 +12,13 @@
 	let {
 		viewport,
 		boxZoomEnabled,
+		suspended,
 		grid,
 		onContextMenuPoint
 	}: {
 		viewport: PlotViewportState;
 		boxZoomEnabled: boolean;
+		suspended: boolean;
 		grid: { left: number; right: number; top: number; bottom: number };
 		onContextMenuPoint?: (point: PlotPoint | null) => void;
 	} = $props();
@@ -39,11 +41,17 @@
 				current: PlotRatioPoint;
 		  };
 
+	$effect(() => {
+		if (suspended) cancelPlotDrag();
+	});
+
 	function handleContextMenu(event: MouseEvent) {
+		if (suspended) return;
 		onContextMenuPoint?.(clientToDataPoint(event));
 	}
 
 	function startPlotDrag(event: PointerEvent) {
+		if (suspended) return;
 		const activeViewport = viewport.activeViewport;
 		if (activeViewport === null || event.button !== 0) return;
 		const point = currentPlotRatio(event);
@@ -64,6 +72,10 @@
 
 	function dragPlot(event: PointerEvent) {
 		if (dragState === null || dragState.pointerId !== event.pointerId) return;
+		if (suspended) {
+			cancelPlotDrag();
+			return;
+		}
 		event.preventDefault();
 
 		if (dragState.type === 'box') {
@@ -86,6 +98,10 @@
 
 	function stopPlotDrag(event: PointerEvent) {
 		if (dragState === null || dragState.pointerId !== event.pointerId) return;
+		if (suspended) {
+			cancelPlotDrag();
+			return;
+		}
 		const state = dragState;
 		dragState = null;
 		const target = event.currentTarget as HTMLElement;
@@ -101,7 +117,15 @@
 	function cancelBoxZoom(event: KeyboardEvent) {
 		if (event.key !== 'Escape' || dragState?.type !== 'box') return;
 		event.preventDefault();
+		cancelPlotDrag();
+	}
+
+	function cancelPlotDrag() {
+		const pointerId = dragState?.pointerId;
 		dragState = null;
+		if (pointerId !== undefined && overlay?.hasPointerCapture(pointerId)) {
+			overlay.releasePointerCapture(pointerId);
+		}
 	}
 
 	function clientToDataPoint(event: Pick<MouseEvent, 'clientX' | 'clientY'>): PlotPoint | null {

@@ -15,19 +15,25 @@
 	let {
 		crosshair,
 		viewport,
+		suspended,
 		grid,
 		onCrosshair,
 		onContextMenuPoint
 	}: {
 		crosshair: PlotCrosshair;
 		viewport: PlotViewport | null;
+		suspended: boolean;
 		grid: { left: number; right: number; top: number; bottom: number };
 		onCrosshair: (crosshair: PlotCrosshair) => void;
 		onContextMenuPoint?: (point: PlotPoint | null, crosshair: PlotCrosshair) => void;
 	} = $props();
 
 	let track: HTMLDivElement;
-	let dragState = $state<{ pointerId: number; axis: CrosshairDragAxis } | null>(null);
+	let dragState = $state<{
+		pointerId: number;
+		axis: CrosshairDragAxis;
+		target: HTMLElement;
+	} | null>(null);
 	let dragRaf: number | null = null;
 	let pendingCrosshair: PlotCrosshair | null = null;
 
@@ -39,25 +45,38 @@
 		ratio !== null && ratio.yRatio >= 0 && ratio.yRatio <= 1 ? ratio.yRatio * 100 : null
 	);
 
-	onDestroy(cancelDragUpdate);
+	onDestroy(cancelDrag);
+
+	$effect(() => {
+		if (suspended) cancelDrag();
+	});
 
 	function startDrag(axis: CrosshairDragAxis, event: PointerEvent) {
-		if (event.button !== 0) return;
+		if (suspended || event.button !== 0) return;
 		event.preventDefault();
 		event.stopPropagation();
-		dragState = { pointerId: event.pointerId, axis };
-		(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+		const target = event.currentTarget as HTMLElement;
+		dragState = { pointerId: event.pointerId, axis, target };
+		target.setPointerCapture(event.pointerId);
 		updateFromPointer(event);
 	}
 
 	function drag(event: PointerEvent) {
 		if (dragState?.pointerId !== event.pointerId) return;
+		if (suspended) {
+			cancelDrag();
+			return;
+		}
 		event.preventDefault();
 		updateFromPointer(event);
 	}
 
 	function stopDrag(event: PointerEvent) {
 		if (dragState?.pointerId !== event.pointerId) return;
+		if (suspended) {
+			cancelDrag();
+			return;
+		}
 		dragState = null;
 		flushPendingUpdate();
 		const target = event.currentTarget as HTMLElement;
@@ -80,6 +99,7 @@
 	}
 
 	function rememberContextMenuPoint(event: MouseEvent) {
+		if (suspended) return;
 		onContextMenuPoint?.(clientToDataPoint(event), crosshair);
 	}
 
@@ -99,6 +119,15 @@
 			dragRaf = null;
 		}
 		pendingCrosshair = null;
+	}
+
+	function cancelDrag() {
+		const state = dragState;
+		dragState = null;
+		cancelDragUpdate();
+		if (state?.target.hasPointerCapture(state.pointerId)) {
+			state.target.releasePointerCapture(state.pointerId);
+		}
 	}
 
 	function flushPendingUpdate() {
