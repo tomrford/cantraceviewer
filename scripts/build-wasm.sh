@@ -4,7 +4,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 crate_dir="$repo_root/wasm"
-out_dir="$repo_root/src/lib/wasm-bindgen"
+out_dir="$repo_root/packages/core/src/wasm-bindgen"
 target_dir="$crate_dir/target/wasm32-unknown-unknown"
 
 profile="${1:-release}"
@@ -22,6 +22,11 @@ case "$profile" in
 		exit 2
 		;;
 esac
+
+if (( $# > 1 )); then
+	echo "usage: $0 [dev|release]" >&2
+	exit 2
+fi
 
 cd "$crate_dir"
 cargo build --locked --target wasm32-unknown-unknown "${cargo_args[@]}"

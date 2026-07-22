@@ -15,6 +15,6 @@
 		"yarn.lock",
 		"/static/",
 		"/wasm/",
-		"/src/lib/wasm-bindgen/"
+		"/packages/core/src/wasm-bindgen/"
 	]
 }

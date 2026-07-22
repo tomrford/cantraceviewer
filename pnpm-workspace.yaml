@@ -5,6 +5,7 @@ allowBuilds:
 
 packages:
   - .
+  - packages/*
 
 minimumReleaseAge: 10080
 patchedDependencies:

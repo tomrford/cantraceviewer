@@ -6,7 +6,7 @@ The live instance is at https://cantraceviewer.com, served entirely statically f
 
 The app opens directly into the plotter. Users load one CAN trace, save one or more DBC files to the local browser library, select signals from the signal selector popover, and render decoded signal series on a shared time plot.
 
-The UI uses SvelteKit, Svelte 5, Node.js, pnpm, Tailwind, and shadcn-svelte style components. Rust code lives under `wasm/` and compiles through wasm-bindgen for DBC parsing, trace parsing, and signal decoding.
+The UI uses SvelteKit, Svelte 5, Node.js, pnpm, Tailwind, and shadcn-svelte style components. Rust code lives under `wasm/` and compiles through wasm-bindgen for DBC parsing, trace parsing, and signal decoding. The app consumes the private workspace package `@cantraceviewer/core`, whose browser client owns the WASM runtime in a dedicated Worker.
 
 Saved DBC files and UI preferences live only in browser storage on the current device. Loaded traces, MF4-native signal catalogs, temporary embedded DBCs, and derived signal series live in memory for the current browser session. Do not add server persistence or new persisted state without an explicit product reason.
 
@@ -23,7 +23,7 @@ nix develop -c pnpm run wasm:check
 nix develop -c pnpm run wasm:test
 ```
 
-The repo commits the release WASM binary and generated wasm-bindgen JavaScript and TypeScript declarations for git-based deployment on Cloudflare Workers. If you change Rust code or its exported interface, run `pnpm run wasm:build:release` before committing so every generated artifact is updated.
+The repo commits the release WASM binary and generated wasm-bindgen JavaScript and TypeScript declarations under `packages/core/src/wasm-bindgen` for git-based deployment on Cloudflare Workers. If you change Rust code or its exported interface, run `pnpm run wasm:build:release` before committing so every generated artifact is updated.
 
 Track backlog work in [GitHub issues](https://github.com/tomrford/cantraceviewer/issues).
 
