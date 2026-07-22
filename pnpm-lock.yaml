@@ -12,6 +12,9 @@ importers:
 
   .:
     dependencies:
+      '@cantraceviewer/core':
+        specifier: workspace:*
+        version: link:packages/core
       chartgpu:
         specifier: 0.3.3
         version: 0.3.3(patch_hash=d8e101bef704f1d675f9387ce3f8570cbc84317d0fe47b7b9051b92ec1538c5c)
@@ -136,6 +139,8 @@ importers:
       wrangler:
         specifier: ^4.107.0
         version: 4.107.0
+
+  packages/core: {}
 
 packages:
 
