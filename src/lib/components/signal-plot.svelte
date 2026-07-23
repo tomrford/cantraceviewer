@@ -73,6 +73,7 @@
 	let contextMenuPoint = $state<PlotPoint | null>(null);
 	let contextMenuCrosshairId = $state<CrosshairId | null>(null);
 	let imageExportBusy = $state(false);
+	let legendSelectOpen = $state(false);
 	let resizeObserver: ResizeObserver | null = null;
 
 	const PLOT_GRID = { left: 64, right: 24, top: 18, bottom: 44 };
@@ -171,6 +172,10 @@
 		} else if (legendCrosshairMode === 'c2' && c2 === null && c1 !== null) {
 			legendCrosshairMode = 'c1';
 		}
+	});
+
+	$effect(() => {
+		if (!legendVisible || crosshairs.length === 0) legendSelectOpen = false;
 	});
 
 	const perfStats = createPlotPerfStats();
@@ -381,6 +386,7 @@
 				<PlotInteraction
 					{viewport}
 					{boxZoomEnabled}
+					suspended={legendSelectOpen}
 					grid={PLOT_GRID}
 					onContextMenuPoint={rememberContextMenuPoint}
 				/>
@@ -389,6 +395,7 @@
 					<PlotCrosshairOverlay
 						{crosshair}
 						viewport={activeViewport}
+						suspended={legendSelectOpen}
 						grid={PLOT_GRID}
 						onCrosshair={updateCrosshair}
 						onContextMenuPoint={rememberContextMenuPoint}
@@ -474,11 +481,21 @@
 		</ContextMenu.Root>
 	{/if}
 
+	{#if legendSelectOpen && hasPlottableSignals && legendVisible}
+		<div
+			data-export-ignore
+			data-plot-interaction-blocker
+			class="absolute inset-0 z-[45]"
+			aria-hidden="true"
+		></div>
+	{/if}
+
 	{#if hasPlottableSignals && legendVisible}
 		<SignalPlotLegend
 			views={signalViews}
 			{crosshairs}
 			bind:mode={legendCrosshairMode}
+			bind:selectOpen={legendSelectOpen}
 			signalValues={legendSignalValues}
 			{measurementStartMs}
 			timestampMode={timestampMode.current}
