@@ -16,12 +16,12 @@
 		"wasm:test": "cargo test --locked --manifest-path wasm/Cargo.toml",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
-		"check": "svelte-kit sync && svelte-check --tsgo-experimental-api --tsconfig ./tsconfig.json",
+		"check": "svelte-kit sync && svelte-check --tsgo-experimental-api --tsconfig ./tsconfig.json && tsc --noEmit --project packages/core/tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsgo-experimental-api --tsconfig ./tsconfig.json --watch",
 		"lint": "oxfmt --check && eslint .",
 		"format": "oxfmt",
-		"test:unit": "vitest run --configLoader runner --exclude src/lib/wasm.integration.test.ts",
-		"test:integrationwasm": "vitest run --configLoader runner src/lib/wasm.integration.test.ts",
+		"test:unit": "vitest run --configLoader runner --exclude packages/core/src/direct.integration.test.ts --exclude packages/core/src/build.integration.test.ts",
+		"test:integrationwasm": "vitest run --configLoader runner packages/core/src/direct.integration.test.ts packages/core/src/build.integration.test.ts",
 		"test": "vitest run --configLoader runner"
 	},
 	"devDependencies": {
@@ -63,6 +63,7 @@
 		"wrangler": "^4.107.0"
 	},
 	"dependencies": {
+		"@cantraceviewer/core": "workspace:*",
 		"chartgpu": "0.3.3",
 		"idb": "8.0.3",
 		"minisearch": "7.2.0",
