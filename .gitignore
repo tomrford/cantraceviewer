@@ -1,5 +1,7 @@
 node_modules
 .direnv
+.repos/*
+!.repos/.lock
 
 # Output
 .output
