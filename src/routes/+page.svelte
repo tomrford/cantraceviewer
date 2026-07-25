@@ -179,7 +179,7 @@
 				void focusSignalSearch();
 				break;
 			case 'openSettings':
-				signalSelectorOpen = false;
+				handleSignalSelectorOpen(false);
 				settingsOpen = true;
 				break;
 			case 'showHelp':
@@ -213,7 +213,10 @@
 
 	async function focusSignalSearch(): Promise<void> {
 		settingsOpen = false;
-		signalSelectorOpen = true;
+		// Route through the open handler rather than assigning: it is the setter half of the
+		// popover's binding, so opening by shortcut has to run it to stay indistinguishable
+		// from opening by click — the walkthrough advances from there.
+		handleSignalSelectorOpen(true);
 		await tick();
 		signalSearchFocusRequest += 1;
 	}
