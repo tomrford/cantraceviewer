@@ -3,6 +3,7 @@ export type ShortcutPlatform = 'mac' | 'other';
 export type ShortcutAction =
 	| 'openTrace'
 	| 'selectSignals'
+	| 'showPalette'
 	| 'openSettings'
 	| 'showHelp'
 	| 'zoomIn'
@@ -38,7 +39,13 @@ export type ShortcutState = {
 
 export const SHORTCUTS: Record<ShortcutAction, ShortcutDefinition> = {
 	openTrace: { key: 'o', displayKey: 'O', label: 'Open trace', group: 'Trace', primary: true },
-	selectSignals: { key: '/', displayKey: '/', label: 'Signal selector', group: 'Trace' },
+	selectSignals: {
+		key: '/',
+		displayKey: '/',
+		label: 'Signal selector',
+		group: 'Trace',
+		primary: true
+	},
 	zoomIn: { key: '+', displayKey: '+', label: 'Zoom in', group: 'View' },
 	zoomOut: { key: '-', displayKey: '-', label: 'Zoom out', group: 'View' },
 	resetZoom: { key: '0', displayKey: '0', label: 'Zoom to full extent', group: 'View' },
@@ -46,7 +53,14 @@ export const SHORTCUTS: Record<ShortcutAction, ShortcutDefinition> = {
 	toggleLegend: { key: 'l', displayKey: 'L', label: 'Show or hide legend', group: 'View' },
 	placeC1: { key: '1', displayKey: '1', label: 'Place or centre C1', group: 'Crosshairs' },
 	placeC2: { key: '2', displayKey: '2', label: 'Place or centre C2', group: 'Crosshairs' },
-	openSettings: { key: ',', displayKey: ',', label: 'Settings', group: 'App' },
+	showPalette: {
+		key: 'k',
+		displayKey: 'K',
+		label: 'Command palette',
+		group: 'App',
+		primary: true
+	},
+	openSettings: { key: ',', displayKey: ',', label: 'Settings', group: 'App', primary: true },
 	showHelp: { key: '?', displayKey: '?', label: 'Help and shortcuts', group: 'App' }
 };
 

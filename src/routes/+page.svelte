@@ -1,6 +1,7 @@
 <script lang="ts">
 	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 	import PlotToolbar from '$lib/components/plot-toolbar.svelte';
+	import CommandPalette from '$lib/components/command-palette.svelte';
 	import HelpDialog from '$lib/components/help-dialog.svelte';
 	import SettingsDialog from '$lib/components/settings-dialog.svelte';
 	import SignalPlot from '$lib/components/signal-plot.svelte';
@@ -24,7 +25,7 @@
 		type LegendCrosshairMode,
 		type PlotCrosshair
 	} from '$lib/plot-crosshair.js';
-	import { dataPointAtRatio } from '$lib/plot-viewport.js';
+	import { dataPointAtRatio, viewportCenter } from '$lib/plot-viewport.js';
 	import type { PlotRatioPoint } from '$lib/plot-geometry.js';
 	import {
 		detectShortcutPlatform,
@@ -33,7 +34,9 @@
 		shortcutFromEvent,
 		shortcutKeys,
 		shortcutSuppressedBySurface,
-		type ShortcutPlatform
+		type ShortcutAction,
+		type ShortcutPlatform,
+		type ShortcutState
 	} from '$lib/keyboard-shortcuts.js';
 	import { dbcFiles } from '$lib/stores/dbc-files.svelte.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
@@ -69,6 +72,7 @@
 	let signalSelectorOpen = $state(false);
 	let settingsOpen = $state(false);
 	let helpOpen = $state(false);
+	let paletteOpen = $state(false);
 	let signalSearchFocusRequest = $state(0);
 	let plotPointerRatio = $state<PlotRatioPoint | null>(null);
 	let shortcutPlatform = $state<ShortcutPlatform>('other');
@@ -76,6 +80,12 @@
 	const plotViewport = new PlotViewportState();
 	const plotControlsDisabled = $derived(!plotData.hasPlottableSignals || traceFile.isLoading);
 	const canResetZoom = $derived(plotData.hasPlottableSignals && !plotViewport.isFitAll);
+	const shortcutState = $derived<ShortcutState>({
+		traceLoading: traceFile.isLoading,
+		plotControlsDisabled,
+		canResetZoom,
+		canPlaceCrosshair: plotViewport.activeViewport !== null
+	});
 	let traceMetadataTitle = $derived(
 		traceFile.entry ? formatTraceMetadata(traceFile.entry) : undefined
 	);
@@ -160,23 +170,23 @@
 		if (overridesBrowserShortcut(action)) event.preventDefault();
 
 		if (shortcutSuppressedBySurface(event.target)) return;
-		if (
-			!shortcutEnabled(action, {
-				traceLoading: traceFile.isLoading,
-				plotControlsDisabled,
-				canResetZoom,
-				canPlaceCrosshair: plotPointerRatio !== null
-			})
-		) {
-			return;
-		}
+		if (!shortcutEnabled(action, shortcutState)) return;
 
+		runShortcut(action);
+		event.preventDefault();
+	}
+
+	/** The one place an action happens, whether it came from a key or the command palette. */
+	function runShortcut(action: ShortcutAction): void {
 		switch (action) {
 			case 'openTrace':
 				traceInput?.click();
 				break;
 			case 'selectSignals':
 				void focusSignalSearch();
+				break;
+			case 'showPalette':
+				openPalette();
 				break;
 			case 'openSettings':
 				handleSignalSelectorOpen(false);
@@ -201,14 +211,12 @@
 				legendVisible = !legendVisible;
 				break;
 			case 'placeC1':
-				placeCrosshairAtPointer(1);
+				placeCrosshair(1);
 				break;
 			case 'placeC2':
-				placeCrosshairAtPointer(2);
+				placeCrosshair(2);
 				break;
 		}
-
-		event.preventDefault();
 	}
 
 	async function focusSignalSearch(): Promise<void> {
@@ -221,12 +229,16 @@
 		signalSearchFocusRequest += 1;
 	}
 
-	function placeCrosshairAtPointer(id: CrosshairId): void {
+	// Falls back to the viewport centre when the pointer is off the plot, which is where the
+	// toolbar already places crosshairs — and the only sensible anchor from the palette.
+	function placeCrosshair(id: CrosshairId): void {
 		const activeViewport = plotViewport.activeViewport;
-		if (activeViewport === null || plotPointerRatio === null) return;
+		if (activeViewport === null) return;
 		crosshairs = setCrosshair(crosshairs, {
 			id,
-			...dataPointAtRatio(activeViewport, plotPointerRatio)
+			...(plotPointerRatio === null
+				? viewportCenter(activeViewport)
+				: dataPointAtRatio(activeViewport, plotPointerRatio))
 		});
 	}
 
@@ -237,6 +249,12 @@
 	function openHelp(): void {
 		settingsOpen = false;
 		helpOpen = true;
+	}
+
+	function openPalette(): void {
+		settingsOpen = false;
+		handleSignalSelectorOpen(false);
+		paletteOpen = true;
 	}
 
 	// The legend's mode select sits under the toolbar, so opening the crosshair menu on top of it
@@ -640,6 +658,13 @@
 			bind:open={helpOpen}
 			{shortcutPlatform}
 			onStartWalkthrough={() => void startWalkthrough()}
+		/>
+
+		<CommandPalette
+			bind:open={paletteOpen}
+			{shortcutPlatform}
+			state={shortcutState}
+			onRun={runShortcut}
 		/>
 	</div>
 {/if}

@@ -40,6 +40,16 @@ describe('keyboard shortcuts', () => {
 	it.each([
 		['/', 'selectSignals'],
 		[',', 'openSettings'],
+		['k', 'showPalette'],
+		['o', 'openTrace']
+	] as const)('matches %s as %s only with the platform modifier', (key, action) => {
+		expect(shortcutFromEvent(keyEvent(key, { metaKey: true }), 'mac')).toBe(action);
+		expect(shortcutFromEvent(keyEvent(key, { ctrlKey: true }), 'other')).toBe(action);
+		expect(shortcutFromEvent(keyEvent(key), 'mac')).toBeNull();
+		expect(shortcutFromEvent(keyEvent(key), 'other')).toBeNull();
+	});
+
+	it.each([
 		['+', 'zoomIn'],
 		['-', 'zoomOut'],
 		['0', 'resetZoom'],
@@ -55,7 +65,13 @@ describe('keyboard shortcuts', () => {
 	it('does not match modified single keys or repeated events', () => {
 		expect(shortcutFromEvent(keyEvent('b', { metaKey: true }), 'mac')).toBeNull();
 		expect(shortcutFromEvent(keyEvent('l', { repeat: true }), 'other')).toBeNull();
-		expect(shortcutFromEvent(keyEvent('/', { defaultPrevented: true }), 'other')).toBeNull();
+		expect(shortcutFromEvent(keyEvent('?', { defaultPrevented: true }), 'other')).toBeNull();
+	});
+
+	// ? is Shift+/ on most layouts, so it shares a keycap with the signal selector.
+	it('separates ? from the signal selector on the same keycap', () => {
+		expect(shortcutFromEvent(keyEvent('?', { shiftKey: true }), 'mac')).toBe('showHelp');
+		expect(shortcutFromEvent(keyEvent('/', { metaKey: true }), 'mac')).toBe('selectSignals');
 	});
 
 	it.each(['input', 'textarea', 'select'])('suppresses shortcuts on %s targets', (tagName) => {
@@ -116,7 +132,7 @@ describe('keyboard shortcuts', () => {
 	it('marks browser-bound chords so they can be claimed when declined', () => {
 		expect(shortcutFromEvent(keyEvent('o', { metaKey: true }), 'mac')).toBe('openTrace');
 		expect(overridesBrowserShortcut('openTrace')).toBe(true);
-		expect(overridesBrowserShortcut('selectSignals')).toBe(false);
+		expect(overridesBrowserShortcut('showHelp')).toBe(false);
 	});
 
 	it('leaves disabled actions unchanged', () => {
@@ -152,8 +168,8 @@ describe('keyboard shortcuts', () => {
 	});
 
 	it('renders unmodified shortcuts as a single key on every platform', () => {
-		expect(shortcutKeys('openSettings', 'mac')).toEqual([',']);
-		expect(shortcutKeys('openSettings', 'other')).toEqual([',']);
+		expect(shortcutKeys('showHelp', 'mac')).toEqual(['?']);
+		expect(shortcutKeys('showHelp', 'other')).toEqual(['?']);
 	});
 
 	it('groups every registered shortcut exactly once for the help dialog', () => {
