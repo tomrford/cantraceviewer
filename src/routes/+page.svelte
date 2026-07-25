@@ -1,6 +1,7 @@
 <script lang="ts">
 	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 	import PlotToolbar from '$lib/components/plot-toolbar.svelte';
+	import HelpDialog from '$lib/components/help-dialog.svelte';
 	import SettingsDialog from '$lib/components/settings-dialog.svelte';
 	import SignalPlot from '$lib/components/signal-plot.svelte';
 	import SignalSelectorDialog from '$lib/components/signal-selector-dialog.svelte';
@@ -27,9 +28,11 @@
 	import type { PlotRatioPoint } from '$lib/plot-geometry.js';
 	import {
 		detectShortcutPlatform,
+		overridesBrowserShortcut,
 		shortcutEnabled,
 		shortcutFromEvent,
 		shortcutKeys,
+		shortcutSuppressedBySurface,
 		type ShortcutPlatform
 	} from '$lib/keyboard-shortcuts.js';
 	import { dbcFiles } from '$lib/stores/dbc-files.svelte.js';
@@ -65,6 +68,7 @@
 	let crosshairMenuOpen = $state(false);
 	let signalSelectorOpen = $state(false);
 	let settingsOpen = $state(false);
+	let helpOpen = $state(false);
 	let signalSearchFocusRequest = $state(0);
 	let plotPointerRatio = $state<PlotRatioPoint | null>(null);
 	let shortcutPlatform = $state<ShortcutPlatform>('other');
@@ -148,7 +152,14 @@
 
 	function handleShortcut(event: KeyboardEvent): void {
 		const action = shortcutFromEvent(event, shortcutPlatform);
-		if (action === null || action === 'cancel') return;
+		if (action === null) return;
+
+		// Claim browser-bound chords as soon as they match. Declining later without this lets the
+		// browser run its own default — Cmd+O opens its file dialog, which downloads any trace it
+		// cannot render instead of loading it.
+		if (overridesBrowserShortcut(action)) event.preventDefault();
+
+		if (shortcutSuppressedBySurface(event.target)) return;
 		if (
 			!shortcutEnabled(action, {
 				traceLoading: traceFile.isLoading,
@@ -170,6 +181,9 @@
 			case 'openSettings':
 				signalSelectorOpen = false;
 				settingsOpen = true;
+				break;
+			case 'showHelp':
+				openHelp();
 				break;
 			case 'zoomIn':
 				plotViewport.zoomBy(0.5);
@@ -215,6 +229,11 @@
 
 	async function startWalkthrough(): Promise<void> {
 		await showWalkthroughStep('trace');
+	}
+
+	function openHelp(): void {
+		settingsOpen = false;
+		helpOpen = true;
 	}
 
 	// The legend's mode select sits under the toolbar, so opening the crosshair menu on top of it
@@ -507,7 +526,7 @@
 							<ShortcutKey keys={shortcutKeys('openSettings', shortcutPlatform)} />
 						</Tooltip.Content>
 					</Tooltip.Root>
-					<SettingsDialog onStartWalkthrough={() => void startWalkthrough()} />
+					<SettingsDialog {shortcutPlatform} onOpenHelp={openHelp} />
 				</Popover.Root>
 			</div>
 		</header>
@@ -613,6 +632,12 @@
 				onAdvance={() => void advanceWalkthrough()}
 			/>
 		{/if}
+
+		<HelpDialog
+			bind:open={helpOpen}
+			{shortcutPlatform}
+			onStartWalkthrough={() => void startWalkthrough()}
+		/>
 	</div>
 {/if}
 

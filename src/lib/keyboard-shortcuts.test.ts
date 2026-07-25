@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
 	detectShortcutPlatform,
+	groupedShortcuts,
 	isEditableShortcutTarget,
+	overridesBrowserShortcut,
 	shortcutEnabled,
 	shortcutFromEvent,
 	shortcutKeys,
+	shortcutSuppressedBySurface,
+	SHORTCUTS,
+	type ShortcutAction,
 	type ShortcutPlatform
 } from './keyboard-shortcuts.js';
 
@@ -20,7 +25,6 @@ function keyEvent(
 		shiftKey: false,
 		repeat: false,
 		defaultPrevented: false,
-		target: null,
 		...overrides
 	};
 }
@@ -43,7 +47,7 @@ describe('keyboard shortcuts', () => {
 		['L', 'toggleLegend'],
 		['1', 'placeC1'],
 		['2', 'placeC2'],
-		['Escape', 'cancel']
+		['?', 'showHelp']
 	] as const)('matches %s as %s', (key, action) => {
 		expect(shortcutFromEvent(keyEvent(key), 'other')).toBe(action);
 	});
@@ -54,10 +58,10 @@ describe('keyboard shortcuts', () => {
 		expect(shortcutFromEvent(keyEvent('/', { defaultPrevented: true }), 'other')).toBeNull();
 	});
 
-	it.each(['input', 'textarea', 'select'])('ignores %s targets', (tagName) => {
+	it.each(['input', 'textarea', 'select'])('suppresses shortcuts on %s targets', (tagName) => {
 		const target = { tagName } as unknown as EventTarget;
 		expect(isEditableShortcutTarget(target)).toBe(true);
-		expect(shortcutFromEvent(keyEvent('b', { target }), 'other')).toBeNull();
+		expect(shortcutSuppressedBySurface(target)).toBe(true);
 	});
 
 	it('allows shortcuts from non-editing input controls', () => {
@@ -66,10 +70,10 @@ describe('keyboard shortcuts', () => {
 			getAttribute: (name: string) => (name === 'type' ? 'checkbox' : null)
 		} as unknown as EventTarget;
 		expect(isEditableShortcutTarget(checkbox)).toBe(false);
-		expect(shortcutFromEvent(keyEvent('b', { target: checkbox }), 'other')).toBe('toggleBoxZoom');
+		expect(shortcutSuppressedBySurface(checkbox)).toBe(false);
 	});
 
-	it('ignores editable descendants and menu surfaces while leaving side panels active', () => {
+	it('suppresses editable descendants and menu surfaces while leaving side panels active', () => {
 		const editable = {
 			tagName: 'span',
 			closest: (selector: string) => (selector.includes('contenteditable') ? {} : null)
@@ -84,10 +88,35 @@ describe('keyboard shortcuts', () => {
 		} as unknown as EventTarget;
 
 		expect(isEditableShortcutTarget(editable)).toBe(true);
-		expect(shortcutFromEvent(keyEvent('l', { target: popoverButton }), 'other')).toBe(
-			'toggleLegend'
-		);
-		expect(shortcutFromEvent(keyEvent('l', { target: menuButton }), 'other')).toBeNull();
+		expect(shortcutSuppressedBySurface(popoverButton)).toBe(false);
+		expect(shortcutSuppressedBySurface(menuButton)).toBe(true);
+	});
+
+	// The walkthrough takes focus but sets aria-modal="false", and its first step asks you to
+	// open a trace — so it must not swallow the shortcut that does exactly that.
+	it('leaves shortcuts active under a non-modal surface', () => {
+		const inWalkthrough = {
+			tagName: 'button',
+			closest: (selector: string) =>
+				selector.includes('role="dialog"') ? { getAttribute: () => 'false' } : null
+		} as unknown as EventTarget;
+		const inModal = {
+			tagName: 'button',
+			closest: (selector: string) =>
+				selector.includes('role="dialog"') ? { getAttribute: () => null } : null
+		} as unknown as EventTarget;
+
+		expect(shortcutSuppressedBySurface(inWalkthrough)).toBe(false);
+		expect(shortcutSuppressedBySurface(inModal)).toBe(true);
+	});
+
+	// Whatever surface is focused, a chord the browser also binds has to stay recognisable so
+	// the page can claim it — Cmd+O otherwise opens the browser's file dialog, which downloads
+	// any trace it cannot render.
+	it('marks browser-bound chords so they can be claimed when declined', () => {
+		expect(shortcutFromEvent(keyEvent('o', { metaKey: true }), 'mac')).toBe('openTrace');
+		expect(overridesBrowserShortcut('openTrace')).toBe(true);
+		expect(overridesBrowserShortcut('selectSignals')).toBe(false);
 	});
 
 	it('leaves disabled actions unchanged', () => {
@@ -125,5 +154,16 @@ describe('keyboard shortcuts', () => {
 	it('renders unmodified shortcuts as a single key on every platform', () => {
 		expect(shortcutKeys('openSettings', 'mac')).toEqual([',']);
 		expect(shortcutKeys('openSettings', 'other')).toEqual([',']);
+	});
+
+	it('groups every registered shortcut exactly once for the help dialog', () => {
+		const grouped = groupedShortcuts().flatMap((entry) => entry.actions);
+		expect(grouped.toSorted()).toEqual((Object.keys(SHORTCUTS) as ShortcutAction[]).toSorted());
+		expect(groupedShortcuts().map((entry) => entry.group)).toEqual([
+			'Trace',
+			'View',
+			'Crosshairs',
+			'App'
+		]);
 	});
 });

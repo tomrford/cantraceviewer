@@ -1,7 +1,8 @@
 <script lang="ts">
-	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import * as Select from '$lib/components/ui/select/index.js';
+	import ShortcutKey from './shortcut-key.svelte';
+	import { shortcutKeys, type ShortcutPlatform } from '$lib/keyboard-shortcuts.js';
 	import {
 		legendOrderMode,
 		themePreference,
@@ -21,8 +22,10 @@
 	import type { Component } from 'svelte';
 	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
 
-	let { onStartWalkthrough }: { onStartWalkthrough: () => void } = $props();
-	let helpOpen = $state(false);
+	let {
+		shortcutPlatform,
+		onOpenHelp
+	}: { shortcutPlatform: ShortcutPlatform; onOpenHelp: () => void } = $props();
 	const iconButtonClass =
 		'flex size-8 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color,box-shadow,scale] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96]';
 	const closeButtonClass =
@@ -67,11 +70,6 @@
 		await onResetPersistentData();
 	}
 
-	function startWalkthrough(): void {
-		helpOpen = false;
-		onStartWalkthrough();
-	}
-
 	function preventOpenAutoFocus(event: Event): void {
 		event.preventDefault();
 	}
@@ -98,13 +96,16 @@
 							type="button"
 							class={iconButtonClass}
 							aria-label="Open help"
-							onclick={() => (helpOpen = true)}
+							onclick={onOpenHelp}
 						>
 							<CircleHelpIcon class="size-4" />
 						</button>
 					{/snippet}
 				</Tooltip.Trigger>
-				<Tooltip.Content sideOffset={6}>Help</Tooltip.Content>
+				<Tooltip.Content sideOffset={6}>
+					Help
+					<ShortcutKey keys={shortcutKeys('showHelp', shortcutPlatform)} />
+				</Tooltip.Content>
 			</Tooltip.Root>
 			<Tooltip.Root>
 				<Tooltip.Trigger>
@@ -202,35 +203,3 @@
 		</button>
 	</div>
 </Popover.Content>
-
-<AlertDialog.Root bind:open={helpOpen}>
-	<AlertDialog.Content>
-		<AlertDialog.Header>
-			<AlertDialog.Title>CAN Trace Viewer</AlertDialog.Title>
-			<AlertDialog.Description class="space-y-2 text-left text-pretty">
-				<p>
-					All files, preferences and saved settings are processed and stored solely in this
-					browser's local storage. Nothing leaves your machine.
-				</p>
-				<p>
-					Load one ASC, TRC, or BLF trace, add one or more DBC files, then select decoded signals
-					from the signal selector.
-				</p>
-				<p>
-					Current support covers CAN trace plotting and a practical subset of DBC, using shared-axis
-					line plots for selected signals.
-				</p>
-				<p>
-					The source code is available on
-					<a href="https://github.com/tomrford/cantraceviewer" target="_blank" rel="noreferrer">
-						GitHub</a
-					>.
-				</p>
-			</AlertDialog.Description>
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel onclick={() => (helpOpen = false)}>Close</AlertDialog.Cancel>
-			<AlertDialog.Action onclick={startWalkthrough}>Show quick tour</AlertDialog.Action>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
