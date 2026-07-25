@@ -7,7 +7,9 @@
 		plotImageFilename,
 		savePlotImage
 	} from '$lib/plot-image-export.js';
-	import type { PlotPoint, PlotViewport } from '$lib/plot-viewport.js';
+	import { panViewport, type PlotPoint, type PlotViewport } from '$lib/plot-viewport.js';
+	import { plotDragMode, plotWheelAction } from '$lib/plot-interaction-policy.js';
+	import { shortcutKeys, type ShortcutPlatform } from '$lib/keyboard-shortcuts.js';
 	import {
 		crosshairById,
 		removeCrosshair,
@@ -31,6 +33,7 @@
 	import PlotCrosshairOverlay from './plot-crosshair.svelte';
 	import * as ContextMenu from '$lib/components/ui/context-menu/index.js';
 	import SignalPlotLegend from './signal-plot-legend.svelte';
+	import ShortcutKey from './shortcut-key.svelte';
 	import { createPlotPerfStats } from '$lib/plot-perf.js';
 	import { isPlottableSignal, plotData } from '$lib/stores/plot-data.svelte.js';
 	import { isDark, timestampMode } from '$lib/stores/preferences.svelte.js';
@@ -55,7 +58,10 @@
 		legendCrosshairMode = $bindable<LegendCrosshairMode>('c1'),
 		boxZoomEnabled = $bindable(false),
 		legendVisible = $bindable(true),
+		legendSelectOpen = $bindable(false),
+		pointerRatio = $bindable<PlotRatioPoint | null>(null), // eslint-disable-line no-useless-assignment
 		viewport,
+		shortcutPlatform,
 		class: className,
 		...restProps
 	}: HTMLAttributes<HTMLElement> & {
@@ -64,7 +70,10 @@
 		legendCrosshairMode?: LegendCrosshairMode;
 		boxZoomEnabled?: boolean;
 		legendVisible?: boolean;
+		legendSelectOpen?: boolean;
+		pointerRatio?: PlotRatioPoint | null;
 		viewport: PlotViewportState;
+		shortcutPlatform: ShortcutPlatform;
 	} = $props();
 	let plotRoot: HTMLElement;
 	let container: HTMLDivElement;
@@ -73,7 +82,12 @@
 	let contextMenuPoint = $state<PlotPoint | null>(null);
 	let contextMenuCrosshairId = $state<CrosshairId | null>(null);
 	let imageExportBusy = $state(false);
-	let legendSelectOpen = $state(false);
+	let middleDrag = $state<{
+		pointerId: number;
+		clientX: number;
+		clientY: number;
+		startViewport: PlotViewport;
+	} | null>(null);
 	let resizeObserver: ResizeObserver | null = null;
 
 	const PLOT_GRID = { left: 64, right: 24, top: 18, bottom: 44 };
@@ -310,31 +324,82 @@
 	}
 
 	function handlePlotWheel(event: WheelEvent) {
-		if (
-			activeViewport === null ||
-			!(event.target instanceof Element) ||
-			!event.target.closest('[data-plot-wheel-target]')
-		)
-			return;
+		if (activeViewport === null || !isPlotInteractionTarget(event.target)) return;
 		const point = currentPlotRatio(event);
 		if (point === null) return;
 
 		const plotSize = currentPlotSize();
 		const delta = normalizedWheelDelta(event, plotSize.height);
-		if (delta.x === 0 && delta.y === 0) return;
+		const action = plotWheelAction(delta, { shift: event.shiftKey, alt: event.altKey });
+		if (action === null) return;
 
-		if (Math.abs(delta.x) > Math.abs(delta.y) && !event.shiftKey && !event.altKey) {
-			event.preventDefault();
-			viewport.panBy({ x: -delta.x, y: 0 }, plotSize);
+		event.preventDefault();
+		if (action.type === 'pan-x') {
+			viewport.panBy({ x: action.deltaX, y: 0 }, plotSize);
+			return;
+		}
+
+		const factor = Math.exp(Math.min(200, Math.max(-200, action.delta)) * WHEEL_ZOOM_SPEED);
+		viewport.zoomBy(factor, point, action.axes);
+	}
+
+	function startMiddleDrag(event: PointerEvent): void {
+		if (
+			event.button !== 1 ||
+			plotDragMode(event.button, boxZoomEnabled) !== 'pan' ||
+			activeViewport === null ||
+			!isPlotInteractionTarget(event.target)
+		) {
 			return;
 		}
 
 		event.preventDefault();
-		const factor = Math.exp(Math.min(200, Math.max(-200, delta.y)) * WHEEL_ZOOM_SPEED);
-		viewport.zoomBy(factor, point, {
-			x: !event.altKey,
-			y: !event.shiftKey
-		});
+		event.stopPropagation();
+		const target = event.currentTarget as HTMLElement;
+		target.setPointerCapture(event.pointerId);
+		middleDrag = {
+			pointerId: event.pointerId,
+			clientX: event.clientX,
+			clientY: event.clientY,
+			startViewport: activeViewport
+		};
+	}
+
+	function dragMiddle(event: PointerEvent): void {
+		if (middleDrag === null || middleDrag.pointerId !== event.pointerId) return;
+		event.preventDefault();
+		viewport.setManual(
+			panViewport(
+				middleDrag.startViewport,
+				{
+					x: event.clientX - middleDrag.clientX,
+					y: event.clientY - middleDrag.clientY
+				},
+				currentPlotSize()
+			)
+		);
+	}
+
+	function stopMiddleDrag(event: PointerEvent): void {
+		if (middleDrag === null || middleDrag.pointerId !== event.pointerId) return;
+		middleDrag = null;
+		const target = event.currentTarget as HTMLElement;
+		if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
+	}
+
+	function preventMiddleAutoscroll(event: MouseEvent): void {
+		if (event.button === 1 && isPlotInteractionTarget(event.target)) event.preventDefault();
+	}
+
+	function trackPlotPointer(event: PointerEvent): void {
+		pointerRatio = isPlotInteractionTarget(event.target) ? currentPlotRatio(event) : null;
+	}
+
+	function isPlotInteractionTarget(target: EventTarget | null): boolean {
+		return (
+			target instanceof Element &&
+			(container.contains(target) || target.closest('[data-plot-wheel-target]') !== null)
+		);
 	}
 
 	function currentPlotRatio(event: Pick<WheelEvent, 'clientX' | 'clientY'>): PlotRatioPoint | null {
@@ -369,6 +434,13 @@
 	]}
 	{...restProps}
 	onwheel={handlePlotWheel}
+	onpointerdowncapture={startMiddleDrag}
+	onpointermovecapture={trackPlotPointer}
+	onpointermove={dragMiddle}
+	onpointerup={stopMiddleDrag}
+	onpointercancel={stopMiddleDrag}
+	onauxclick={preventMiddleAutoscroll}
+	onpointerleave={() => (pointerRatio = null)}
 >
 	{#if dropActive}
 		<div
@@ -406,14 +478,23 @@
 				<ContextMenu.Item onSelect={() => zoomBy(0.5)}>
 					<PlusIcon />
 					Zoom in
+					<ContextMenu.Shortcut>
+						<ShortcutKey keys={shortcutKeys('zoomIn', shortcutPlatform)} />
+					</ContextMenu.Shortcut>
 				</ContextMenu.Item>
 				<ContextMenu.Item onSelect={() => zoomBy(2)}>
 					<MinusIcon />
 					Zoom out
+					<ContextMenu.Shortcut>
+						<ShortcutKey keys={shortcutKeys('zoomOut', shortcutPlatform)} />
+					</ContextMenu.Shortcut>
 				</ContextMenu.Item>
 				<ContextMenu.Item disabled={isFitAll} onSelect={resetZoom}>
 					<ExpandIcon />
 					Zoom to full extent
+					<ContextMenu.Shortcut>
+						<ShortcutKey keys={shortcutKeys('resetZoom', shortcutPlatform)} />
+					</ContextMenu.Shortcut>
 				</ContextMenu.Item>
 				<ContextMenu.Separator />
 				<ContextMenu.Sub>
@@ -428,6 +509,9 @@
 						>
 							<CrosshairIcon />
 							Place C1
+							<ContextMenu.Shortcut>
+								<ShortcutKey keys={shortcutKeys('placeC1', shortcutPlatform)} />
+							</ContextMenu.Shortcut>
 						</ContextMenu.Item>
 						<ContextMenu.Item
 							disabled={contextMenuPoint === null}
@@ -435,6 +519,9 @@
 						>
 							<CrosshairIcon />
 							Place C2
+							<ContextMenu.Shortcut>
+								<ShortcutKey keys={shortcutKeys('placeC2', shortcutPlatform)} />
+							</ContextMenu.Shortcut>
 						</ContextMenu.Item>
 						<ContextMenu.Item disabled={crosshairs.length === 0} onSelect={() => (crosshairs = [])}>
 							<XIcon />
@@ -451,6 +538,9 @@
 				<ContextMenu.Item onSelect={toggleBoxZoom}>
 					<BoxSelectIcon />
 					{boxZoomEnabled ? 'Use drag pan' : 'Use box zoom'}
+					<ContextMenu.Shortcut>
+						<ShortcutKey keys={shortcutKeys('toggleBoxZoom', shortcutPlatform)} />
+					</ContextMenu.Shortcut>
 				</ContextMenu.Item>
 				<ContextMenu.Separator />
 				<ContextMenu.Item

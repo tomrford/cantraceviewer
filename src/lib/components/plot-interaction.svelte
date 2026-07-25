@@ -8,6 +8,7 @@
 		type PlotViewport
 	} from '$lib/plot-viewport.js';
 	import { PlotViewportState } from '$lib/plot-viewport-state.svelte.js';
+	import { plotDragMode } from '$lib/plot-interaction-policy.js';
 
 	let {
 		viewport,
@@ -53,21 +54,23 @@
 	function startPlotDrag(event: PointerEvent) {
 		if (suspended) return;
 		const activeViewport = viewport.activeViewport;
-		if (activeViewport === null || event.button !== 0) return;
+		const mode = plotDragMode(event.button, boxZoomEnabled);
+		if (activeViewport === null || event.button !== 0 || mode === null) return;
 		const point = currentPlotRatio(event);
 		if (point === null) return;
 		event.preventDefault();
 		(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
 
-		dragState = boxZoomEnabled
-			? { type: 'box', pointerId: event.pointerId, start: point, current: point }
-			: {
-					type: 'pan',
-					pointerId: event.pointerId,
-					clientX: event.clientX,
-					clientY: event.clientY,
-					startViewport: activeViewport
-				};
+		dragState =
+			mode === 'box'
+				? { type: 'box', pointerId: event.pointerId, start: point, current: point }
+				: {
+						type: 'pan',
+						pointerId: event.pointerId,
+						clientX: event.clientX,
+						clientY: event.clientY,
+						startViewport: activeViewport
+					};
 	}
 
 	function dragPlot(event: PointerEvent) {
@@ -117,6 +120,7 @@
 	function cancelBoxZoom(event: KeyboardEvent) {
 		if (event.key !== 'Escape' || dragState?.type !== 'box') return;
 		event.preventDefault();
+		event.stopImmediatePropagation();
 		cancelPlotDrag();
 	}
 
@@ -140,19 +144,20 @@
 		event: Pick<PointerEvent, 'clientX' | 'clientY'>
 	): PlotRatioPoint | null {
 		const rect = overlay.getBoundingClientRect();
-		if (!(rect.width > 0) || !(rect.height > 0)) return null;
+		const size = currentPlotSize();
+		if (!(size.width > 0) || !(size.height > 0)) return null;
 
 		return {
-			xRatio: clamp((event.clientX - rect.left) / rect.width, 0, 1),
-			yRatio: clamp((event.clientY - rect.top) / rect.height, 0, 1)
+			xRatio: clamp((event.clientX - rect.left - grid.left) / size.width, 0, 1),
+			yRatio: clamp((event.clientY - rect.top - grid.top) / size.height, 0, 1)
 		};
 	}
 
 	function currentPlotSize(): { width: number; height: number } {
 		const rect = overlay.getBoundingClientRect();
 		return {
-			width: rect.width,
-			height: rect.height
+			width: rect.width - grid.left - grid.right,
+			height: rect.height - grid.top - grid.bottom
 		};
 	}
 
@@ -160,6 +165,8 @@
 		return Math.min(max, Math.max(min, value));
 	}
 </script>
+
+<svelte:window onkeydowncapture={cancelBoxZoom} />
 
 <button
 	bind:this={overlay}
@@ -172,10 +179,7 @@
 				? 'cursor-grabbing'
 				: 'cursor-grab'
 	}`}
-	style:top={`${grid.top}px`}
-	style:bottom={`${grid.bottom}px`}
-	style:left={`${grid.left}px`}
-	style:right={`${grid.right}px`}
+	style:inset="0"
 	aria-label="Plot viewport interaction"
 	data-plot-wheel-target
 	oncontextmenu={handleContextMenu}
@@ -187,11 +191,19 @@
 >
 	{#if dragState?.type === 'box'}
 		<div
-			class="absolute border border-current bg-current/10 text-foreground"
-			style:left={`${Math.min(dragState.start.xRatio, dragState.current.xRatio) * 100}%`}
-			style:top={`${Math.min(dragState.start.yRatio, dragState.current.yRatio) * 100}%`}
-			style:width={`${Math.abs(dragState.current.xRatio - dragState.start.xRatio) * 100}%`}
-			style:height={`${Math.abs(dragState.current.yRatio - dragState.start.yRatio) * 100}%`}
-		></div>
+			class="pointer-events-none absolute"
+			style:top={`${grid.top}px`}
+			style:bottom={`${grid.bottom}px`}
+			style:left={`${grid.left}px`}
+			style:right={`${grid.right}px`}
+		>
+			<div
+				class="absolute border border-current bg-current/10 text-foreground"
+				style:left={`${Math.min(dragState.start.xRatio, dragState.current.xRatio) * 100}%`}
+				style:top={`${Math.min(dragState.start.yRatio, dragState.current.yRatio) * 100}%`}
+				style:width={`${Math.abs(dragState.current.xRatio - dragState.start.xRatio) * 100}%`}
+				style:height={`${Math.abs(dragState.current.yRatio - dragState.start.yRatio) * 100}%`}
+			></div>
+		</div>
 	{/if}
 </button>

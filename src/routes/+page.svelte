@@ -1,9 +1,13 @@
 <script lang="ts">
 	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 	import PlotToolbar from '$lib/components/plot-toolbar.svelte';
+	import CommandPalette from '$lib/components/command-palette.svelte';
+	import HelpDialog from '$lib/components/help-dialog.svelte';
 	import SettingsDialog from '$lib/components/settings-dialog.svelte';
 	import SignalPlot from '$lib/components/signal-plot.svelte';
 	import SignalSelectorDialog from '$lib/components/signal-selector-dialog.svelte';
+	import ShortcutKey from '$lib/components/shortcut-key.svelte';
+	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
 	import Walkthrough from '$lib/components/walkthrough.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Empty from '$lib/components/ui/empty/index.js';
@@ -15,7 +19,25 @@
 	} from '$lib/file-drop.js';
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import { PlotViewportState } from '$lib/plot-viewport-state.svelte.js';
-	import type { LegendCrosshairMode, PlotCrosshair } from '$lib/plot-crosshair.js';
+	import {
+		setCrosshair,
+		type CrosshairId,
+		type LegendCrosshairMode,
+		type PlotCrosshair
+	} from '$lib/plot-crosshair.js';
+	import { dataPointAtRatio, viewportCenter } from '$lib/plot-viewport.js';
+	import type { PlotRatioPoint } from '$lib/plot-geometry.js';
+	import {
+		detectShortcutPlatform,
+		overridesBrowserShortcut,
+		shortcutEnabled,
+		shortcutFromEvent,
+		shortcutKeys,
+		shortcutSuppressedBySurface,
+		type ShortcutAction,
+		type ShortcutPlatform,
+		type ShortcutState
+	} from '$lib/keyboard-shortcuts.js';
 	import { dbcFiles } from '$lib/stores/dbc-files.svelte.js';
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
 	import { onTraceOpened } from '$lib/stores/session.js';
@@ -45,12 +67,25 @@
 	let legendCrosshairMode = $state<LegendCrosshairMode>('c1');
 	let boxZoomEnabled = $state(false);
 	let legendVisible = $state(true);
+	let legendSelectOpen = $state(false);
+	let crosshairMenuOpen = $state(false);
 	let signalSelectorOpen = $state(false);
 	let settingsOpen = $state(false);
+	let helpOpen = $state(false);
+	let paletteOpen = $state(false);
+	let signalSearchFocusRequest = $state(0);
+	let plotPointerRatio = $state<PlotRatioPoint | null>(null);
+	let shortcutPlatform = $state<ShortcutPlatform>('other');
 	let walkthroughStepId = $state<WalkthroughStep['id'] | null>(null);
 	const plotViewport = new PlotViewportState();
 	const plotControlsDisabled = $derived(!plotData.hasPlottableSignals || traceFile.isLoading);
 	const canResetZoom = $derived(plotData.hasPlottableSignals && !plotViewport.isFitAll);
+	const shortcutState = $derived<ShortcutState>({
+		traceLoading: traceFile.isLoading,
+		plotControlsDisabled,
+		canResetZoom,
+		canPlaceCrosshair: plotViewport.activeViewport !== null
+	});
 	let traceMetadataTitle = $derived(
 		traceFile.entry ? formatTraceMetadata(traceFile.entry) : undefined
 	);
@@ -121,11 +156,112 @@
 
 	onMount(() => {
 		webgpuSupported = 'gpu' in navigator;
+		shortcutPlatform = detectShortcutPlatform();
 		void dbcFiles.loadLibrary();
 	});
 
+	function handleShortcut(event: KeyboardEvent): void {
+		const action = shortcutFromEvent(event, shortcutPlatform);
+		if (action === null) return;
+
+		// Claim browser-bound chords as soon as they match. Declining later without this lets the
+		// browser run its own default — Cmd+O opens its file dialog, which downloads any trace it
+		// cannot render instead of loading it.
+		if (overridesBrowserShortcut(action)) event.preventDefault();
+
+		if (shortcutSuppressedBySurface(event.target)) return;
+		if (!shortcutEnabled(action, shortcutState)) return;
+
+		runShortcut(action);
+		event.preventDefault();
+	}
+
+	/** The one place an action happens, whether it came from a key or the command palette. */
+	function runShortcut(action: ShortcutAction): void {
+		switch (action) {
+			case 'openTrace':
+				traceInput?.click();
+				break;
+			case 'selectSignals':
+				void focusSignalSearch();
+				break;
+			case 'showPalette':
+				openPalette();
+				break;
+			case 'openSettings':
+				handleSignalSelectorOpen(false);
+				settingsOpen = true;
+				break;
+			case 'showHelp':
+				openHelp();
+				break;
+			case 'zoomIn':
+				plotViewport.zoomBy(0.5);
+				break;
+			case 'zoomOut':
+				plotViewport.zoomBy(2);
+				break;
+			case 'resetZoom':
+				plotViewport.reset();
+				break;
+			case 'toggleBoxZoom':
+				boxZoomEnabled = !boxZoomEnabled;
+				break;
+			case 'toggleLegend':
+				legendVisible = !legendVisible;
+				break;
+			case 'placeC1':
+				placeCrosshair(1);
+				break;
+			case 'placeC2':
+				placeCrosshair(2);
+				break;
+		}
+	}
+
+	async function focusSignalSearch(): Promise<void> {
+		settingsOpen = false;
+		// Route through the open handler rather than assigning: it is the setter half of the
+		// popover's binding, so opening by shortcut has to run it to stay indistinguishable
+		// from opening by click — the walkthrough advances from there.
+		handleSignalSelectorOpen(true);
+		await tick();
+		signalSearchFocusRequest += 1;
+	}
+
+	// Falls back to the viewport centre when the pointer is off the plot, which is where the
+	// toolbar already places crosshairs — and the only sensible anchor from the palette.
+	function placeCrosshair(id: CrosshairId): void {
+		const activeViewport = plotViewport.activeViewport;
+		if (activeViewport === null) return;
+		crosshairs = setCrosshair(crosshairs, {
+			id,
+			...(plotPointerRatio === null
+				? viewportCenter(activeViewport)
+				: dataPointAtRatio(activeViewport, plotPointerRatio))
+		});
+	}
+
 	async function startWalkthrough(): Promise<void> {
 		await showWalkthroughStep('trace');
+	}
+
+	function openHelp(): void {
+		settingsOpen = false;
+		helpOpen = true;
+	}
+
+	function openPalette(): void {
+		settingsOpen = false;
+		handleSignalSelectorOpen(false);
+		paletteOpen = true;
+	}
+
+	// The legend's mode select sits under the toolbar, so opening the crosshair menu on top of it
+	// would leave two overlapping menus.
+	function handleCrosshairMenuOpen(open: boolean): void {
+		crosshairMenuOpen = open;
+		if (open) legendSelectOpen = false;
 	}
 
 	function handleSignalSelectorOpen(open: boolean): void {
@@ -241,6 +377,8 @@
 	}
 </script>
 
+<svelte:window onkeydown={handleShortcut} />
+
 <svelte:head>
 	<title>{browserTitle}</title>
 	<meta name="description" content={siteDescription} />
@@ -301,42 +439,73 @@
 		>
 			<div class="flex items-center">
 				<Popover.Root bind:open={() => signalSelectorOpen, handleSignalSelectorOpen}>
-					<Popover.Trigger
-						class={squircleButtonClass}
-						data-walkthrough-target="signal-selector"
-						aria-label="Open signal selector"
-						title="Signal selector"
-					>
-						<DatabaseIcon class="size-4" />
-					</Popover.Trigger>
-					<SignalSelectorDialog onDbcAdded={handleDbcAdded} onSignalToggle={handleSignalToggle} />
+					<Tooltip.Root>
+						<Tooltip.Trigger>
+							{#snippet child({ props })}
+								<Popover.Trigger
+									{...props}
+									class={squircleButtonClass}
+									data-walkthrough-target="signal-selector"
+									aria-label="Open signal selector"
+								>
+									<DatabaseIcon class="size-4" />
+								</Popover.Trigger>
+							{/snippet}
+						</Tooltip.Trigger>
+						<Tooltip.Content sideOffset={6}>
+							Signal selector
+							<ShortcutKey keys={shortcutKeys('selectSignals', shortcutPlatform)} />
+						</Tooltip.Content>
+					</Tooltip.Root>
+					<SignalSelectorDialog
+						focusSearchRequest={signalSearchFocusRequest}
+						onDbcAdded={handleDbcAdded}
+						onSignalToggle={handleSignalToggle}
+					/>
 				</Popover.Root>
 			</div>
 
 			<div
 				class="pointer-events-none flex min-w-0 flex-1 items-center justify-center lg:absolute lg:inset-0 lg:px-20"
 			>
-				<button
-					type="button"
-					class="{titleButtonClass} pointer-events-auto w-full lg:w-auto"
-					data-walkthrough-target="trace"
-					disabled={traceFile.isLoading}
-					aria-label={traceFile.isLoading ? 'Loading trace' : 'Load trace'}
-					title={traceMetadataTitle ?? (traceFile.isLoading ? 'Loading trace' : 'Load trace')}
-					onclick={() => traceInput?.click()}
-				>
-					<AudioWaveformIcon class="size-4 shrink-0 text-sidebar-primary" />
-					<span class="min-w-0 truncate text-sm font-medium" title={traceMetadataTitle}
-						>{traceFile.displayName}</span
-					>
-					{#if traceFile.isLoading}
-						<LoaderCircleIcon
-							class="size-4 shrink-0 animate-spin text-muted-foreground"
-							aria-hidden="true"
-						/>
-						<span class="sr-only">Loading trace</span>
-					{/if}
-				</button>
+				<Tooltip.Root>
+					<Tooltip.Trigger>
+						{#snippet child({ props })}
+							<button
+								{...props}
+								type="button"
+								class="{titleButtonClass} pointer-events-auto w-full lg:w-auto"
+								data-walkthrough-target="trace"
+								disabled={traceFile.isLoading}
+								aria-label={traceFile.isLoading ? 'Loading trace' : 'Load trace'}
+								onclick={() => traceInput?.click()}
+							>
+								<AudioWaveformIcon class="size-4 shrink-0 text-sidebar-primary" />
+								<span class="min-w-0 truncate text-sm font-medium">{traceFile.displayName}</span>
+								{#if traceFile.isLoading}
+									<LoaderCircleIcon
+										class="size-4 shrink-0 animate-spin text-muted-foreground"
+										aria-hidden="true"
+									/>
+									<span class="sr-only">Loading trace</span>
+								{/if}
+							</button>
+						{/snippet}
+					</Tooltip.Trigger>
+					<!-- Action and shortcut share one row so the chip always has a single-line partner;
+					     trace details sit underneath as secondary text. -->
+					<Tooltip.Content sideOffset={6} class="flex-col items-stretch gap-1 pr-3">
+						<span class="flex items-center gap-3">
+							{traceFile.isLoading ? 'Loading trace' : 'Open trace'}
+							{#if !traceFile.isLoading}
+								<ShortcutKey keys={shortcutKeys('openTrace', shortcutPlatform)} class="ml-auto" />
+							{/if}
+						</span>
+						{#if traceMetadataTitle}
+							<span class="whitespace-pre-line text-muted-foreground">{traceMetadataTitle}</span>
+						{/if}
+					</Tooltip.Content>
+				</Tooltip.Root>
 			</div>
 
 			<input
@@ -356,17 +525,29 @@
 						viewport={plotViewport.activeViewport}
 						bind:boxZoomEnabled
 						bind:crosshairs
+						bind:crosshairMenuOpen={() => crosshairMenuOpen, handleCrosshairMenuOpen}
 						bind:legendVisible
+						{shortcutPlatform}
 						onZoomIn={() => plotViewport.zoomBy(0.5)}
 						onZoomOut={() => plotViewport.zoomBy(2)}
 						onResetZoom={() => plotViewport.reset()}
 					/>
 				</div>
 				<Popover.Root bind:open={settingsOpen}>
-					<Popover.Trigger class={squircleButtonClass} aria-label="Open settings" title="Settings">
-						<CogIcon class="size-4" />
-					</Popover.Trigger>
-					<SettingsDialog onStartWalkthrough={() => void startWalkthrough()} />
+					<Tooltip.Root>
+						<Tooltip.Trigger>
+							{#snippet child({ props })}
+								<Popover.Trigger {...props} class={squircleButtonClass} aria-label="Open settings">
+									<CogIcon class="size-4" />
+								</Popover.Trigger>
+							{/snippet}
+						</Tooltip.Trigger>
+						<Tooltip.Content sideOffset={6}>
+							Settings
+							<ShortcutKey keys={shortcutKeys('openSettings', shortcutPlatform)} />
+						</Tooltip.Content>
+					</Tooltip.Root>
+					<SettingsDialog {shortcutPlatform} onOpenHelp={openHelp} />
 				</Popover.Root>
 			</div>
 		</header>
@@ -377,6 +558,9 @@
 				bind:legendCrosshairMode
 				bind:boxZoomEnabled
 				bind:legendVisible
+				bind:legendSelectOpen
+				bind:pointerRatio={plotPointerRatio}
+				{shortcutPlatform}
 				dropActive={traceDropActive}
 				ondragenter={handleTraceDrag}
 				ondragover={handleTraceDrag}
@@ -469,6 +653,19 @@
 				onAdvance={() => void advanceWalkthrough()}
 			/>
 		{/if}
+
+		<HelpDialog
+			bind:open={helpOpen}
+			{shortcutPlatform}
+			onStartWalkthrough={() => void startWalkthrough()}
+		/>
+
+		<CommandPalette
+			bind:open={paletteOpen}
+			{shortcutPlatform}
+			state={shortcutState}
+			onRun={runShortcut}
+		/>
 	</div>
 {/if}
 
