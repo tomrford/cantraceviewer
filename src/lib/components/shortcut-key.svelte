@@ -3,19 +3,25 @@
 	import type { HTMLAttributes } from 'svelte/elements';
 
 	let {
-		shortcut,
+		keys,
 		class: className,
 		...restProps
-	}: HTMLAttributes<HTMLElement> & { shortcut: string } = $props();
+	}: HTMLAttributes<HTMLElement> & { keys: string[] } = $props();
 </script>
 
-<kbd
-	data-slot="kbd"
-	class={cn(
-		'inline-flex h-5 min-w-5 items-center justify-center rounded-[4px] border border-border/80 bg-muted/80 px-1.5 font-mono text-[0.625rem] leading-none font-medium tracking-normal text-muted-foreground shadow-[inset_0_-1px_0_color-mix(in_oklab,var(--border)_80%,transparent)]',
-		className
-	)}
+<!-- Chips derive their colours from currentColor so they read correctly on both normal and
+     inverted surfaces (tooltips) without needing a per-surface variant. -->
+<span
+	data-slot="kbd-group"
+	class={cn('relative inline-flex shrink-0 items-center gap-0.5', className)}
 	{...restProps}
 >
-	{shortcut}
-</kbd>
+	{#each keys as key (key)}
+		<kbd
+			data-slot="kbd"
+			class="inline-flex h-4 min-w-4 items-center justify-center rounded-[4px] bg-current/12 px-1 font-mono text-[0.625rem] leading-none font-medium tracking-normal text-current"
+		>
+			{key}
+		</kbd>
+	{/each}
+</span>

@@ -4,7 +4,7 @@ import {
 	isEditableShortcutTarget,
 	shortcutEnabled,
 	shortcutFromEvent,
-	shortcutLabel,
+	shortcutKeys,
 	type ShortcutPlatform
 } from './keyboard-shortcuts.js';
 
@@ -28,13 +28,14 @@ function keyEvent(
 describe('keyboard shortcuts', () => {
 	it('matches primary shortcuts for the current platform only', () => {
 		expect(shortcutFromEvent(keyEvent('o', { metaKey: true }), 'mac')).toBe('openTrace');
-		expect(shortcutFromEvent(keyEvent(',', { ctrlKey: true }), 'other')).toBe('openSettings');
+		expect(shortcutFromEvent(keyEvent('o', { ctrlKey: true }), 'other')).toBe('openTrace');
 		expect(shortcutFromEvent(keyEvent('o', { ctrlKey: true }), 'mac')).toBeNull();
 		expect(shortcutFromEvent(keyEvent('o', { metaKey: true }), 'other')).toBeNull();
 	});
 
 	it.each([
 		['/', 'selectSignals'],
+		[',', 'openSettings'],
 		['+', 'zoomIn'],
 		['-', 'zoomOut'],
 		['0', 'resetZoom'],
@@ -113,11 +114,16 @@ describe('keyboard shortcuts', () => {
 		expect(shortcutEnabled('placeC2', { ...state, canPlaceCrosshair: true })).toBe(true);
 	});
 
-	it.each<[string, ShortcutPlatform, string]>([
-		['MacIntel', 'mac', 'Cmd+O'],
-		['Win32', 'other', 'Ctrl+O']
-	])('formats %s shortcuts for the platform', (platformName, platform, expected) => {
+	it.each<[string, ShortcutPlatform, string[]]>([
+		['MacIntel', 'mac', ['⌘', 'O']],
+		['Win32', 'other', ['Ctrl', 'O']]
+	])('splits %s shortcuts into platform keys', (platformName, platform, expected) => {
 		expect(detectShortcutPlatform(platformName)).toBe(platform);
-		expect(shortcutLabel('openTrace', platform)).toBe(expected);
+		expect(shortcutKeys('openTrace', platform)).toEqual(expected);
+	});
+
+	it('renders unmodified shortcuts as a single key on every platform', () => {
+		expect(shortcutKeys('openSettings', 'mac')).toEqual([',']);
+		expect(shortcutKeys('openSettings', 'other')).toEqual([',']);
 	});
 });

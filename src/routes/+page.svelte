@@ -29,7 +29,7 @@
 		detectShortcutPlatform,
 		shortcutEnabled,
 		shortcutFromEvent,
-		shortcutLabel,
+		shortcutKeys,
 		type ShortcutPlatform
 	} from '$lib/keyboard-shortcuts.js';
 	import { dbcFiles } from '$lib/stores/dbc-files.svelte.js';
@@ -61,6 +61,8 @@
 	let legendCrosshairMode = $state<LegendCrosshairMode>('c1');
 	let boxZoomEnabled = $state(false);
 	let legendVisible = $state(true);
+	let legendSelectOpen = $state(false);
+	let crosshairMenuOpen = $state(false);
 	let signalSelectorOpen = $state(false);
 	let settingsOpen = $state(false);
 	let signalSearchFocusRequest = $state(0);
@@ -216,6 +218,13 @@
 
 	async function startWalkthrough(): Promise<void> {
 		await showWalkthroughStep('trace');
+	}
+
+	// The legend's mode select sits under the toolbar, so opening the crosshair menu on top of it
+	// would leave two overlapping menus.
+	function handleCrosshairMenuOpen(open: boolean): void {
+		crosshairMenuOpen = open;
+		if (open) legendSelectOpen = false;
 	}
 
 	function handleSignalSelectorOpen(open: boolean): void {
@@ -408,7 +417,7 @@
 						</Tooltip.Trigger>
 						<Tooltip.Content sideOffset={6}>
 							Signal selector
-							<ShortcutKey shortcut={shortcutLabel('selectSignals', shortcutPlatform)} />
+							<ShortcutKey keys={shortcutKeys('selectSignals', shortcutPlatform)} />
 						</Tooltip.Content>
 					</Tooltip.Root>
 					<SignalSelectorDialog
@@ -449,7 +458,7 @@
 					<Tooltip.Content sideOffset={6}>
 						<span class="whitespace-pre-line">{traceTooltipLabel}</span>
 						{#if !traceFile.isLoading}
-							<ShortcutKey shortcut={shortcutLabel('openTrace', shortcutPlatform)} />
+							<ShortcutKey keys={shortcutKeys('openTrace', shortcutPlatform)} />
 						{/if}
 					</Tooltip.Content>
 				</Tooltip.Root>
@@ -472,6 +481,7 @@
 						viewport={plotViewport.activeViewport}
 						bind:boxZoomEnabled
 						bind:crosshairs
+						bind:crosshairMenuOpen={() => crosshairMenuOpen, handleCrosshairMenuOpen}
 						bind:legendVisible
 						{shortcutPlatform}
 						onZoomIn={() => plotViewport.zoomBy(0.5)}
@@ -490,7 +500,7 @@
 						</Tooltip.Trigger>
 						<Tooltip.Content sideOffset={6}>
 							Settings
-							<ShortcutKey shortcut={shortcutLabel('openSettings', shortcutPlatform)} />
+							<ShortcutKey keys={shortcutKeys('openSettings', shortcutPlatform)} />
 						</Tooltip.Content>
 					</Tooltip.Root>
 					<SettingsDialog onStartWalkthrough={() => void startWalkthrough()} />
@@ -504,6 +514,7 @@
 				bind:legendCrosshairMode
 				bind:boxZoomEnabled
 				bind:legendVisible
+				bind:legendSelectOpen
 				bind:pointerRatio={plotPointerRatio}
 				{shortcutPlatform}
 				dropActive={traceDropActive}

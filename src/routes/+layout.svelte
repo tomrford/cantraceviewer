@@ -13,7 +13,7 @@
 	});
 </script>
 
-<Tooltip.Provider>
+<Tooltip.Provider delayDuration={500}>
 	{@render children()}
 </Tooltip.Provider>
 <Toaster position="bottom-center" />

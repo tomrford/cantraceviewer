@@ -9,7 +9,7 @@
 	} from '$lib/plot-image-export.js';
 	import { panViewport, type PlotPoint, type PlotViewport } from '$lib/plot-viewport.js';
 	import { plotDragMode, plotWheelAction } from '$lib/plot-interaction-policy.js';
-	import { shortcutLabel, type ShortcutPlatform } from '$lib/keyboard-shortcuts.js';
+	import { shortcutKeys, type ShortcutPlatform } from '$lib/keyboard-shortcuts.js';
 	import {
 		crosshairById,
 		removeCrosshair,
@@ -58,6 +58,7 @@
 		legendCrosshairMode = $bindable<LegendCrosshairMode>('c1'),
 		boxZoomEnabled = $bindable(false),
 		legendVisible = $bindable(true),
+		legendSelectOpen = $bindable(false),
 		pointerRatio = $bindable<PlotRatioPoint | null>(null), // eslint-disable-line no-useless-assignment
 		viewport,
 		shortcutPlatform,
@@ -69,6 +70,7 @@
 		legendCrosshairMode?: LegendCrosshairMode;
 		boxZoomEnabled?: boolean;
 		legendVisible?: boolean;
+		legendSelectOpen?: boolean;
 		pointerRatio?: PlotRatioPoint | null;
 		viewport: PlotViewportState;
 		shortcutPlatform: ShortcutPlatform;
@@ -80,7 +82,6 @@
 	let contextMenuPoint = $state<PlotPoint | null>(null);
 	let contextMenuCrosshairId = $state<CrosshairId | null>(null);
 	let imageExportBusy = $state(false);
-	let legendSelectOpen = $state(false);
 	let middleDrag = $state<{
 		pointerId: number;
 		clientX: number;
@@ -478,21 +479,21 @@
 					<PlusIcon />
 					Zoom in
 					<ContextMenu.Shortcut>
-						<ShortcutKey shortcut={shortcutLabel('zoomIn', shortcutPlatform)} />
+						<ShortcutKey keys={shortcutKeys('zoomIn', shortcutPlatform)} />
 					</ContextMenu.Shortcut>
 				</ContextMenu.Item>
 				<ContextMenu.Item onSelect={() => zoomBy(2)}>
 					<MinusIcon />
 					Zoom out
 					<ContextMenu.Shortcut>
-						<ShortcutKey shortcut={shortcutLabel('zoomOut', shortcutPlatform)} />
+						<ShortcutKey keys={shortcutKeys('zoomOut', shortcutPlatform)} />
 					</ContextMenu.Shortcut>
 				</ContextMenu.Item>
 				<ContextMenu.Item disabled={isFitAll} onSelect={resetZoom}>
 					<ExpandIcon />
 					Zoom to full extent
 					<ContextMenu.Shortcut>
-						<ShortcutKey shortcut={shortcutLabel('resetZoom', shortcutPlatform)} />
+						<ShortcutKey keys={shortcutKeys('resetZoom', shortcutPlatform)} />
 					</ContextMenu.Shortcut>
 				</ContextMenu.Item>
 				<ContextMenu.Separator />
@@ -509,7 +510,7 @@
 							<CrosshairIcon />
 							Place C1
 							<ContextMenu.Shortcut>
-								<ShortcutKey shortcut={shortcutLabel('placeC1', shortcutPlatform)} />
+								<ShortcutKey keys={shortcutKeys('placeC1', shortcutPlatform)} />
 							</ContextMenu.Shortcut>
 						</ContextMenu.Item>
 						<ContextMenu.Item
@@ -519,7 +520,7 @@
 							<CrosshairIcon />
 							Place C2
 							<ContextMenu.Shortcut>
-								<ShortcutKey shortcut={shortcutLabel('placeC2', shortcutPlatform)} />
+								<ShortcutKey keys={shortcutKeys('placeC2', shortcutPlatform)} />
 							</ContextMenu.Shortcut>
 						</ContextMenu.Item>
 						<ContextMenu.Item disabled={crosshairs.length === 0} onSelect={() => (crosshairs = [])}>
@@ -538,7 +539,7 @@
 					<BoxSelectIcon />
 					{boxZoomEnabled ? 'Use drag pan' : 'Use box zoom'}
 					<ContextMenu.Shortcut>
-						<ShortcutKey shortcut={shortcutLabel('toggleBoxZoom', shortcutPlatform)} />
+						<ShortcutKey keys={shortcutKeys('toggleBoxZoom', shortcutPlatform)} />
 					</ContextMenu.Shortcut>
 				</ContextMenu.Item>
 				<ContextMenu.Separator />

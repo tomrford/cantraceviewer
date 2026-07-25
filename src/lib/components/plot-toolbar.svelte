@@ -12,7 +12,7 @@
 		type PlotCrosshair
 	} from '$lib/plot-crosshair.js';
 	import { viewportCenter, type PlotViewport } from '$lib/plot-viewport.js';
-	import { shortcutLabel, type ShortcutPlatform } from '$lib/keyboard-shortcuts.js';
+	import { shortcutKeys, type ShortcutPlatform } from '$lib/keyboard-shortcuts.js';
 	import { cn } from '$lib/utils.js';
 	import BoxSelectIcon from '@lucide/svelte/icons/box-select';
 	import CrosshairIcon from '@lucide/svelte/icons/crosshair';
@@ -28,6 +28,7 @@
 		viewport,
 		boxZoomEnabled = $bindable(false),
 		crosshairs = $bindable<PlotCrosshair[]>([]),
+		crosshairMenuOpen = $bindable(false),
 		legendVisible = $bindable(true),
 		shortcutPlatform,
 		onZoomIn,
@@ -39,6 +40,7 @@
 		viewport: PlotViewport | null;
 		boxZoomEnabled?: boolean;
 		crosshairs?: PlotCrosshair[];
+		crosshairMenuOpen?: boolean;
 		legendVisible?: boolean;
 		shortcutPlatform: ShortcutPlatform;
 		onZoomIn: () => void;
@@ -77,7 +79,7 @@
 		</Tooltip.Trigger>
 		<Tooltip.Content sideOffset={6}>
 			Zoom in
-			<ShortcutKey shortcut={shortcutLabel('zoomIn', shortcutPlatform)} />
+			<ShortcutKey keys={shortcutKeys('zoomIn', shortcutPlatform)} />
 		</Tooltip.Content>
 	</Tooltip.Root>
 	<Tooltip.Root>
@@ -98,7 +100,7 @@
 		</Tooltip.Trigger>
 		<Tooltip.Content sideOffset={6}>
 			Zoom out
-			<ShortcutKey shortcut={shortcutLabel('zoomOut', shortcutPlatform)} />
+			<ShortcutKey keys={shortcutKeys('zoomOut', shortcutPlatform)} />
 		</Tooltip.Content>
 	</Tooltip.Root>
 	<Tooltip.Root>
@@ -119,7 +121,7 @@
 		</Tooltip.Trigger>
 		<Tooltip.Content sideOffset={6}>
 			Zoom to full extent
-			<ShortcutKey shortcut={shortcutLabel('resetZoom', shortcutPlatform)} />
+			<ShortcutKey keys={shortcutKeys('resetZoom', shortcutPlatform)} />
 		</Tooltip.Content>
 	</Tooltip.Root>
 </ButtonGroup.Root>
@@ -141,10 +143,10 @@
 		</Tooltip.Trigger>
 		<Tooltip.Content sideOffset={6}>
 			{boxZoomEnabled ? 'Use drag pan' : 'Use box zoom'}
-			<ShortcutKey shortcut={shortcutLabel('toggleBoxZoom', shortcutPlatform)} />
+			<ShortcutKey keys={shortcutKeys('toggleBoxZoom', shortcutPlatform)} />
 		</Tooltip.Content>
 	</Tooltip.Root>
-	<Popover.Root>
+	<Popover.Root bind:open={crosshairMenuOpen}>
 		<Tooltip.Root>
 			<Tooltip.Trigger>
 				{#snippet child({ props })}
@@ -172,7 +174,7 @@
 			>
 				<CrosshairIcon />
 				{c1 === null ? 'Place C1' : 'Center C1'}
-				<ShortcutKey shortcut={shortcutLabel('placeC1', shortcutPlatform)} class="ml-auto" />
+				<ShortcutKey keys={shortcutKeys('placeC1', shortcutPlatform)} class="ml-auto" />
 			</Popover.Close>
 			<Popover.Close
 				class={cn(buttonVariants({ variant: 'ghost' }), 'w-full justify-start')}
@@ -181,7 +183,7 @@
 			>
 				<CrosshairIcon />
 				{c2 === null ? 'Place C2' : 'Center C2'}
-				<ShortcutKey shortcut={shortcutLabel('placeC2', shortcutPlatform)} class="ml-auto" />
+				<ShortcutKey keys={shortcutKeys('placeC2', shortcutPlatform)} class="ml-auto" />
 			</Popover.Close>
 			<Popover.Close
 				class={cn(
@@ -213,7 +215,7 @@
 		</Tooltip.Trigger>
 		<Tooltip.Content sideOffset={6}>
 			{legendVisible ? 'Hide legend' : 'Show legend'}
-			<ShortcutKey shortcut={shortcutLabel('toggleLegend', shortcutPlatform)} />
+			<ShortcutKey keys={shortcutKeys('toggleLegend', shortcutPlatform)} />
 		</Tooltip.Content>
 	</Tooltip.Root>
 </ButtonGroup.Root>

@@ -34,7 +34,7 @@ export type ShortcutState = {
 export const SHORTCUTS: Record<ShortcutAction, ShortcutDefinition> = {
 	openTrace: { key: 'o', displayKey: 'O', primary: true },
 	selectSignals: { key: '/', displayKey: '/' },
-	openSettings: { key: ',', displayKey: ',', primary: true },
+	openSettings: { key: ',', displayKey: ',' },
 	zoomIn: { key: '+', displayKey: '+' },
 	zoomOut: { key: '-', displayKey: '-' },
 	resetZoom: { key: '0', displayKey: '0' },
@@ -51,9 +51,14 @@ export function detectShortcutPlatform(
 	return /Mac|iPhone|iPad|iPod/i.test(platform) ? 'mac' : 'other';
 }
 
-export function shortcutLabel(action: ShortcutAction, platform: ShortcutPlatform): string {
+const PRIMARY_KEY_LABEL: Record<ShortcutPlatform, string> = { mac: '⌘', other: 'Ctrl' };
+
+/** Keys of a shortcut as separate chips, in press order, using the platform's modifier glyph. */
+export function shortcutKeys(action: ShortcutAction, platform: ShortcutPlatform): string[] {
 	const shortcut = SHORTCUTS[action];
-	return `${shortcut.primary ? (platform === 'mac' ? 'Cmd+' : 'Ctrl+') : ''}${shortcut.displayKey}`;
+	return shortcut.primary
+		? [PRIMARY_KEY_LABEL[platform], shortcut.displayKey]
+		: [shortcut.displayKey];
 }
 
 export function shortcutFromEvent(
