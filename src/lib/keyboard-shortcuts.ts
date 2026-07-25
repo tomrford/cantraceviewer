@@ -103,6 +103,8 @@ export function overridesBrowserShortcut(action: ShortcutAction): boolean {
 	return SHORTCUTS[action].primary === true;
 }
 
+const LETTER_KEY = /^[a-z]$/;
+
 export function shortcutFromEvent(
 	event: ShortcutEvent,
 	platform: ShortcutPlatform
@@ -116,14 +118,14 @@ export function shortcutFromEvent(
 		if (shortcut.primary) {
 			const primaryPressed =
 				platform === 'mac' ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
-			if (
-				primaryPressed &&
-				!event.altKey &&
-				!event.shiftKey &&
-				event.key.toLowerCase() === shortcut.key
-			) {
-				return action;
-			}
+			if (!primaryPressed || event.altKey) continue;
+
+			// Shift is only disqualifying for letters, where Cmd+Shift+K is a different chord to
+			// Cmd+K. Symbols may need Shift to exist at all — / is Shift+7 on QWERTZ — and
+			// event.key already reports the character the layout produced, so matching on it
+			// keeps Cmd+/ working everywhere without caring which physical keys got us there.
+			if (event.shiftKey && LETTER_KEY.test(shortcut.key)) continue;
+			if (event.key.toLowerCase() === shortcut.key) return action;
 			continue;
 		}
 

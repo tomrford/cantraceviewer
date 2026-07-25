@@ -74,6 +74,23 @@ describe('keyboard shortcuts', () => {
 		expect(shortcutFromEvent(keyEvent('/', { metaKey: true }), 'mac')).toBe('selectSignals');
 	});
 
+	// QWERTZ and AZERTY reach / through Shift, so Cmd+/ arrives as Cmd+Shift+<key> with
+	// event.key already resolved to '/'. Rejecting Shift outright made Cmd+/ unpressable there.
+	it('accepts symbol chords that a layout can only produce with Shift', () => {
+		expect(shortcutFromEvent(keyEvent('/', { metaKey: true, shiftKey: true }), 'mac')).toBe(
+			'selectSignals'
+		);
+		expect(shortcutFromEvent(keyEvent(',', { ctrlKey: true, shiftKey: true }), 'other')).toBe(
+			'openSettings'
+		);
+	});
+
+	// Letters are the other way round: Shift makes it a genuinely different chord.
+	it('keeps Shift disqualifying for letter chords', () => {
+		expect(shortcutFromEvent(keyEvent('k', { metaKey: true, shiftKey: true }), 'mac')).toBeNull();
+		expect(shortcutFromEvent(keyEvent('o', { metaKey: true, shiftKey: true }), 'mac')).toBeNull();
+	});
+
 	it.each(['input', 'textarea', 'select'])('suppresses shortcuts on %s targets', (tagName) => {
 		const target = { tagName } as unknown as EventTarget;
 		expect(isEditableShortcutTarget(target)).toBe(true);
