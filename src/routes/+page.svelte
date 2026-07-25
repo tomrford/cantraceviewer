@@ -75,9 +75,6 @@
 	let traceMetadataTitle = $derived(
 		traceFile.entry ? formatTraceMetadata(traceFile.entry) : undefined
 	);
-	let traceTooltipLabel = $derived(
-		traceFile.isLoading ? 'Loading trace' : (traceMetadataTitle ?? 'Open trace')
-	);
 	const siteTitle = 'CAN Trace Viewer';
 	let browserTitle = $derived(
 		traceFile.entry ? `${traceFile.displayName} | ${siteTitle}` : siteTitle
@@ -455,10 +452,17 @@
 							</button>
 						{/snippet}
 					</Tooltip.Trigger>
-					<Tooltip.Content sideOffset={6}>
-						<span class="whitespace-pre-line">{traceTooltipLabel}</span>
-						{#if !traceFile.isLoading}
-							<ShortcutKey keys={shortcutKeys('openTrace', shortcutPlatform)} />
+					<!-- Action and shortcut share one row so the chip always has a single-line partner;
+					     trace details sit underneath as secondary text. -->
+					<Tooltip.Content sideOffset={6} class="flex-col items-stretch gap-1 pr-3">
+						<span class="flex items-center gap-3">
+							{traceFile.isLoading ? 'Loading trace' : 'Open trace'}
+							{#if !traceFile.isLoading}
+								<ShortcutKey keys={shortcutKeys('openTrace', shortcutPlatform)} class="ml-auto" />
+							{/if}
+						</span>
+						{#if traceMetadataTitle}
+							<span class="whitespace-pre-line text-muted-foreground">{traceMetadataTitle}</span>
 						{/if}
 					</Tooltip.Content>
 				</Tooltip.Root>
