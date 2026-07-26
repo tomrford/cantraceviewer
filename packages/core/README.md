@@ -4,11 +4,9 @@
 
 The package has three ESM entries:
 
-- `cantraceviewer` — asynchronous browser client using one dedicated Web Worker
+- `cantraceviewer` — asynchronous browser client
 - `cantraceviewer/direct` — synchronous in-process WebAssembly client
-- `cantraceviewer/node` — asynchronous Node.js client using one dedicated worker thread
-
-The browser and Node clients are transports over the same direct implementation. The package has no server component and does not persist input data.
+- `cantraceviewer/node` — asynchronous Node.js client
 
 ## Browser
 
@@ -39,8 +37,6 @@ await client.closeDbc(dbc);
 await client.close();
 ```
 
-`openTrace` also returns metadata, parse warnings, embedded DBC files, and the native MF4 signal catalog where applicable.
-
 ## Direct
 
 The direct client is fully synchronous. The caller must read, fetch, or asynchronously compile the WASM before creating it. The exported `wasmUrl` identifies the package-local binary.
@@ -70,13 +66,13 @@ client.closeDbc(dbc);
 client.close();
 ```
 
-`createDirectClient` also accepts a precompiled `WebAssembly.Module`. WebAssembly initializes once per JavaScript realm; later direct clients reuse that runtime while retaining separate handle ownership. Closing handles releases their Rust allocations, but WebAssembly memory pages are not guaranteed to return to the operating system until the realm or process ends.
+`createDirectClient` also accepts a precompiled `WebAssembly.Module`.
 
-Direct parsing and decoding block the calling thread. Do not use this entry on a browser UI thread or Electron main thread. It is intended for an existing Worker, worker thread, isolated process, benchmark, or controlled test.
+Direct parsing and decoding block the calling thread. Use this entry only in an execution context where blocking is acceptable.
 
 ## Node.js
 
-The Node entry has the same asynchronous API as the browser entry. It owns the direct client and all handles inside one `worker_threads` worker.
+The Node entry has the same asynchronous API as the browser entry.
 
 ```ts
 import { readFile } from 'node:fs/promises';
@@ -97,20 +93,11 @@ await client.close();
 
 The copy in this example creates an exact `ArrayBuffer`. If a Node buffer already spans an ordinary `ArrayBuffer` exactly, that underlying buffer can be passed directly.
 
-## Electron
-
-Two arrangements are supported:
-
-1. Use `cantraceviewer` in the renderer. Parsing and decoding run in its browser Web Worker. Serve the renderer over HTTP(S) or a standard, secure custom protocol so its ESM Worker and WASM assets can load; a bare `file://` renderer is not supported.
-2. Use `cantraceviewer/node` in the main process and expose application-specific operations to the renderer through a context-isolated preload and Electron IPC. Parsing and decoding run in the package's worker thread.
-
-Do not import `cantraceviewer/direct` in the renderer or main process because it blocks that thread.
-
 ## Handles and lifecycle
 
 DBC and trace handles are opaque and belong to the client that created them. A handle cannot be used with another client. Closing a handle is idempotent. Closing a client invalidates all of its remaining handles.
 
-Each asynchronous client processes requests in call order. A worker startup failure, crash, message failure, or unexpected Node worker exit is fatal for that client. Pending and future operations reject, all handles become invalid, and the package does not restart the worker automatically. Create a new client to recover.
+Worker failure is fatal for that client. Pending and future operations reject, all handles become invalid, and callers must create a new client to recover.
 
 Errors are standard `Error` objects. Their names and messages are diagnostics, not stable values for application branching.
 
@@ -125,7 +112,7 @@ The direct client accepts a `Uint8Array` and does not detach it.
 ## Supported environments
 
 - Node.js 22.12 or newer for `cantraceviewer/node`
-- Browsers and Electron renderers with ESM, module Workers, WebAssembly, and transferable `ArrayBuffer` support for `cantraceviewer`
+- Browsers with ESM, module Workers, WebAssembly, and transferable `ArrayBuffer` support for `cantraceviewer`
 - ESM-aware bundlers that preserve the standard `new Worker(new URL(..., import.meta.url))` asset pattern
 
-The package does not support CommonJS, server persistence, browser environments without module Workers, synchronous browser UI-thread use, or synchronous Electron main-thread use.
+The package does not support CommonJS or browsers without module Workers.

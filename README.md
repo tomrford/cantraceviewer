@@ -30,10 +30,4 @@ nix develop -c pnpm run wasm:check
 nix develop -c pnpm run wasm:test
 nix develop -c pnpm run wasm:build:release
 nix develop -c pnpm run package:validate
-nix develop -c pnpm run package:test:electron
 ```
-
-The Electron fixture requires an active desktop session or `xvfb-run` on Linux.
-
-See [Package releases](docs/package-releases.md) for the npm release and local
-package-testing workflow.

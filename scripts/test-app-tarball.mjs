@@ -29,8 +29,6 @@ try {
 
 	const manifest = JSON.parse(await readFile(join(repo, 'package.json'), 'utf8'));
 	manifest.dependencies.cantraceviewer = `file:${tarball}`;
-	delete manifest.devDependencies.electron;
-	delete manifest.devDependencies.playwright;
 	manifest.scripts['package:build'] = "node -e ''";
 	await writeFile(join(root, 'package.json'), `${JSON.stringify(manifest, null, '\t')}\n`);
 
