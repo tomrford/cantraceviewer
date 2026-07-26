@@ -8,7 +8,6 @@ const rendererDir = process.env.CANTRACE_RENDERER_DIR;
 if (!fixtureDir || !rendererDir) throw new Error('fixture paths were not configured');
 
 const identity = { canId: 288, isExtended: false, sizeBytes: 8 };
-app.commandLine.appendSwitch('no-sandbox');
 app.commandLine.appendSwitch('disable-gpu');
 let window;
 let timeout;

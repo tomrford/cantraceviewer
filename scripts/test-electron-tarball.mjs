@@ -79,7 +79,7 @@ try {
 
 function runElectron(main, extraEnv) {
 	return new Promise((resolveRun, rejectRun) => {
-		const child = spawn(electronPath, [main], {
+		const child = spawn(electronPath, ['--no-sandbox', main], {
 			env: {
 				...process.env,
 				...extraEnv,

@@ -25,8 +25,6 @@ nix develop -c pnpm run wasm:test
 
 The repo commits the release WASM binary and generated wasm-bindgen JavaScript and TypeScript declarations under `packages/core/src/wasm-bindgen` for git-based deployment on Cloudflare Workers. If you change Rust code or its exported interface, run `pnpm run wasm:build:release` before committing so every generated artifact is updated.
 
-The committed optimized WASM binary is canonical Linux output. Binaryen can produce a different code layout on macOS even with the pinned toolchain; CI preserves its rebuilt `wasm-bindgen` tree when the reproducibility check fails so the Linux binary can be reviewed and committed.
-
 Track backlog work in [GitHub issues](https://github.com/tomrford/cantraceviewer/issues).
 
 ### Rust
