@@ -14,12 +14,11 @@ Trace files and decoded series stay in memory for the current browser session. S
 
 ## Development
 
-The UI uses SvelteKit, Svelte 5, Node.js, pnpm, Tailwind, and shadcn-svelte style components. Rust code under `wasm/` compiles through wasm-bindgen for DBC parsing, trace parsing, and signal decoding. The `cantraceviewer` workspace package exposes asynchronous browser and Node clients plus a synchronous direct entry. This app uses the browser client, which runs its WASM work in a dedicated Worker.
+The UI uses SvelteKit, Svelte 5, Node.js, pnpm, Tailwind, and shadcn-svelte style components. Rust code under `wasm/` compiles through wasm-bindgen for DBC parsing, trace parsing, and signal decoding. The published `cantraceviewer` package exposes asynchronous browser and Node clients plus a synchronous direct entry. This app uses an exact registry version of the browser client, which runs its WASM work in a dedicated Worker.
 
 ```sh
 nix develop -c pnpm install
 nix develop -c pnpm run dev
-nix develop -c pnpm run wasm:build
 ```
 
 Useful checks:
