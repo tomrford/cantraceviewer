@@ -108,6 +108,21 @@ describe('PlotViewportState', () => {
 		expect(state.secondaryRanges.get('y1')).toEqual({ min: 200, max: 400 });
 	});
 
+	it('holds secondary axes still when the primary axis loses its signals', () => {
+		const state = new PlotViewportState();
+		// Emptying the primary axis collapses its fit range to the 0..1 fallback.
+		let domain = $state<PlotViewport | null>(viewport(0, 100, 0, 10));
+		state.domainSource = () => domain;
+		state.secondaryRangeSource = () => new Map([['y1', { min: 0, max: 1000 }]]);
+
+		state.setManual(viewport(0, 100, 2.5, 7.5));
+		expect(state.secondaryRanges.get('y1')).toEqual({ min: 250, max: 750 });
+
+		domain = viewport(0, 100, 0, 1);
+
+		expect(state.secondaryRanges.get('y1')).toEqual({ min: 250, max: 750 });
+	});
+
 	it('leaves secondary axes at their fit range without a domain', () => {
 		const state = new PlotViewportState();
 		state.domainSource = () => null;

@@ -6,6 +6,7 @@ import {
 	panViewport,
 	type PlotAxisRange,
 	type PlotViewport,
+	type PlotYWindow,
 	viewportsAlmostEqual,
 	yWindowOf,
 	zoomViewport
@@ -38,16 +39,22 @@ export class PlotViewportState {
 	// fit at setManual time.
 	isFitAll = $derived.by(() => this.#mode.mode === 'fit');
 
+	// Captured when the gesture happens rather than derived from the current
+	// domain: the primary axis's fit range moves whenever signals are assigned
+	// away from it, and deriving would let that retroactively rewrite where every
+	// other axis is looking. Dragging the last signal off the primary axis while
+	// zoomed collapses its range to the empty fallback, which would otherwise
+	// throw the remaining axes far off screen.
+	#yWindow = $state<PlotYWindow>(FULL_Y_WINDOW);
+
 	/** The proportion of each axis's own extent currently on screen. */
-	yWindow = $derived.by(() => {
-		const domain = this.fullDomain;
-		const active = this.activeViewport;
-		return domain === null || active === null ? FULL_Y_WINDOW : yWindowOf(domain, active);
-	});
+	get yWindow(): PlotYWindow {
+		return this.#yWindow;
+	}
 
 	/** Visible bounds of the non-primary axes, each fitted to its own signals. */
 	secondaryRanges = $derived.by(() => {
-		const window = this.yWindow;
+		const window = this.#yWindow;
 		// Built fresh on every evaluation and never mutated afterwards, so it
 		// carries no reactive state of its own.
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
@@ -71,12 +78,18 @@ export class PlotViewportState {
 	}
 
 	setManual(viewport: PlotViewport): void {
-		this.#mode = viewportsAlmostEqual(viewport, this.fullDomain)
-			? { mode: 'fit' }
-			: { mode: 'manual', viewport };
+		const domain = this.fullDomain;
+		if (viewportsAlmostEqual(viewport, domain)) {
+			this.reset();
+			return;
+		}
+
+		this.#mode = { mode: 'manual', viewport };
+		this.#yWindow = domain === null ? FULL_Y_WINDOW : yWindowOf(domain, viewport);
 	}
 
 	reset(): void {
 		this.#mode = { mode: 'fit' };
+		this.#yWindow = FULL_Y_WINDOW;
 	}
 }
