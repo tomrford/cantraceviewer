@@ -73,7 +73,7 @@
 		"wrangler": "^4.107.0"
 	},
 	"dependencies": {
-		"cantraceviewer": "0.1.0-rc.0",
+		"cantraceviewer": "0.1.0",
 		"chartgpu": "0.3.3",
 		"idb": "8.0.3",
 		"minisearch": "7.2.0",

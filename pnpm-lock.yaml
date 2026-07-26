@@ -13,8 +13,8 @@ importers:
   .:
     dependencies:
       cantraceviewer:
-        specifier: 0.1.0-rc.0
-        version: 0.1.0-rc.0
+        specifier: 0.1.0
+        version: 0.1.0
       chartgpu:
         specifier: 0.3.3
         version: 0.3.3(patch_hash=d8e101bef704f1d675f9387ce3f8570cbc84317d0fe47b7b9051b92ec1538c5c)
@@ -1326,8 +1326,8 @@ packages:
     resolution: {integrity: sha512-7oFy703dxfY3/NLxC1fh2SUCQ0H9rmAY+5EpDVfXjUTTs+HEwR2nYaqLv+GWcTsumwxPfiz6CzCNkwXwBUwqCA==}
     engines: {node: 18 || 20 || >=22}
 
-  cantraceviewer@0.1.0-rc.0:
-    resolution: {integrity: sha512-/+xm9w98CzeCtSRqs203NdhwPyfXn4ywnGqLgLbSM1qx2TL07G6AwLWCOzTp6Ak/KLBlf/asdpel4qnyNhLLSw==}
+  cantraceviewer@0.1.0:
+    resolution: {integrity: sha512-pQt1ncwuomEtN2QmKeVYh90Yph18Uh6oiEijFRnnkNP5+Pkx2Zv6MWWdtxncMEnyfMLiWpjLCpIqTMedNzgaFQ==}
     engines: {node: '>=22.12'}
 
   chai@6.2.2:
@@ -3231,7 +3231,7 @@ snapshots:
     dependencies:
       balanced-match: 4.0.4
 
-  cantraceviewer@0.1.0-rc.0: {}
+  cantraceviewer@0.1.0: {}
 
   chai@6.2.2: {}
 
