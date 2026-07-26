@@ -6,7 +6,7 @@ import {
 	type RpcTransportHandlers
 } from './rpc-client.ts';
 
-/** worker_threads surface used by the private Node transport and its tests. @internal */
+/** @internal */
 export type NodeClientWorker = {
 	postMessage(message: unknown, transfer?: readonly ArrayBuffer[]): void;
 	on(event: 'message', listener: (data: unknown) => void): unknown;
@@ -16,14 +16,13 @@ export type NodeClientWorker = {
 	terminate(): Promise<unknown>;
 };
 
-/** Private seam for deterministic transport tests. @internal */
+/** @internal */
 export async function createNodeClientForWorker(
 	createWorker: () => NodeClientWorker
 ): Promise<CanTraceClient> {
 	return createRpcClient((handlers) => nodeTransport(createWorker(), handlers));
 }
 
-/** worker_threads EventEmitter events mapped onto the shared client core. */
 function nodeTransport(worker: NodeClientWorker, handlers: RpcTransportHandlers): RpcTransport {
 	let stopping = false;
 

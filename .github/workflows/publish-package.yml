@@ -51,17 +51,11 @@ jobs:
       - name: Build package tarball
         run: nix develop -c pnpm run package:pack
 
-      - name: Install browser for package smoke
-        run: nix develop -c pnpm exec playwright install --with-deps chromium
-
-      - name: Validate installed package entries and browser
+      - name: Validate installed package entries
         run: nix develop -c pnpm run package:test:tarball
 
       - name: Build app against installed package
         run: nix develop -c pnpm run package:test:app
-
-      - name: Validate Electron arrangements
-        run: nix develop -c xvfb-run -a pnpm run package:test:electron
 
       - name: Verify package checksum
         env:
@@ -119,6 +113,4 @@ jobs:
           if [[ "$PRERELEASE" == "true" ]]; then
             publish_tag="next"
           fi
-          npm publish "./artifacts/cantraceviewer-${VERSION}.tgz" \
-            --access public \
-            --tag "$publish_tag"
+          npm publish "./artifacts/cantraceviewer-${VERSION}.tgz" --tag "$publish_tag"

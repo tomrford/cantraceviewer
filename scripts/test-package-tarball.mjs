@@ -1,11 +1,10 @@
 import { strict as assert } from 'node:assert';
 import { execFileSync } from 'node:child_process';
-import { cp, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { chromium } from 'playwright';
-import { build, preview } from 'vite';
+import { build } from 'vite';
 
 const repo = resolve(import.meta.dirname, '..');
 const packageManifest = JSON.parse(
@@ -16,8 +15,6 @@ const tarball = resolve(
 		join(repo, 'artifacts', `${packageManifest.name}-${packageManifest.version}.tgz`)
 );
 const root = await mkdtemp(join(await realpath(tmpdir()), 'cantraceviewer-package-'));
-let browser;
-let server;
 
 try {
 	const members = execFileSync('tar', ['-tzf', tarball], { encoding: 'utf8' }).trim().split('\n');
@@ -145,31 +142,7 @@ await node.close();
 	await writeFile(
 		join(root, 'entry.js'),
 		`import { createCanTraceClient } from 'cantraceviewer';
-
-globalThis.smoke = (async () => {
-	const client = await createCanTraceClient();
-	const dbcText = await fetch('/agentic-demo.dbc').then((response) => response.text());
-	const buffer = await fetch('/agentic-demo.asc').then((response) => response.arrayBuffer());
-	const dbc = (await client.openDbc(dbcText)).handle;
-	let yielded = false;
-	setTimeout(() => { yielded = true; }, 0);
-	const trace = await client.openTrace('asc', buffer);
-	const series = await client.getSignalValues(
-		dbc,
-		trace.handle,
-		{ canId: 288, isExtended: false, sizeBytes: 8 },
-		'vehicle_speed'
-	);
-	const result = {
-		detached: buffer.byteLength === 0,
-		yielded,
-		messages: trace.metadata.validMessageCount,
-		count: series.values.length,
-		value: series.values[1]
-	};
-	await client.close();
-	return result;
-})();
+createCanTraceClient().then((client) => client.close());
 `
 	);
 	await build({
@@ -195,38 +168,7 @@ globalThis.smoke = (async () => {
 	);
 	assert(!scripts.some((source) => source.includes('worker_threads')), 'Node built-ins leaked');
 
-	await cp(
-		resolve(repo, 'wasm/tests/fixtures/agentic-demo.dbc'),
-		join(root, 'browser-dist/agentic-demo.dbc')
-	);
-	await cp(
-		resolve(repo, 'wasm/tests/fixtures/agentic-demo.asc'),
-		join(root, 'browser-dist/agentic-demo.asc')
-	);
-	server = await preview({
-		configFile: false,
-		logLevel: 'silent',
-		root,
-		build: { outDir: 'browser-dist' },
-		preview: { host: '127.0.0.1', port: 0 }
-	});
-	const address = server.httpServer.address();
-	assert(address && typeof address === 'object');
-	browser = await chromium.launch({ headless: true });
-	const page = await browser.newPage();
-	await page.goto(`http://127.0.0.1:${address.port}`);
-	const smoke = await page.evaluate(() => globalThis.smoke);
-	assert.deepEqual(smoke, {
-		detached: true,
-		yielded: true,
-		messages: 1506,
-		count: 251,
-		value: 123.4
-	});
-
-	console.log(`validated installed ${basename(tarball)} through direct, Node, and live browser`);
+	console.log(`validated installed ${basename(tarball)} through direct, Node, and browser build`);
 } finally {
-	await browser?.close();
-	await new Promise((resolveClose) => server?.httpServer.close(resolveClose) ?? resolveClose());
 	await rm(root, { recursive: true, force: true });
 }

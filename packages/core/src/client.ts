@@ -7,7 +7,7 @@ import {
 
 export type { CanTraceClient } from './rpc-client.ts';
 
-/** Worker surface the browser transport depends on; production uses a real module Worker. @internal */
+/** @internal */
 export type ClientWorkerEvent = { data?: unknown; message?: string };
 
 /** @internal */
@@ -43,7 +43,6 @@ export async function createCanTraceClientForWorker(
 	return createRpcClient((handlers) => browserTransport(createWorker(), handlers));
 }
 
-/** Web Worker events mapped onto the shared client core. */
 function browserTransport(worker: ClientWorker, handlers: RpcTransportHandlers): RpcTransport {
 	worker.addEventListener('message', (event) => handlers.message(event.data));
 	worker.addEventListener('error', (event) => {
@@ -57,7 +56,6 @@ function browserTransport(worker: ClientWorker, handlers: RpcTransportHandlers):
 			worker.postMessage(message, transfer);
 		},
 		async terminate() {
-			// Web Worker termination is immediate and synchronous; nothing to await.
 			worker.terminate();
 		}
 	};

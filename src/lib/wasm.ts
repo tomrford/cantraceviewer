@@ -1,4 +1,3 @@
-/** App adapter for the worker-backed core package. File limits live in '$lib/file-limits.js'. */
 import { createCanTraceClient, type CanTraceClient } from 'cantraceviewer';
 import type {
 	DbcHandle,
