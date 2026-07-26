@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createCanTraceClient, type CanTraceClient } from 'cantraceviewer/node';
+import { createCanTraceClient, type CanTraceClient } from '../dist/node.js';
 
 const fixturesDir = resolve('wasm/tests/fixtures');
 const identity = { canId: 288, isExtended: false, sizeBytes: 8 };

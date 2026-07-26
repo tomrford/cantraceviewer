@@ -8,7 +8,7 @@ import {
 	type DirectClient,
 	type OpenDbcResult,
 	type OpenTraceResult
-} from 'cantraceviewer/direct';
+} from '../dist/direct.js';
 
 const fixturesDir = resolve('wasm/tests/fixtures');
 const identity = { canId: 288, isExtended: false, sizeBytes: 8 };
@@ -20,7 +20,7 @@ let ascBytes: Uint8Array;
 beforeAll(async () => {
 	// Reading the bytes is the caller's asynchronous work; creating the client is not.
 	wasmBytes = new Uint8Array(
-		await readFile(resolve('packages/core/src/wasm-bindgen/cantraceviewer_bg.wasm'))
+		await readFile(resolve('packages/core/dist/wasm-bindgen/cantraceviewer_bg.wasm'))
 	);
 	dbcText = await readFile(resolve(fixturesDir, 'agentic-demo.dbc'), 'utf8');
 	ascBytes = new Uint8Array(await readFile(resolve(fixturesDir, 'agentic-demo.asc')));

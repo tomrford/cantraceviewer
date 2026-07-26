@@ -4,11 +4,15 @@ allowBuilds:
   sharp: true
   workerd: true
 
+linkWorkspacePackages: false
+
 packages:
   - .
   - packages/*
 
 minimumReleaseAge: 10080
+minimumReleaseAgeExclude:
+  - cantraceviewer
 patchedDependencies:
   chartgpu@0.3.3: patches/chartgpu@0.3.3.patch
   svelte-check@4.7.1: patches/svelte-check@4.7.1.patch

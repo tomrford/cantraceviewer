@@ -11,6 +11,7 @@ node_modules
 /.svelte-kit
 /build
 /packages/core/dist/
+/packages/core/src/wasm-bindgen/
 /artifacts/
 
 # OS

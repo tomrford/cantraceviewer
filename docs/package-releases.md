@@ -45,5 +45,9 @@ nix develop -c pnpm run package:validate
 
 `package:validate` packs once, installs that tarball into isolated temporary
 projects, tests every public entry, builds CAN Trace Viewer against it, and runs
-the Electron fixture. Do not point the production application at a workspace
-package merely to test unpublished package changes.
+the Electron fixture. The application keeps an exact registry dependency and
+pnpm workspace linking is disabled. `minimumReleaseAge` applies to every other
+dependency; `cantraceviewer` is explicitly exempt because its exact versions
+come from this repository's approved trusted-publishing workflow. Do not point
+the production application at a workspace package merely to test unpublished
+package changes.
