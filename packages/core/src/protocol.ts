@@ -1,3 +1,4 @@
+/** Private wire protocol between an asynchronous client and its worker. @internal */
 import type {
 	DbcMessageIdentity,
 	EmbeddedDbc,
@@ -5,7 +6,7 @@ import type {
 	ParsedDbc,
 	TraceMetadata,
 	TraceType
-} from './types.js';
+} from './types.ts';
 
 /** Serializable error envelope. The client rebuilds an Error preserving name and message. */
 export type WireError = { name: string; message: string };
@@ -28,9 +29,11 @@ export type WorkerRequestBody =
 
 export type WorkerRequest = WorkerRequestBody & { id: number };
 
-export type OpenDbcResult = { dbcId: number; catalog: ParsedDbc };
+/** Wire form of `OpenDbcResult`: the opaque handle becomes a worker-local id. */
+export type WireOpenDbc = { dbcId: number; catalog: ParsedDbc };
 
-export type OpenTraceResult = {
+/** Wire form of `OpenTraceResult`: the opaque handle becomes a worker-local id. */
+export type WireOpenTrace = {
 	traceId: number;
 	metadata: TraceMetadata;
 	hasRawFrames: boolean;

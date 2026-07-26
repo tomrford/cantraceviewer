@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildMf4SignalTargetIndex, mf4SelectorFiles, mf4SignalIdentityKey } from './mf4-signals';
-import type { TraceHandle } from './wasm';
+import type { OpenTraceResult, TraceHandle } from './wasm';
 
 describe('MF4 signal sources', () => {
 	it('projects native channels as a marked transient selector source', () => {
@@ -42,9 +42,10 @@ describe('MF4 signal sources', () => {
 	});
 });
 
-function mf4Trace(): TraceHandle {
+function mf4Trace(): OpenTraceResult & { id: number } {
 	return {
 		id: 17,
+		handle: {} as TraceHandle,
 		hasRawFrames: false,
 		mf4Catalog: {
 			groups: [
@@ -62,5 +63,5 @@ function mf4Trace(): TraceHandle {
 			skippedLineCount: 0,
 			durationNs: 1
 		}
-	} as unknown as TraceHandle;
+	};
 }

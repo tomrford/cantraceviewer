@@ -145,7 +145,7 @@ class PlotDataStore {
 		try {
 			const series =
 				target.kind === 'mf4'
-					? await getMf4SignalValues(trace, target.value.signal.id)
+					? await getMf4SignalValues(trace.handle, target.value.signal.id)
 					: await this.decodeDbcSignal(trace, target.value);
 
 			if (!this.isSignalSelected(key) || traceFile.entry !== trace || !findSignalTarget(key)) {
@@ -178,7 +178,7 @@ class PlotDataStore {
 		}
 		return getSignalValues(
 			target.file.handle,
-			trace,
+			trace.handle,
 			{
 				canId: target.message.canId,
 				isExtended: target.message.isExtended,

@@ -1,15 +1,16 @@
 /** App adapter for the worker-backed core package. File limits live in '$lib/file-limits.js'. */
-import { createCanTraceClient, type CanTraceClient } from '@cantraceviewer/core';
+import { createCanTraceClient, type CanTraceClient } from 'cantraceviewer';
 import type {
 	DbcHandle,
 	DbcMessageIdentity,
 	DecodedSignalSeries,
+	OpenTraceResult,
 	ParsedDbc,
 	TraceHandle,
 	TraceType
-} from '@cantraceviewer/core';
+} from 'cantraceviewer';
 
-export type * from '@cantraceviewer/core';
+export type * from 'cantraceviewer';
 
 let clientPromise: Promise<CanTraceClient> | null = null;
 
@@ -34,7 +35,7 @@ export async function closeDbc(handle: DbcHandle): Promise<void> {
 	return (await client()).closeDbc(handle);
 }
 
-export async function openTrace(traceType: TraceType, bytes: Uint8Array): Promise<TraceHandle> {
+export async function openTrace(traceType: TraceType, bytes: Uint8Array): Promise<OpenTraceResult> {
 	const buffer = bytes.buffer;
 	if (
 		!(buffer instanceof ArrayBuffer) ||

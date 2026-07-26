@@ -1,16 +1,59 @@
 {
-	"name": "@cantraceviewer/core",
-	"private": true,
-	"version": "0.0.0",
+	"name": "cantraceviewer",
+	"version": "0.1.0",
+	"description": "Parse CAN traces and DBC files, then decode signal series in browsers or Node.js.",
 	"type": "module",
+	"license": "MIT",
+	"author": "Tom Ford",
+	"homepage": "https://cantraceviewer.com",
+	"bugs": "https://github.com/tomrford/cantraceviewer/issues",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/tomrford/cantraceviewer.git",
+		"directory": "packages/core"
+	},
+	"keywords": [
+		"CAN",
+		"DBC",
+		"ASC",
+		"TRC",
+		"BLF",
+		"MF4",
+		"WebAssembly"
+	],
+	"engines": {
+		"node": ">=22.12"
+	},
 	"exports": {
 		".": {
-			"types": "./src/index.ts",
-			"import": "./src/index.ts"
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
 		},
 		"./direct": {
-			"types": "./src/direct.ts",
-			"import": "./src/direct.ts"
+			"types": "./dist/direct.d.ts",
+			"import": "./dist/direct.js"
+		},
+		"./node": {
+			"types": "./dist/node.d.ts",
+			"import": "./dist/node.js"
 		}
+	},
+	"files": [
+		"dist",
+		"LICENSE.md",
+		"README.md"
+	],
+	"publishConfig": {
+		"access": "public",
+		"provenance": true
+	},
+	"scripts": {
+		"build": "node ./scripts/build.mjs",
+		"pack:artifact": "node ./scripts/pack.mjs",
+		"pack:check": "pnpm pack --dry-run",
+		"prepack": "node ./scripts/build.mjs"
+	},
+	"devDependencies": {
+		"typescript": "6.0.3"
 	}
 }

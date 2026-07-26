@@ -1,26 +1,39 @@
-import type { DirectClient } from './direct.js';
-import type { SeriesPayload, WireError, WorkerRequest, WorkerResponse } from './protocol.js';
-import type { DbcHandle, DecodedSignalSeries, TraceHandle } from './types.js';
+import type { DirectClient } from './direct.ts';
+import type {
+	SeriesPayload,
+	WireError,
+	WireOpenDbc,
+	WireOpenTrace,
+	WorkerRequest,
+	WorkerResponse
+} from './protocol.ts';
+import type { DbcHandle, DecodedSignalSeries, TraceHandle } from './types.ts';
 
+/**
+ * Message endpoint a worker host provides: `self` in a browser Worker, the parent port in a Node
+ * worker thread. @internal
+ */
 export type WorkerRuntimeEndpoint = {
-	postMessage(message: WorkerResponse, transfer?: Transferable[]): void;
+	postMessage(message: WorkerResponse, transfer?: ArrayBuffer[]): void;
 	addEventListener(type: 'message', listener: (event: { data: unknown }) => void): void;
 };
 
 type Executed = {
 	result: unknown;
-	transfer?: Transferable[];
+	transfer?: ArrayBuffer[];
 	/** Reverses resource creation when the success response cannot be posted. */
-	undo?: () => Promise<void>;
+	undo?: () => void;
 };
 
 /**
- * Drive one DirectClient behind a message endpoint. The worker owns every direct handle because
- * wasm-bindgen objects carry hidden state that cannot cross threads; only plain data crosses the
- * wire. Requests run strictly serially in post order through an explicit queue, so a later close
- * never interrupts an active decode. A per-request error is replied as an error envelope and
- * never poisons the queue. Boot failure is reported once and never retried here; the owning
- * client treats it as fatal and terminates this worker.
+ * Drive one synchronous DirectClient behind a message endpoint. Shared by the browser Worker entry
+ * and the Node worker-thread entry. @internal
+ *
+ * The worker owns every direct handle because wasm-bindgen objects carry hidden state that cannot
+ * cross threads; only plain data crosses the wire. Each request runs to completion before the next
+ * one starts, in post order, so a later close never interrupts an active decode. A per-request
+ * error is replied as an error envelope and never poisons the queue. Boot failure is reported once
+ * and never retried here; the owning client treats it as fatal and terminates this worker.
  */
 export function startWorkerRuntime(
 	endpoint: WorkerRuntimeEndpoint,
@@ -32,6 +45,8 @@ export function startWorkerRuntime(
 	// Wire IDs are never recycled.
 	let nextWireId = 1;
 
+	// Loading WASM is the only asynchronous step: bytes arrive over fetch or from disk, and may be
+	// compiled, before the synchronous direct client exists.
 	const boot = loadClient()
 		.then(
 			(loaded) => {
@@ -44,18 +59,19 @@ export function startWorkerRuntime(
 		)
 		.catch(() => undefined);
 
-	// Explicit serial queue: each request starts only after the previous one fully settled.
+	// Requests posted before boot finishes wait behind it; afterwards each one is handled
+	// synchronously in the order the endpoint delivered it.
 	let queue: Promise<void> = boot;
 	endpoint.addEventListener('message', (event) => {
 		const request = event.data as WorkerRequest;
 		queue = queue.then(() => handle(request)).catch(() => undefined);
 	});
 
-	async function handle(request: WorkerRequest): Promise<void> {
+	function handle(request: WorkerRequest): void {
 		let executed: Executed;
 		try {
 			if (!direct) throw new Error('worker WASM initialization failed');
-			executed = await execute(direct, request);
+			executed = execute(direct, request);
 		} catch (error) {
 			endpoint.postMessage({ type: 'error', id: request.id, error: toWireError(error) });
 			return;
@@ -67,22 +83,27 @@ export function startWorkerRuntime(
 			);
 		} catch (error) {
 			// Response shaping failed after the operation succeeded: release what it created.
-			if (executed.undo) await executed.undo().catch(() => undefined);
+			try {
+				executed.undo?.();
+			} catch {
+				// Cleanup failure must not replace the reported response error.
+			}
 			endpoint.postMessage({ type: 'error', id: request.id, error: toWireError(error) });
 		}
 	}
 
-	async function execute(client: DirectClient, request: WorkerRequest): Promise<Executed> {
+	function execute(client: DirectClient, request: WorkerRequest): Executed {
 		switch (request.op) {
 			case 'openDbc': {
-				const { handle, catalog } = await client.openDbc(request.text);
+				const { handle, catalog } = client.openDbc(request.text);
 				const dbcId = nextWireId++;
 				dbcs.set(dbcId, handle);
+				const result: WireOpenDbc = { dbcId, catalog };
 				return {
-					result: { dbcId, catalog },
-					undo: async () => {
+					result,
+					undo: () => {
 						dbcs.delete(dbcId);
-						await client.closeDbc(handle);
+						client.closeDbc(handle);
 					}
 				};
 			}
@@ -90,26 +111,27 @@ export function startWorkerRuntime(
 				const handle = dbcs.get(request.dbcId);
 				if (handle) {
 					dbcs.delete(request.dbcId);
-					await client.closeDbc(handle);
+					client.closeDbc(handle);
 				}
 				return { result: null };
 			}
 			case 'openTrace': {
-				const handle = await client.openTrace(request.traceType, new Uint8Array(request.buffer));
+				const opened = client.openTrace(request.traceType, new Uint8Array(request.buffer));
 				const traceId = nextWireId++;
-				traces.set(traceId, handle);
+				traces.set(traceId, opened.handle);
+				const result: WireOpenTrace = {
+					traceId,
+					metadata: opened.metadata,
+					hasRawFrames: opened.hasRawFrames,
+					mf4Catalog: opened.mf4Catalog,
+					embeddedDbcs: opened.embeddedDbcs,
+					warnings: opened.warnings
+				};
 				return {
-					result: {
-						traceId,
-						metadata: handle.metadata,
-						hasRawFrames: handle.hasRawFrames,
-						mf4Catalog: handle.mf4Catalog,
-						embeddedDbcs: handle.embeddedDbcs,
-						warnings: handle.warnings
-					},
-					undo: async () => {
+					result,
+					undo: () => {
 						traces.delete(traceId);
-						await client.closeTrace(handle);
+						client.closeTrace(opened.handle);
 					}
 				};
 			}
@@ -117,30 +139,30 @@ export function startWorkerRuntime(
 				const handle = traces.get(request.traceId);
 				if (handle) {
 					traces.delete(request.traceId);
-					await client.closeTrace(handle);
+					client.closeTrace(handle);
 				}
 				return { result: null };
 			}
-			case 'getSignalValues': {
-				const series = await client.getSignalValues(
-					requireHandle(dbcs, request.dbcId, 'dbc'),
-					requireHandle(traces, request.traceId, 'trace'),
-					request.messageIdentity,
-					request.signalName
+			case 'getSignalValues':
+				return packSeries(
+					client.getSignalValues(
+						requireHandle(dbcs, request.dbcId, 'dbc'),
+						requireHandle(traces, request.traceId, 'trace'),
+						request.messageIdentity,
+						request.signalName
+					)
 				);
-				return packSeries(series);
-			}
-			case 'getMf4SignalValues': {
-				const series = await client.getMf4SignalValues(
-					requireHandle(traces, request.traceId, 'trace'),
-					request.signalId
+			case 'getMf4SignalValues':
+				return packSeries(
+					client.getMf4SignalValues(
+						requireHandle(traces, request.traceId, 'trace'),
+						request.signalId
+					)
 				);
-				return packSeries(series);
-			}
 			case 'closeClient': {
 				dbcs.clear();
 				traces.clear();
-				await client.close();
+				client.close();
 				return { result: null };
 			}
 		}
