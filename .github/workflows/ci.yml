@@ -46,6 +46,11 @@ jobs:
       - name: Validate installed package entries and browser
         run: nix develop -c pnpm run package:test:tarball
 
+      - name: Validate app with registry package
+        run: |
+          nix develop -c pnpm run build
+          nix develop -c pnpm run test:app:browser
+
       - name: Build app against installed package
         run: nix develop -c pnpm run package:test:app
 
