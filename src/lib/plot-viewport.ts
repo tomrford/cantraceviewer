@@ -72,14 +72,29 @@ export function paddedViewport(
 	return { xMin: x.min, xMax: x.max, yMin: y.min, yMax: y.max };
 }
 
-/** The y slice `viewport` shows of `domain`, in ratio space. */
-export function yWindowOf(domain: PlotViewport, viewport: PlotViewport): PlotYWindow {
-	const span = domain.yMax - domain.yMin;
-	if (!(span > 0)) return FULL_Y_WINDOW;
+/**
+ * Advances the y window by the change from one viewport to the next, measured
+ * in the outgoing viewport's own ratio space.
+ *
+ * Composing relatively rather than recomputing against the primary axis's fit
+ * range keeps the other axes still when that range moves underneath: assigning
+ * a signal away changes it, and a later x-only navigation must not be read as a
+ * y change. A viewport whose y bounds are unchanged composes to no change at
+ * all, and starting from the full window reproduces the plain ratio of the
+ * viewport within the domain.
+ */
+export function advanceYWindow(
+	window: PlotYWindow,
+	from: PlotViewport,
+	to: PlotViewport
+): PlotYWindow {
+	const span = from.yMax - from.yMin;
+	if (!(span > 0)) return window;
 
+	const windowSpan = window.bottom - window.top;
 	return {
-		top: (domain.yMax - viewport.yMax) / span,
-		bottom: (domain.yMax - viewport.yMin) / span
+		top: window.top + ((from.yMax - to.yMax) / span) * windowSpan,
+		bottom: window.top + ((from.yMax - to.yMin) / span) * windowSpan
 	};
 }
 

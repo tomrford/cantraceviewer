@@ -123,6 +123,42 @@ describe('PlotViewportState', () => {
 		expect(state.secondaryRanges.get('y1')).toEqual({ min: 250, max: 750 });
 	});
 
+	it('leaves secondary axes alone when navigation only moves x', () => {
+		const state = new PlotViewportState();
+		// The primary axis's fit range moves when its last signal is assigned away.
+		let domain = $state<PlotViewport | null>(viewport(0, 100, 0, 10));
+		state.domainSource = () => domain;
+		state.secondaryRangeSource = () => new Map([['y1', { min: 0, max: 1000 }]]);
+
+		state.setManual(viewport(0, 100, 2.5, 7.5));
+		domain = viewport(0, 100, 0, 1);
+		expect(state.secondaryRanges.get('y1')).toEqual({ min: 250, max: 750 });
+
+		// An x-only pan carries the same y bounds, so it must not be read as a y
+		// change against the primary axis's new fit range.
+		state.panBy({ x: 40, y: 0 }, { width: 100, height: 100 });
+
+		expect(state.activeViewport?.yMin).toBe(2.5);
+		expect(state.secondaryRanges.get('y1')).toEqual({ min: 250, max: 750 });
+
+		// An x-only zoom is the same case, from the wheel rather than a drag.
+		state.zoomBy(0.5, { xRatio: 0.5, yRatio: 0.5 }, { x: true, y: false });
+
+		expect(state.secondaryRanges.get('y1')).toEqual({ min: 250, max: 750 });
+	});
+
+	it('composes successive y zooms rather than re-reading the fit range', () => {
+		const state = new PlotViewportState();
+		state.domainSource = () => viewport(0, 100, 0, 10);
+		state.secondaryRangeSource = () => new Map([['y1', { min: 0, max: 1000 }]]);
+
+		state.setManual(viewport(0, 100, 2.5, 7.5));
+		// Halve again about the centre: the middle half of the middle half.
+		state.setManual(viewport(0, 100, 3.75, 6.25));
+
+		expect(state.secondaryRanges.get('y1')).toEqual({ min: 375, max: 625 });
+	});
+
 	it('leaves secondary axes at their fit range without a domain', () => {
 		const state = new PlotViewportState();
 		state.domainSource = () => null;

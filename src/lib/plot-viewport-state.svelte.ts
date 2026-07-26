@@ -1,6 +1,7 @@
 import type { YAxisId } from './plot-axes.js';
 import type { PlotRatioPoint } from './plot-geometry.js';
 import {
+	advanceYWindow,
 	applyYWindow,
 	FULL_Y_WINDOW,
 	panViewport,
@@ -8,7 +9,6 @@ import {
 	type PlotViewport,
 	type PlotYWindow,
 	viewportsAlmostEqual,
-	yWindowOf,
 	zoomViewport
 } from './plot-viewport.js';
 
@@ -78,14 +78,16 @@ export class PlotViewportState {
 	}
 
 	setManual(viewport: PlotViewport): void {
-		const domain = this.fullDomain;
-		if (viewportsAlmostEqual(viewport, domain)) {
+		if (viewportsAlmostEqual(viewport, this.fullDomain)) {
 			this.reset();
 			return;
 		}
 
+		// Read the outgoing viewport before replacing it: the window advances by
+		// the change between the two, so an x-only navigation leaves it alone.
+		const previous = this.activeViewport;
+		if (previous !== null) this.#yWindow = advanceYWindow(this.#yWindow, previous, viewport);
 		this.#mode = { mode: 'manual', viewport };
-		this.#yWindow = domain === null ? FULL_Y_WINDOW : yWindowOf(domain, viewport);
 	}
 
 	reset(): void {
