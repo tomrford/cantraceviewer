@@ -8,6 +8,8 @@ The app opens directly into the plotter. Users load one CAN trace, save one or m
 
 Signals share one x axis and start on one y axis. The legend manages up to five y axes: signals move between them by drag and drop or by the move menu on each row. The app owns the y axis gutters and tick labels in DOM, because ChartGPU anchors every left axis at the same edge and does not render the y axis line. Y navigation is uniform: one gesture moves every axis by the same proportion of its own fit range, so each axis keeps fitting its own signals.
 
+Axis assignments live in memory for the current session and are released with the signal, alongside its colour, when it is deselected. Deselecting a signal does not remove the axis it was on. Do not make axis assignments persist across sessions without an explicit product reason.
+
 The UI uses SvelteKit, Svelte 5, Node.js, pnpm, Tailwind, and shadcn-svelte style components. Rust code lives under `wasm/` and compiles through wasm-bindgen for DBC parsing, trace parsing, and signal decoding. The app consumes an exact registry version of the `cantraceviewer` package. Its browser root and `/node` entries are asynchronous worker transports over the synchronous `/direct` implementation; the app uses the browser client and owns one dedicated Worker.
 
 Saved DBC files and UI preferences live only in browser storage on the current device. Loaded traces, MF4-native signal catalogs, temporary embedded DBCs, and derived signal series live in memory for the current browser session. Do not add server persistence or new persisted state without an explicit product reason.

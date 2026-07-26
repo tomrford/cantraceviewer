@@ -1,5 +1,6 @@
 import { createSignalColorAssigner } from '$lib/plot-colors.js';
 import { orderPlotSignals } from '$lib/plot-signal-order.js';
+import { plotAxes } from '$lib/stores/plot-axes.svelte.js';
 import { dbcFiles, signalIdentityKey, type DbcSignalTarget } from '$lib/stores/dbc-files.svelte.js';
 import { legendOrderMode } from '$lib/stores/preferences.svelte.js';
 import { traceFile } from '$lib/stores/trace-file.svelte.js';
@@ -108,6 +109,7 @@ class PlotDataStore {
 		if (this.isSignalSelected(key)) {
 			this.selectedSignals.delete(key);
 			this.signalColors.release(key);
+			plotAxes.release(key);
 			return;
 		}
 
@@ -127,12 +129,14 @@ class PlotDataStore {
 		for (const key of dbcSignalKeys) {
 			this.selectedSignals.delete(key);
 			this.signalColors.release(key);
+			plotAxes.release(key);
 		}
 	}
 
 	clearSelectedSignals(): void {
 		this.selectedSignals.clear();
 		this.signalColors.clear();
+		plotAxes.releaseAll();
 	}
 
 	private async decodeSignal(key: PlotSignalKey): Promise<void> {

@@ -22,7 +22,6 @@
 		id: YAxisId;
 		index: number;
 		label: string;
-		color: string | null;
 		unit: string | null;
 		signals: SignalView[];
 	};
@@ -147,7 +146,6 @@
 				group={axis}
 				label={axis.label}
 				unit={axis.unit}
-				color={axis.color}
 				showHeader={multiAxis}
 				{showValues}
 				{valuesByKey}

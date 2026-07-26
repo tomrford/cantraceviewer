@@ -11,7 +11,6 @@
 		cursorText,
 		group,
 		label,
-		color,
 		onMove,
 		onMoveToNewAxis,
 		onOverlay,
@@ -29,7 +28,6 @@
 		label: string;
 		/** Unit the axis's signals agree on, or null when they do not share one. */
 		unit: string | null;
-		color: string | null;
 		onMove: (signalKey: string, axisId: YAxisId) => void;
 		onMoveToNewAxis: (signalKey: string) => void;
 		onOverlay: (open: boolean) => void;
@@ -70,9 +68,7 @@
 	{#if showHeader}
 		<div class="mb-1.5 flex items-center gap-2 text-xs">
 			<span
-				class="rounded-sm px-1 font-mono text-[0.625rem] leading-4 font-semibold text-background"
-				style:background-color={color ?? undefined}
-				class:bg-muted-foreground={color === null}
+				class="rounded-sm bg-muted-foreground px-1 font-mono text-[0.625rem] leading-4 font-semibold text-background"
 			>
 				Y{group.index + 1}
 			</span>
@@ -81,10 +77,12 @@
 				<span class="font-mono text-muted-foreground tabular-nums">{cursorText}</span>
 			{/if}
 			{#if onRemove !== null}
+				<!-- Pulled right by the icon button's own inset so the glyph lines up
+				     with the right edge of the signal rows below. -->
 				<Button
 					variant="ghost"
 					size="icon"
-					class="size-5 text-muted-foreground hover:text-destructive"
+					class="-mr-1 size-5 text-muted-foreground hover:text-destructive"
 					aria-label={`Remove ${label}`}
 					onclick={onRemove}
 				>

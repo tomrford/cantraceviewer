@@ -16,7 +16,7 @@
 		ranges
 	}: {
 		/** Axes that hold signals, primary first. Empty axes get no gutter. */
-		axes: { id: YAxisId; index: number; label: string; color: string | null }[];
+		axes: { id: YAxisId; index: number; label: string }[];
 		grid: PlotGrid;
 		/** Whether the legend is showing axis sections, so the chips have a partner. */
 		numbered: boolean;
@@ -55,10 +55,8 @@
 				{@const text = formatAxisValue(tick.value)}
 				{#if text !== null}
 					<span
-						class="absolute right-2.5 -translate-y-1/2 font-mono text-[0.6875rem] leading-none tabular-nums"
+						class="absolute right-2.5 -translate-y-1/2 font-mono text-[0.6875rem] leading-none text-muted-foreground tabular-nums"
 						style:top={`${tick.ratio * 100}%`}
-						style:color={column.color ?? undefined}
-						class:text-muted-foreground={column.color === null}
 					>
 						{text}
 					</span>
@@ -67,9 +65,7 @@
 
 			{#if numbered}
 				<span
-					class="absolute top-full right-2.5 mt-2 rounded-sm px-1 font-mono text-[0.625rem] leading-4 font-semibold text-background"
-					style:background-color={column.color ?? undefined}
-					class:bg-muted-foreground={column.color === null}
+					class="absolute top-full right-2.5 mt-2 rounded-sm bg-muted-foreground px-1 font-mono text-[0.625rem] leading-4 font-semibold text-background"
 					title={column.label}
 				>
 					Y{column.index + 1}

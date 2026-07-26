@@ -116,14 +116,7 @@
 	const axisViews = $derived(
 		axisGroups.map((group) => {
 			const unit = yAxisUnit(group.signals);
-			return {
-				...group,
-				unit,
-				label: yAxisLabel(group.index, unit),
-				// A single-signal axis borrows that signal's colour so the gutter, the
-				// legend chip, and the line it scales all read as one thing.
-				color: group.signals.length === 1 ? group.signals[0].color : null
-			};
+			return { ...group, unit, label: yAxisLabel(group.index, unit) };
 		})
 	);
 	const primaryAxisId = $derived(axisViews[0].id);
