@@ -35,3 +35,6 @@ nix develop -c pnpm run package:test:electron
 ```
 
 The Electron fixture requires an active desktop session or `xvfb-run` on Linux.
+
+See [Package releases](docs/package-releases.md) for the npm release and local
+package-testing workflow.

@@ -1,0 +1,124 @@
+name: Publish package
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and validate package
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.package.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Validate release source and version
+        id: package
+        shell: bash
+        run: |
+          git merge-base --is-ancestor HEAD origin/main
+          package_version="$(node -p "require('./packages/core/package.json').version")"
+          expected_tag="v${package_version}"
+          if [[ "$GITHUB_REF_NAME" != "$expected_tag" ]]; then
+            echo "release tag $GITHUB_REF_NAME does not match package version $package_version" >&2
+            exit 1
+          fi
+          echo "version=$package_version" >> "$GITHUB_OUTPUT"
+
+      - uses: cachix/install-nix-action@v31
+
+      - name: Install dependencies
+        run: nix develop -c pnpm install --frozen-lockfile
+
+      - name: Check and test Rust
+        run: |
+          nix develop -c pnpm run wasm:check
+          nix develop -c pnpm run wasm:test
+
+      - name: Build release WASM
+        run: nix develop -c pnpm run wasm:build:release
+
+      - name: Build package tarball
+        run: nix develop -c pnpm run package:pack
+
+      - name: Install browser for package smoke
+        run: nix develop -c pnpm exec playwright install --with-deps chromium
+
+      - name: Validate installed package entries and browser
+        run: nix develop -c pnpm run package:test:tarball
+
+      - name: Build app against installed package
+        run: nix develop -c pnpm run package:test:app
+
+      - name: Validate Electron arrangements
+        run: nix develop -c xvfb-run -a pnpm run package:test:electron
+
+      - name: Verify package checksum
+        env:
+          VERSION: ${{ steps.package.outputs.version }}
+        run: cd artifacts && sha256sum --check "cantraceviewer-${VERSION}.tgz.sha256"
+
+      - name: Preserve tested package
+        uses: actions/upload-artifact@v7
+        with:
+          name: cantraceviewer-${{ steps.package.outputs.version }}
+          path: artifacts/*.tgz*
+          if-no-files-found: error
+
+  publish:
+    name: Publish package
+    needs: build
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Download tested package
+        uses: actions/download-artifact@v8
+        with:
+          name: cantraceviewer-${{ needs.build.outputs.version }}
+          path: artifacts
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Verify publish toolchain and package
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        shell: bash
+        run: |
+          npm_major="$(npm --version | cut -d. -f1)"
+          if (( npm_major < 11 )); then
+            echo "npm 11 or newer is required, found $(npm --version)" >&2
+            exit 1
+          fi
+          cd artifacts
+          sha256sum --check "cantraceviewer-${VERSION}.tgz.sha256"
+
+      - name: Publish tested package
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+          PRERELEASE: ${{ github.event.release.prerelease }}
+        shell: bash
+        run: |
+          publish_tag="latest"
+          if [[ "$PRERELEASE" == "true" ]]; then
+            publish_tag="next"
+          fi
+          npm publish "./artifacts/cantraceviewer-${VERSION}.tgz" \
+            --access public \
+            --tag "$publish_tag"
