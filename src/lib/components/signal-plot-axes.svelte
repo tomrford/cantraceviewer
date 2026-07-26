@@ -54,8 +54,10 @@
 			{#each column.ticks as tick (tick.ratio)}
 				{@const text = formatAxisValue(tick.value)}
 				{#if text !== null}
+					<!-- text-xs and text-muted-foreground are the Tailwind side of the
+					     same size and token ChartGPU is handed for the x axis. -->
 					<span
-						class="absolute right-2.5 -translate-y-1/2 font-mono text-[0.6875rem] leading-none text-muted-foreground tabular-nums"
+						class="absolute right-2.5 -translate-y-1/2 font-mono text-xs leading-none text-muted-foreground tabular-nums"
 						style:top={`${tick.ratio * 100}%`}
 					>
 						{text}

@@ -14,6 +14,7 @@
 		type PlotViewport
 	} from '$lib/plot-viewport.js';
 	import { plotGrid } from '$lib/plot-axis-layout.js';
+	import { FALLBACK_PLOT_THEME, resolvePlotTheme, type PlotTheme } from '$lib/plot-theme.js';
 	import { groupSignalsByYAxis, yAxisLabel, yAxisUnit, type YAxisId } from '$lib/plot-axes.js';
 	import { plotAxes } from '$lib/stores/plot-axes.svelte.js';
 	import { plotDragMode, plotWheelAction } from '$lib/plot-interaction-policy.js';
@@ -46,7 +47,7 @@
 	import ShortcutKey from './shortcut-key.svelte';
 	import { createPlotPerfStats } from '$lib/plot-perf.js';
 	import { isPlottableSignal, plotData } from '$lib/stores/plot-data.svelte.js';
-	import { isDark, timestampMode } from '$lib/stores/preferences.svelte.js';
+	import { timestampMode } from '$lib/stores/preferences.svelte.js';
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
 	import { onDestroy, onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
@@ -101,10 +102,11 @@
 	let resizeObserver: ResizeObserver | null = null;
 
 	const WHEEL_ZOOM_SPEED = 0.002;
-	const GRID_LINE = {
-		dark: { color: '#f4f4f5', opacity: 0.1 },
-		light: { color: '#71717a', opacity: 0.3 }
-	} as const;
+	const AXIS_FONT_SIZE = 12;
+	// Both axes' labels come from these tokens: ChartGPU draws the x axis from the
+	// theme it is handed, and SignalPlotAxes draws the y gutters from the Tailwind
+	// classes that resolve to the same custom properties.
+	let plotTheme = $state<PlotTheme>(FALLBACK_PLOT_THEME);
 	const viewsForSignals = createSignalViewCache();
 	const plottableSignals = $derived(plotData.signals.filter(isPlottableSignal));
 	const hasPlottableSignals = $derived(plottableSignals.length > 0);
@@ -178,6 +180,19 @@
 
 	$effect(() => {
 		plotWindow.settleAfter(signalViews, activeViewport);
+	});
+
+	// The custom properties change value under the same names, so only a fresh
+	// computed style sees a theme flip. Watch the class the layout toggles rather
+	// than `isDark()` directly: reacting to the preference races the effect that
+	// applies it, and reads the outgoing theme's tokens.
+	onMount(() => {
+		const readTheme = () => (plotTheme = resolvePlotTheme(getComputedStyle(plotRoot)));
+		readTheme();
+
+		const observer = new MutationObserver(readTheme);
+		observer.observe(document.documentElement, { attributeFilter: ['class'] });
+		return () => observer.disconnect();
 	});
 	const isFitAll = $derived(viewport.isFitAll);
 	const legendSignalValues = $derived.by(() => {
@@ -280,27 +295,24 @@
 	}
 
 	function chartOptions(): ChartGPUOptions {
-		const dark = isDark();
-		const gridLine = dark ? GRID_LINE.dark : GRID_LINE.light;
+		const theme = plotTheme;
 		const axisMeasurementStartMs = measurementStartMs;
 		const axisTimestampMode = timestampMode.current;
 
 		return {
 			theme: {
-				backgroundColor: dark ? '#09090b' : '#ffffff',
-				textColor: dark ? '#e4e4e7' : '#18181b',
-				axisLineColor: dark ? '#3f3f46' : '#d4d4d8',
-				axisTickColor: '#71717a',
-				gridLineColor: gridLine.color,
+				backgroundColor: theme.background,
+				textColor: theme.text,
+				axisLineColor: theme.axisLine,
+				axisTickColor: theme.axisTick,
+				gridLineColor: theme.gridLine,
 				colorPalette: SIGNAL_COLORS,
-				fontFamily: 'Geist Variable, sans-serif',
-				fontSize: 12
+				fontFamily: theme.fontFamily,
+				fontSize: AXIS_FONT_SIZE
 			},
 			grid,
-			gridLines: {
-				color: gridLine.color,
-				opacity: gridLine.opacity
-			},
+			// The token carries its own alpha, so the grid lines need no second one.
+			gridLines: { color: theme.gridLine, opacity: 1 },
 			xAxis: {
 				type: 'time',
 				min: activeViewport?.xMin,
