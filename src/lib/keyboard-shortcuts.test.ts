@@ -157,7 +157,8 @@ describe('keyboard shortcuts', () => {
 			traceLoading: true,
 			plotControlsDisabled: true,
 			canResetZoom: false,
-			canPlaceCrosshair: false
+			canPlaceCrosshair: false,
+			hasCrosshairs: false
 		};
 		expect(shortcutEnabled('openTrace', disabled)).toBe(false);
 		expect(shortcutEnabled('zoomIn', disabled)).toBe(false);
@@ -170,10 +171,30 @@ describe('keyboard shortcuts', () => {
 			traceLoading: false,
 			plotControlsDisabled: false,
 			canResetZoom: true,
-			canPlaceCrosshair: false
+			canPlaceCrosshair: false,
+			hasCrosshairs: false
 		};
 		expect(shortcutEnabled('placeC1', state)).toBe(false);
 		expect(shortcutEnabled('placeC2', { ...state, canPlaceCrosshair: true })).toBe(true);
+	});
+
+	it('enables clearing crosshairs only once one is placed', () => {
+		const state = {
+			traceLoading: false,
+			plotControlsDisabled: false,
+			canResetZoom: true,
+			canPlaceCrosshair: true,
+			hasCrosshairs: false
+		};
+		expect(shortcutEnabled('clearCrosshairs', state)).toBe(false);
+		expect(shortcutEnabled('clearCrosshairs', { ...state, hasCrosshairs: true })).toBe(true);
+		expect(
+			shortcutEnabled('clearCrosshairs', {
+				...state,
+				hasCrosshairs: true,
+				plotControlsDisabled: true
+			})
+		).toBe(false);
 	});
 
 	it.each<[string, ShortcutPlatform, string[]]>([

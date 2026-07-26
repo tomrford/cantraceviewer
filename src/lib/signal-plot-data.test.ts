@@ -68,24 +68,37 @@ describe('signal plot data', () => {
 	});
 
 	it('disables chart-side sampling and gates markers via the threshold', () => {
-		const full = lineSeries({ ...view([0, 1, 2]), sampled: false });
+		const full = lineSeries({ ...view([0, 1, 2]), sampled: false }, 'y');
 		expect(full.type).toBe('line');
 		if (full.type !== 'line') throw new Error('expected line series');
 		expect(full.sampling).toBe('none');
 		expect(full.samplingThreshold).toBe(3);
 
-		const downsampled = lineSeries({ ...view([0, 1, 2]), sampled: true });
+		const downsampled = lineSeries({ ...view([0, 1, 2]), sampled: true }, 'y');
 		if (downsampled.type !== 'line') throw new Error('expected line series');
 		expect(downsampled.samplingThreshold).toBe(2);
 	});
 
 	it('excludes empty lines from the chart series', () => {
-		const series = lineSeriesForViews([
-			{ ...view([]), sampled: false },
-			{ ...view([0, 1]), sampled: false }
-		]);
+		const series = lineSeriesForViews(
+			[
+				{ ...view([]), sampled: false },
+				{ ...view([0, 1]), sampled: false }
+			],
+			() => 'y'
+		);
 
 		expect(series).toHaveLength(1);
+	});
+
+	it('routes each line to the y axis its signal is assigned to', () => {
+		const first = { ...view([0, 1]), key: 'a', sampled: false };
+		const second = { ...view([0, 1]), key: 'b', sampled: false };
+		const series = lineSeriesForViews([first, second], (candidate) =>
+			candidate.key === 'b' ? 'y1' : 'y'
+		);
+
+		expect(series.map((entry) => entry.yAxis)).toEqual(['y', 'y1']);
 	});
 
 	it('fits the domain across views from min/max scans', () => {

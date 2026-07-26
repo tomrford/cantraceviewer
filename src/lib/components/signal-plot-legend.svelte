@@ -4,6 +4,8 @@
 		type LegendCrosshairMode,
 		type PlotCrosshair
 	} from '$lib/plot-crosshair.js';
+	import type { YAxisId } from '$lib/plot-axes.js';
+	import { ratioInRange, valueAtRatio, type PlotAxisRange } from '$lib/plot-viewport.js';
 	import {
 		formatAxisTime,
 		formatAxisValue,
@@ -13,23 +15,45 @@
 	} from '$lib/signal-plot-data.js';
 	import type { TimestampMode } from '$lib/stores/preferences.svelte.js';
 	import * as Select from '$lib/components/ui/select/index.js';
+	import LegendAxisGroup from './legend-axis-group.svelte';
+	import PlusIcon from '@lucide/svelte/icons/plus';
+
+	type LegendAxis = {
+		id: YAxisId;
+		index: number;
+		label: string;
+		unit: string | null;
+		signals: SignalView[];
+	};
 
 	let {
-		measurementStartMs,
+		axes,
+		axisRanges,
+		canAddAxis,
 		crosshairs,
+		measurementStartMs,
 		mode = $bindable('c1'),
-		selectOpen = $bindable(false),
+		onAddAxis,
+		onMove,
+		onMoveToNewAxis,
+		onRemoveAxis,
+		selectOpen = $bindable(false), // eslint-disable-line no-useless-assignment
 		signalValues,
-		timestampMode,
-		views
+		timestampMode
 	}: {
-		measurementStartMs?: number | null;
+		axes: LegendAxis[];
+		axisRanges: ReadonlyMap<YAxisId, PlotAxisRange>;
+		canAddAxis: boolean;
 		crosshairs: PlotCrosshair[];
+		measurementStartMs?: number | null;
 		mode?: LegendCrosshairMode;
+		onAddAxis: () => void;
+		onMove: (signalKey: string, axisId: YAxisId) => void;
+		onMoveToNewAxis: (signalKey: string) => void;
+		onRemoveAxis: (axisId: YAxisId) => void;
 		selectOpen?: boolean;
 		signalValues: LegendSignalValue[];
 		timestampMode: TimestampMode;
-		views: SignalView[];
 	} = $props();
 
 	const c1 = $derived(crosshairById(crosshairs, 1));
@@ -45,21 +69,62 @@
 	const activeCrosshair = $derived(mode === 'c1' ? c1 : mode === 'c2' ? c2 : null);
 	const valuesByKey = $derived(new Map(signalValues.map((value) => [value.key, value])));
 	const showValues = $derived(crosshairs.length > 0);
+	const multiAxis = $derived(axes.length > 1);
+	const axisTargets = $derived(axes.map((axis) => ({ id: axis.id, label: axis.label })));
+	// The crosshair's y is anchored to the primary axis, so every other axis
+	// reads its own value off the same screen row.
+	const primaryRange = $derived(
+		axes[0] === undefined ? null : (axisRanges.get(axes[0].id) ?? null)
+	);
+
+	// The mode select and the per-signal move menus float above the plot, so any
+	// of them being open has to suspend plot interaction underneath.
+	let selectMenuOpen = $state(false);
+	let openMoveMenus = $state(0);
+	const overlayOpen = $derived(selectMenuOpen || openMoveMenus > 0);
+
+	$effect(() => {
+		selectOpen = overlayOpen;
+	});
 
 	function yText(value: number): string {
 		return formatAxisValue(value) ?? '-';
 	}
+
+	/** The crosshair readout for one axis, expressed in that axis's own scale. */
+	function axisCursorText(axisId: YAxisId): string | null {
+		const range = axisRanges.get(axisId);
+		if (range === undefined || primaryRange === null) return null;
+
+		if (mode === 'delta') {
+			if (c1 === null || c2 === null) return null;
+			const rowSpan = ratioInRange(primaryRange, c1.y) - ratioInRange(primaryRange, c2.y);
+			return `Δy ${yText(rowSpan * (range.max - range.min))}`;
+		}
+
+		if (activeCrosshair === null) return null;
+		return `y ${yText(valueAtRatio(range, ratioInRange(primaryRange, activeCrosshair.y)))}`;
+	}
+
+	function trackMoveMenu(open: boolean): void {
+		openMoveMenus = Math.max(0, openMoveMenus + (open ? 1 : -1));
+	}
 </script>
 
 <div
-	class="absolute top-3 right-3 z-50 max-h-[calc(100%-1.5rem)] w-80 overflow-auto rounded-lg border border-border/70 bg-popover/90 p-3 text-popover-foreground shadow-sm backdrop-blur"
+	class={[
+		'absolute top-3 right-3 z-50 max-h-[calc(100%-1.5rem)] overflow-auto rounded-lg border border-border/70 bg-popover/90 p-3 text-popover-foreground shadow-sm backdrop-blur',
+		// Axis sections add a grip column and a per-axis readout, so the signal
+		// names need the extra room to stay legible.
+		multiAxis ? 'w-[22rem]' : 'w-80'
+	]}
 >
 	{#if selectedOption !== undefined}
 		<div class="mb-3 flex items-center justify-between gap-2">
 			<span class="text-xs font-medium text-muted-foreground">Legend values</span>
 			<Select.Root
 				type="single"
-				bind:open={selectOpen}
+				bind:open={selectMenuOpen}
 				value={mode}
 				onValueChange={(value: string) => (mode = value as LegendCrosshairMode)}
 			>
@@ -75,48 +140,47 @@
 		</div>
 	{/if}
 
-	<div class="space-y-2">
-		{#each views as view (view.key)}
-			{@const value = valuesByKey.get(view.key)}
-			<div
-				class="grid min-w-0 items-center gap-2 text-xs"
-				class:grid-cols-[0.75rem_minmax(0,1fr)_auto]={showValues}
-				class:grid-cols-[0.75rem_minmax(0,1fr)]={!showValues}
-			>
-				<span class="size-2 rounded-full" style:background-color={view.color}></span>
-				<span class="flex min-w-0" title={view.label}>
-					<span class="min-w-0 flex-[0_1_max-content] truncate">{view.signalName}</span>
-					<span class="text-muted-foreground">&nbsp;(</span>
-					<span class="min-w-0 flex-[0_9999_auto] truncate text-muted-foreground">
-						{view.messageName}
-					</span>
-					<span class="text-muted-foreground">)</span>
-				</span>
-				{#if showValues}
-					<span
-						class="font-mono tabular-nums"
-						class:text-destructive={value?.outOfRange}
-						title={value?.outOfRange
-							? `Outside DBC range [${view.minimum}, ${view.maximum}]`
-							: undefined}
-					>
-						{value?.text ?? '-'}
-					</span>
-				{/if}
-			</div>
+	<div class={multiAxis ? 'space-y-1' : 'space-y-2'}>
+		{#each axes as axis (axis.id)}
+			<LegendAxisGroup
+				group={axis}
+				label={axis.label}
+				unit={axis.unit}
+				showHeader={multiAxis}
+				{showValues}
+				{valuesByKey}
+				{axisTargets}
+				{canAddAxis}
+				{onMove}
+				{onMoveToNewAxis}
+				cursorText={multiAxis ? axisCursorText(axis.id) : null}
+				onRemove={axis.index === 0 ? null : () => onRemoveAxis(axis.id)}
+				onOverlay={trackMoveMenu}
+			/>
 		{/each}
 	</div>
 
+	{#if canAddAxis}
+		<button
+			type="button"
+			class="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-border py-1.5 text-xs text-muted-foreground transition-colors hover:border-ring hover:text-foreground"
+			onclick={onAddAxis}
+		>
+			<PlusIcon class="size-3.5" />
+			Add Y axis
+		</button>
+	{/if}
+
 	{#if mode === 'delta' && c1 !== null && c2 !== null}
 		<div class="mt-2 font-mono text-xs text-muted-foreground tabular-nums">
-			C2 − C1 · Δt {formatTimeDelta(c2.x - c1.x)} · Δy {yText(c2.y - c1.y)}
+			C2 − C1 · Δt {formatTimeDelta(c2.x - c1.x)}{multiAxis ? '' : ` · Δy ${yText(c2.y - c1.y)}`}
 		</div>
 	{:else if activeCrosshair !== null}
 		<div class="mt-2 font-mono text-xs text-muted-foreground tabular-nums">
 			C{activeCrosshair.id} · {formatAxisTime(activeCrosshair.x, {
 				measurementStartMs,
 				mode: timestampMode
-			})} · y {yText(activeCrosshair.y)}
+			})}{multiAxis ? '' : ` · y ${yText(activeCrosshair.y)}`}
 		</div>
 	{/if}
 </div>

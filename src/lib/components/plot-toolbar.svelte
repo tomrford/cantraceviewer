@@ -195,6 +195,7 @@
 			>
 				<XIcon />
 				Clear all
+				<ShortcutKey keys={shortcutKeys('clearCrosshairs', shortcutPlatform)} class="ml-auto" />
 			</Popover.Close>
 		</Popover.Content>
 	</Popover.Root>
