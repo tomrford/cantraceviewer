@@ -130,7 +130,10 @@
 	const axisIdByKey = $derived(
 		new Map(axisGroups.flatMap((group) => group.signals.map((view) => [view.key, group.id])))
 	);
-	const grid = $derived(plotGrid(axisViews.length));
+	// An axis with nothing on it has no range worth drawing, so it earns no
+	// gutter and no plot width until a signal lands on it.
+	const gutterAxes = $derived(axisViews.filter((axis) => axis.signals.length > 0));
+	const grid = $derived(plotGrid(gutterAxes.length));
 	const secondaryFitRanges = $derived.by(() => {
 		// Rebuilt on every evaluation, never mutated after: a derived lookup, not state.
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
@@ -646,7 +649,7 @@
 	{/if}
 
 	{#if hasPlottableSignals && plotReady}
-		<SignalPlotAxes axes={axisViews} {grid} ranges={axisRanges} />
+		<SignalPlotAxes axes={gutterAxes} {grid} numbered={axisViews.length > 1} ranges={axisRanges} />
 	{/if}
 
 	{#if hasPlottableSignals && legendVisible}

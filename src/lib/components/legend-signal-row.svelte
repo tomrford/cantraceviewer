@@ -33,9 +33,11 @@
 
 	let menuOpen = $state(false);
 
-	// The grip doubles as the accessible path: dragging is a pointer-only
-	// affordance, so the same control opens a move menu on click or Enter.
-	const menuAvailable = $derived(axisTargets.length > 1 || canAddAxis);
+	// Grips only appear once there is somewhere to move a signal to, so the
+	// single-axis legend stays the plain list it has always been. The grip
+	// doubles as the accessible path: dragging is a pointer-only affordance, so
+	// the same control opens a move menu on click or Enter.
+	const menuAvailable = $derived(axisTargets.length > 1);
 
 	function handleOpen(open: boolean): void {
 		menuOpen = open;

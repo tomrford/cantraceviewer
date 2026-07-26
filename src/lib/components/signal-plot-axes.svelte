@@ -12,24 +12,30 @@
 	let {
 		axes,
 		grid,
+		numbered,
 		ranges
 	}: {
+		/** Axes that hold signals, primary first. Empty axes get no gutter. */
 		axes: { id: YAxisId; index: number; label: string; color: string | null }[];
 		grid: PlotGrid;
+		/** Whether the legend is showing axis sections, so the chips have a partner. */
+		numbered: boolean;
 		ranges: ReadonlyMap<YAxisId, PlotAxisRange>;
 	} = $props();
 
 	// ChartGPU anchors every left axis at the same edge and never renders the y
 	// axis line at all, so the app owns this chrome: one gutter per axis, stacked
 	// outwards from the plot, on the same tick rows as the grid lines.
+	//
+	// The gutter's place in the stack follows the drawn axes rather than the axis
+	// list, so an empty axis in the middle does not leave a hole.
 	const columns = $derived(
-		axes.map((axis) => ({
+		axes.map((axis, position) => ({
 			...axis,
-			offset: axisGutterOffset(axis.index, axes.length),
+			offset: axisGutterOffset(position, axes.length),
 			ticks: axisTicks(ranges.get(axis.id) ?? null)
 		}))
 	);
-	const numbered = $derived(axes.length > 1);
 </script>
 
 <div class="pointer-events-none absolute inset-0 z-20">

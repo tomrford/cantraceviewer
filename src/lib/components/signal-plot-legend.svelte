@@ -113,7 +113,12 @@
 </script>
 
 <div
-	class="absolute top-3 right-3 z-50 max-h-[calc(100%-1.5rem)] w-80 overflow-auto rounded-lg border border-border/70 bg-popover/90 p-3 text-popover-foreground shadow-sm backdrop-blur"
+	class={[
+		'absolute top-3 right-3 z-50 max-h-[calc(100%-1.5rem)] overflow-auto rounded-lg border border-border/70 bg-popover/90 p-3 text-popover-foreground shadow-sm backdrop-blur',
+		// Axis sections add a grip column and a per-axis readout, so the signal
+		// names need the extra room to stay legible.
+		multiAxis ? 'w-[22rem]' : 'w-80'
+	]}
 >
 	{#if selectedOption !== undefined}
 		<div class="mb-3 flex items-center justify-between gap-2">
