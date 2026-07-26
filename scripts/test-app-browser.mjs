@@ -36,7 +36,7 @@ try {
 	});
 	page.on('pageerror', (error) => diagnostics.push(`pageerror: ${error.message}`));
 
-	await page.goto(appUrl, { waitUntil: 'networkidle' });
+	await page.goto(appUrl, { waitUntil: 'load' });
 	await page
 		.locator('input[type="file"][accept*=".asc"]')
 		.setInputFiles(resolve(fixtures, 'agentic-demo.asc'));
