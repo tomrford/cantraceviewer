@@ -1,10 +1,12 @@
 import { dbcFiles } from './dbc-files.svelte.js';
+import { plotAxes } from './plot-axes.svelte.js';
 import { plotData } from './plot-data.svelte.js';
 import { resetPreferences } from './preferences.svelte.js';
 import { traceFile } from './trace-file.svelte.js';
 
 export async function onTraceOpened(): Promise<void> {
 	plotData.clearSelectedSignals();
+	plotAxes.reset();
 	const trace = traceFile.entry;
 	await dbcFiles.addTransientDbcs(trace?.id ?? 0, trace?.embeddedDbcs ?? []);
 }
@@ -16,6 +18,7 @@ export async function onDbcRemoved(dbcFileId: string): Promise<void> {
 
 export async function onResetPersistentData(): Promise<void> {
 	plotData.clearSelectedSignals();
+	plotAxes.reset();
 	resetPreferences();
 	await dbcFiles.resetLibrary();
 }

@@ -91,6 +91,31 @@ describe('PlotViewportState', () => {
 		expect(state.activeViewport).toEqual(viewport(0, 150));
 	});
 
+	it('moves every axis by the same proportion of its own extent', () => {
+		const state = new PlotViewportState();
+		state.domainSource = () => viewport(0, 100, 0, 10);
+		state.secondaryRangeSource = () => new Map([['y1', { min: 200, max: 400 }]]);
+
+		expect(state.secondaryRanges.get('y1')).toEqual({ min: 200, max: 400 });
+
+		// Halve the y span about the centre: both axes keep their own units but
+		// show the same middle half, so the lines move together on screen.
+		state.setManual(viewport(0, 100, 2.5, 7.5));
+
+		expect(state.secondaryRanges.get('y1')).toEqual({ min: 250, max: 350 });
+
+		state.reset();
+		expect(state.secondaryRanges.get('y1')).toEqual({ min: 200, max: 400 });
+	});
+
+	it('leaves secondary axes at their fit range without a domain', () => {
+		const state = new PlotViewportState();
+		state.domainSource = () => null;
+		state.secondaryRangeSource = () => new Map([['y1', { min: -5, max: 5 }]]);
+
+		expect(state.secondaryRanges.get('y1')).toEqual({ min: -5, max: 5 });
+	});
+
 	it('keeps interaction methods as no-ops without a domain', () => {
 		const state = new PlotViewportState();
 		state.domainSource = () => null;

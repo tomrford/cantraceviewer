@@ -40,8 +40,9 @@
 					from the signal selector.
 				</span>
 				<span class="block">
-					Current support covers CAN trace plotting and a practical subset of DBC, using shared-axis
-					line plots for selected signals.
+					Current support covers CAN trace plotting and a practical subset of DBC. Signals share one
+					time axis and start on one y axis; add more from the legend and drag signals between them
+					when their scales do not sit well together.
 				</span>
 				<span class="block">
 					The source code is available on

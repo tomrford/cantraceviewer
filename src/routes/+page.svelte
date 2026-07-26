@@ -84,7 +84,8 @@
 		traceLoading: traceFile.isLoading,
 		plotControlsDisabled,
 		canResetZoom,
-		canPlaceCrosshair: plotViewport.activeViewport !== null
+		canPlaceCrosshair: plotViewport.activeViewport !== null,
+		hasCrosshairs: crosshairs.length > 0
 	});
 	let traceMetadataTitle = $derived(
 		traceFile.entry ? formatTraceMetadata(traceFile.entry) : undefined
@@ -215,6 +216,9 @@
 				break;
 			case 'placeC2':
 				placeCrosshair(2);
+				break;
+			case 'clearCrosshairs':
+				crosshairs = [];
 				break;
 		}
 	}

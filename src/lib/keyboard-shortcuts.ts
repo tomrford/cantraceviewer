@@ -12,7 +12,8 @@ export type ShortcutAction =
 	| 'toggleBoxZoom'
 	| 'toggleLegend'
 	| 'placeC1'
-	| 'placeC2';
+	| 'placeC2'
+	| 'clearCrosshairs';
 
 export type ShortcutGroup = 'Trace' | 'View' | 'Crosshairs' | 'App';
 
@@ -35,6 +36,7 @@ export type ShortcutState = {
 	plotControlsDisabled: boolean;
 	canResetZoom: boolean;
 	canPlaceCrosshair: boolean;
+	hasCrosshairs: boolean;
 };
 
 export const SHORTCUTS: Record<ShortcutAction, ShortcutDefinition> = {
@@ -53,6 +55,12 @@ export const SHORTCUTS: Record<ShortcutAction, ShortcutDefinition> = {
 	toggleLegend: { key: 'l', displayKey: 'L', label: 'Show or hide legend', group: 'View' },
 	placeC1: { key: '1', displayKey: '1', label: 'Place or centre C1', group: 'Crosshairs' },
 	placeC2: { key: '2', displayKey: '2', label: 'Place or centre C2', group: 'Crosshairs' },
+	clearCrosshairs: {
+		key: 'c',
+		displayKey: 'C',
+		label: 'Clear crosshairs',
+		group: 'Crosshairs'
+	},
 	showPalette: {
 		key: 'k',
 		displayKey: 'K',
@@ -153,6 +161,8 @@ export function shortcutEnabled(action: ShortcutAction, state: ShortcutState): b
 		case 'placeC1':
 		case 'placeC2':
 			return !state.plotControlsDisabled && state.canPlaceCrosshair;
+		case 'clearCrosshairs':
+			return !state.plotControlsDisabled && state.hasCrosshairs;
 		case 'resetZoom':
 			return !state.plotControlsDisabled && state.canResetZoom;
 		default:

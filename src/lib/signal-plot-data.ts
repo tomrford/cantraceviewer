@@ -1,5 +1,6 @@
 import type { SeriesConfig } from 'chartgpu';
-import { paddedViewport, type PlotViewport } from './plot-viewport';
+import type { YAxisId } from './plot-axes.js';
+import { paddedXRange, paddedYRange, type PlotAxisRange, type PlotViewport } from './plot-viewport';
 import type { PlotSignal } from './stores/plot-data.svelte.js';
 import type { TimestampMode } from './stores/preferences.svelte.js';
 
@@ -184,11 +185,12 @@ function viewMatchesSignal(view: SignalView, signal: PlotSignal): boolean {
 	);
 }
 
-export function lineSeries(view: WindowedSignalView): SeriesConfig {
+export function lineSeries(view: WindowedSignalView, yAxis: YAxisId): SeriesConfig {
 	return {
 		type: 'line',
 		name: view.label,
 		data: { x: view.x, y: view.y },
+		yAxis,
 		color: view.color,
 		lineStyle: { color: view.color, width: 2.5, opacity: 0.95 },
 		// PlotWindow pre-samples the data, so ChartGPU-side sampling stays off.
@@ -200,8 +202,11 @@ export function lineSeries(view: WindowedSignalView): SeriesConfig {
 	};
 }
 
-export function lineSeriesForViews(views: WindowedSignalView[]): SeriesConfig[] {
-	return views.filter((view) => view.points > 0).map((view) => lineSeries(view));
+export function lineSeriesForViews(
+	views: WindowedSignalView[],
+	yAxisFor: (view: WindowedSignalView) => YAxisId
+): SeriesConfig[] {
+	return views.filter((view) => view.points > 0).map((view) => lineSeries(view, yAxisFor(view)));
 }
 
 export function crosshairValue(view: SignalView, x: number): LegendSignalValue {
@@ -236,7 +241,7 @@ export function crosshairDeltaValue(
 	};
 }
 
-export function signalDomain(views: SignalView[]): PlotViewport | null {
+function combinedDomain(views: SignalView[]): ViewDomain | null {
 	let xMin = Number.POSITIVE_INFINITY;
 	let xMax = Number.NEGATIVE_INFINITY;
 	let yMin = Number.POSITIVE_INFINITY;
@@ -251,8 +256,47 @@ export function signalDomain(views: SignalView[]): PlotViewport | null {
 		yMax = Math.max(yMax, domain.yMax);
 	}
 
-	return paddedViewport(xMin, xMax, yMin, yMax);
+	return Number.isFinite(xMin) && Number.isFinite(yMin) ? { xMin, xMax, yMin, yMax } : null;
 }
+
+/** Time extent covered by these signals. Unpadded: the trace owns its own edges. */
+export function signalXRange(views: SignalView[]): PlotAxisRange | null {
+	const domain = combinedDomain(views);
+	return domain === null ? null : paddedXRange(domain.xMin, domain.xMax);
+}
+
+/** Value extent of these signals, padded so lines do not touch the plot edges. */
+export function signalYRange(views: SignalView[]): PlotAxisRange | null {
+	const domain = combinedDomain(views);
+	return domain === null ? null : paddedYRange(domain.yMin, domain.yMax);
+}
+
+export function signalDomain(views: SignalView[]): PlotViewport | null {
+	const x = signalXRange(views);
+	const y = signalYRange(views);
+	if (x === null || y === null) return null;
+
+	return { xMin: x.min, xMax: x.max, yMin: y.min, yMax: y.max };
+}
+
+/**
+ * Fit domain of the plot when signals are split across axes: x spans every
+ * signal so the timebase stays shared, while y covers only the primary axis's
+ * own signals.
+ */
+export function axisSplitDomain(
+	allViews: SignalView[],
+	primaryViews: SignalView[]
+): PlotViewport | null {
+	const x = signalXRange(allViews);
+	if (x === null) return null;
+	const y = signalYRange(primaryViews) ?? EMPTY_AXIS_RANGE;
+
+	return { xMin: x.min, xMax: x.max, yMin: y.min, yMax: y.max };
+}
+
+/** Bounds an axis falls back to while it holds no plottable signals. */
+export const EMPTY_AXIS_RANGE: PlotAxisRange = { min: 0, max: 1 };
 
 export function formatAxisTime(
 	value: number,

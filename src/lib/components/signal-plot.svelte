@@ -7,7 +7,15 @@
 		plotImageFilename,
 		savePlotImage
 	} from '$lib/plot-image-export.js';
-	import { panViewport, type PlotPoint, type PlotViewport } from '$lib/plot-viewport.js';
+	import {
+		panViewport,
+		type PlotAxisRange,
+		type PlotPoint,
+		type PlotViewport
+	} from '$lib/plot-viewport.js';
+	import { plotGrid } from '$lib/plot-axis-layout.js';
+	import { groupSignalsByYAxis, yAxisLabel, yAxisUnit, type YAxisId } from '$lib/plot-axes.js';
+	import { plotAxes } from '$lib/stores/plot-axes.svelte.js';
 	import { plotDragMode, plotWheelAction } from '$lib/plot-interaction-policy.js';
 	import { shortcutKeys, type ShortcutPlatform } from '$lib/keyboard-shortcuts.js';
 	import {
@@ -19,19 +27,21 @@
 		type PlotCrosshair
 	} from '$lib/plot-crosshair.js';
 	import {
+		axisSplitDomain,
 		createSignalViewCache,
 		crosshairDeltaValue,
 		crosshairValue,
-		formatAxisValue,
+		EMPTY_AXIS_RANGE,
 		formatAxisTime,
 		lineSeriesForViews,
-		signalDomain
+		signalYRange
 	} from '$lib/signal-plot-data.js';
 	import { PlotWindow } from '$lib/plot-window.svelte.js';
 	import { PlotViewportState } from '$lib/plot-viewport-state.svelte.js';
 	import PlotInteraction from './plot-interaction.svelte';
 	import PlotCrosshairOverlay from './plot-crosshair.svelte';
 	import * as ContextMenu from '$lib/components/ui/context-menu/index.js';
+	import SignalPlotAxes from './signal-plot-axes.svelte';
 	import SignalPlotLegend from './signal-plot-legend.svelte';
 	import ShortcutKey from './shortcut-key.svelte';
 	import { createPlotPerfStats } from '$lib/plot-perf.js';
@@ -90,7 +100,6 @@
 	} | null>(null);
 	let resizeObserver: ResizeObserver | null = null;
 
-	const PLOT_GRID = { left: 64, right: 24, top: 18, bottom: 44 };
 	const WHEEL_ZOOM_SPEED = 0.002;
 	const GRID_LINE = {
 		dark: { color: '#f4f4f5', opacity: 0.1 },
@@ -102,9 +111,36 @@
 	const signalViews = $derived(viewsForSignals(plottableSignals));
 	const measurementStartMs = $derived(traceFile.entry?.metadata.measurementStartMs);
 	const traceDurationNs = $derived(traceFile.entry?.metadata.durationNs);
+
+	const axisGroups = $derived(groupSignalsByYAxis(signalViews, plotAxes.ids, plotAxes.assignment));
+	const axisViews = $derived(
+		axisGroups.map((group) => ({
+			...group,
+			label: yAxisLabel(group.index, yAxisUnit(group.signals)),
+			// A single-signal axis borrows that signal's colour so the gutter, the
+			// legend chip, and the line it scales all read as one thing.
+			color: group.signals.length === 1 ? group.signals[0].color : null
+		}))
+	);
+	const primaryAxisId = $derived(axisViews[0].id);
+	const axisIdByKey = $derived(
+		new Map(axisGroups.flatMap((group) => group.signals.map((view) => [view.key, group.id])))
+	);
+	const grid = $derived(plotGrid(axisViews.length));
+	const secondaryFitRanges = $derived.by(() => {
+		// Rebuilt on every evaluation, never mutated after: a derived lookup, not state.
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
+		const ranges = new Map<YAxisId, PlotAxisRange>();
+		for (const group of axisGroups.slice(1)) {
+			ranges.set(group.id, signalYRange(group.signals) ?? EMPTY_AXIS_RANGE);
+		}
+		return ranges;
+	});
+
 	let lastDomainValue: PlotViewport | null = null;
 	const fullDomain = $derived.by(() => {
-		const next = signalDomain(signalViews) ?? traceDurationDomain(traceDurationNs);
+		const next =
+			axisSplitDomain(signalViews, axisGroups[0].signals) ?? traceDurationDomain(traceDurationNs);
 		// Keep the object identity stable while the values are unchanged so
 		// derived consumers are not invalidated by view-list churn.
 		if (
@@ -124,7 +160,19 @@
 	const activeViewport = $derived(viewport.activeViewport);
 	const plotWindow = new PlotWindow();
 	const windowedViews = $derived(plotWindow.viewsFor(signalViews, activeViewport));
-	const chartSeries = $derived(lineSeriesForViews(windowedViews));
+	const chartSeries = $derived(
+		lineSeriesForViews(windowedViews, (view) => axisIdByKey.get(view.key) ?? primaryAxisId)
+	);
+	// Visible bounds of every axis: the primary one is the viewport itself, the
+	// rest follow the same proportional y window over their own fit range.
+	const axisRanges = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived lookup
+		const ranges = new Map<YAxisId, PlotAxisRange>(viewport.secondaryRanges);
+		if (activeViewport !== null) {
+			ranges.set(primaryAxisId, { min: activeViewport.yMin, max: activeViewport.yMax });
+		}
+		return ranges;
+	});
 	const c1 = $derived(crosshairById(crosshairs, 1));
 	const c2 = $derived(crosshairById(crosshairs, 2));
 
@@ -141,6 +189,7 @@
 	});
 	onMount(() => {
 		viewport.domainSource = () => fullDomain;
+		viewport.secondaryRangeSource = () => secondaryFitRanges;
 	});
 
 	onMount(async () => {
@@ -163,6 +212,7 @@
 	onDestroy(() => {
 		if (pushFrame !== null) cancelAnimationFrame(pushFrame);
 		viewport.domainSource = null;
+		viewport.secondaryRangeSource = null;
 		plotWindow.dispose();
 		resizeObserver?.disconnect();
 		chart?.dispose();
@@ -189,7 +239,7 @@
 	});
 
 	$effect(() => {
-		if (!legendVisible || crosshairs.length === 0) legendSelectOpen = false;
+		if (!legendVisible) legendSelectOpen = false;
 	});
 
 	const perfStats = createPlotPerfStats();
@@ -246,7 +296,7 @@
 				fontFamily: 'Geist Variable, sans-serif',
 				fontSize: 12
 			},
-			grid: PLOT_GRID,
+			grid,
 			gridLines: {
 				color: gridLine.color,
 				opacity: gridLine.opacity
@@ -261,11 +311,19 @@
 						mode: axisTimestampMode
 					})
 			},
-			yAxis: {
-				type: 'value',
-				min: activeViewport?.yMin,
-				max: activeViewport?.yMax,
-				tickFormatter: formatAxisValue
+			// ChartGPU scales each series against its own axis, but anchors every
+			// left axis at the same edge and never draws the y axis line, so its
+			// labels are suppressed and SignalPlotAxes renders the gutters instead.
+			// Index 0 is the primary axis, which also drives the horizontal grid.
+			axes: {
+				y: axisViews.map((axis) => ({
+					id: axis.id,
+					type: 'value' as const,
+					position: 'left' as const,
+					min: axisRanges.get(axis.id)?.min,
+					max: axisRanges.get(axis.id)?.max,
+					tickFormatter: () => null
+				}))
 			},
 			legend: { show: false },
 			tooltip: { show: false },
@@ -407,8 +465,8 @@
 		const size = currentPlotSize();
 		if (!(size.width > 0) || !(size.height > 0)) return null;
 
-		const x = event.clientX - rect.left - PLOT_GRID.left;
-		const y = event.clientY - rect.top - PLOT_GRID.top;
+		const x = event.clientX - rect.left - grid.left;
+		const y = event.clientY - rect.top - grid.top;
 
 		return {
 			xRatio: Math.min(1, Math.max(0, x / size.width)),
@@ -419,8 +477,8 @@
 	function currentPlotSize(): { width: number; height: number } {
 		const rect = container.getBoundingClientRect();
 		return {
-			width: rect.width - PLOT_GRID.left - PLOT_GRID.right,
-			height: rect.height - PLOT_GRID.top - PLOT_GRID.bottom
+			width: rect.width - grid.left - grid.right,
+			height: rect.height - grid.top - grid.bottom
 		};
 	}
 </script>
@@ -459,7 +517,7 @@
 					{viewport}
 					{boxZoomEnabled}
 					suspended={legendSelectOpen}
-					grid={PLOT_GRID}
+					{grid}
 					onContextMenuPoint={rememberContextMenuPoint}
 				/>
 
@@ -468,7 +526,7 @@
 						{crosshair}
 						viewport={activeViewport}
 						suspended={legendSelectOpen}
-						grid={PLOT_GRID}
+						{grid}
 						onCrosshair={updateCrosshair}
 						onContextMenuPoint={rememberContextMenuPoint}
 					/>
@@ -526,6 +584,9 @@
 						<ContextMenu.Item disabled={crosshairs.length === 0} onSelect={() => (crosshairs = [])}>
 							<XIcon />
 							Clear all
+							<ContextMenu.Shortcut>
+								<ShortcutKey keys={shortcutKeys('clearCrosshairs', shortcutPlatform)} />
+							</ContextMenu.Shortcut>
 						</ContextMenu.Item>
 					</ContextMenu.SubContent>
 				</ContextMenu.Sub>
@@ -580,15 +641,25 @@
 		></div>
 	{/if}
 
+	{#if hasPlottableSignals && plotReady}
+		<SignalPlotAxes axes={axisViews} {grid} ranges={axisRanges} />
+	{/if}
+
 	{#if hasPlottableSignals && legendVisible}
 		<SignalPlotLegend
-			views={signalViews}
+			axes={axisViews}
+			{axisRanges}
+			canAddAxis={plotAxes.canAddAxis}
 			{crosshairs}
 			bind:mode={legendCrosshairMode}
 			bind:selectOpen={legendSelectOpen}
 			signalValues={legendSignalValues}
 			{measurementStartMs}
 			timestampMode={timestampMode.current}
+			onAddAxis={() => plotAxes.addAxis()}
+			onMove={(signalKey, axisId) => plotAxes.assign(signalKey, axisId)}
+			onMoveToNewAxis={(signalKey) => plotAxes.assignToNewAxis(signalKey)}
+			onRemoveAxis={(axisId) => plotAxes.removeAxis(axisId)}
 		/>
 	{/if}
 
