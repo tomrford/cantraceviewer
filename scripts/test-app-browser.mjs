@@ -7,17 +7,21 @@ const repo = resolve(import.meta.dirname, '..');
 const fixtures = resolve(repo, 'wasm/tests/fixtures');
 let browser;
 let server;
+let appUrl = process.env.CANTRACE_APP_URL;
 
 try {
-	server = await preview({
-		configFile: false,
-		logLevel: 'silent',
-		root: repo,
-		build: { outDir: 'build' },
-		preview: { host: '127.0.0.1', port: 0 }
-	});
-	const address = server.httpServer.address();
-	assert(address && typeof address === 'object');
+	if (!appUrl) {
+		server = await preview({
+			configFile: false,
+			logLevel: 'silent',
+			root: repo,
+			build: { outDir: 'build' },
+			preview: { host: '127.0.0.1', port: 0 }
+		});
+		const address = server.httpServer.address();
+		assert(address && typeof address === 'object');
+		appUrl = `http://127.0.0.1:${address.port}`;
+	}
 
 	browser = await chromium.launch({
 		headless: true,
@@ -32,7 +36,7 @@ try {
 	});
 	page.on('pageerror', (error) => diagnostics.push(`pageerror: ${error.message}`));
 
-	await page.goto(`http://127.0.0.1:${address.port}`, { waitUntil: 'networkidle' });
+	await page.goto(appUrl, { waitUntil: 'networkidle' });
 	await page
 		.locator('input[type="file"][accept*=".asc"]')
 		.setInputFiles(resolve(fixtures, 'agentic-demo.asc'));
