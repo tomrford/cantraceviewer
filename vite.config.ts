@@ -4,7 +4,7 @@ import { sveltekit } from '@sveltejs/kit/vite';
 
 export default defineConfig({
 	plugins: [tailwindcss(), sveltekit()],
-	optimizeDeps: { exclude: ['@cantraceviewer/core'] },
+	optimizeDeps: { exclude: ['cantraceviewer'] },
 	server: { fs: { allow: ['packages/core'] } },
 	test: {
 		expect: { requireAssertions: true },

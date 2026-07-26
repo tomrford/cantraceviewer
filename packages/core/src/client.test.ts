@@ -3,11 +3,11 @@ import {
 	createCanTraceClientForWorker,
 	type ClientWorker,
 	type ClientWorkerEvent
-} from './client.js';
-import type { DirectClient } from './direct.js';
-import type { WorkerRequest } from './protocol.js';
-import { startWorkerRuntime, type WorkerRuntimeEndpoint } from './worker-runtime.js';
-import type { DbcHandle, DecodedSignalSeries, TraceHandle } from './types.js';
+} from './client.ts';
+import type { DirectClient } from './direct.ts';
+import type { WorkerRequest } from './protocol.ts';
+import { startWorkerRuntime, type WorkerRuntimeEndpoint } from './worker-runtime.ts';
+import type { DbcHandle, DecodedSignalSeries, TraceHandle } from './types.ts';
 
 const identity = { canId: 288, isExtended: false, sizeBytes: 8 };
 
@@ -48,27 +48,27 @@ function proxyPlainObjects<T>(value: T): T {
 	return wrap(value) as T;
 }
 
+/** Synchronous stand-in for the WASM-backed direct client. */
 function createFakeDirect(): { client: DirectClient; log: string[] } {
 	const log: string[] = [];
-	let nextId = 1;
 	const client: DirectClient = {
-		async openDbc(text) {
+		openDbc(text) {
 			log.push(`openDbc:${text}`);
 			if (text === 'broken') {
 				const error = new Error('invalid DBC message record');
 				error.name = 'DbcParseError';
 				throw error;
 			}
-			return { handle: { id: nextId++ } as unknown as DbcHandle, catalog: { messages: [] } };
+			return { handle: {} as DbcHandle, catalog: { messages: [] } };
 		},
-		async closeDbc() {
+		closeDbc() {
 			log.push('closeDbc');
 		},
-		async openTrace(traceType, bytes) {
+		openTrace(traceType, bytes) {
 			log.push(`openTrace:${traceType}:${bytes.length}`);
 			if (bytes[0] === 0xff) throw new Error('invalid trace bytes');
 			return {
-				id: nextId++,
+				handle: {} as TraceHandle,
 				metadata: {
 					measurementStartMs: 7,
 					validMessageCount: bytes.length,
@@ -79,20 +79,20 @@ function createFakeDirect(): { client: DirectClient; log: string[] } {
 				mf4Catalog: null,
 				embeddedDbcs: [],
 				warnings: ['w']
-			} as unknown as TraceHandle;
+			};
 		},
-		async closeTrace() {
+		closeTrace() {
 			log.push('closeTrace');
 		},
-		async getSignalValues() {
+		getSignalValues() {
 			log.push('decode');
 			return packedSeries([1, 2], [10, 20]);
 		},
-		async getMf4SignalValues() {
+		getMf4SignalValues() {
 			log.push('decodeMf4');
 			return packedSeries([3], [30]);
 		},
-		async close() {
+		close() {
 			log.push('close');
 		}
 	};
@@ -200,14 +200,17 @@ describe('createCanTraceClient worker transport', () => {
 			skippedLineCount: 0,
 			durationNs: 9
 		});
+		expect(trace.hasRawFrames).toBe(true);
+		expect(trace.mf4Catalog).toBeNull();
+		expect(trace.embeddedDbcs).toEqual([]);
 		expect(trace.warnings).toEqual(['w']);
 
-		const series = await client.getSignalValues(dbc, trace, identity, 'vehicle_speed');
+		const series = await client.getSignalValues(dbc, trace.handle, identity, 'vehicle_speed');
 		expect(Array.from(series.timesMs)).toEqual([1, 2]);
 		expect(Array.from(series.values)).toEqual([10, 20]);
 		expect(series.timesMs.buffer).toBe(series.values.buffer); // one transferred buffer, two views
 
-		const mf4 = await client.getMf4SignalValues(trace, 0);
+		const mf4 = await client.getMf4SignalValues(trace.handle, 0);
 		expect(Array.from(mf4.values)).toEqual([30]);
 
 		expect(harness.requests.map((request) => request.id)).toEqual([1, 2, 3, 4]);
@@ -220,6 +223,17 @@ describe('createCanTraceClient worker transport', () => {
 			'close'
 		]);
 		expect(harness.terminated()).toBe(1);
+	});
+
+	it('exposes only opaque handles: trace data lives in the open result', async () => {
+		const { client } = await createPair();
+		const { handle: dbc } = await client.openDbc('d');
+		const { handle: trace } = await client.openTrace('asc', new Uint8Array([1]).buffer);
+
+		expect(Object.keys(dbc)).toEqual([]);
+		expect(Object.keys(trace)).toEqual([]);
+		expect(JSON.stringify(trace)).toBe('{}');
+		await client.close();
 	});
 
 	it('rejects a non-ArrayBuffer trace input without posting a request', async () => {
@@ -252,73 +266,55 @@ describe('createCanTraceClient worker transport', () => {
 		await client.close();
 	});
 
-	it('settles an open queued before close and invalidates its handle', async () => {
-		const { fake, client } = await createPair();
-		const gate = deferred();
-		fake.client.openTrace = async () => {
-			fake.log.push('openTrace:start');
-			await gate.promise;
-			fake.log.push('openTrace:end');
-			return {
-				id: 1,
-				metadata: {
-					measurementStartMs: null,
-					validMessageCount: 1,
-					skippedLineCount: 0,
-					durationNs: null
-				},
-				hasRawFrames: true,
-				mf4Catalog: null,
-				embeddedDbcs: [],
-				warnings: []
-			} as unknown as TraceHandle;
-		};
-
-		const openPromise = client.openTrace('asc', new Uint8Array([1]).buffer);
-		await until(() => fake.log.includes('openTrace:start'));
-		const closePromise = client.close();
+	it('runs requests serially in post order, holding them behind a slow worker boot', async () => {
+		const boot = deferred();
+		const fake = createFakeDirect();
+		const harness = createHarness(async () => {
+			await boot.promise;
+			return fake.client;
+		});
+		const clientPromise = createCanTraceClientForWorker(() => harness.worker);
 		await settle();
-		expect(fake.log).not.toContain('close');
+		expect(fake.log).toEqual([]); // nothing runs before the WASM client exists
 
-		gate.resolve();
-		const trace = await openPromise;
-		await closePromise;
-		await client.closeTrace(trace);
-		await expect(client.getMf4SignalValues(trace, 0)).rejects.toThrow('client is closed');
-		expect(fake.log.slice(-3)).toEqual(['openTrace:start', 'openTrace:end', 'close']);
+		boot.resolve();
+		const client = await clientPromise;
+		const { handle: dbc } = await client.openDbc('d');
+		const opened = await client.openTrace('asc', new Uint8Array([1]).buffer);
+		const results = await Promise.all([
+			client.getSignalValues(dbc, opened.handle, identity, 's'),
+			client.getMf4SignalValues(opened.handle, 0),
+			client.closeTrace(opened.handle)
+		]);
+		expect(Array.from(results[0].values)).toEqual([10, 20]);
+		await client.close();
+		expect(fake.log).toEqual([
+			'openDbc:d',
+			'openTrace:asc:1',
+			'decode',
+			'decodeMf4',
+			'closeTrace',
+			'close'
+		]);
 	});
 
-	it('runs requests serially: close never interrupts an active decode', async () => {
+	it('settles an open queued before close and invalidates its handle', async () => {
 		const { fake, client } = await createPair();
-		const { handle: dbc } = await client.openDbc('d');
-		const trace = await client.openTrace('asc', new Uint8Array([1]).buffer);
-
-		const gate = deferred();
-		fake.client.getSignalValues = async () => {
-			fake.log.push('decode:start');
-			await gate.promise;
-			fake.log.push('decode:end');
-			return packedSeries([1], [2]);
-		};
-
-		const decodePromise = client.getSignalValues(dbc, trace, identity, 's');
-		await until(() => fake.log.includes('decode:start'));
-		const closeTracePromise = client.closeTrace(trace);
+		const openPromise = client.openTrace('asc', new Uint8Array([1]).buffer);
 		const closePromise = client.close();
-		await settle();
-		expect(fake.log).not.toContain('closeTrace');
-		expect(fake.log).not.toContain('close');
+		const opened = await openPromise;
+		await closePromise;
 
-		gate.resolve();
-		await Promise.all([decodePromise, closeTracePromise, closePromise]);
-		expect(fake.log.slice(-4)).toEqual(['decode:start', 'decode:end', 'closeTrace', 'close']);
+		await client.closeTrace(opened.handle);
+		await expect(client.getMf4SignalValues(opened.handle, 0)).rejects.toThrow('client is closed');
+		expect(fake.log).toEqual(['openTrace:asc:1', 'close']);
 	});
 
 	it('enforces ownership and closure rules on reactive, spread-safe handles', async () => {
 		const first = await createPair();
 		const second = await createPair();
 		const { handle: dbc } = await first.client.openDbc('d');
-		const trace = await first.client.openTrace('asc', new Uint8Array([1]).buffer);
+		const { handle: trace } = await first.client.openTrace('asc', new Uint8Array([1]).buffer);
 
 		await expect(second.client.closeTrace(trace)).rejects.toThrow(
 			'trace handle does not belong to this client'
@@ -351,7 +347,7 @@ describe('createCanTraceClient worker transport', () => {
 	it('close is idempotent, invalidates handles, and rejects later operations', async () => {
 		const { fake, harness, client } = await createPair();
 		const { handle: dbc } = await client.openDbc('d');
-		const trace = await client.openTrace('asc', new Uint8Array([1]).buffer);
+		const { handle: trace } = await client.openTrace('asc', new Uint8Array([1]).buffer);
 
 		const firstClose = client.close();
 		expect(client.close()).toBe(firstClose);
@@ -369,18 +365,12 @@ describe('createCanTraceClient worker transport', () => {
 	});
 
 	it('treats a worker error as fatal: rejects pending and future work, never restarts', async () => {
-		const { fake, harness, client, factoryCalls } = await createPair();
+		const { client, harness, factoryCalls } = await createPair();
 		const { handle: dbc } = await client.openDbc('d');
-		const trace = await client.openTrace('asc', new Uint8Array([1]).buffer);
+		const { handle: trace } = await client.openTrace('asc', new Uint8Array([1]).buffer);
 
-		const gate = deferred();
-		fake.client.getSignalValues = async () => {
-			await gate.promise;
-			return packedSeries([1], [2]);
-		};
+		// In flight: posted, but the worker dies before its response arrives.
 		const decodePromise = client.getSignalValues(dbc, trace, identity, 's');
-		await settle();
-
 		harness.emit('error', { message: 'boom' });
 		await expect(decodePromise).rejects.toThrow('worker crashed: boom');
 		await expect(client.openDbc('x')).rejects.toThrow('worker crashed: boom');
@@ -389,7 +379,6 @@ describe('createCanTraceClient worker transport', () => {
 
 		await client.close(); // fatal client still closes cleanly
 		expect(factoryCalls()).toBe(1); // no transparent worker restart
-		gate.resolve();
 	});
 
 	it('treats messageerror as fatal', async () => {
@@ -416,8 +405,8 @@ describe('createCanTraceClient worker transport', () => {
 		);
 		await until(() => fake.log.includes('closeTrace'));
 
-		const trace = await client.openTrace('asc', new Uint8Array([9]).buffer); // queue survives
-		expect(trace.metadata.validMessageCount).toBe(1);
+		const opened = await client.openTrace('asc', new Uint8Array([9]).buffer); // queue survives
+		expect(opened.metadata.validMessageCount).toBe(1);
 		await client.close();
 	});
 });

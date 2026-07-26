@@ -10,6 +10,8 @@ node_modules
 .wrangler
 /.svelte-kit
 /build
+/packages/core/dist/
+/artifacts/
 
 # OS
 .DS_Store

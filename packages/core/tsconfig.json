@@ -1,6 +1,10 @@
 {
 	"compilerOptions": {
 		"allowJs": false,
+		// The Node worker entry is loaded from disk by Node's type stripping, which needs `.ts`
+		// import specifiers; the packaged build rewrites them to `.js` on emit.
+		"allowImportingTsExtensions": true,
+		"rewriteRelativeImportExtensions": true,
 		"esModuleInterop": true,
 		"forceConsistentCasingInFileNames": true,
 		"lib": ["ES2022", "DOM"],

@@ -30,6 +30,8 @@
             rustToolchain
             pkgs.wasm-bindgen-cli
             pkgs.binaryen
+          ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+            pkgs.xvfb-run
           ];
         };
       }

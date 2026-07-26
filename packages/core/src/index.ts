@@ -1,3 +1,3 @@
-export { createCanTraceClient } from './client.js';
-export type { CanTraceClient } from './client.js';
-export type * from './types.js';
+export { createCanTraceClient } from './client.ts';
+export type { CanTraceClient } from './client.ts';
+export type * from './types.ts';

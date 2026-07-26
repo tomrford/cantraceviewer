@@ -1,8 +1,8 @@
-import { createCanTraceClient, type CanTraceClient } from '@cantraceviewer/core';
+import { createCanTraceClient, type CanTraceClient } from 'cantraceviewer';
 import { describe, expect, it, vi } from 'vitest';
 import { openDbc } from './wasm.js';
 
-vi.mock('@cantraceviewer/core', () => ({ createCanTraceClient: vi.fn() }));
+vi.mock('cantraceviewer', () => ({ createCanTraceClient: vi.fn() }));
 
 const createClientMock = vi.mocked(createCanTraceClient);
 
@@ -16,7 +16,7 @@ describe('WASM app adapter', () => {
 
 		await expect(openDbc('first')).rejects.toThrow('worker boot failed');
 
-		clientOpenDbc.mockResolvedValueOnce({ handle: { id: 1 }, catalog: { messages: [] } });
+		clientOpenDbc.mockResolvedValueOnce({ handle: {}, catalog: { messages: [] } });
 		await expect(openDbc('second')).resolves.toMatchObject({ catalog: { messages: [] } });
 		expect(createClientMock).toHaveBeenCalledTimes(2);
 

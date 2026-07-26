@@ -567,7 +567,8 @@ function file(name: string, text: string): File {
 }
 
 function dbcHandle(id: number): DbcHandle {
-	return { id } as DbcHandle;
+	void id;
+	return {} as DbcHandle;
 }
 
 function openDbcResult(

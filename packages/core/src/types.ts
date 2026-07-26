@@ -3,18 +3,25 @@ export type DbcValueDescription = {
 	label: string;
 };
 
+/** Bit order of a DBC signal, as declared by `@1` (intel) or `@0` (motorola). */
+export type DbcEndianness = 'intel' | 'motorola';
+
+export type DbcSignedness = 'signed' | 'unsigned';
+
+export type DbcValueType = 'integer' | 'float32' | 'float64';
+
 export type DbcSignal = {
 	name: string;
 	startBit: number;
 	bitLength: number;
-	endianness: string;
-	signedness: string;
+	endianness: DbcEndianness;
+	signedness: DbcSignedness;
 	factor: number;
 	offset: number;
 	minimum: number;
 	maximum: number;
 	unit: string;
-	valueType: string;
+	valueType: DbcValueType;
 	unsupportedMux: boolean;
 	receivers: string[];
 	valueDescriptions: DbcValueDescription[];
@@ -73,21 +80,38 @@ export type TraceType = 'asc' | 'trc' | 'blf' | 'mf4';
 declare const DbcHandleBrand: unique symbol;
 declare const TraceHandleBrand: unique symbol;
 
-/** Opaque DBC handle. */
+/**
+ * Opaque DBC handle. It has no readable fields: it only identifies one parsed DBC inside the
+ * client that issued it, until that handle or its client is closed. Handles are safe to spread and
+ * to store in deep-reactive stores, and every copy shares one lifetime.
+ */
 export type DbcHandle = {
 	readonly [DbcHandleBrand]: true;
-	readonly id: number;
 };
 
-/** Opaque trace handle. */
+/** Opaque trace handle, with the same identity and lifetime rules as {@link DbcHandle}. */
 export type TraceHandle = {
 	readonly [TraceHandleBrand]: true;
-	readonly id: number;
-	readonly metadata: TraceMetadata;
-	readonly hasRawFrames: boolean;
-	readonly mf4Catalog: Mf4SignalCatalog | null;
-	readonly embeddedDbcs: EmbeddedDbc[];
-	readonly warnings: string[];
+};
+
+/** Everything one `openDbc` call produces. The catalog is plain data and outlives the handle. */
+export type OpenDbcResult = {
+	handle: DbcHandle;
+	catalog: ParsedDbc;
+};
+
+/** Everything one `openTrace` call produces. Every field except `handle` is plain data. */
+export type OpenTraceResult = {
+	handle: TraceHandle;
+	metadata: TraceMetadata;
+	/** True when the trace carries raw CAN frames that a DBC can decode. */
+	hasRawFrames: boolean;
+	/** Signals the trace itself already carries decoded; MF4 only, otherwise null. */
+	mf4Catalog: Mf4SignalCatalog | null;
+	/** DBC sources embedded in the trace file; MF4 only, otherwise empty. */
+	embeddedDbcs: EmbeddedDbc[];
+	/** Non-fatal parse diagnostics; MF4 only, otherwise empty. */
+	warnings: string[];
 };
 
 export type DbcMessageIdentity = Pick<DbcMessage, 'canId' | 'isExtended' | 'sizeBytes'>;

@@ -1,4 +1,4 @@
-import { closeTrace, openTrace, type TraceHandle, type TraceType } from '$lib/wasm.js';
+import { closeTrace, openTrace, type OpenTraceResult, type TraceType } from '$lib/wasm.js';
 import { TRACE_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '$lib/file-limits.js';
 import { assertTraceFileContent } from '$lib/file-preflight.js';
 import { buildMf4SignalTargetIndex, mf4SelectorSearchIndexes } from '$lib/mf4-signals.js';
@@ -8,7 +8,9 @@ import {
 	traceTypeForFileName
 } from '$lib/trace-file-types.js';
 
-export type TraceFileEntry = TraceHandle & { file: File };
+export type TraceFileEntry = OpenTraceResult & { id: number; file: File };
+
+let nextTraceId = 1;
 
 class TraceFileStore {
 	entry = $state<TraceFileEntry | null>(null);
@@ -49,12 +51,12 @@ class TraceFileStore {
 			next = null;
 
 			if (previous) {
-				await closeTrace(previous);
+				await closeTrace(previous.handle);
 			}
 			return true;
 		} catch (error) {
 			if (next) {
-				await closeTrace(next);
+				await closeTrace(next.handle);
 			}
 			this.error = error instanceof Error ? error.message : 'Trace load failed';
 			return false;
@@ -85,6 +87,7 @@ async function openTraceFile(
 ): Promise<TraceFileEntry> {
 	return {
 		...(await openTrace(traceType, bytes)),
+		id: nextTraceId++,
 		file
 	};
 }

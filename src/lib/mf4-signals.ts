@@ -3,10 +3,12 @@ import {
 	type SelectorDbcFile,
 	type SelectorSearchIndex
 } from '$lib/stores/dbc-files.svelte.js';
-import type { Mf4Signal, Mf4SignalGroup, TraceHandle } from '$lib/wasm.js';
+import type { Mf4Signal, Mf4SignalGroup, OpenTraceResult } from '$lib/wasm.js';
+
+type Mf4Trace = OpenTraceResult & { id: number };
 
 export type Mf4SignalTarget = {
-	trace: TraceHandle;
+	trace: Mf4Trace;
 	group: Mf4SignalGroup;
 	signal: Mf4Signal;
 };
@@ -15,7 +17,7 @@ export function mf4SignalIdentityKey(traceId: number, signalId: number): string 
 	return JSON.stringify(['mf4', traceId, signalId]);
 }
 
-export function mf4SelectorFiles(trace: TraceHandle | null): SelectorDbcFile[] {
+export function mf4SelectorFiles(trace: Mf4Trace | null): SelectorDbcFile[] {
 	if (!trace?.mf4Catalog || trace.mf4Catalog.groups.length === 0) return [];
 
 	return [
@@ -38,13 +40,11 @@ export function mf4SelectorFiles(trace: TraceHandle | null): SelectorDbcFile[] {
 	];
 }
 
-export function mf4SelectorSearchIndexes(trace: TraceHandle | null): SelectorSearchIndex[] {
+export function mf4SelectorSearchIndexes(trace: Mf4Trace | null): SelectorSearchIndex[] {
 	return buildSelectorSearchIndexes(mf4SelectorFiles(trace));
 }
 
-export function buildMf4SignalTargetIndex(
-	trace: TraceHandle | null
-): Record<string, Mf4SignalTarget> {
+export function buildMf4SignalTargetIndex(trace: Mf4Trace | null): Record<string, Mf4SignalTarget> {
 	const index: Record<string, Mf4SignalTarget> = {};
 	if (!trace?.mf4Catalog) return index;
 

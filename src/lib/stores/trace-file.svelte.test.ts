@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
 import { closeTrace, openTrace } from '$lib/wasm.js';
-import type { TraceHandle, TraceMetadata } from '$lib/wasm.js';
+import type { OpenTraceResult, TraceHandle, TraceMetadata } from '$lib/wasm.js';
 import { traceFile } from './trace-file.svelte';
 
 vi.mock('$lib/wasm.js', () => ({
@@ -43,7 +43,7 @@ describe('traceFile', () => {
 	});
 
 	it('surfaces malformed skipped lines as a dismissible warning', async () => {
-		openTraceMock.mockResolvedValueOnce(traceHandle(1, metadata({ skippedLineCount: 2 })));
+		openTraceMock.mockResolvedValueOnce(openedTrace(metadata({ skippedLineCount: 2 })));
 
 		await traceFile.openFile(file('trace.asc', 'date Mon Jan 1 00:00:00.000'));
 
@@ -54,7 +54,7 @@ describe('traceFile', () => {
 	});
 
 	it('keeps a dismissed warning dismissed when a later open fails', async () => {
-		openTraceMock.mockResolvedValueOnce(traceHandle(1, metadata({ skippedLineCount: 2 })));
+		openTraceMock.mockResolvedValueOnce(openedTrace(metadata({ skippedLineCount: 2 })));
 
 		await traceFile.openFile(file('trace.asc', 'date Mon Jan 1 00:00:00.000'));
 		traceFile.clearWarning();
@@ -65,7 +65,7 @@ describe('traceFile', () => {
 	});
 
 	it('does not warn when no malformed lines were skipped', async () => {
-		openTraceMock.mockResolvedValueOnce(traceHandle(1, metadata({ skippedLineCount: 0 })));
+		openTraceMock.mockResolvedValueOnce(openedTrace(metadata({ skippedLineCount: 0 })));
 
 		await traceFile.openFile(file('trace.trc', ';$FILEVERSION=1.1'));
 
@@ -77,8 +77,15 @@ function file(name: string, text: string): File {
 	return new File([text], name, { type: 'text/plain' });
 }
 
-function traceHandle(id: number, metadata: TraceMetadata): TraceHandle {
-	return { id, metadata } as TraceHandle;
+function openedTrace(metadata: TraceMetadata): OpenTraceResult {
+	return {
+		handle: {} as TraceHandle,
+		metadata,
+		hasRawFrames: true,
+		mf4Catalog: null,
+		embeddedDbcs: [],
+		warnings: []
+	};
 }
 
 function metadata({ skippedLineCount }: { skippedLineCount: number }): TraceMetadata {

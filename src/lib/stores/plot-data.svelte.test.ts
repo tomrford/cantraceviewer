@@ -5,7 +5,13 @@ import { plotData } from './plot-data.svelte';
 import { traceFile, type TraceFileEntry } from './trace-file.svelte';
 import { getMf4SignalValues, getSignalValues } from '$lib/wasm.js';
 import { mf4SignalIdentityKey } from '$lib/mf4-signals.js';
-import type { DbcHandle, DbcMessage, DbcSignal, DecodedSignalSeries } from '$lib/wasm.js';
+import type {
+	DbcHandle,
+	DbcMessage,
+	DbcSignal,
+	DecodedSignalSeries,
+	TraceHandle
+} from '$lib/wasm.js';
 
 vi.mock('$lib/wasm.js', () => ({
 	closeDbc: vi.fn(() => Promise.resolve()),
@@ -35,8 +41,8 @@ describe('plotData', () => {
 		await plotData.toggleSignal(key());
 
 		expect(getSignalValuesMock).toHaveBeenCalledExactlyOnceWith(
-			{ id: 1 },
-			traceFile.entry,
+			dbcFiles.files[0]!.handle,
+			traceFile.entry!.handle,
 			{ canId: 291, isExtended: false, sizeBytes: 8 },
 			'VehicleSpeed'
 		);
@@ -73,7 +79,7 @@ describe('plotData', () => {
 
 		await plotData.toggleSignal(nativeKey);
 
-		expect(getMf4SignalValuesMock).toHaveBeenCalledExactlyOnceWith(trace, 7);
+		expect(getMf4SignalValuesMock).toHaveBeenCalledExactlyOnceWith(trace.handle, 7);
 		expect(dbcFiles.selectorFiles).toHaveLength(1);
 		expect(plotData.signals).toMatchObject([
 			{
@@ -143,8 +149,8 @@ describe('plotData', () => {
 		await plotData.toggleSignal(key());
 
 		expect(getSignalValuesMock).toHaveBeenCalledExactlyOnceWith(
-			{ id: 1 },
-			traceFile.entry,
+			dbcFiles.files[0]!.handle,
+			traceFile.entry!.handle,
 			{ canId: 291, isExtended: false, sizeBytes: 8 },
 			'VehicleSpeed'
 		);
@@ -174,8 +180,8 @@ describe('plotData', () => {
 		);
 
 		expect(getSignalValuesMock).toHaveBeenCalledExactlyOnceWith(
-			{ id: 1 },
-			traceFile.entry,
+			dbcFiles.files[0]!.handle,
+			traceFile.entry!.handle,
 			{ canId: 0x200, isExtended: false, sizeBytes: 1 },
 			'Value'
 		);
@@ -254,7 +260,7 @@ function dbcEntry(overrides: { messages?: DbcMessage[] } = {}): DbcFileEntry {
 	return {
 		id: 'dbc-1',
 		name: 'powertrain.dbc',
-		handle: { id: 1 } as DbcHandle,
+		handle: {} as DbcHandle,
 		catalog: {
 			messages: overrides.messages ?? [message()]
 		},
@@ -268,6 +274,7 @@ function traceEntry(
 ): TraceFileEntry {
 	return {
 		id,
+		handle: {} as TraceHandle,
 		file: new File(['trace'], 'drive.asc'),
 		hasRawFrames: true,
 		mf4Catalog: null,

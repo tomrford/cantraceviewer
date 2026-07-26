@@ -6,30 +6,52 @@ import {
 	createDirectClient,
 	type DbcHandle,
 	type DirectClient,
-	type ParsedDbc,
-	type TraceHandle
-} from '@cantraceviewer/core/direct';
+	type OpenDbcResult,
+	type OpenTraceResult
+} from 'cantraceviewer/direct';
 
 const fixturesDir = resolve('wasm/tests/fixtures');
 const identity = { canId: 288, isExtended: false, sizeBytes: 8 };
 let client: DirectClient;
 let wasmBytes: Uint8Array<ArrayBuffer>;
+let dbcText: string;
+let ascBytes: Uint8Array;
 
 beforeAll(async () => {
+	// Reading the bytes is the caller's asynchronous work; creating the client is not.
 	wasmBytes = new Uint8Array(
 		await readFile(resolve('packages/core/src/wasm-bindgen/cantraceviewer_bg.wasm'))
 	);
-	client = await createDirectClient(wasmBytes);
+	dbcText = await readFile(resolve(fixturesDir, 'agentic-demo.dbc'), 'utf8');
+	ascBytes = new Uint8Array(await readFile(resolve(fixturesDir, 'agentic-demo.asc')));
+	client = createDirectClient(wasmBytes);
 });
 
-afterAll(async () => {
-	await client.close();
+afterAll(() => {
+	client.close();
 });
 
-describe('@cantraceviewer/core/direct', () => {
-	it('preserves DBC, ASC, metadata, and decode behavior across the package boundary', async () => {
-		const { handle: dbc, catalog } = await openFixtureDbc();
-		const trace = await openFixtureTrace();
+describe('cantraceviewer/direct', () => {
+	it('initializes and answers every operation synchronously', () => {
+		const openedDbc: OpenDbcResult = client.openDbc(dbcText);
+		const openedTrace: OpenTraceResult = client.openTrace('asc', ascBytes);
+		try {
+			// No promise anywhere: values are already here, in this tick.
+			expect(openedDbc.catalog.messages.length).toBeGreaterThan(0);
+			expect(openedTrace.metadata.validMessageCount).toBe(1506);
+			expect(
+				client.getSignalValues(openedDbc.handle, openedTrace.handle, identity, 'vehicle_speed')
+					.timesMs.length
+			).toBe(251);
+		} finally {
+			client.closeTrace(openedTrace.handle);
+			client.closeDbc(openedDbc.handle);
+		}
+	});
+
+	it('preserves DBC, ASC, metadata, and decode behavior across the package boundary', () => {
+		const { handle: dbc, catalog } = openFixtureDbc();
+		const { handle: trace, metadata } = openFixtureTrace();
 		try {
 			expect(catalog.messages.find((message) => message.name === 'PowertrainStatus')).toMatchObject(
 				{
@@ -38,33 +60,38 @@ describe('@cantraceviewer/core/direct', () => {
 					sizeBytes: 8
 				}
 			);
-			expect(trace.metadata).toEqual({
+			expect(catalog.messages[0]?.signals[0]).toMatchObject({
+				endianness: 'intel',
+				signedness: 'unsigned',
+				valueType: 'integer'
+			});
+			expect(metadata).toEqual({
 				measurementStartMs: 1777550400000,
 				validMessageCount: 1506,
 				skippedLineCount: 0,
 				durationNs: 25_050_000_000
 			});
 
-			const speed = await client.getSignalValues(dbc, trace, identity, 'vehicle_speed');
+			const speed = client.getSignalValues(dbc, trace, identity, 'vehicle_speed');
 			expect(Array.from(speed.timesMs).slice(0, 3)).toEqual([10, 110, 210]);
 			expect(Array.from(speed.values).slice(0, 3)).toEqual([100, 123.4, 150]);
 			expect(speed.timesMs.length).toBe(251);
 			expect(speed.timesMs.buffer).toBe(speed.values.buffer);
 
-			// The worker transport depends on one exactly-sized transferable decode buffer.
+			// The worker transports depend on one exactly-sized transferable decode buffer.
 			const seriesBuffer = speed.timesMs.buffer as ArrayBuffer;
 			expect(seriesBuffer.byteLength).toBe(speed.timesMs.byteLength + speed.values.byteLength);
 			structuredClone(seriesBuffer, { transfer: [seriesBuffer] });
 			expect(seriesBuffer.byteLength).toBe(0);
 		} finally {
-			await client.closeTrace(trace);
-			await client.closeDbc(dbc);
+			client.closeTrace(trace);
+			client.closeDbc(dbc);
 		}
 	});
 
-	it('parses and decodes a PCAN TRC trace', async () => {
-		const { handle: dbc } = await openFixtureDbc();
-		const trace = await client.openTrace(
+	it('parses and decodes a PCAN TRC trace', () => {
+		const { handle: dbc } = openFixtureDbc();
+		const { handle: trace, metadata } = client.openTrace(
 			'trc',
 			new TextEncoder().encode(
 				[
@@ -76,32 +103,32 @@ describe('@cantraceviewer/core/direct', () => {
 			)
 		);
 		try {
-			expect(trace.metadata).toMatchObject({
+			expect(metadata).toMatchObject({
 				validMessageCount: 2,
 				skippedLineCount: 0,
 				durationNs: 20_000_000
 			});
-			const speed = await client.getSignalValues(dbc, trace, identity, 'vehicle_speed');
+			const speed = client.getSignalValues(dbc, trace, identity, 'vehicle_speed');
 			expect(Array.from(speed.timesMs)).toEqual([10, 20]);
 			expect(Array.from(speed.values)).toEqual([100, 123.4]);
 		} finally {
-			await client.closeTrace(trace);
-			await client.closeDbc(dbc);
+			client.closeTrace(trace);
+			client.closeDbc(dbc);
 		}
 	});
 
-	it('opens uncompressed and dynamically compressed BLF traces', async () => {
-		const { handle: dbc } = await openFixtureDbc();
-		const trace = await client.openTrace('blf', generatedBlfTrace());
-		const compressed = await client.openTrace('blf', generatedCompressedBlfTrace());
+	it('opens uncompressed and dynamically compressed BLF traces', () => {
+		const { handle: dbc } = openFixtureDbc();
+		const opened = client.openTrace('blf', generatedBlfTrace());
+		const compressed = client.openTrace('blf', generatedCompressedBlfTrace());
 		try {
-			expect(trace.metadata).toEqual({
+			expect(opened.metadata).toEqual({
 				measurementStartMs: 1778494830400,
 				validMessageCount: 2,
 				skippedLineCount: 0,
 				durationNs: 20_000_000
 			});
-			const speed = await client.getSignalValues(dbc, trace, identity, 'vehicle_speed');
+			const speed = client.getSignalValues(dbc, opened.handle, identity, 'vehicle_speed');
 			expect(Array.from(speed.timesMs)).toEqual([10, 20]);
 			expect(Array.from(speed.values)).toEqual([100, 123.4]);
 			expect(compressed.metadata).toMatchObject({
@@ -110,9 +137,9 @@ describe('@cantraceviewer/core/direct', () => {
 				durationNs: 257_000_000
 			});
 		} finally {
-			await client.closeTrace(compressed);
-			await client.closeTrace(trace);
-			await client.closeDbc(dbc);
+			client.closeTrace(compressed.handle);
+			client.closeTrace(opened.handle);
+			client.closeDbc(dbc);
 		}
 	});
 
@@ -131,15 +158,15 @@ describe('@cantraceviewer/core/direct', () => {
 				}
 			]);
 
-			const speed = await client.getMf4SignalValues(trace, 0);
+			const speed = client.getMf4SignalValues(trace.handle, 0);
 			expect(Array.from(speed.timesMs)).toEqual([100, 200, 300]);
 			expect(Array.from(speed.values)).toEqual([12.5, 25, 37.5]);
 		} finally {
-			await client.closeTrace(trace);
+			client.closeTrace(trace.handle);
 		}
 	});
 
-	it('keeps raw, native, and embedded DBC sources in one hybrid MF4 handle', async () => {
+	it('keeps raw, native, and embedded DBC sources in one hybrid MF4 result', async () => {
 		const trace = await openMf4Fixture('hybrid-embedded-dbc.mf4');
 		let dbc: DbcHandle | null = null;
 		try {
@@ -148,17 +175,18 @@ describe('@cantraceviewer/core/direct', () => {
 			expect(trace.mf4Catalog?.groups[0]?.signals).toHaveLength(2);
 			expect(trace.embeddedDbcs).toHaveLength(1);
 			expect(trace.embeddedDbcs[0]).toMatchObject({ name: 'sample.dbc' });
+			expect(trace.warnings).toEqual([]);
 
-			const openedDbc = await client.openDbc(trace.embeddedDbcs[0]!.text);
+			const openedDbc = client.openDbc(trace.embeddedDbcs[0]!.text);
 			dbc = openedDbc.handle;
 			const rawMessage = openedDbc.catalog.messages.find(
 				(message) => message.name === 'WebData_2000'
 			);
 			expect(rawMessage).toMatchObject({ canId: 0x123, isExtended: false, sizeBytes: 4 });
 
-			const raw = await client.getSignalValues(
+			const raw = client.getSignalValues(
 				dbc,
-				trace,
+				trace.handle,
 				{
 					canId: rawMessage!.canId,
 					isExtended: rawMessage!.isExtended,
@@ -167,50 +195,49 @@ describe('@cantraceviewer/core/direct', () => {
 				'Signal_8'
 			);
 			expect(Array.from(raw.values)).toEqual([4]);
-			expect(Array.from((await client.getMf4SignalValues(trace, 1)).values)).toEqual([
+			expect(Array.from(client.getMf4SignalValues(trace.handle, 1).values)).toEqual([
 				900, 1200, 1500
 			]);
 		} finally {
-			if (dbc) await client.closeDbc(dbc);
-			await client.closeTrace(trace);
+			if (dbc) client.closeDbc(dbc);
+			client.closeTrace(trace.handle);
 		}
 	});
 
-	it('preserves parse and decode errors without poisoning later requests', async () => {
-		const { handle: dbc } = await openFixtureDbc();
-		const trace = await openFixtureTrace();
+	it('preserves parse and decode errors without poisoning later requests', () => {
+		const { handle: dbc } = openFixtureDbc();
+		const { handle: trace } = openFixtureTrace();
 		try {
-			await expect(client.openDbc('BO_ broken')).rejects.toThrow('invalid DBC message record');
-			await expect(
+			expect(() => client.openDbc('BO_ broken')).toThrow('invalid DBC message record');
+			expect(() =>
 				client.openTrace('asc', new TextEncoder().encode('base nope timestamps absolute'))
-			).rejects.toThrow('invalid ASC base declaration');
+			).toThrow('invalid ASC base declaration');
 			const invalidBlf = new Uint8Array(144);
 			invalidBlf.set(new TextEncoder().encode('NOPE'));
-			await expect(client.openTrace('blf', invalidBlf)).rejects.toThrow(
-				'invalid BLF file signature'
-			);
-			await expect(client.getSignalValues(dbc, trace, identity, 'missing')).rejects.toThrow(
+			expect(() => client.openTrace('blf', invalidBlf)).toThrow('invalid BLF file signature');
+			expect(() => client.getSignalValues(dbc, trace, identity, 'missing')).toThrow(
 				'Signal not found in DBC'
 			);
 
-			const speed = await client.getSignalValues(dbc, trace, identity, 'vehicle_speed');
-			expect(speed.timesMs.length).toBe(251);
+			expect(client.getSignalValues(dbc, trace, identity, 'vehicle_speed').timesMs.length).toBe(
+				251
+			);
 		} finally {
-			await client.closeTrace(trace);
-			await client.closeDbc(dbc);
+			client.closeTrace(trace);
+			client.closeDbc(dbc);
 		}
 	});
 
-	it('preserves non-UTF-8 timing and reports skipped malformed lines', async () => {
+	it('preserves non-UTF-8 timing and reports skipped malformed lines', () => {
 		const prefix = new TextEncoder().encode(
 			'base hex timestamps relative\n0.100 1 123 Rx d 1 aa\n0.200 unknown '
 		);
 		const suffix = new TextEncoder().encode(' event\n0.300 1 123 Rx d 1 bb');
-		const nonUtfTrace = await client.openTrace(
+		const nonUtfTrace = client.openTrace(
 			'asc',
 			concatBytes(prefix, new Uint8Array([0xff]), suffix)
 		);
-		const skippedTrace = await client.openTrace(
+		const skippedTrace = client.openTrace(
 			'asc',
 			new TextEncoder().encode(
 				[
@@ -232,49 +259,81 @@ describe('@cantraceviewer/core/direct', () => {
 				skippedLineCount: 1
 			});
 		} finally {
-			await client.closeTrace(skippedTrace);
-			await client.closeTrace(nonUtfTrace);
+			client.closeTrace(skippedTrace.handle);
+			client.closeTrace(nonUtfTrace.handle);
 		}
 	});
 
-	it('enforces direct-client ownership and idempotent spread-safe handle closure', async () => {
-		const otherClient = await createDirectClient(wasmBytes);
-		const { handle: dbc } = await openFixtureDbc();
-		const trace = await openFixtureTrace();
+	it('accepts a precompiled module and keeps client handle ownership separate', async () => {
+		// WASM initialization is per realm, so this client shares the instance already created from
+		// bytes; it still owns its own handles.
+		const otherClient = createDirectClient(await WebAssembly.compile(wasmBytes));
+		const { handle: dbc } = openFixtureDbc();
+		const { handle: trace } = openFixtureTrace();
 		try {
-			await expect(otherClient.closeTrace(trace)).rejects.toThrow(
+			expect(otherClient.openDbc(dbcText).catalog.messages.length).toBeGreaterThan(0);
+			expect(() => otherClient.closeTrace(trace)).toThrow(
 				'trace handle does not belong to this client'
 			);
 
 			const spreadTrace = { ...trace };
-			await client.closeTrace(spreadTrace);
-			await client.closeTrace(trace);
-			await expect(client.getSignalValues(dbc, trace, identity, 'vehicle_speed')).rejects.toThrow(
+			client.closeTrace(spreadTrace);
+			client.closeTrace(trace); // idempotent through the shared state
+			expect(() => client.getSignalValues(dbc, trace, identity, 'vehicle_speed')).toThrow(
 				'trace handle is closed'
 			);
-			await client.closeDbc(dbc);
-			await client.closeDbc(dbc);
+			client.closeDbc(dbc);
+			client.closeDbc(dbc);
 		} finally {
-			await client.closeTrace(trace);
-			await client.closeDbc(dbc);
-			await otherClient.close();
+			client.closeTrace(trace);
+			client.closeDbc(dbc);
+			otherClient.close();
 		}
+	});
+
+	it('closes handles safely through proxies that wrap every nested object', () => {
+		const local = createDirectClient(wasmBytes);
+		const trace = local.openTrace('asc', ascBytes).handle;
+		local.closeTrace(proxyEveryObject({ ...trace }));
+		expect(() => local.close()).not.toThrow();
+	});
+
+	it('rejects every operation after close', () => {
+		const closed = createDirectClient(wasmBytes);
+		closed.close();
+		closed.close(); // idempotent
+		expect(() => closed.openDbc(dbcText)).toThrow('client is closed');
+		expect(() => closed.openTrace('asc', ascBytes)).toThrow('client is closed');
 	});
 });
 
-async function openFixtureDbc(): Promise<{ handle: DbcHandle; catalog: ParsedDbc }> {
-	return client.openDbc(await readFile(resolve(fixturesDir, 'agentic-demo.dbc'), 'utf8'));
+function openFixtureDbc(): OpenDbcResult {
+	return client.openDbc(dbcText);
 }
 
-async function openFixtureTrace(): Promise<TraceHandle> {
-	return client.openTrace(
-		'asc',
-		new Uint8Array(await readFile(resolve(fixturesDir, 'agentic-demo.asc')))
-	);
+function openFixtureTrace(): OpenTraceResult {
+	return client.openTrace('asc', ascBytes);
 }
 
-async function openMf4Fixture(name: string): Promise<TraceHandle> {
+async function openMf4Fixture(name: string): Promise<OpenTraceResult> {
 	return client.openTrace('mf4', new Uint8Array(await readFile(resolve(fixturesDir, 'mf4', name))));
+}
+
+function proxyEveryObject<T>(value: T): T {
+	const proxies = new WeakMap<object, object>();
+	function wrap(nested: unknown): unknown {
+		if (typeof nested !== 'object' || nested === null) return nested;
+		const existing = proxies.get(nested);
+		if (existing) return existing;
+		const proxy = new Proxy(nested, {
+			get(target, property, receiver) {
+				return wrap(Reflect.get(target, property, receiver));
+			}
+		});
+		proxies.set(nested, proxy);
+		return proxy;
+	}
+	return wrap(value) as T;
 }
 
 function generatedBlfTrace(): Uint8Array {
