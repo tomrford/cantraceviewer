@@ -23,6 +23,7 @@
 		index: number;
 		label: string;
 		color: string | null;
+		unit: string | null;
 		signals: SignalView[];
 	};
 
@@ -140,6 +141,7 @@
 			<LegendAxisGroup
 				group={axis}
 				label={axis.label}
+				unit={axis.unit}
 				color={axis.color}
 				showHeader={multiAxis}
 				{showValues}

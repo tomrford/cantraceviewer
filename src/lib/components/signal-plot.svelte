@@ -114,13 +114,17 @@
 
 	const axisGroups = $derived(groupSignalsByYAxis(signalViews, plotAxes.ids, plotAxes.assignment));
 	const axisViews = $derived(
-		axisGroups.map((group) => ({
-			...group,
-			label: yAxisLabel(group.index, yAxisUnit(group.signals)),
-			// A single-signal axis borrows that signal's colour so the gutter, the
-			// legend chip, and the line it scales all read as one thing.
-			color: group.signals.length === 1 ? group.signals[0].color : null
-		}))
+		axisGroups.map((group) => {
+			const unit = yAxisUnit(group.signals);
+			return {
+				...group,
+				unit,
+				label: yAxisLabel(group.index, unit),
+				// A single-signal axis borrows that signal's colour so the gutter, the
+				// legend chip, and the line it scales all read as one thing.
+				color: group.signals.length === 1 ? group.signals[0].color : null
+			};
+		})
 	);
 	const primaryAxisId = $derived(axisViews[0].id);
 	const axisIdByKey = $derived(

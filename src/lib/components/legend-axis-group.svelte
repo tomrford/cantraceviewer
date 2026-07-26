@@ -18,6 +18,7 @@
 		onRemove,
 		showHeader,
 		showValues,
+		unit,
 		valuesByKey
 	}: {
 		axisTargets: { id: YAxisId; label: string }[];
@@ -26,6 +27,8 @@
 		cursorText: string | null;
 		group: { id: YAxisId; index: number; signals: SignalView[] };
 		label: string;
+		/** Unit the axis's signals agree on, or null when they do not share one. */
+		unit: string | null;
 		color: string | null;
 		onMove: (signalKey: string, axisId: YAxisId) => void;
 		onMoveToNewAxis: (signalKey: string) => void;
@@ -73,7 +76,7 @@
 			>
 				Y{group.index + 1}
 			</span>
-			<span class="min-w-0 flex-1 truncate text-muted-foreground" title={label}>{label}</span>
+			<span class="min-w-0 flex-1 truncate text-muted-foreground">{unit ?? ''}</span>
 			{#if cursorText !== null}
 				<span class="font-mono text-muted-foreground tabular-nums">{cursorText}</span>
 			{/if}
@@ -92,7 +95,7 @@
 	{/if}
 
 	{#if group.signals.length === 0}
-		<p class="px-1 py-2 text-xs text-muted-foreground italic">Drag signals here.</p>
+		<p class="px-1 py-2 text-xs text-muted-foreground italic">Drag or move signals here.</p>
 	{:else}
 		<div class="space-y-2" role="list">
 			{#each group.signals as view (view.key)}
