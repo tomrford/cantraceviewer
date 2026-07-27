@@ -12,9 +12,7 @@ import {
 	zoomViewport
 } from './plot-viewport.js';
 
-export type ViewportMode =
-	| { mode: 'fit' }
-	| { mode: 'manual'; xMin: number; xMax: number };
+export type ViewportMode = { mode: 'fit' } | { mode: 'manual'; xMin: number; xMax: number };
 
 const CENTER: PlotRatioPoint = { xRatio: 0.5, yRatio: 0.5 };
 const NO_RANGES: ReadonlyMap<YAxisId, PlotAxisRange> = new Map();

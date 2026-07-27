@@ -1,23 +1,17 @@
 <script lang="ts">
 	import { SIGNAL_COLORS } from '$lib/plot-colors.js';
-	import { normalizedWheelDelta, type PlotRatioPoint } from '$lib/plot-geometry.js';
+	import type { PlotRatioPoint } from '$lib/plot-geometry.js';
 	import {
 		capturePlotImage,
 		copyPlotImage,
 		plotImageFilename,
 		savePlotImage
 	} from '$lib/plot-image-export.js';
-	import {
-		panViewport,
-		type PlotAxisRange,
-		type PlotPoint,
-		type PlotViewport
-	} from '$lib/plot-viewport.js';
+	import type { PlotAxisRange, PlotPoint, PlotViewport } from '$lib/plot-viewport.js';
 	import { plotGrid } from '$lib/plot-axis-layout.js';
 	import { FALLBACK_PLOT_THEME, resolvePlotTheme, type PlotTheme } from '$lib/plot-theme.js';
 	import { groupSignalsByYAxis, yAxisLabel, yAxisUnit, type YAxisId } from '$lib/plot-axes.js';
 	import { plotAxes } from '$lib/stores/plot-axes.svelte.js';
-	import { plotDragMode, plotWheelAction } from '$lib/plot-interaction-policy.js';
 	import { shortcutKeys, type ShortcutPlatform } from '$lib/keyboard-shortcuts.js';
 	import {
 		crosshairById,
@@ -70,7 +64,7 @@
 		boxZoomEnabled = $bindable(false),
 		legendVisible = $bindable(true),
 		legendSelectOpen = $bindable(false),
-		pointerRatio = $bindable<PlotRatioPoint | null>(null), // eslint-disable-line no-useless-assignment
+		pointerRatio = $bindable<PlotRatioPoint | null>(null),
 		viewport,
 		shortcutPlatform,
 		class: className,
@@ -86,22 +80,15 @@
 		viewport: PlotViewportState;
 		shortcutPlatform: ShortcutPlatform;
 	} = $props();
-	let plotRoot: HTMLElement;
-	let container: HTMLDivElement;
+	let plotRoot = $state<HTMLElement | null>(null);
+	let container = $state<HTMLDivElement | null>(null);
 	let chart: ChartGPUInstance | null = null;
 	let chartError = $state<string | null>(null);
 	let contextMenuPoint = $state<PlotPoint | null>(null);
 	let contextMenuCrosshairId = $state<CrosshairId | null>(null);
 	let imageExportBusy = $state(false);
-	let middleDrag = $state<{
-		pointerId: number;
-		clientX: number;
-		clientY: number;
-		startViewport: PlotViewport;
-	} | null>(null);
 	let resizeObserver: ResizeObserver | null = null;
 
-	const WHEEL_ZOOM_SPEED = 0.002;
 	const AXIS_FONT_SIZE = 12;
 	// Both axes' labels come from these tokens: ChartGPU draws the x axis from the
 	// theme it is handed, and SignalPlotAxes draws the y gutters from the Tailwind
@@ -187,7 +174,9 @@
 	// than `isDark()` directly: reacting to the preference races the effect that
 	// applies it, and reads the outgoing theme's tokens.
 	onMount(() => {
-		const readTheme = () => (plotTheme = resolvePlotTheme(getComputedStyle(plotRoot)));
+		if (plotRoot === null) return;
+		const root = plotRoot;
+		const readTheme = () => (plotTheme = resolvePlotTheme(getComputedStyle(root)));
 		readTheme();
 
 		const observer = new MutationObserver(readTheme);
@@ -208,17 +197,18 @@
 	});
 
 	onMount(async () => {
-		if (!('gpu' in navigator)) {
+		if (!('gpu' in navigator) || container === null) {
 			return;
 		}
 
 		try {
+			const chartContainer = container;
 			const mod = await import('chartgpu');
 			const createChart = mod.ChartGPU.create;
-			chart = await createChart(container, chartOptions());
+			chart = await createChart(chartContainer, chartOptions());
 
 			resizeObserver = new ResizeObserver(() => chart?.resize());
-			resizeObserver.observe(container);
+			resizeObserver.observe(chartContainer);
 		} catch (error) {
 			chartError = error instanceof Error ? error.message : 'ChartGPU failed to start.';
 		}
@@ -374,7 +364,7 @@
 	}
 
 	async function exportCurrentView(destination: 'copy' | 'save'): Promise<void> {
-		if (imageExportBusy) return;
+		if (imageExportBusy || plotRoot === null) return;
 		imageExportBusy = true;
 
 		try {
@@ -392,107 +382,6 @@
 			imageExportBusy = false;
 		}
 	}
-
-	function handlePlotWheel(event: WheelEvent) {
-		if (activeViewport === null || !isPlotInteractionTarget(event.target)) return;
-		const point = currentPlotRatio(event);
-		if (point === null) return;
-
-		const plotSize = currentPlotSize();
-		const delta = normalizedWheelDelta(event, plotSize.height);
-		const action = plotWheelAction(delta, { shift: event.shiftKey, alt: event.altKey });
-		if (action === null) return;
-
-		event.preventDefault();
-		if (action.type === 'pan-x') {
-			viewport.panBy({ x: action.deltaX, y: 0 }, plotSize);
-			return;
-		}
-
-		const factor = Math.exp(Math.min(200, Math.max(-200, action.delta)) * WHEEL_ZOOM_SPEED);
-		viewport.zoomBy(factor, point, action.axes);
-	}
-
-	function startMiddleDrag(event: PointerEvent): void {
-		if (
-			event.button !== 1 ||
-			plotDragMode(event.button, boxZoomEnabled) !== 'pan' ||
-			activeViewport === null ||
-			!isPlotInteractionTarget(event.target)
-		) {
-			return;
-		}
-
-		event.preventDefault();
-		event.stopPropagation();
-		const target = event.currentTarget as HTMLElement;
-		target.setPointerCapture(event.pointerId);
-		middleDrag = {
-			pointerId: event.pointerId,
-			clientX: event.clientX,
-			clientY: event.clientY,
-			startViewport: activeViewport
-		};
-	}
-
-	function dragMiddle(event: PointerEvent): void {
-		if (middleDrag === null || middleDrag.pointerId !== event.pointerId) return;
-		event.preventDefault();
-		viewport.setManual(
-			panViewport(
-				middleDrag.startViewport,
-				{
-					x: event.clientX - middleDrag.clientX,
-					y: event.clientY - middleDrag.clientY
-				},
-				currentPlotSize()
-			)
-		);
-	}
-
-	function stopMiddleDrag(event: PointerEvent): void {
-		if (middleDrag === null || middleDrag.pointerId !== event.pointerId) return;
-		middleDrag = null;
-		const target = event.currentTarget as HTMLElement;
-		if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
-	}
-
-	function preventMiddleAutoscroll(event: MouseEvent): void {
-		if (event.button === 1 && isPlotInteractionTarget(event.target)) event.preventDefault();
-	}
-
-	function trackPlotPointer(event: PointerEvent): void {
-		pointerRatio = isPlotInteractionTarget(event.target) ? currentPlotRatio(event) : null;
-	}
-
-	function isPlotInteractionTarget(target: EventTarget | null): boolean {
-		return (
-			target instanceof Element &&
-			(container.contains(target) || target.closest('[data-plot-wheel-target]') !== null)
-		);
-	}
-
-	function currentPlotRatio(event: Pick<WheelEvent, 'clientX' | 'clientY'>): PlotRatioPoint | null {
-		const rect = container.getBoundingClientRect();
-		const size = currentPlotSize();
-		if (!(size.width > 0) || !(size.height > 0)) return null;
-
-		const x = event.clientX - rect.left - grid.left;
-		const y = event.clientY - rect.top - grid.top;
-
-		return {
-			xRatio: Math.min(1, Math.max(0, x / size.width)),
-			yRatio: Math.min(1, Math.max(0, y / size.height))
-		};
-	}
-
-	function currentPlotSize(): { width: number; height: number } {
-		const rect = container.getBoundingClientRect();
-		return {
-			width: rect.width - grid.left - grid.right,
-			height: rect.height - grid.top - grid.bottom
-		};
-	}
 </script>
 
 <section
@@ -503,14 +392,6 @@
 		className
 	]}
 	{...restProps}
-	onwheel={handlePlotWheel}
-	onpointerdowncapture={startMiddleDrag}
-	onpointermovecapture={trackPlotPointer}
-	onpointermove={dragMiddle}
-	onpointerup={stopMiddleDrag}
-	onpointercancel={stopMiddleDrag}
-	onauxclick={preventMiddleAutoscroll}
-	onpointerleave={() => (pointerRatio = null)}
 >
 	{#if dropActive}
 		<div
@@ -530,6 +411,9 @@
 					{boxZoomEnabled}
 					suspended={legendSelectOpen}
 					{grid}
+					eventRoot={plotRoot}
+					plotSurface={container}
+					bind:pointerRatio
 					onContextMenuPoint={rememberContextMenuPoint}
 				/>
 
