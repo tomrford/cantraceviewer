@@ -123,6 +123,18 @@ describe('PlotViewportState', () => {
 		expect(state.secondaryRanges.get('y1')).toEqual({ min: 250, max: 750 });
 	});
 
+	it('refits the primary axis when its signals change while preserving the y window', () => {
+		const state = new PlotViewportState();
+		let domain = $state<PlotViewport | null>(viewport(0, 100, 0, 10));
+		state.domainSource = () => domain;
+
+		state.setManual(viewport(25, 75, 2.5, 7.5));
+		domain = viewport(0, 100, 100, 200);
+
+		expect(state.activeViewport).toEqual(viewport(25, 75, 125, 175));
+		expect(state.isFitAll).toBe(false);
+	});
+
 	it('leaves secondary axes alone when navigation only moves x', () => {
 		const state = new PlotViewportState();
 		// The primary axis's fit range moves when its last signal is assigned away.
@@ -138,7 +150,7 @@ describe('PlotViewportState', () => {
 		// change against the primary axis's new fit range.
 		state.panBy({ x: 40, y: 0 }, { width: 100, height: 100 });
 
-		expect(state.activeViewport?.yMin).toBe(2.5);
+		expect(state.activeViewport?.yMin).toBe(0.25);
 		expect(state.secondaryRanges.get('y1')).toEqual({ min: 250, max: 750 });
 
 		// An x-only zoom is the same case, from the wheel rather than a drag.
