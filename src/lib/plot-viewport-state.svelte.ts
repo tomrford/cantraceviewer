@@ -12,7 +12,7 @@ import {
 	zoomViewport
 } from './plot-viewport.js';
 
-export type ViewportMode = { mode: 'fit' } | { mode: 'manual'; viewport: PlotViewport };
+export type ViewportMode = { mode: 'fit' } | { mode: 'manual'; xMin: number; xMax: number };
 
 const CENTER: PlotRatioPoint = { xRatio: 0.5, yRatio: 0.5 };
 const NO_RANGES: ReadonlyMap<YAxisId, PlotAxisRange> = new Map();
@@ -29,23 +29,25 @@ export class PlotViewportState {
 	secondaryRangeSource = $state<(() => ReadonlyMap<YAxisId, PlotAxisRange>) | null>(null);
 
 	fullDomain = $derived.by(() => this.domainSource?.() ?? null);
-	activeViewport = $derived.by(() =>
-		this.#mode.mode === 'fit' ? this.fullDomain : this.#mode.viewport
-	);
+	// Captured when the gesture happens rather than recomputed from the primary
+	// axis's absolute bounds. Axis membership can change its fit range at any
+	// time; keeping the gesture as a proportional window lets every axis refit
+	// to its own current signals without changing the shared navigation state.
+	#yWindow = $state<PlotYWindow>(FULL_Y_WINDOW);
+
+	activeViewport = $derived.by(() => {
+		const domain = this.fullDomain;
+		if (this.#mode.mode === 'fit' || domain === null) return domain;
+
+		const y = applyYWindow({ min: domain.yMin, max: domain.yMax }, this.#yWindow);
+		return { xMin: this.#mode.xMin, xMax: this.#mode.xMax, yMin: y.min, yMax: y.max };
+	});
 	// Fit-all is a property of the mode, not of coincidental equality: a manual
 	// viewport the domain later drifts into must stay manual (reset enabled),
 	// since a derived cannot latch it to fit and it will not follow further
 	// domain changes. Interactive returns to ~full extent still normalize to
 	// fit at setManual time.
 	isFitAll = $derived.by(() => this.#mode.mode === 'fit');
-
-	// Captured when the gesture happens rather than derived from the current
-	// domain: the primary axis's fit range moves whenever signals are assigned
-	// away from it, and deriving would let that retroactively rewrite where every
-	// other axis is looking. Dragging the last signal off the primary axis while
-	// zoomed collapses its range to the empty fallback, which would otherwise
-	// throw the remaining axes far off screen.
-	#yWindow = $state<PlotYWindow>(FULL_Y_WINDOW);
 
 	/** The proportion of each axis's own extent currently on screen. */
 	get yWindow(): PlotYWindow {
@@ -87,7 +89,7 @@ export class PlotViewportState {
 		// the change between the two, so an x-only navigation leaves it alone.
 		const previous = this.activeViewport;
 		if (previous !== null) this.#yWindow = advanceYWindow(this.#yWindow, previous, viewport);
-		this.#mode = { mode: 'manual', viewport };
+		this.#mode = { mode: 'manual', xMin: viewport.xMin, xMax: viewport.xMax };
 	}
 
 	reset(): void {

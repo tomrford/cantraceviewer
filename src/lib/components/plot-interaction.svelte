@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { PlotRatioPoint } from '$lib/plot-geometry.js';
+	import { normalizedWheelDelta, type PlotRatioPoint } from '$lib/plot-geometry.js';
 	import {
 		boxViewport,
 		dataPointAtRatio,
@@ -8,24 +8,31 @@
 		type PlotViewport
 	} from '$lib/plot-viewport.js';
 	import { PlotViewportState } from '$lib/plot-viewport-state.svelte.js';
-	import { plotDragMode } from '$lib/plot-interaction-policy.js';
+	import { plotDragMode, plotWheelAction } from '$lib/plot-interaction-policy.js';
 
 	let {
 		viewport,
 		boxZoomEnabled,
 		suspended,
 		grid,
+		eventRoot,
+		plotSurface,
+		pointerRatio = $bindable(null), // eslint-disable-line no-useless-assignment
 		onContextMenuPoint
 	}: {
 		viewport: PlotViewportState;
 		boxZoomEnabled: boolean;
 		suspended: boolean;
 		grid: { left: number; right: number; top: number; bottom: number };
+		eventRoot?: HTMLElement | null;
+		plotSurface?: HTMLElement | null;
+		pointerRatio?: PlotRatioPoint | null;
 		onContextMenuPoint?: (point: PlotPoint | null) => void;
 	} = $props();
 
-	let overlay: HTMLButtonElement;
 	let dragState = $state<DragState | null>(null);
+
+	const WHEEL_ZOOM_SPEED = 0.002;
 
 	type DragState =
 		| {
@@ -34,16 +41,43 @@
 				clientX: number;
 				clientY: number;
 				startViewport: PlotViewport;
+				captureTarget: HTMLElement;
 		  }
 		| {
 				type: 'box';
 				pointerId: number;
 				start: PlotRatioPoint;
 				current: PlotRatioPoint;
+				captureTarget: HTMLElement;
 		  };
 
 	$effect(() => {
-		if (suspended) cancelPlotDrag();
+		if (suspended) {
+			cancelPlotDrag();
+			pointerRatio = null;
+		}
+	});
+
+	$effect(() => {
+		const root = eventRoot;
+		if (root == null) return;
+
+		const controller = new AbortController();
+		const { signal } = controller;
+		root.addEventListener('wheel', handlePlotWheel, { passive: false, signal });
+		root.addEventListener('pointerdown', startMiddleDrag, { capture: true, signal });
+		root.addEventListener('pointermove', trackPlotPointer, { capture: true, signal });
+		root.addEventListener('pointermove', dragPlot, { signal });
+		root.addEventListener('pointerup', stopPlotDrag, { signal });
+		root.addEventListener('pointercancel', stopPlotDrag, { signal });
+		root.addEventListener('auxclick', preventMiddleAutoscroll, { signal });
+		root.addEventListener('pointerleave', clearPointerRatio, { signal });
+
+		return () => {
+			controller.abort();
+			cancelPlotDrag();
+			pointerRatio = null;
+		};
 	});
 
 	function handleContextMenu(event: MouseEvent) {
@@ -58,23 +92,46 @@
 		if (activeViewport === null || event.button !== 0 || mode === null) return;
 		const point = currentPlotRatio(event);
 		if (point === null) return;
-		event.preventDefault();
-		(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
 
+		startDrag(event, activeViewport, mode, point);
+	}
+
+	function startDrag(
+		event: PointerEvent,
+		activeViewport: PlotViewport,
+		mode: 'pan' | 'box',
+		point: PlotRatioPoint
+	): void {
+		event.preventDefault();
+		const captureTarget = event.currentTarget as HTMLElement;
+		captureTarget.setPointerCapture(event.pointerId);
 		dragState =
 			mode === 'box'
-				? { type: 'box', pointerId: event.pointerId, start: point, current: point }
+				? {
+						type: 'box',
+						pointerId: event.pointerId,
+						start: point,
+						current: point,
+						captureTarget
+					}
 				: {
 						type: 'pan',
 						pointerId: event.pointerId,
 						clientX: event.clientX,
 						clientY: event.clientY,
-						startViewport: activeViewport
+						startViewport: activeViewport,
+						captureTarget
 					};
 	}
 
 	function dragPlot(event: PointerEvent) {
-		if (dragState === null || dragState.pointerId !== event.pointerId) return;
+		if (
+			dragState === null ||
+			dragState.pointerId !== event.pointerId ||
+			dragState.captureTarget !== event.currentTarget
+		) {
+			return;
+		}
 		if (suspended) {
 			cancelPlotDrag();
 			return;
@@ -100,15 +157,19 @@
 	}
 
 	function stopPlotDrag(event: PointerEvent) {
-		if (dragState === null || dragState.pointerId !== event.pointerId) return;
+		if (
+			dragState === null ||
+			dragState.pointerId !== event.pointerId ||
+			dragState.captureTarget !== event.currentTarget
+		) {
+			return;
+		}
 		if (suspended) {
 			cancelPlotDrag();
 			return;
 		}
 		const state = dragState;
-		dragState = null;
-		const target = event.currentTarget as HTMLElement;
-		if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
+		cancelPlotDrag();
 
 		const activeViewport = viewport.activeViewport;
 		if (state.type === 'box' && activeViewport !== null) {
@@ -125,11 +186,70 @@
 	}
 
 	function cancelPlotDrag() {
-		const pointerId = dragState?.pointerId;
+		const state = dragState;
 		dragState = null;
-		if (pointerId !== undefined && overlay?.hasPointerCapture(pointerId)) {
-			overlay.releasePointerCapture(pointerId);
+		if (state?.captureTarget.hasPointerCapture(state.pointerId)) {
+			state.captureTarget.releasePointerCapture(state.pointerId);
 		}
+	}
+
+	function handlePlotWheel(event: WheelEvent) {
+		if (suspended || viewport.activeViewport === null || !isPlotInteractionTarget(event.target))
+			return;
+		const point = currentPlotRatio(event);
+		if (point === null) return;
+
+		const plotSize = currentPlotSize();
+		const delta = normalizedWheelDelta(event, plotSize.height);
+		const action = plotWheelAction(delta, { shift: event.shiftKey, alt: event.altKey });
+		if (action === null) return;
+
+		event.preventDefault();
+		if (action.type === 'pan-x') {
+			viewport.panBy({ x: action.deltaX, y: 0 }, plotSize);
+			return;
+		}
+
+		const factor = Math.exp(Math.min(200, Math.max(-200, action.delta)) * WHEEL_ZOOM_SPEED);
+		viewport.zoomBy(factor, point, action.axes);
+	}
+
+	function startMiddleDrag(event: PointerEvent): void {
+		const activeViewport = viewport.activeViewport;
+		if (
+			suspended ||
+			event.button !== 1 ||
+			plotDragMode(event.button, boxZoomEnabled) !== 'pan' ||
+			activeViewport === null ||
+			!isPlotInteractionTarget(event.target)
+		) {
+			return;
+		}
+
+		event.stopPropagation();
+		const point = currentPlotRatio(event);
+		if (point !== null) startDrag(event, activeViewport, 'pan', point);
+	}
+
+	function preventMiddleAutoscroll(event: MouseEvent): void {
+		if (event.button === 1 && isPlotInteractionTarget(event.target)) event.preventDefault();
+	}
+
+	function trackPlotPointer(event: PointerEvent): void {
+		pointerRatio =
+			!suspended && isPlotInteractionTarget(event.target) ? currentPlotRatio(event) : null;
+	}
+
+	function clearPointerRatio(): void {
+		pointerRatio = null;
+	}
+
+	function isPlotInteractionTarget(target: EventTarget | null): boolean {
+		return (
+			target instanceof Element &&
+			(plotSurface?.contains(target) === true ||
+				target.closest('[data-plot-wheel-target]') !== null)
+		);
 	}
 
 	function clientToDataPoint(event: Pick<MouseEvent, 'clientX' | 'clientY'>): PlotPoint | null {
@@ -143,7 +263,8 @@
 	function currentPlotRatio(
 		event: Pick<PointerEvent, 'clientX' | 'clientY'>
 	): PlotRatioPoint | null {
-		const rect = overlay.getBoundingClientRect();
+		const rect = plotSurface?.getBoundingClientRect();
+		if (rect === undefined) return null;
 		const size = currentPlotSize();
 		if (!(size.width > 0) || !(size.height > 0)) return null;
 
@@ -154,7 +275,8 @@
 	}
 
 	function currentPlotSize(): { width: number; height: number } {
-		const rect = overlay.getBoundingClientRect();
+		const rect = plotSurface?.getBoundingClientRect();
+		if (rect === undefined) return { width: 0, height: 0 };
 		return {
 			width: rect.width - grid.left - grid.right,
 			height: rect.height - grid.top - grid.bottom
@@ -169,7 +291,6 @@
 <svelte:window onkeydowncapture={cancelBoxZoom} />
 
 <button
-	bind:this={overlay}
 	type="button"
 	data-export-ignore
 	class={`absolute z-30 border-0 bg-transparent p-0 text-left outline-none ${
