@@ -1,3 +1,5 @@
+import { TRACE_FILE_FORMAT_NAMES } from './trace-file-types';
+
 export const WALKTHROUGH_VERSION = 1;
 
 export type WalkthroughPlacement = 'bottom-start' | 'bottom-end' | 'right-start';
@@ -16,7 +18,7 @@ export const WALKTHROUGH_STEPS: WalkthroughStep[] = [
 		target: 'trace',
 		placement: 'bottom-start',
 		title: 'Open a trace',
-		description: 'Open or drop an ASC, TRC or BLF file. The trace stays in this tab.'
+		description: `Open or drop an ${TRACE_FILE_FORMAT_NAMES} file. The trace stays in this tab.`
 	},
 	{
 		id: 'library',
