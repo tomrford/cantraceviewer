@@ -7,6 +7,7 @@
 		shortcutLabel,
 		type ShortcutPlatform
 	} from '$lib/keyboard-shortcuts.js';
+	import { TRACE_FILE_FORMAT_NAMES } from '$lib/trace-file-types.js';
 
 	let {
 		open = $bindable(false),
@@ -36,7 +37,7 @@
 					browser's local storage. Nothing leaves your machine.
 				</span>
 				<span class="block">
-					Load one ASC, TRC, or BLF trace, add one or more DBC files, then select decoded signals
+					Load one {TRACE_FILE_FORMAT_NAMES} trace, add one or more DBC files, then select decoded signals
 					from the signal selector.
 				</span>
 				<span class="block">

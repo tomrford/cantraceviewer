@@ -42,7 +42,7 @@
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
 	import { onTraceOpened } from '$lib/stores/session.js';
 	import { traceFile, type TraceFileEntry } from '$lib/stores/trace-file.svelte.js';
-	import { TRACE_FILE_ACCEPT } from '$lib/trace-file-types.js';
+	import { TRACE_FILE_ACCEPT, TRACE_FILE_FORMAT_NAMES } from '$lib/trace-file-types.js';
 	import AudioWaveformIcon from '@lucide/svelte/icons/audio-waveform';
 	import CogIcon from '@lucide/svelte/icons/cog';
 	import CircleHelpIcon from '@lucide/svelte/icons/circle-help';
@@ -107,13 +107,11 @@
 			walkthroughStepId === null &&
 			shouldShowWalkthrough(walkthroughVersion.current)
 	);
-	const shareTitle = 'CAN Trace Viewer — Plot and decode ASC, TRC, BLF and MF4 logs';
-	const siteDescription =
-		'Plot ASC, TRC, BLF and MF4 vehicle data in your browser. Decode raw CAN with DBC files or plot native MF4 channels; files stay on your device.';
+	const shareTitle = `CAN Trace Viewer — Plot and decode ${TRACE_FILE_FORMAT_NAMES} logs`;
+	const siteDescription = `Plot ${TRACE_FILE_FORMAT_NAMES} vehicle data in your browser. Decode raw CAN with DBC files or plot native MF4 channels; files stay on your device.`;
 	const siteUrl = 'https://cantraceviewer.com/';
 	const landingTitle = 'Plot CAN bus logs in your browser';
-	const landingDescription =
-		'Open an ASC, TRC, BLF or MF4 trace. Decode raw CAN with a DBC or plot native MF4 signals. Files stay on this device.';
+	const landingDescription = `Open an ${TRACE_FILE_FORMAT_NAMES} trace. Decode raw CAN with a DBC or plot native MF4 signals. Files stay on this device.`;
 	const structuredData = {
 		'@context': 'https://schema.org',
 		'@graph': [
@@ -142,7 +140,7 @@
 				codeRepository: 'https://github.com/tomrford/cantraceviewer',
 				license: 'https://github.com/tomrford/cantraceviewer/blob/main/LICENSE.md',
 				featureList: [
-					'Plot ASC, PCAN TRC 1.x and 2.x, BLF, and MF4 data',
+					`Plot ${TRACE_FILE_FORMAT_NAMES} data`,
 					'Decode CAN signals with DBC files',
 					'Plot native decoded MF4 measurement channels',
 					'Process files locally in the browser'
