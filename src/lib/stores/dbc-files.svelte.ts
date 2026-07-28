@@ -51,6 +51,7 @@ type SelectorDbcSignal = {
 	label: string;
 	messageName: string;
 	signalName: string;
+	searchText: string;
 };
 
 type SelectorFilterOptions = {
@@ -394,7 +395,7 @@ export function buildSelectorSearchIndexes(files: SelectorDbcFile[]): SelectorSe
 
 		return {
 			dbc,
-			signals: createFuzzySearchIndex(signals, ({ signal }) => signal.label)
+			signals: createFuzzySearchIndex(signals, ({ signal }) => signal.searchText)
 		};
 	});
 }
@@ -420,11 +421,14 @@ function selectorSignal(
 	message: DbcMessage,
 	signal: DbcSignal
 ): SelectorDbcSignal {
+	const label = `${message.name}.${signal.name}`;
+
 	return {
 		key: signalIdentityKey(dbcFileId, message, signal.name),
-		label: `${message.name}.${signal.name}`,
+		label,
 		messageName: message.name,
-		signalName: signal.name
+		signalName: signal.name,
+		searchText: `${label} ${message.canId.toString(16)}`
 	};
 }
 

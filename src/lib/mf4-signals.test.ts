@@ -21,7 +21,8 @@ describe('MF4 signal sources', () => {
 								key: mf4SignalIdentityKey(17, 3),
 								label: 'Powertrain.Speed',
 								messageName: 'Powertrain',
-								signalName: 'Speed'
+								signalName: 'Speed',
+								searchText: 'Powertrain.Speed'
 							}
 						]
 					}

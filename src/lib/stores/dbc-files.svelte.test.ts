@@ -318,6 +318,17 @@ describe('dbcFiles', () => {
 				]
 			}
 		]);
+		expect(visibleSelectorSignals('101 engine')).toMatchObject([
+			{
+				id: 'dbc-1',
+				messages: [
+					{
+						name: 'PowertrainStatus',
+						signals: [{ signalName: 'EngineRpm' }]
+					}
+				]
+			}
+		]);
 	});
 
 	it('merges prebuilt native MF4 indexes into the tree and fuzzy search', () => {
@@ -349,7 +360,8 @@ describe('dbcFiles', () => {
 								key: 'native-motor-speed',
 								label: 'Powertrain.MotorSpeed',
 								messageName: 'Powertrain',
-								signalName: 'MotorSpeed'
+								signalName: 'MotorSpeed',
+								searchText: 'Powertrain.MotorSpeed'
 							}
 						]
 					}

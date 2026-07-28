@@ -36,7 +36,7 @@ export function searchFuzzyIndex<T>(index: FuzzySearchIndex<T>, query: string): 
 	return index.miniSearch
 		.search(trimmedQuery, {
 			prefix: true,
-			fuzzy: (term) => (term.length >= 3 ? 0.3 : false),
+			fuzzy: (term) => (term.length >= 3 && !/\d/u.test(term) ? 0.3 : false),
 			combineWith: 'AND'
 		})
 		.map((result) => index.items[result.id as number]);
