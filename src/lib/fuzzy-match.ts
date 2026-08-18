@@ -35,7 +35,7 @@ export function searchFuzzyIndex<T>(index: FuzzySearchIndex<T>, query: string): 
 
 	return index.miniSearch
 		.search(trimmedQuery, {
-			prefix: true,
+			prefix: (term) => !isShortHexTerm(term),
 			fuzzy: (term) => (term.length >= 3 && !/\d/u.test(term) ? 0.3 : false),
 			combineWith: 'AND'
 		})
@@ -59,8 +59,16 @@ function camelCaseTerms(term: string): string[] {
 }
 
 function normalizeSearchTerm(term: string): string {
-	return term
+	const normalized = term
 		.normalize('NFKD')
 		.replace(/[\u0300-\u036f]/g, '')
 		.toLowerCase();
+	if (normalized.startsWith('0x') && /^[0-9a-f]+$/u.test(normalized.slice(2))) {
+		return normalized.slice(2);
+	}
+	return normalized;
+}
+
+function isShortHexTerm(term: string): boolean {
+	return term.length > 0 && term.length < 3 && /^[0-9a-f]+$/u.test(term);
 }
