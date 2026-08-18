@@ -93,15 +93,17 @@ export async function createRpcClient(
 	// Assigned below, once the handlers it reports to exist.
 	let transport: RpcTransport | null = null;
 
-	let ready!: { resolve: () => void; reject: (reason: unknown) => void };
+	let resolveReady!: () => void;
+	let rejectReady!: (error: Error) => void;
 	const readyPromise = new Promise<void>((resolve, reject) => {
-		ready = { resolve, reject };
+		resolveReady = resolve;
+		rejectReady = reject;
 	});
 
 	function receive(data: unknown): void {
 		const response = data as WorkerResponse;
 		if (response.type === 'ready') {
-			ready.resolve();
+			resolveReady();
 			return;
 		}
 		if (response.type === 'boot-error') {
@@ -124,7 +126,7 @@ export async function createRpcClient(
 		pending.clear();
 		for (const entry of entries) entry.reject(error);
 		void terminate().catch(() => undefined);
-		ready.reject(error);
+		rejectReady(error);
 	}
 
 	function terminate(): Promise<void> {
@@ -223,14 +225,16 @@ export async function createRpcClient(
 		},
 		close() {
 			closePromise ??= (async () => {
-				let cleanupError: unknown = null;
+				let cleanupError: Error | null = null;
 				if (!fatalError) {
 					try {
 						// Runs after every previously posted request via the worker's serial queue.
 						await send<null>({ op: 'closeClient' }, []);
 					} catch (error) {
 						// A fatal crash mid-close still terminates cleanly below.
-						if (error !== fatalError) cleanupError = error;
+						if (error !== fatalError) {
+							cleanupError = error instanceof Error ? error : new Error(String(error));
+						}
 					}
 				}
 				handles.releaseAll();

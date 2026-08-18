@@ -6,7 +6,7 @@ export type PlotRatioPoint = {
 export function normalizedWheelDelta(
 	event: Pick<WheelEvent, 'deltaMode' | 'deltaX' | 'deltaY'>,
 	pageHeight: number
-): { x: number; y: number } {
+) {
 	const unit =
 		event.deltaMode === WheelEvent.DOM_DELTA_LINE
 			? 16

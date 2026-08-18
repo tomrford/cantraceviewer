@@ -195,12 +195,12 @@ function withWasmErrors<T>(operation: () => T): T {
 	}
 }
 
-function normalizeWasmError(error: unknown): unknown {
+function normalizeWasmError(error: unknown): Error {
 	if (error instanceof WebAssembly.RuntimeError) {
 		return new Error(`WebAssembly execution failed: ${error.message}`);
 	}
 	if (error instanceof WebAssembly.CompileError || error instanceof WebAssembly.LinkError) {
 		return new Error(`WebAssembly failed to load: ${error.message}`);
 	}
-	return error;
+	return error instanceof Error ? error : new Error(String(error));
 }

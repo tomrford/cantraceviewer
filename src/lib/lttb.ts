@@ -9,7 +9,7 @@ export function lttbSample(
 	start: number,
 	end: number,
 	target: number
-): { x: Float64Array; y: Float64Array } {
+) {
 	const length = end - start;
 	const count = Math.max(2, Math.floor(target));
 	if (length <= count) {

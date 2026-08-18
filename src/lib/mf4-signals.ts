@@ -44,13 +44,13 @@ export function mf4SelectorSearchIndexes(trace: Mf4Trace | null): SelectorSearch
 	return buildSelectorSearchIndexes(mf4SelectorFiles(trace));
 }
 
-export function buildMf4SignalTargetIndex(trace: Mf4Trace | null): Record<string, Mf4SignalTarget> {
-	const index: Record<string, Mf4SignalTarget> = {};
+export function buildMf4SignalTargetIndex(trace: Mf4Trace | null) {
+	const index = new Map<string, Mf4SignalTarget>();
 	if (!trace?.mf4Catalog) return index;
 
 	for (const group of trace.mf4Catalog.groups) {
 		for (const signal of group.signals) {
-			index[mf4SignalIdentityKey(trace.id, signal.id)] = { trace, group, signal };
+			index.set(mf4SignalIdentityKey(trace.id, signal.id), { trace, group, signal });
 		}
 	}
 	return index;

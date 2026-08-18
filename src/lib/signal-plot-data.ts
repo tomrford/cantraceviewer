@@ -91,10 +91,7 @@ export function formatLegendNumericValue(value: number, factor: number, offset =
 	return value.toFixed(fractionDigits);
 }
 
-export function formatDecodedValue(
-	value: number | null,
-	context: DecodedValueFormatContext
-): { text: string; outOfRange: boolean } {
+export function formatDecodedValue(value: number | null, context: DecodedValueFormatContext) {
 	if (value === null || !Number.isFinite(value)) {
 		return { text: '-', outOfRange: false };
 	}
@@ -413,11 +410,7 @@ function nearestValue(view: SignalView, x: number): number | null {
 	return view.y[nearest];
 }
 
-function visibleIndexRange(
-	x: Float64Array<ArrayBufferLike>,
-	xMin: number,
-	xMax: number
-): { start: number; end: number } {
+function visibleIndexRange(x: Float64Array<ArrayBufferLike>, xMin: number, xMax: number) {
 	if (x.length === 0 || !Number.isFinite(xMin) || !Number.isFinite(xMax)) {
 		return { start: 0, end: x.length };
 	}
@@ -430,11 +423,7 @@ function visibleIndexRange(
 	return { start, end: Math.max(start, end) };
 }
 
-export function renderIndexRange(
-	x: Float64Array<ArrayBufferLike>,
-	xMin: number,
-	xMax: number
-): { start: number; end: number } {
+export function renderIndexRange(x: Float64Array<ArrayBufferLike>, xMin: number, xMax: number) {
 	// Include one off-screen neighbor on each side so clipped line segments
 	// continue to the viewport edge even when no sample falls exactly there.
 	const { start, end } = visibleIndexRange(x, xMin, xMax);

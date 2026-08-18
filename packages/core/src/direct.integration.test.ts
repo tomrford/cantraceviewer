@@ -321,7 +321,7 @@ async function openMf4Fixture(name: string): Promise<OpenTraceResult> {
 
 function proxyEveryObject<T>(value: T): T {
 	const proxies = new WeakMap<object, object>();
-	function wrap(nested: unknown): unknown {
+	function wrap(nested: unknown) {
 		if (typeof nested !== 'object' || nested === null) return nested;
 		const existing = proxies.get(nested);
 		if (existing) return existing;

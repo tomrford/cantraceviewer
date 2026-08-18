@@ -39,7 +39,7 @@ export type ShortcutState = {
 	hasCrosshairs: boolean;
 };
 
-export const SHORTCUTS: Record<ShortcutAction, ShortcutDefinition> = {
+export const SHORTCUTS = {
 	openTrace: { key: 'o', displayKey: 'O', label: 'Open trace', group: 'Trace', primary: true },
 	selectSignals: {
 		key: '/',
@@ -70,7 +70,7 @@ export const SHORTCUTS: Record<ShortcutAction, ShortcutDefinition> = {
 	},
 	openSettings: { key: ',', displayKey: ',', label: 'Settings', group: 'App', primary: true },
 	showHelp: { key: '?', displayKey: '?', label: 'Help and shortcuts', group: 'App' }
-};
+} satisfies Record<ShortcutAction, ShortcutDefinition>;
 
 const GROUP_ORDER: ShortcutGroup[] = ['Trace', 'View', 'Crosshairs', 'App'];
 
@@ -89,7 +89,7 @@ export function detectShortcutPlatform(
 	return /Mac|iPhone|iPad|iPod/i.test(platform) ? 'mac' : 'other';
 }
 
-const PRIMARY_KEY_LABEL: Record<ShortcutPlatform, string> = { mac: '⌘', other: 'Ctrl' };
+const PRIMARY_KEY_LABEL = { mac: '⌘', other: 'Ctrl' } satisfies Record<ShortcutPlatform, string>;
 
 /** Keys of a shortcut as separate chips, in press order, using the platform's modifier glyph. */
 export function shortcutKeys(action: ShortcutAction, platform: ShortcutPlatform): string[] {

@@ -10,7 +10,6 @@ import {
 	type DecodedSignalSeries,
 	type DbcValueDescription
 } from '$lib/wasm.js';
-import type { Mf4SignalTarget } from '$lib/mf4-signals.js';
 import { SvelteMap } from 'svelte/reactivity';
 
 type PlotSignalKey = string;
@@ -93,7 +92,7 @@ class PlotDataStore {
 		return this.selectedSignals.has(key);
 	}
 
-	signalDecodeStatus(key: PlotSignalKey): { isDecoding: boolean; decodeError: string | null } {
+	signalDecodeStatus(key: PlotSignalKey) {
 		const state = this.selectedSignals.get(key);
 		if (!state) {
 			return { isDecoding: false, decodeError: null };
@@ -198,9 +197,9 @@ class PlotDataStore {
 }
 
 function findSignalTarget(key: PlotSignalKey) {
-	const dbc = dbcFiles.signalTargetByKey[key];
+	const dbc = dbcFiles.signalTargetByKey.get(key);
 	if (dbc) return { kind: 'dbc' as const, value: dbc };
-	const mf4 = traceFile.mf4SignalTargetByKey[key] as Mf4SignalTarget | undefined;
+	const mf4 = traceFile.mf4SignalTargetByKey.get(key);
 	return mf4 ? { kind: 'mf4' as const, value: mf4 } : null;
 }
 

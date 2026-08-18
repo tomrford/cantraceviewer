@@ -11,7 +11,7 @@ import type { DbcHandle, DecodedSignalSeries, TraceHandle } from './types.ts';
 
 const identity = { canId: 288, isExtended: false, sizeBytes: 8 };
 
-function deferred(): { promise: Promise<void>; resolve: () => void } {
+function deferred() {
 	let resolve!: () => void;
 	const promise = new Promise<void>((res) => {
 		resolve = res;
@@ -27,7 +27,7 @@ function packedSeries(times: number[], values: number[]): DecodedSignalSeries {
 /** Model stores such as Svelte `$state`, which recursively proxy only plain objects. */
 function proxyPlainObjects<T>(value: T): T {
 	const proxies = new WeakMap<object, object>();
-	function wrap(nested: unknown): unknown {
+	function wrap(nested: unknown) {
 		if (
 			typeof nested !== 'object' ||
 			nested === null ||
@@ -49,7 +49,7 @@ function proxyPlainObjects<T>(value: T): T {
 }
 
 /** Synchronous stand-in for the WASM-backed direct client. */
-function createFakeDirect(): { client: DirectClient; log: string[] } {
+function createFakeDirect() {
 	const log: string[] = [];
 	const client: DirectClient = {
 		openDbc(text) {

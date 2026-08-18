@@ -80,7 +80,7 @@ export type DbcSignalTarget = {
 	signal: DbcSignal;
 };
 
-type SignalTargetIndex = Record<string, DbcSignalTarget>;
+type SignalTargetIndex = Map<string, DbcSignalTarget>;
 type DbcCandidate = {
 	entry: DbcFileEntry;
 	stored: StoredDbc;
@@ -343,17 +343,17 @@ function assertDbcFileName(file: File): void {
 }
 
 function assertUniqueMessageIdentities(fileName: string, catalog: ParsedDbc): void {
-	const seen: Record<string, true> = {};
+	const seen = new Set<string>();
 
 	for (const message of catalog.messages) {
 		const key = messageIdentityKey(message);
-		if (seen[key]) {
+		if (seen.has(key)) {
 			throw new Error(
 				`${displayDbcName(fileName)} contains multiple messages with the same CAN ID, frame format, and payload length.`
 			);
 		}
 
-		seen[key] = true;
+		seen.add(key);
 	}
 }
 
@@ -366,16 +366,16 @@ function displayDbcName(fileName: string): string {
 }
 
 function buildSignalTargetIndex(files: DbcFileEntry[]): SignalTargetIndex {
-	const index: SignalTargetIndex = {};
+	const index: SignalTargetIndex = new Map();
 
 	for (const file of files) {
 		for (const message of file.catalog.messages) {
 			for (const signal of message.signals) {
-				index[signalIdentityKey(file.id, message, signal.name)] = {
+				index.set(signalIdentityKey(file.id, message, signal.name), {
 					file,
 					message,
 					signal
-				};
+				});
 			}
 		}
 	}

@@ -140,13 +140,7 @@ export function dataPointAtRatio(
 	};
 }
 
-export function ratioAtDataPoint(
-	viewport: PlotViewport,
-	point: PlotPoint
-): {
-	xRatio: number;
-	yRatio: number;
-} {
+export function ratioAtDataPoint(viewport: PlotViewport, point: PlotPoint) {
 	return {
 		xRatio: (point.x - viewport.xMin) / (viewport.xMax - viewport.xMin),
 		yRatio: (viewport.yMax - point.y) / (viewport.yMax - viewport.yMin)
