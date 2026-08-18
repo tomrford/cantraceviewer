@@ -430,8 +430,42 @@ function normalizeArbitrationId(term: string): string {
 	return digits.replace(/^0+/u, '') || '0';
 }
 
-// Hex IDs stay out of MiniSearch. Prefix search on short tokens such as "1" or
-// "18" otherwise scores every J1939-style signal and the selector mounts them all.
+const MIN_ARBITRATION_ID_SUBSTRING_LENGTH = 3;
+
+function arbitrationIdHits(index: SelectorSearchIndex, term: string): SelectorSearchEntry[] {
+	const raw = hexDigits(term);
+	if (raw.length === 0) return [];
+
+	const exactId = normalizeArbitrationId(term);
+	const hits: SelectorSearchEntry[] = [];
+	const seen = new Set<SelectorSearchEntry>();
+	const add = (entries: SelectorSearchEntry[] | undefined): void => {
+		if (entries === undefined) return;
+		for (const entry of entries) {
+			if (seen.has(entry)) continue;
+			seen.add(entry);
+			hits.push(entry);
+		}
+	};
+
+	add(index.signalsByArbitrationId[exactId]);
+	if (raw.length < MIN_ARBITRATION_ID_SUBSTRING_LENGTH) return hits;
+
+	for (const [arbitrationId, entries] of Object.entries(index.signalsByArbitrationId)) {
+		if (arbitrationId === exactId) continue;
+		if (
+			arbitrationId.includes(raw) ||
+			(exactId.length >= MIN_ARBITRATION_ID_SUBSTRING_LENGTH && arbitrationId.includes(exactId))
+		) {
+			add(entries);
+		}
+	}
+
+	return hits;
+}
+
+// Hex IDs stay out of MiniSearch. One- and two-digit hex terms stay exact so
+// prefixes such as "1" or "18" do not match every J1939-style ID.
 function searchSelectorIndex(index: SelectorSearchIndex, query: string): SelectorSearchEntry[] {
 	const terms = query.split(/[\s\p{P}]+/u).filter(Boolean);
 	if (terms.length === 0) return index.signals.items;
@@ -445,14 +479,11 @@ function searchSelectorIndex(index: SelectorSearchIndex, query: string): Selecto
 
 	const matchesForIdTerm = (term: string): SelectorSearchEntry[] => {
 		const nameHits = searchFuzzyIndex(index.signals, term);
-		const arbitrationId = normalizeArbitrationId(term);
-		if (arbitrationId === '') return nameHits;
+		const idHits = arbitrationIdHits(index, term);
+		if (idHits.length === 0) return nameHits;
 
 		const seen = new Set(nameHits);
-		const extra: SelectorSearchEntry[] = [];
-		for (const entry of index.signalsByArbitrationId[arbitrationId] ?? []) {
-			if (!seen.has(entry)) extra.push(entry);
-		}
+		const extra = idHits.filter((entry) => !seen.has(entry));
 		return extra.length === 0 ? nameHits : [...nameHits, ...extra];
 	};
 

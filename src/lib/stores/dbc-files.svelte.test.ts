@@ -342,7 +342,7 @@ describe('dbcFiles', () => {
 		]);
 	});
 
-	it('matches a complete arbitration ID without expanding short hex prefixes', () => {
+	it('matches complete and subset arbitration IDs without expanding short hex prefixes', () => {
 		dbcFiles.files = [
 			dbcEntry({
 				id: 'dbc-1',
@@ -365,6 +365,12 @@ describe('dbcFiles', () => {
 						canId: 0xace,
 						isExtended: true,
 						signals: [signal({ name: 'RelayState' })]
+					}),
+					message({
+						name: 'BodyController',
+						canId: 0x1006abcd,
+						isExtended: true,
+						signals: [signal({ name: 'DoorLatch' })]
 					})
 				]
 			})
@@ -393,7 +399,39 @@ describe('dbcFiles', () => {
 			}
 		]);
 		expect(visibleSelectorSignals('18')).toEqual([]);
-		expect(visibleSelectorSignals('18fe')).toEqual([]);
+		expect(visibleSelectorSignals('18fe')).toMatchObject([
+			{
+				id: 'dbc-1',
+				messages: [
+					{
+						name: 'CruiseControlVehicleSpeed',
+						signals: [{ signalName: 'WheelBasedSpeed' }, { signalName: '101Status' }]
+					}
+				]
+			}
+		]);
+		expect(visibleSelectorSignals('fef100')).toMatchObject([
+			{
+				id: 'dbc-1',
+				messages: [
+					{
+						name: 'CruiseControlVehicleSpeed',
+						signals: [{ signalName: 'WheelBasedSpeed' }, { signalName: '101Status' }]
+					}
+				]
+			}
+		]);
+		expect(visibleSelectorSignals('abcd')).toMatchObject([
+			{
+				id: 'dbc-1',
+				messages: [
+					{
+						name: 'BodyController',
+						signals: [{ signalName: 'DoorLatch' }]
+					}
+				]
+			}
+		]);
 		expect(visibleSelectorSignals('101')).toMatchObject([
 			{
 				id: 'dbc-1',
