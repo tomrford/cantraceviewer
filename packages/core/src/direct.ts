@@ -64,7 +64,7 @@ export function createDirectClient(wasm: DirectWasmInput): DirectClient {
 	// The generated `initSync` returns the existing instance when it is already initialized.
 	withWasmErrors(() => initSync({ module: wasm }));
 
-	const handles = createHandleRegistry<{ dbc: WasmDbc; trace: WasmTrace }>();
+	const handles = createHandleRegistry<WasmDbc, WasmTrace>();
 	let clientClosed = false;
 
 	function assertClientOpen(): void {
