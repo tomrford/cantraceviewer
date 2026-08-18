@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createFuzzySearchIndex, searchFuzzyIndex } from './fuzzy-match';
+import { createSearchIndex, searchIndex } from './search-index';
 
 const signals = [
 	{ messageName: 'Message', signalName: 'Signal' },
@@ -10,18 +10,13 @@ const signals = [
 	{ messageName: 'VeryLongUnrelatedSignal', signalName: 'Other' }
 ];
 
-const index = createFuzzySearchIndex(
-	signals,
-	(signal) => `${signal.messageName}.${signal.signalName}`
-);
+const index = createSearchIndex(signals, (signal) => `${signal.messageName}.${signal.signalName}`);
 
 function search(query: string): string[] {
-	return searchFuzzyIndex(index, query).map(
-		(signal) => `${signal.messageName}.${signal.signalName}`
-	);
+	return searchIndex(index, query).map((signal) => `${signal.messageName}.${signal.signalName}`);
 }
 
-describe('searchFuzzyIndex', () => {
+describe('searchIndex', () => {
 	it('returns all items for an empty query', () => {
 		expect(search('')).toEqual([
 			'Message.Signal',
@@ -48,16 +43,18 @@ describe('searchFuzzyIndex', () => {
 		expect(search('message.sign')).toEqual(['Message.Signal']);
 	});
 
-	it('matches hex subsets and keeps one- and two-digit hex exact', () => {
-		const withIds = createFuzzySearchIndex(
+	it('matches names normally while keeping one- and two-digit identifiers exact', () => {
+		const withIds = createSearchIndex(
 			[
-				{ label: 'Cruise.WheelBasedSpeed', searchText: 'Cruise.WheelBasedSpeed 18fef100' },
-				{ label: 'Status.EngineRpm', searchText: 'PowertrainStatus.EngineRpm 101' }
+				{ label: 'Cruise.WheelBasedSpeed', arbitrationId: '18fef100' },
+				{ label: 'Status.EngineRpm', arbitrationId: '101' }
 			],
-			(item) => item.searchText
+			(item) => item.label,
+			(item) => item.arbitrationId
 		);
-		const labels = (query: string) => searchFuzzyIndex(withIds, query).map((item) => item.label);
+		const labels = (query: string) => searchIndex(withIds, query).map((item) => item.label);
 
+		expect(labels('b')).toEqual(['Cruise.WheelBasedSpeed']);
 		expect(labels('fef100')).toEqual(['Cruise.WheelBasedSpeed']);
 		expect(labels('0x18fef100')).toEqual(['Cruise.WheelBasedSpeed']);
 		expect(labels('18')).toEqual([]);

@@ -18,11 +18,7 @@ import {
 } from './dbc-library.js';
 import { DBC_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '$lib/file-limits.js';
 import { assertTextFileContent } from '$lib/file-preflight.js';
-import {
-	createFuzzySearchIndex,
-	searchFuzzyIndex,
-	type FuzzySearchIndex
-} from '$lib/fuzzy-match.js';
+import { createSearchIndex, searchIndex, type SearchIndex } from '$lib/search-index.js';
 
 export type DbcFileEntry = {
 	id: string;
@@ -52,6 +48,7 @@ type SelectorDbcSignal = {
 	messageName: string;
 	signalName: string;
 	searchText: string;
+	arbitrationId?: string;
 };
 
 type SelectorFilterOptions = {
@@ -95,7 +92,7 @@ type SelectorSearchEntry = {
 };
 export type SelectorSearchIndex = {
 	dbc: SelectorDbcFile;
-	signals: FuzzySearchIndex<SelectorSearchEntry>;
+	signals: SearchIndex<SelectorSearchEntry>;
 };
 
 class DbcFilesStore {
@@ -158,7 +155,7 @@ class DbcFilesStore {
 		const indexes = [...this.selectorSearchIndexes, ...additionalIndexes];
 		return indexes.flatMap((index) => {
 			const signalsByMessage: Record<string, SelectorDbcSignal[]> = {};
-			const visibleSignals = searchFuzzyIndex(index.signals, query).filter(
+			const visibleSignals = searchIndex(index.signals, query).filter(
 				({ signal }) => !filter.activeOnly || filter.isSignalSelected(signal.key)
 			);
 
@@ -395,7 +392,11 @@ export function buildSelectorSearchIndexes(files: SelectorDbcFile[]): SelectorSe
 
 		return {
 			dbc,
-			signals: createFuzzySearchIndex(signals, ({ signal }) => signal.searchText)
+			signals: createSearchIndex(
+				signals,
+				({ signal }) => signal.searchText,
+				({ signal }) => signal.arbitrationId
+			)
 		};
 	});
 }
@@ -428,7 +429,8 @@ function selectorSignal(
 		label,
 		messageName: message.name,
 		signalName: signal.name,
-		searchText: `${label} ${message.canId.toString(16)}`
+		searchText: label,
+		arbitrationId: message.canId.toString(16)
 	};
 }
 

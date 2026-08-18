@@ -276,7 +276,7 @@ describe('dbcFiles', () => {
 		]);
 	});
 
-	it('filters selector signals by fuzzy query and hides empty messages and DBCs', () => {
+	it('filters selector signals by query and hides empty messages and DBCs', () => {
 		dbcFiles.files = [
 			dbcEntry({
 				id: 'dbc-1',
@@ -361,7 +361,7 @@ describe('dbcFiles', () => {
 		expect(visibleSelectorSignals('18')).toEqual([]);
 	});
 
-	it('merges prebuilt native MF4 indexes into the tree and fuzzy search', () => {
+	it('merges prebuilt native MF4 indexes into the tree and search', () => {
 		dbcFiles.files = [
 			dbcEntry({
 				id: 'dbc-1',
