@@ -149,12 +149,12 @@ export function createDirectClient(wasm: DirectWasmInput): DirectClient {
 		close() {
 			if (clientClosed) return;
 			clientClosed = true;
-			let firstError: unknown;
+			let firstError: Error | null = null;
 			for (const payload of handles.releaseAll()) {
 				try {
 					freeHandle(payload);
 				} catch (error) {
-					firstError ??= error;
+					firstError ??= error instanceof Error ? error : new Error(String(error));
 				}
 			}
 			if (firstError) throw firstError;

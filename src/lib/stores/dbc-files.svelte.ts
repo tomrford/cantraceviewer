@@ -153,21 +153,22 @@ class DbcFilesStore {
 
 		const indexes = [...this.selectorSearchIndexes, ...additionalIndexes];
 		return indexes.flatMap((index) => {
-			const signalsByMessage: Record<string, SelectorDbcSignal[]> = {};
+			const signalsByMessage = new Map<string, SelectorDbcSignal[]>();
 			const visibleSignals = searchIndex(index.signals, query).filter(
 				({ signal }) => !filter.activeOnly || filter.isSignalSelected(signal.key)
 			);
 
 			for (const { messageKey, signal } of visibleSignals) {
-				signalsByMessage[messageKey] ??= [];
-				signalsByMessage[messageKey].push(signal);
+				const signals = signalsByMessage.get(messageKey);
+				if (signals) signals.push(signal);
+				else signalsByMessage.set(messageKey, [signal]);
 			}
 
 			const messages = index.dbc.messages
 				.map((message) => ({
 					...message,
 					expanded: true,
-					signals: signalsByMessage[message.key] ?? []
+					signals: signalsByMessage.get(message.key) ?? []
 				}))
 				.filter((message) => message.signals.length > 0);
 
@@ -183,17 +184,14 @@ class DbcFilesStore {
 		this.error = null;
 		this.isLoading = true;
 		const candidates: DbcCandidate[] = [];
-		const seenIds: Record<string, true> = {};
-		for (const file of this.files) {
-			seenIds[file.id] = true;
-		}
+		const seenIds = new Set(this.files.map((file) => file.id));
 
 		try {
 			for (const file of files) {
 				const stored = await this.storedFile(file);
-				if (seenIds[stored.id]) continue;
+				if (seenIds.has(stored.id)) continue;
 
-				seenIds[stored.id] = true;
+				seenIds.add(stored.id);
 				candidates.push(await this.openStoredDbc(stored));
 			}
 
