@@ -97,7 +97,7 @@ type SelectorSearchEntry = {
 export type SelectorSearchIndex = {
 	dbc: SelectorDbcFile;
 	signals: FuzzySearchIndex<SelectorSearchEntry>;
-	signalsByArbitrationId: Map<string, SelectorSearchEntry[]>;
+	signalsByArbitrationId: Record<string, SelectorSearchEntry[]>;
 };
 
 class DbcFilesStore {
@@ -394,14 +394,13 @@ export function buildSelectorSearchIndexes(files: SelectorDbcFile[]): SelectorSe
 		const signals = dbc.messages.flatMap<SelectorSearchEntry>((message) =>
 			message.signals.map((signal) => ({ messageKey: message.key, signal }))
 		);
-		const signalsByArbitrationId = new Map<string, SelectorSearchEntry[]>();
+		const signalsByArbitrationId: Record<string, SelectorSearchEntry[]> = {};
 		for (const entry of signals) {
 			const arbitrationId = entry.signal.arbitrationId;
 			if (arbitrationId === undefined) continue;
 
-			const entries = signalsByArbitrationId.get(arbitrationId);
-			if (entries === undefined) signalsByArbitrationId.set(arbitrationId, [entry]);
-			else entries.push(entry);
+			signalsByArbitrationId[arbitrationId] ??= [];
+			signalsByArbitrationId[arbitrationId].push(entry);
 		}
 
 		return {
@@ -451,7 +450,7 @@ function searchSelectorIndex(index: SelectorSearchIndex, query: string): Selecto
 
 		const seen = new Set(nameHits);
 		const extra: SelectorSearchEntry[] = [];
-		for (const entry of index.signalsByArbitrationId.get(arbitrationId) ?? []) {
+		for (const entry of index.signalsByArbitrationId[arbitrationId] ?? []) {
 			if (!seen.has(entry)) extra.push(entry);
 		}
 		return extra.length === 0 ? nameHits : [...nameHits, ...extra];
