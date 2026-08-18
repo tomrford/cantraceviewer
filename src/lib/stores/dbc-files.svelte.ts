@@ -169,15 +169,20 @@ class DbcFilesStore {
 				signalsByMessage[messageKey].push(signal);
 			}
 
-			const messages = index.dbc.messages
-				.map((message) => ({
-					...message,
-					expanded: true,
-					signals: signalsByMessage[message.key] ?? []
-				}))
-				.filter((message) => message.signals.length > 0);
+			const matchingMessages = index.dbc.messages.filter(
+				(message) => (signalsByMessage[message.key]?.length ?? 0) > 0
+			);
+			if (matchingMessages.length === 0) return [];
 
-			if (messages.length === 0) return [];
+			const autoExpand = matchingMessages.length === 1;
+			const messages = matchingMessages.map((message) => {
+				const expanded = autoExpand || filter.expandedMessageKeys.has(message.key);
+				return {
+					...message,
+					expanded,
+					signals: expanded ? (signalsByMessage[message.key] ?? []) : []
+				};
+			});
 
 			return [{ ...index.dbc, expanded: true, messages }];
 		});

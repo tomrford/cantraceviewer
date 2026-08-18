@@ -361,6 +361,43 @@ describe('dbcFiles', () => {
 		expect(visibleSelectorSignals('18')).toEqual([]);
 	});
 
+	it('leaves messages collapsed when a hex subset matches more than one message', () => {
+		dbcFiles.files = [
+			dbcEntry({
+				id: 'dbc-1',
+				name: 'body.dbc',
+				messages: [
+					message({
+						name: 'LeftDoor',
+						canId: 0x1006aaaa,
+						isExtended: true,
+						signals: [signal({ name: 'Latch' })]
+					}),
+					message({
+						name: 'RightDoor',
+						canId: 0x1006bbbb,
+						isExtended: true,
+						signals: [signal({ name: 'Latch' })]
+					})
+				]
+			})
+		];
+
+		expect(
+			visibleSelectorSignals('1006', {
+				expandedMessageKeys: new Set()
+			})
+		).toMatchObject([
+			{
+				id: 'dbc-1',
+				messages: [
+					{ name: 'LeftDoor', expanded: false, signals: [] },
+					{ name: 'RightDoor', expanded: false, signals: [] }
+				]
+			}
+		]);
+	});
+
 	it('merges prebuilt native MF4 indexes into the tree and fuzzy search', () => {
 		dbcFiles.files = [
 			dbcEntry({
