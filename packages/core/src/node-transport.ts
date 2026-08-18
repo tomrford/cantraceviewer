@@ -14,7 +14,7 @@ export type NodeClientWorker = {
 	on(event: 'messageerror', listener: (error: Error) => void): void;
 	on(event: 'error', listener: (error: Error) => void): void;
 	on(event: 'exit', listener: (code: number) => void): void;
-	terminate(): Promise<void>;
+	terminate(): Promise<number>;
 };
 
 /** @internal */

@@ -92,7 +92,7 @@ const PRIMARY_KEY_LABEL = { mac: '⌘', other: 'Ctrl' } satisfies Record<Shortcu
 /** Keys of a shortcut as separate chips, in press order, using the platform's modifier glyph. */
 export function shortcutKeys(action: ShortcutAction, platform: ShortcutPlatform): string[] {
 	const shortcut = SHORTCUTS[action];
-	return shortcut.primary
+	return 'primary' in shortcut && shortcut.primary
 		? [PRIMARY_KEY_LABEL[platform], shortcut.displayKey]
 		: [shortcut.displayKey];
 }
@@ -106,7 +106,8 @@ export function shortcutLabel(action: ShortcutAction): string {
  * downloads any file it cannot render, so we claim the key even when we decline to act on it.
  */
 export function overridesBrowserShortcut(action: ShortcutAction): boolean {
-	return SHORTCUTS[action].primary === true;
+	const shortcut = SHORTCUTS[action];
+	return 'primary' in shortcut && shortcut.primary === true;
 }
 
 const LETTER_KEY = /^[a-z]$/;
