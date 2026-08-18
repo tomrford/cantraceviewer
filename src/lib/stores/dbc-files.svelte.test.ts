@@ -390,8 +390,7 @@ describe('dbcFiles', () => {
 								key: 'native-motor-speed',
 								label: 'Powertrain.MotorSpeed',
 								messageName: 'Powertrain',
-								signalName: 'MotorSpeed',
-								searchText: 'Powertrain.MotorSpeed'
+								signalName: 'MotorSpeed'
 							}
 						]
 					}

@@ -47,7 +47,6 @@ type SelectorDbcSignal = {
 	label: string;
 	messageName: string;
 	signalName: string;
-	searchText: string;
 	arbitrationId?: string;
 };
 
@@ -394,7 +393,7 @@ export function buildSelectorSearchIndexes(files: SelectorDbcFile[]): SelectorSe
 			dbc,
 			signals: createSearchIndex(
 				signals,
-				({ signal }) => signal.searchText,
+				({ signal }) => signal.label,
 				({ signal }) => signal.arbitrationId
 			)
 		};
@@ -429,7 +428,6 @@ function selectorSignal(
 		label,
 		messageName: message.name,
 		signalName: signal.name,
-		searchText: label,
 		arbitrationId: message.canId.toString(16)
 	};
 }

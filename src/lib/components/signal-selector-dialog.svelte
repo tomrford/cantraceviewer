@@ -231,7 +231,6 @@
 
 	function measureSelectorRow(node: HTMLElement) {
 		get(rowVirtualizer).measureElement(node);
-		return () => get(rowVirtualizer).measureElement(null);
 	}
 
 	function selectorRowClass(kind: SelectorListRow['kind']): string {

@@ -33,8 +33,7 @@ export function mf4SelectorFiles(trace: Mf4Trace | null): SelectorDbcFile[] {
 					key: mf4SignalIdentityKey(trace.id, signal.id),
 					label: `${group.name}.${signal.name}`,
 					messageName: group.name,
-					signalName: signal.name,
-					searchText: `${group.name}.${signal.name}`
+					signalName: signal.name
 				}))
 			}))
 		}
