@@ -92,7 +92,7 @@ describe('keyboard shortcuts', () => {
 	});
 
 	it.each(['input', 'textarea', 'select'])('suppresses shortcuts on %s targets', (tagName) => {
-		const target = { tagName } as unknown as EventTarget;
+		const target = { tagName };
 		expect(isEditableShortcutTarget(target)).toBe(true);
 		expect(shortcutSuppressedBySurface(target)).toBe(true);
 	});
@@ -101,7 +101,7 @@ describe('keyboard shortcuts', () => {
 		const checkbox = {
 			tagName: 'input',
 			getAttribute: (name: string) => (name === 'type' ? 'checkbox' : null)
-		} as unknown as EventTarget;
+		};
 		expect(isEditableShortcutTarget(checkbox)).toBe(false);
 		expect(shortcutSuppressedBySurface(checkbox)).toBe(false);
 	});
@@ -110,15 +110,15 @@ describe('keyboard shortcuts', () => {
 		const editable = {
 			tagName: 'span',
 			closest: (selector: string) => (selector.includes('contenteditable') ? {} : null)
-		} as unknown as EventTarget;
+		};
 		const popoverButton = {
 			tagName: 'button',
 			closest: (selector: string) => (selector.includes('popover-content') ? {} : null)
-		} as unknown as EventTarget;
+		};
 		const menuButton = {
 			tagName: 'button',
 			closest: (selector: string) => (selector.includes('role="menu"') ? {} : null)
-		} as unknown as EventTarget;
+		};
 
 		expect(isEditableShortcutTarget(editable)).toBe(true);
 		expect(shortcutSuppressedBySurface(popoverButton)).toBe(false);
@@ -132,12 +132,12 @@ describe('keyboard shortcuts', () => {
 			tagName: 'button',
 			closest: (selector: string) =>
 				selector.includes('role="dialog"') ? { getAttribute: () => 'false' } : null
-		} as unknown as EventTarget;
+		};
 		const inModal = {
 			tagName: 'button',
 			closest: (selector: string) =>
 				selector.includes('role="dialog"') ? { getAttribute: () => null } : null
-		} as unknown as EventTarget;
+		};
 
 		expect(shortcutSuppressedBySurface(inWalkthrough)).toBe(false);
 		expect(shortcutSuppressedBySurface(inModal)).toBe(true);

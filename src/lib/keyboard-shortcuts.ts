@@ -144,8 +144,16 @@ export function shortcutFromEvent(
 	return null;
 }
 
+/** The element fields shortcut suppression actually reads. */
+export type ShortcutTarget = {
+	readonly tagName?: string;
+	readonly isContentEditable?: boolean;
+	closest?: (selector: string) => ShortcutTarget | null;
+	getAttribute?: (name: string) => string | null;
+};
+
 /** Text fields and transient surfaces own their own keys, so we stay out of their way. */
-export function shortcutSuppressedBySurface(target: EventTarget | null): boolean {
+export function shortcutSuppressedBySurface(target: ShortcutTarget | null): boolean {
 	return isEditableShortcutTarget(target) || isTransientSurfaceTarget(target);
 }
 
@@ -170,46 +178,29 @@ export function shortcutEnabled(action: ShortcutAction, state: ShortcutState): b
 	}
 }
 
-export function isEditableShortcutTarget(target: EventTarget | null): boolean {
-	const element = shortcutTargetElement(target);
-	if (element === null) return false;
-	const tagName = element.tagName?.toLowerCase();
+export function isEditableShortcutTarget(target: ShortcutTarget | null): boolean {
+	if (target === null) return false;
+	const tagName = target.tagName?.toLowerCase();
 	if (tagName === 'input') {
-		const inputType = element.getAttribute?.('type')?.toLowerCase() ?? 'text';
+		const inputType = target.getAttribute?.('type')?.toLowerCase() ?? 'text';
 		return !['button', 'checkbox', 'color', 'radio', 'range', 'reset', 'submit'].includes(
 			inputType
 		);
 	}
 	if (tagName === 'textarea' || tagName === 'select') return true;
-	if (element.isContentEditable) return true;
-	return element.closest?.('[contenteditable=""], [contenteditable="true"]') != null;
+	if (target.isContentEditable) return true;
+	return target.closest?.('[contenteditable=""], [contenteditable="true"]') != null;
 }
 
 const TRANSIENT_SURFACE_SELECTOR =
 	'[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-slot="context-menu-content"], [data-slot="context-menu-sub-content"], [data-slot="select-content"], [data-slot="alert-dialog-content"]';
 
-function isTransientSurfaceTarget(target: EventTarget | null): boolean {
-	const element = shortcutTargetElement(target);
-	const surface = element?.closest?.(TRANSIENT_SURFACE_SELECTOR);
+function isTransientSurfaceTarget(target: ShortcutTarget | null): boolean {
+	const surface = target?.closest?.(TRANSIENT_SURFACE_SELECTOR);
 	if (!surface) return false;
 
 	// The walkthrough is a coach mark: it takes focus to be announced, but declares
 	// aria-modal="false" because it does not own the keyboard. Shortcuts must keep working
 	// while it is open — it spends its first step asking you to open a trace.
-	return shortcutTargetElement(surface as EventTarget)?.getAttribute?.('aria-modal') !== 'false';
-}
-
-function shortcutTargetElement(target: EventTarget | null): {
-	tagName?: string;
-	isContentEditable?: boolean;
-	closest?: (selector: string) => unknown;
-	getAttribute?: (name: string) => string | null;
-} | null {
-	if (target === null || typeof target !== 'object') return null;
-	return target as {
-		tagName?: string;
-		isContentEditable?: boolean;
-		closest?: (selector: string) => unknown;
-		getAttribute?: (name: string) => string | null;
-	};
+	return surface.getAttribute?.('aria-modal') !== 'false';
 }

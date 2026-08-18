@@ -287,7 +287,7 @@ function traceEntry(
 			skippedLineCount: 0,
 			durationNs: 1_000_000
 		}
-	} as unknown as TraceFileEntry;
+	};
 }
 
 function message(overrides: Partial<DbcMessage> = {}): DbcMessage {
