@@ -26,9 +26,15 @@ type Entry<Payload> = {
  * handle: the direct client stores wasm-bindgen objects, the transport clients store wire IDs.
  */
 export type HandleRegistry<DbcPayload, TracePayload> = {
-	issue<K extends HandleKind>(kind: K, payload: Payloads<DbcPayload, TracePayload>[K]): HandleFor[K];
+	issue<K extends HandleKind>(
+		kind: K,
+		payload: Payloads<DbcPayload, TracePayload>[K]
+	): HandleFor[K];
 	/** Payload of an owned, open handle. Throws for foreign, wrong-kind, or closed handles. */
-	payload<K extends HandleKind>(kind: K, handle: HandleFor[K]): Payloads<DbcPayload, TracePayload>[K];
+	payload<K extends HandleKind>(
+		kind: K,
+		handle: HandleFor[K]
+	): Payloads<DbcPayload, TracePayload>[K];
 	/**
 	 * Mark an owned handle closed and return its payload for cleanup, or null when it was already
 	 * closed. Throws for foreign or wrong-kind handles.

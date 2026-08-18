@@ -98,9 +98,7 @@ export function createDirectClient(wasm: DirectWasmInput): DirectClient {
 				};
 				const isMf4 = traceType === 'mf4';
 				const hasRawFrames = trace.hasRawFrames;
-				const mf4Catalog = isMf4
-					? (JSON.parse(trace.mf4CatalogJson()) as Mf4SignalCatalog)
-					: null;
+				const mf4Catalog = isMf4 ? (JSON.parse(trace.mf4CatalogJson()) as Mf4SignalCatalog) : null;
 				const embeddedDbcs = isMf4
 					? (JSON.parse(trace.mf4EmbeddedDbcsJson()) as OpenTraceResult['embeddedDbcs'])
 					: [];
