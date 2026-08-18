@@ -55,7 +55,8 @@
 		if (suspended || event.button !== 0) return;
 		event.preventDefault();
 		event.stopPropagation();
-		const target = event.currentTarget as HTMLElement;
+		const target = event.currentTarget;
+		if (!(target instanceof HTMLElement)) return;
 		dragState = { pointerId: event.pointerId, axis, target };
 		target.setPointerCapture(event.pointerId);
 		updateFromPointer(event);
@@ -79,8 +80,10 @@
 		}
 		dragState = null;
 		flushPendingUpdate();
-		const target = event.currentTarget as HTMLElement;
-		if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
+		const target = event.currentTarget;
+		if (target instanceof HTMLElement && target.hasPointerCapture(event.pointerId)) {
+			target.releasePointerCapture(event.pointerId);
+		}
 	}
 
 	function updateFromPointer(event: PointerEvent) {

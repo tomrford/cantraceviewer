@@ -7,9 +7,9 @@ export type ThemePreference = 'system' | 'light' | 'dark';
 export type TimestampMode = 'relative' | 'absolute';
 export type { LegendOrderMode };
 
-export const themePreference = new PersistedState(
+export const themePreference = new PersistedState<ThemePreference>(
 	'cantraceviewer:theme',
-	'system' as ThemePreference
+	'system'
 );
 
 export const timestampMode = new PersistedState<TimestampMode>(

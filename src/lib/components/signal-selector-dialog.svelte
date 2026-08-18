@@ -125,7 +125,8 @@
 	});
 
 	async function selectDbcs(event: Event) {
-		const input = event.currentTarget as HTMLInputElement;
+		const input = event.currentTarget;
+		if (!(input instanceof HTMLInputElement)) return;
 		const files = Array.from(input.files ?? []);
 		input.value = '';
 

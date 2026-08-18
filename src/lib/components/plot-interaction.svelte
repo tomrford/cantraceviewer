@@ -103,7 +103,8 @@
 		point: PlotRatioPoint
 	): void {
 		event.preventDefault();
-		const captureTarget = event.currentTarget as HTMLElement;
+		const captureTarget = event.currentTarget;
+		if (!(captureTarget instanceof HTMLElement)) return;
 		captureTarget.setPointerCapture(event.pointerId);
 		dragState =
 			mode === 'box'

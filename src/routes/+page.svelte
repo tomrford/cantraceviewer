@@ -168,8 +168,7 @@
 		// cannot render instead of loading it.
 		if (overridesBrowserShortcut(action)) event.preventDefault();
 
-		if (shortcutSuppressedBySurface(event.target instanceof Element ? event.target : null))
-			return;
+		if (shortcutSuppressedBySurface(event.target instanceof Element ? event.target : null)) return;
 		if (!shortcutEnabled(action, shortcutState)) return;
 
 		runShortcut(action);
@@ -309,7 +308,8 @@
 	}
 
 	async function selectTrace(event: Event) {
-		const input = event.currentTarget as HTMLInputElement;
+		const input = event.currentTarget;
+		if (!(input instanceof HTMLInputElement)) return;
 		const file = input.files?.[0] ?? null;
 		input.value = '';
 

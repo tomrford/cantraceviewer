@@ -9,7 +9,6 @@ import {
 	shortcutKeys,
 	shortcutSuppressedBySurface,
 	SHORTCUTS,
-	type ShortcutAction,
 	type ShortcutPlatform
 } from './keyboard-shortcuts.js';
 
@@ -212,7 +211,7 @@ describe('keyboard shortcuts', () => {
 
 	it('groups every registered shortcut exactly once for the help dialog', () => {
 		const grouped = groupedShortcuts().flatMap((entry) => entry.actions);
-		expect(grouped.toSorted()).toEqual((Object.keys(SHORTCUTS) as ShortcutAction[]).toSorted());
+		expect(grouped.toSorted()).toEqual(Object.keys(SHORTCUTS).toSorted());
 		expect(groupedShortcuts().map((entry) => entry.group)).toEqual([
 			'Trace',
 			'View',
