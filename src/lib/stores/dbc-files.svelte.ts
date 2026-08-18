@@ -153,6 +153,7 @@ class DbcFilesStore {
 
 		const indexes = [...this.selectorSearchIndexes, ...additionalIndexes];
 		return indexes.flatMap((index) => {
+			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local search grouping
 			const signalsByMessage = new Map<string, SelectorDbcSignal[]>();
 			const visibleSignals = searchIndex(index.signals, query).filter(
 				({ signal }) => !filter.activeOnly || filter.isSignalSelected(signal.key)
@@ -184,6 +185,7 @@ class DbcFilesStore {
 		this.error = null;
 		this.isLoading = true;
 		const candidates: DbcCandidate[] = [];
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local de-duplication
 		const seenIds = new Set(this.files.map((file) => file.id));
 
 		try {
@@ -341,6 +343,7 @@ function assertDbcFileName(file: File): void {
 }
 
 function assertUniqueMessageIdentities(fileName: string, catalog: ParsedDbc): void {
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local uniqueness check
 	const seen = new Set<string>();
 
 	for (const message of catalog.messages) {
@@ -364,6 +367,7 @@ function displayDbcName(fileName: string): string {
 }
 
 function buildSignalTargetIndex(files: DbcFileEntry[]): SignalTargetIndex {
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived lookup, rebuilt whole
 	const index: SignalTargetIndex = new Map();
 
 	for (const file of files) {

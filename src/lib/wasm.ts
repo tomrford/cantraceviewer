@@ -1,4 +1,4 @@
-import { createCanTraceClient, type CanTraceClient } from 'cantraceviewer';
+import { createCanTraceClient } from 'cantraceviewer';
 import type {
 	DbcHandle,
 	DbcMessageIdentity,
