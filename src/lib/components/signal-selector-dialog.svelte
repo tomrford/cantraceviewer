@@ -1,9 +1,9 @@
 <script lang="ts">
 	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
-	import * as Collapsible from '$lib/components/ui/collapsible/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import * as Popover from '$lib/components/ui/popover/index.js';
+	import { flattenSelectorTree, windowSelectorRows } from '$lib/selector-list.js';
 	import {
 		dbcFilesFromDrop,
 		dragLeftCurrentTarget,
@@ -38,7 +38,9 @@
 	let dbcInput = $state<HTMLInputElement>();
 	let signalSearchForm = $state<HTMLFormElement | null>(null);
 	let signalListScroller = $state<HTMLDivElement>();
-	let signalListContent = $state<HTMLUListElement>();
+	let signalListContent = $state<HTMLDivElement>();
+	let listScrollTop = $state(0);
+	let listViewportHeight = $state(0);
 	let signalSearch = $state('');
 	let dbcDropActive = $state(false);
 	let showActiveOnly = $state(false);
@@ -63,6 +65,10 @@
 	});
 	let visibleDbcFiles = $derived(
 		dbcFiles.visibleSelectorTree(selectorFilter, traceFile.mf4SelectorIndexes)
+	);
+	let selectorRows = $derived(flattenSelectorTree(visibleDbcFiles));
+	let selectorWindow = $derived(
+		windowSelectorRows(selectorRows, listScrollTop, listViewportHeight)
 	);
 
 	const menuButtonClass =
@@ -90,6 +96,7 @@
 		const resizeObserver = new ResizeObserver(handleSignalListResize);
 		resizeObserver.observe(signalListScroller);
 		resizeObserver.observe(signalListContent);
+		listViewportHeight = signalListScroller.clientHeight;
 		pendingScrollRestore = savedScrollTop;
 		restoreScrollPosition();
 
@@ -166,6 +173,7 @@
 			return;
 		}
 
+		listViewportHeight = signalListScroller.clientHeight;
 		signalListOverflows = signalListScroller.scrollHeight > signalListScroller.clientHeight + 1;
 	}
 
@@ -174,10 +182,16 @@
 		restoreScrollPosition();
 	}
 
+	function handleListScroll(): void {
+		if (signalListScroller) listScrollTop = signalListScroller.scrollTop;
+		persistScrollPosition();
+	}
+
 	function restoreScrollPosition(): void {
 		if (pendingScrollRestore === null || !signalListScroller) return;
 
 		signalListScroller.scrollTop = pendingScrollRestore;
+		listScrollTop = signalListScroller.scrollTop;
 		if (signalListScroller.scrollTop === pendingScrollRestore) {
 			pendingScrollRestore = null;
 		} else {
@@ -292,149 +306,120 @@
 			bind:this={signalListScroller}
 			class="h-full [scrollbar-gutter:stable] overflow-y-auto pb-4 [--scroll-fade-size:2rem]"
 			class:scroll-fade={signalListOverflows}
-			onscroll={persistScrollPosition}
+			onscroll={handleListScroll}
 		>
-			<ul bind:this={signalListContent} class="flex w-full min-w-0 flex-col gap-1">
-				{#each visibleDbcFiles as dbc (dbc.id)}
-					<li>
-						<Collapsible.Root
-							open={dbc.expanded}
-							onOpenChange={(open) => setDbcExpanded(dbc.id, open)}
-							class="group/collapsible"
-						>
-							<div class="group/dbc-row flex items-center gap-1">
-								<Collapsible.Trigger>
-									{#snippet child({ props })}
-										<button
-											{...props}
-											type="button"
-											class="{menuButtonClass} min-w-0 flex-1"
-											aria-label={dbc.expanded ? `Collapse ${dbc.name}` : `Expand ${dbc.name}`}
+			<div
+				bind:this={signalListContent}
+				class="relative w-full"
+				style="height: {selectorWindow.totalHeight}px"
+			>
+				<ul
+					class="absolute right-0 left-0 flex w-full min-w-0 flex-col gap-1"
+					style="top: {selectorWindow.startOffset}px"
+				>
+					{#each selectorWindow.rows as row (row.key)}
+						{#if row.kind === 'dbc'}
+							<li class="flex h-8 items-center gap-1">
+								<button
+									type="button"
+									class="{menuButtonClass} h-full min-w-0 flex-1 py-0"
+									aria-expanded={row.dbc.expanded}
+									aria-label={row.dbc.expanded
+										? `Collapse ${row.dbc.name}`
+										: `Expand ${row.dbc.name}`}
+									onclick={() => setDbcExpanded(row.dbc.id, !row.dbc.expanded)}
+								>
+									{#if row.dbc.expanded}
+										<ChevronDownIcon class="size-4 shrink-0 text-muted-foreground" />
+									{:else}
+										<ChevronRightIcon class="size-4 shrink-0 text-muted-foreground" />
+									{/if}
+									<span class="min-w-0 truncate" class:italic={row.dbc.transient}
+										>{row.dbc.name}</span
+									>
+									{#if row.dbc.transient}
+										<span
+											class="shrink-0 rounded border border-border/70 bg-muted px-1 py-0.5 text-[9px] leading-none font-medium text-muted-foreground not-italic"
+											>MF4</span
 										>
-											<ChevronRightIcon
-												class="size-4 shrink-0 text-muted-foreground group-data-[state=open]/collapsible:hidden"
-											/>
-											<ChevronDownIcon
-												class="size-4 shrink-0 text-muted-foreground group-data-[state=closed]/collapsible:hidden"
-											/>
-											<span class="min-w-0 truncate" class:italic={dbc.transient}>{dbc.name}</span>
-											{#if dbc.transient}
-												<span
-													class="shrink-0 rounded border border-border/70 bg-muted px-1 py-0.5 text-[9px] leading-none font-medium text-muted-foreground not-italic"
-													>MF4</span
-												>
-											{/if}
-										</button>
-									{/snippet}
-								</Collapsible.Trigger>
-								{#if !dbc.transient && dbc.kind === 'dbc'}
+									{/if}
+								</button>
+								{#if !row.dbc.transient && row.dbc.kind === 'dbc'}
 									<button
 										type="button"
 										class="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-70 transition-[background-color,color,box-shadow,opacity,scale] hover:bg-accent hover:text-destructive hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96]"
-										aria-label={`Delete ${dbc.name}`}
-										onclick={() => removeDbc(dbc.id)}
+										aria-label={`Delete ${row.dbc.name}`}
+										onclick={() => removeDbc(row.dbc.id)}
 									>
 										<TrashIcon class="size-4" />
 									</button>
 								{/if}
-							</div>
-							<!-- Collapsible.Content keeps children mounted (hidden) while closed; with
-							     thousands of signals that makes every popover open unusably slow, so
-							     closed sections must not render at all. Mounting is driven only by the
-							     tree items so expansion and data can never disagree mid-flush. -->
-							{#if dbc.expanded}
-								<Collapsible.Content>
-									<ul
-										class="mx-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-s border-border px-2.5 py-0.5"
+							</li>
+						{:else if row.kind === 'message'}
+							<li class="h-7 pl-6">
+								<button
+									type="button"
+									class="flex h-7 w-full min-w-0 items-center gap-2 rounded-md border-s border-border px-2 text-left text-xs text-popover-foreground transition-[background-color,color,box-shadow] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
+									aria-expanded={row.message.expanded}
+									aria-label={row.message.expanded
+										? `Collapse ${row.message.name}`
+										: `Expand ${row.message.name}`}
+									onclick={() => setMessageExpanded(row.message.key, !row.message.expanded)}
+								>
+									<span
+										class="flex size-4 shrink-0 items-center justify-center text-muted-foreground"
 									>
-										{#each dbc.messages as message (message.key)}
-											<li>
-												<Collapsible.Root
-													open={message.expanded}
-													onOpenChange={(open) => setMessageExpanded(message.key, open)}
-													class="group/message-collapsible"
-												>
-													<Collapsible.Trigger>
-														{#snippet child({ props })}
-															<button
-																{...props}
-																type="button"
-																class="flex h-7 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs text-popover-foreground transition-[background-color,color,box-shadow] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
-																aria-label={message.expanded
-																	? `Collapse ${message.name}`
-																	: `Expand ${message.name}`}
-															>
-																<span
-																	class="flex size-4 shrink-0 items-center justify-center text-muted-foreground"
-																>
-																	<ChevronRightIcon
-																		class="size-4 group-data-[state=open]/message-collapsible:hidden"
-																	/>
-																	<ChevronDownIcon
-																		class="size-4 group-data-[state=closed]/message-collapsible:hidden"
-																	/>
-																</span>
-																<span class="truncate">{message.name}</span>
-															</button>
-														{/snippet}
-													</Collapsible.Trigger>
-													{#if message.expanded}
-														<Collapsible.Content>
-															<ul
-																class="mx-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-s border-border px-2.5 py-0.5"
-															>
-																{#each message.signals as signal (signal.key)}
-																	{@const isSelected = plotData.isSignalSelected(signal.key)}
-																	{@const decodeStatus = isSelected
-																		? plotData.signalDecodeStatus(signal.key)
-																		: null}
-																	{@const signalToggleId = `signal-toggle-${signal.key}`}
-																	<li>
-																		<Label
-																			for={signalToggleId}
-																			class="flex h-7 w-full min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 text-left text-xs font-normal text-popover-foreground transition-[background-color,color,box-shadow] hover:bg-accent hover:text-accent-foreground"
-																		>
-																			<Checkbox
-																				id={signalToggleId}
-																				checked={isSelected}
-																				aria-label={`Plot ${signal.label}`}
-																				title={decodeStatus?.decodeError ?? undefined}
-																				class="data-[error=true]:border-destructive/50 data-[error=true]:bg-destructive/10 data-[error=true]:text-destructive data-checked:border-sidebar-primary data-checked:bg-sidebar-primary data-checked:text-sidebar-primary-foreground"
-																				data-error={decodeStatus?.decodeError != null}
-																				onCheckedChange={() => toggleSignal(signal.key)}
-																			/>
-																			<span class="flex min-w-0 flex-1 items-center gap-2">
-																				<span class="truncate font-mono" title={signal.label}>
-																					{signal.signalName}
-																				</span>
-																				{#if decodeStatus?.decodeError}
-																					<CircleAlertIcon
-																						class="size-3 shrink-0 text-destructive"
-																						aria-label={decodeStatus.decodeError}
-																					/>
-																				{:else if decodeStatus?.isDecoding}
-																					<LoaderCircleIcon
-																						class="size-3 shrink-0 animate-spin text-muted-foreground"
-																						aria-label="Decoding signal"
-																					/>
-																				{/if}
-																			</span>
-																		</Label>
-																	</li>
-																{/each}
-															</ul>
-														</Collapsible.Content>
-													{/if}
-												</Collapsible.Root>
-											</li>
-										{/each}
-									</ul>
-								</Collapsible.Content>
-							{/if}
-						</Collapsible.Root>
-					</li>
-				{/each}
-			</ul>
+										{#if row.message.expanded}
+											<ChevronDownIcon class="size-4" />
+										{:else}
+											<ChevronRightIcon class="size-4" />
+										{/if}
+									</span>
+									<span class="truncate">{row.message.name}</span>
+								</button>
+							</li>
+						{:else}
+							{@const isSelected = plotData.isSignalSelected(row.signal.key)}
+							{@const decodeStatus = isSelected
+								? plotData.signalDecodeStatus(row.signal.key)
+								: null}
+							{@const signalToggleId = `signal-toggle-${row.signal.key}`}
+							<li class="h-7 pl-12">
+								<Label
+									for={signalToggleId}
+									class="flex h-7 w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-s border-border px-2 text-left text-xs font-normal text-popover-foreground transition-[background-color,color,box-shadow] hover:bg-accent hover:text-accent-foreground"
+								>
+									<Checkbox
+										id={signalToggleId}
+										checked={isSelected}
+										aria-label={`Plot ${row.signal.label}`}
+										title={decodeStatus?.decodeError ?? undefined}
+										class="data-[error=true]:border-destructive/50 data-[error=true]:bg-destructive/10 data-[error=true]:text-destructive data-checked:border-sidebar-primary data-checked:bg-sidebar-primary data-checked:text-sidebar-primary-foreground"
+										data-error={decodeStatus?.decodeError != null}
+										onCheckedChange={() => toggleSignal(row.signal.key)}
+									/>
+									<span class="flex min-w-0 flex-1 items-center gap-2">
+										<span class="truncate font-mono" title={row.signal.label}>
+											{row.signal.signalName}
+										</span>
+										{#if decodeStatus?.decodeError}
+											<CircleAlertIcon
+												class="size-3 shrink-0 text-destructive"
+												aria-label={decodeStatus.decodeError}
+											/>
+										{:else if decodeStatus?.isDecoding}
+											<LoaderCircleIcon
+												class="size-3 shrink-0 animate-spin text-muted-foreground"
+												aria-label="Decoding signal"
+											/>
+										{/if}
+									</span>
+								</Label>
+							</li>
+						{/if}
+					{/each}
+				</ul>
+			</div>
 		</div>
 	</div>
 </Popover.Content>
