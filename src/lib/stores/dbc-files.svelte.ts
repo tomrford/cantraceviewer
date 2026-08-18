@@ -153,23 +153,21 @@ class DbcFilesStore {
 
 		const indexes = [...this.selectorSearchIndexes, ...additionalIndexes];
 		return indexes.flatMap((index) => {
-			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local search grouping
-			const signalsByMessage = new Map<string, SelectorDbcSignal[]>();
+			const signalsByMessage: Record<string, SelectorDbcSignal[]> = {};
 			const visibleSignals = searchIndex(index.signals, query).filter(
 				({ signal }) => !filter.activeOnly || filter.isSignalSelected(signal.key)
 			);
 
 			for (const { messageKey, signal } of visibleSignals) {
-				const signals = signalsByMessage.get(messageKey);
-				if (signals) signals.push(signal);
-				else signalsByMessage.set(messageKey, [signal]);
+				signalsByMessage[messageKey] ??= [];
+				signalsByMessage[messageKey].push(signal);
 			}
 
 			const messages = index.dbc.messages
 				.map((message) => ({
 					...message,
 					expanded: true,
-					signals: signalsByMessage.get(message.key) ?? []
+					signals: signalsByMessage[message.key] ?? []
 				}))
 				.filter((message) => message.signals.length > 0);
 

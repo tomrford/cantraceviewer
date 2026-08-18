@@ -14,9 +14,7 @@ export type HandleKind = 'dbc' | 'trace';
 
 type HandleFor = { dbc: DbcHandle; trace: TraceHandle };
 type Carrier = { [HandleToken]?: symbol };
-type PayloadFor<Kind extends HandleKind, DbcPayload, TracePayload> = Kind extends 'dbc'
-	? DbcPayload
-	: TracePayload;
+type Payloads<DbcPayload, TracePayload> = { dbc: DbcPayload; trace: TracePayload };
 type Entry<Payload> = {
 	closed: boolean;
 	kind: HandleKind;
@@ -28,23 +26,17 @@ type Entry<Payload> = {
  * handle: the direct client stores wasm-bindgen objects, the transport clients store wire IDs.
  */
 export type HandleRegistry<DbcPayload, TracePayload> = {
-	issue<Kind extends HandleKind>(
-		kind: Kind,
-		payload: PayloadFor<Kind, DbcPayload, TracePayload>
-	): HandleFor[Kind];
+	issue<K extends HandleKind>(kind: K, payload: Payloads<DbcPayload, TracePayload>[K]): HandleFor[K];
 	/** Payload of an owned, open handle. Throws for foreign, wrong-kind, or closed handles. */
-	payload<Kind extends HandleKind>(
-		kind: Kind,
-		handle: HandleFor[Kind]
-	): PayloadFor<Kind, DbcPayload, TracePayload>;
+	payload<K extends HandleKind>(kind: K, handle: HandleFor[K]): Payloads<DbcPayload, TracePayload>[K];
 	/**
 	 * Mark an owned handle closed and return its payload for cleanup, or null when it was already
 	 * closed. Throws for foreign or wrong-kind handles.
 	 */
-	release<Kind extends HandleKind>(
-		kind: Kind,
-		handle: HandleFor[Kind]
-	): PayloadFor<Kind, DbcPayload, TracePayload> | null;
+	release<K extends HandleKind>(
+		kind: K,
+		handle: HandleFor[K]
+	): Payloads<DbcPayload, TracePayload>[K] | null;
 	/** Mark every live handle closed and return their payloads in issue order. */
 	releaseAll(): Array<DbcPayload | TracePayload>;
 };
@@ -74,8 +66,8 @@ export function createHandleRegistry<DbcPayload, TracePayload>(): HandleRegistry
 		},
 		payload(kind, handle) {
 			const entry = entryFor(kind, handle);
-			if (entry.closed || entry.payload === null) throw new Error(`${kind} handle is closed`);
-			return entry.payload as PayloadFor<typeof kind, DbcPayload, TracePayload>;
+			if (entry.closed) throw new Error(`${kind} handle is closed`);
+			return entry.payload as Payloads<DbcPayload, TracePayload>[typeof kind];
 		},
 		release(kind, handle) {
 			const entry = entryFor(kind, handle);
@@ -83,14 +75,14 @@ export function createHandleRegistry<DbcPayload, TracePayload>(): HandleRegistry
 			entry.closed = true;
 			const payload = entry.payload;
 			entry.payload = null;
-			return payload as PayloadFor<typeof kind, DbcPayload, TracePayload> | null;
+			return payload as Payloads<DbcPayload, TracePayload>[typeof kind] | null;
 		},
 		releaseAll() {
 			const payloads: AnyPayload[] = [];
 			for (const entry of entries.values()) {
-				if (entry.closed || entry.payload === null) continue;
+				if (entry.closed) continue;
 				entry.closed = true;
-				payloads.push(entry.payload);
+				payloads.push(entry.payload as AnyPayload);
 				entry.payload = null;
 			}
 			return payloads;

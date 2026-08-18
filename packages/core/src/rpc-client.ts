@@ -94,16 +94,14 @@ export async function createRpcClient(
 	// Assigned below, once the handlers it reports to exist.
 	let transport: RpcTransport | null = null;
 
-	let resolveReady!: () => void;
-	let rejectReady!: (error: Error) => void;
+	let ready!: { resolve: () => void; reject: (error: Error) => void };
 	const readyPromise = new Promise<void>((resolve, reject) => {
-		resolveReady = resolve;
-		rejectReady = reject;
+		ready = { resolve, reject };
 	});
 
 	function receive(response: WorkerResponse): void {
 		if (response.type === 'ready') {
-			resolveReady();
+			ready.resolve();
 			return;
 		}
 		if (response.type === 'boot-error') {
@@ -126,7 +124,7 @@ export async function createRpcClient(
 		pending.clear();
 		for (const entry of entries) entry.reject(error);
 		void terminate().catch(() => undefined);
-		rejectReady(error);
+		ready.reject(error);
 	}
 
 	function terminate(): Promise<void> {

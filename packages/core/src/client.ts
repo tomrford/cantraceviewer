@@ -45,13 +45,7 @@ export async function createCanTraceClientForWorker(
 }
 
 function browserTransport(worker: ClientWorker, handlers: RpcTransportHandlers): RpcTransport {
-	worker.addEventListener('message', (event) => {
-		if (event.data === undefined) {
-			handlers.fail(new Error('worker message was empty'));
-			return;
-		}
-		handlers.message(event.data);
-	});
+	worker.addEventListener('message', (event) => handlers.message(event.data as WorkerResponse));
 	worker.addEventListener('error', (event) => {
 		handlers.fail(new Error(`worker crashed${event.message ? `: ${event.message}` : ''}`));
 	});
