@@ -62,7 +62,7 @@ export type DirectClient = {
  */
 export function createDirectClient(wasm: DirectWasmInput): DirectClient {
 	// The generated `initSync` returns the existing instance when it is already initialized.
-	withWasmErrors(() => initSync({ module: wasm }));
+	initWasm(wasm);
 
 	const handles = createHandleRegistry<WasmDbc, WasmTrace>();
 	let clientClosed = false;
@@ -74,9 +74,9 @@ export function createDirectClient(wasm: DirectWasmInput): DirectClient {
 	return {
 		openDbc(text) {
 			assertClientOpen();
-			const dbc = withWasmErrors(() => WasmDbc.parse(text));
+			const dbc = WasmDbc.parse(text);
 			try {
-				const catalog = JSON.parse(withWasmErrors(() => dbc.catalogJson())) as ParsedDbc;
+				const catalog = JSON.parse(dbc.catalogJson()) as ParsedDbc;
 				return { handle: handles.issue('dbc', dbc), catalog };
 			} catch (error) {
 				dbc.free();
@@ -88,7 +88,7 @@ export function createDirectClient(wasm: DirectWasmInput): DirectClient {
 		},
 		openTrace(traceType, bytes) {
 			assertClientOpen();
-			const trace = withWasmErrors(() => parseTrace(traceType, bytes));
+			const trace = parseTrace(traceType, bytes);
 			try {
 				const metadata: TraceMetadata = {
 					measurementStartMs: trace.measurementStartMs ?? null,
@@ -99,16 +99,12 @@ export function createDirectClient(wasm: DirectWasmInput): DirectClient {
 				const isMf4 = traceType === 'mf4';
 				const hasRawFrames = trace.hasRawFrames;
 				const mf4Catalog = isMf4
-					? (JSON.parse(withWasmErrors(() => trace.mf4CatalogJson())) as Mf4SignalCatalog)
+					? (JSON.parse(trace.mf4CatalogJson()) as Mf4SignalCatalog)
 					: null;
 				const embeddedDbcs = isMf4
-					? (JSON.parse(
-							withWasmErrors(() => trace.mf4EmbeddedDbcsJson())
-						) as OpenTraceResult['embeddedDbcs'])
+					? (JSON.parse(trace.mf4EmbeddedDbcsJson()) as OpenTraceResult['embeddedDbcs'])
 					: [];
-				const warnings = isMf4
-					? (JSON.parse(withWasmErrors(() => trace.mf4WarningsJson())) as string[])
-					: [];
+				const warnings = isMf4 ? (JSON.parse(trace.mf4WarningsJson()) as string[]) : [];
 				return {
 					handle: handles.issue('trace', trace),
 					metadata,
@@ -130,31 +126,29 @@ export function createDirectClient(wasm: DirectWasmInput): DirectClient {
 			const dbc = handles.payload('dbc', dbcHandle);
 			const trace = handles.payload('trace', traceHandle);
 			return unpackSeries(
-				withWasmErrors(() =>
-					dbc.decodeSignal(
-						trace,
-						messageIdentity.canId,
-						messageIdentity.isExtended,
-						messageIdentity.sizeBytes,
-						signalName
-					)
+				dbc.decodeSignal(
+					trace,
+					messageIdentity.canId,
+					messageIdentity.isExtended,
+					messageIdentity.sizeBytes,
+					signalName
 				)
 			);
 		},
 		getMf4SignalValues(traceHandle, signalId) {
 			assertClientOpen();
 			const trace = handles.payload('trace', traceHandle);
-			return unpackSeries(withWasmErrors(() => trace.decodeMf4Signal(signalId)));
+			return unpackSeries(trace.decodeMf4Signal(signalId));
 		},
 		close() {
 			if (clientClosed) return;
 			clientClosed = true;
-			let firstError: Error | null = null;
+			let firstError: unknown;
 			for (const payload of handles.releaseAll()) {
 				try {
 					freeHandle(payload);
 				} catch (error) {
-					firstError ??= error instanceof Error ? error : new Error(String(error));
+					firstError ??= error;
 				}
 			}
 			if (firstError) throw firstError;
@@ -163,7 +157,7 @@ export function createDirectClient(wasm: DirectWasmInput): DirectClient {
 }
 
 function freeHandle(payload: WasmDbc | WasmTrace | null): void {
-	if (payload) withWasmErrors(() => payload.free());
+	payload?.free();
 }
 
 function parseTrace(traceType: TraceType, bytes: Uint8Array): WasmTrace {
@@ -187,20 +181,16 @@ function unpackSeries(packed: Float64Array): DecodedSignalSeries {
 	};
 }
 
-function withWasmErrors<T>(operation: () => T): T {
+function initWasm(wasm: DirectWasmInput): void {
 	try {
-		return operation();
+		initSync({ module: wasm });
 	} catch (error) {
-		throw normalizeWasmError(error);
+		if (error instanceof WebAssembly.RuntimeError) {
+			throw new Error(`WebAssembly execution failed: ${error.message}`);
+		}
+		if (error instanceof WebAssembly.CompileError || error instanceof WebAssembly.LinkError) {
+			throw new Error(`WebAssembly failed to load: ${error.message}`);
+		}
+		throw error;
 	}
-}
-
-function normalizeWasmError(error: unknown): Error {
-	if (error instanceof WebAssembly.RuntimeError) {
-		return new Error(`WebAssembly execution failed: ${error.message}`);
-	}
-	if (error instanceof WebAssembly.CompileError || error instanceof WebAssembly.LinkError) {
-		return new Error(`WebAssembly failed to load: ${error.message}`);
-	}
-	return error instanceof Error ? error : new Error(String(error));
 }
