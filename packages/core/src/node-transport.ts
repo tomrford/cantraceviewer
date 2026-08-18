@@ -5,15 +5,16 @@ import {
 	type RpcTransport,
 	type RpcTransportHandlers
 } from './rpc-client.ts';
+import type { WorkerRequest, WorkerResponse } from './protocol.ts';
 
 /** @internal */
 export type NodeClientWorker = {
-	postMessage(message: unknown, transfer?: readonly ArrayBuffer[]): void;
-	on(event: 'message', listener: (data: unknown) => void): unknown;
-	on(event: 'messageerror', listener: (error: Error) => void): unknown;
-	on(event: 'error', listener: (error: Error) => void): unknown;
-	on(event: 'exit', listener: (code: number) => void): unknown;
-	terminate(): Promise<unknown>;
+	postMessage(message: WorkerRequest, transfer?: readonly ArrayBuffer[]): void;
+	on(event: 'message', listener: (data: WorkerResponse) => void): void;
+	on(event: 'messageerror', listener: (error: Error) => void): void;
+	on(event: 'error', listener: (error: Error) => void): void;
+	on(event: 'exit', listener: (code: number) => void): void;
+	terminate(): Promise<void>;
 };
 
 /** @internal */
@@ -28,10 +29,10 @@ function nodeTransport(worker: NodeClientWorker, handlers: RpcTransportHandlers)
 
 	worker.on('message', (data) => handlers.message(data));
 	worker.on('error', (error) => {
-		handlers.fail(new Error(`worker thread crashed: ${describe(error)}`, { cause: error }));
+		handlers.fail(new Error(`worker thread crashed: ${error.message}`, { cause: error }));
 	});
 	worker.on('messageerror', (error) => {
-		handlers.fail(new Error(`worker thread message failed to deserialize: ${describe(error)}`));
+		handlers.fail(new Error(`worker thread message failed to deserialize: ${error.message}`));
 	});
 	worker.on('exit', (code) => {
 		// A requested terminate always ends in an exit event; only an unrequested one is a failure.
@@ -51,8 +52,4 @@ function nodeTransport(worker: NodeClientWorker, handlers: RpcTransportHandlers)
 			await worker.terminate();
 		}
 	};
-}
-
-function describe(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
 }

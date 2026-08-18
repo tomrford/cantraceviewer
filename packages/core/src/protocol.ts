@@ -45,8 +45,10 @@ export type SeriesPayload = {
 	valuesLength: number;
 };
 
+export type WorkerOkResult = WireOpenDbc | WireOpenTrace | SeriesPayload | null;
+
 export type WorkerResponse =
 	| { type: 'ready' }
 	| { type: 'boot-error'; error: WireError }
-	| { type: 'ok'; id: number; result: unknown }
+	| { type: 'ok'; id: number; result: WorkerOkResult }
 	| { type: 'error'; id: number; error: WireError };

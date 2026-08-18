@@ -43,7 +43,7 @@ export function createHandleRegistry<
 	type AnyPayload = Payloads[HandleKind];
 	const entries = new Map<symbol, Entry<AnyPayload>>();
 
-	function entryFor(kind: HandleKind, handle: unknown): Entry<AnyPayload> {
+	function entryFor(kind: HandleKind, handle: HandleFor[HandleKind]): Entry<AnyPayload> {
 		const token = (handle as Carrier)[HandleToken];
 		const entry = token ? entries.get(token) : undefined;
 		if (!entry || entry.kind !== kind) {

@@ -4,6 +4,7 @@ import type {
 	WireError,
 	WireOpenDbc,
 	WireOpenTrace,
+	WorkerOkResult,
 	WorkerRequest,
 	WorkerResponse
 } from './protocol.ts';
@@ -15,11 +16,11 @@ import type { DbcHandle, DecodedSignalSeries, TraceHandle } from './types.ts';
  */
 export type WorkerRuntimeEndpoint = {
 	postMessage(message: WorkerResponse, transfer?: ArrayBuffer[]): void;
-	addEventListener(type: 'message', listener: (event: { data: unknown }) => void): void;
+	addEventListener(type: 'message', listener: (event: { data: WorkerRequest }) => void): void;
 };
 
 type Executed = {
-	result: unknown;
+	result: WorkerOkResult;
 	transfer?: ArrayBuffer[];
 	/** Reverses resource creation when the success response cannot be posted. */
 	undo?: () => void;
@@ -63,8 +64,7 @@ export function startWorkerRuntime(
 	// synchronously in the order the endpoint delivered it.
 	let queue: Promise<void> = boot;
 	endpoint.addEventListener('message', (event) => {
-		const request = event.data as WorkerRequest;
-		queue = queue.then(() => handle(request)).catch(() => undefined);
+		queue = queue.then(() => handle(event.data)).catch(() => undefined);
 	});
 
 	function handle(request: WorkerRequest): void {

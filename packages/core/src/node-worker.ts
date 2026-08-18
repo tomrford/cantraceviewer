@@ -5,7 +5,7 @@ import { parentPort } from 'node:worker_threads';
 // them to `.js` when it emits the packaged build.
 import { createDirectClient } from './direct.ts';
 import { startWorkerRuntime, type WorkerRuntimeEndpoint } from './worker-runtime.ts';
-import type { WorkerResponse } from './protocol.ts';
+import type { WorkerRequest, WorkerResponse } from './protocol.ts';
 
 const port = parentPort;
 if (!port) {
@@ -17,7 +17,7 @@ const endpoint: WorkerRuntimeEndpoint = {
 		port.postMessage(message, transfer as ArrayBuffer[]);
 	},
 	addEventListener(_type, listener) {
-		port.on('message', (data: unknown) => listener({ data }));
+		port.on('message', (data) => listener({ data: data as WorkerRequest }));
 	}
 };
 

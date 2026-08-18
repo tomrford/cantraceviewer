@@ -4,15 +4,16 @@ import {
 	type RpcTransport,
 	type RpcTransportHandlers
 } from './rpc-client.ts';
+import type { WorkerRequest, WorkerResponse } from './protocol.ts';
 
 export type { CanTraceClient } from './rpc-client.ts';
 
 /** @internal */
-export type ClientWorkerEvent = { data?: unknown; message?: string };
+export type ClientWorkerEvent = { data?: WorkerResponse; message?: string };
 
 /** @internal */
 export type ClientWorker = {
-	postMessage(message: unknown, transfer: Transferable[]): void;
+	postMessage(message: WorkerRequest, transfer: Transferable[]): void;
 	addEventListener(
 		type: 'message' | 'error' | 'messageerror',
 		listener: (event: ClientWorkerEvent) => void
@@ -44,7 +45,13 @@ export async function createCanTraceClientForWorker(
 }
 
 function browserTransport(worker: ClientWorker, handlers: RpcTransportHandlers): RpcTransport {
-	worker.addEventListener('message', (event) => handlers.message(event.data));
+	worker.addEventListener('message', (event) => {
+		if (event.data === undefined) {
+			handlers.fail(new Error('worker message was empty'));
+			return;
+		}
+		handlers.message(event.data);
+	});
 	worker.addEventListener('error', (event) => {
 		handlers.fail(new Error(`worker crashed${event.message ? `: ${event.message}` : ''}`));
 	});
