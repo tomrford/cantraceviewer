@@ -358,7 +358,13 @@ describe('dbcFiles', () => {
 						name: 'EngineController',
 						canId: 0x0cf00400,
 						isExtended: true,
-						signals: [signal({ name: 'EngineRpm' })]
+						signals: [signal({ name: 'EngineRpm' }), signal({ name: 'Bank1' })]
+					}),
+					message({
+						name: 'CabinFeature',
+						canId: 0xace,
+						isExtended: true,
+						signals: [signal({ name: 'RelayState' })]
 					})
 				]
 			})
@@ -395,6 +401,50 @@ describe('dbcFiles', () => {
 					{
 						name: 'CruiseControlVehicleSpeed',
 						signals: [{ signalName: '101Status' }]
+					}
+				]
+			}
+		]);
+		expect(visibleSelectorSignals('0cf00400')).toMatchObject([
+			{
+				id: 'dbc-1',
+				messages: [
+					{
+						name: 'EngineController',
+						signals: [{ signalName: 'EngineRpm' }, { signalName: 'Bank1' }]
+					}
+				]
+			}
+		]);
+		expect(visibleSelectorSignals('00cf00400')).toMatchObject([
+			{
+				id: 'dbc-1',
+				messages: [
+					{
+						name: 'EngineController',
+						signals: [{ signalName: 'EngineRpm' }, { signalName: 'Bank1' }]
+					}
+				]
+			}
+		]);
+		expect(visibleSelectorSignals('bank1')).toMatchObject([
+			{
+				id: 'dbc-1',
+				messages: [
+					{
+						name: 'EngineController',
+						signals: [{ signalName: 'Bank1' }]
+					}
+				]
+			}
+		]);
+		expect(visibleSelectorSignals('ace')).toMatchObject([
+			{
+				id: 'dbc-1',
+				messages: [
+					{
+						name: 'CabinFeature',
+						signals: [{ signalName: 'RelayState' }]
 					}
 				]
 			}

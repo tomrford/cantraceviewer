@@ -97,6 +97,7 @@ type SelectorSearchEntry = {
 export type SelectorSearchIndex = {
 	dbc: SelectorDbcFile;
 	signals: FuzzySearchIndex<SelectorSearchEntry>;
+	signalsByArbitrationId: Map<string, SelectorSearchEntry[]>;
 };
 
 class DbcFilesStore {
@@ -393,10 +394,20 @@ export function buildSelectorSearchIndexes(files: SelectorDbcFile[]): SelectorSe
 		const signals = dbc.messages.flatMap<SelectorSearchEntry>((message) =>
 			message.signals.map((signal) => ({ messageKey: message.key, signal }))
 		);
+		const signalsByArbitrationId = new Map<string, SelectorSearchEntry[]>();
+		for (const entry of signals) {
+			const arbitrationId = entry.signal.arbitrationId;
+			if (arbitrationId === undefined) continue;
+
+			const entries = signalsByArbitrationId.get(arbitrationId);
+			if (entries === undefined) signalsByArbitrationId.set(arbitrationId, [entry]);
+			else entries.push(entry);
+		}
 
 		return {
 			dbc,
-			signals: createFuzzySearchIndex(signals, ({ signal }) => signal.searchText)
+			signals: createFuzzySearchIndex(signals, ({ signal }) => signal.searchText),
+			signalsByArbitrationId
 		};
 	});
 }
@@ -405,8 +416,19 @@ function normalizeSelectorQuery(query: string): string {
 	return query.trim().toLowerCase();
 }
 
-function normalizeArbitrationId(term: string): string {
+function hexDigits(term: string): string {
 	return term.startsWith('0x') ? term.slice(2) : term;
+}
+
+function isHexIdTerm(term: string): boolean {
+	const digits = hexDigits(term);
+	return digits.length > 0 && /^[0-9a-f]+$/u.test(digits);
+}
+
+function normalizeArbitrationId(term: string): string {
+	const digits = hexDigits(term);
+	if (digits.length === 0 || !/^[0-9a-f]+$/u.test(digits)) return '';
+	return digits.replace(/^0+/u, '') || '0';
 }
 
 // Hex IDs stay out of MiniSearch. Prefix search on short tokens such as "1" or
@@ -418,22 +440,36 @@ function searchSelectorIndex(index: SelectorSearchIndex, query: string): Selecto
 	const nameTerms: string[] = [];
 	const idTerms: string[] = [];
 	for (const term of terms) {
-		if (/\d/u.test(term)) idTerms.push(term);
+		if (isHexIdTerm(term)) idTerms.push(term);
 		else nameTerms.push(term);
+	}
+
+	const matchesForIdTerm = (term: string): SelectorSearchEntry[] => {
+		const nameHits = searchFuzzyIndex(index.signals, term);
+		const arbitrationId = normalizeArbitrationId(term);
+		if (arbitrationId === '') return nameHits;
+
+		const seen = new Set(nameHits);
+		const extra: SelectorSearchEntry[] = [];
+		for (const entry of index.signalsByArbitrationId.get(arbitrationId) ?? []) {
+			if (!seen.has(entry)) extra.push(entry);
+		}
+		return extra.length === 0 ? nameHits : [...nameHits, ...extra];
+	};
+
+	if (nameTerms.length === 0) {
+		const [first, ...rest] = idTerms.map(matchesForIdTerm);
+		if (first === undefined) return [];
+
+		const required = rest.map((entries) => new Set(entries));
+		return first.filter((entry) => required.every((matches) => matches.has(entry)));
 	}
 
 	const nameMatches = searchFuzzyIndex(index.signals, nameTerms.join(' '));
 	if (idTerms.length === 0) return nameMatches;
 
-	const nameMatchByIdTerm = idTerms.map((term) => new Set(searchFuzzyIndex(index.signals, term)));
-
-	return nameMatches.filter((entry) =>
-		idTerms.every(
-			(term, termIndex) =>
-				entry.signal.arbitrationId === normalizeArbitrationId(term) ||
-				nameMatchByIdTerm[termIndex]!.has(entry)
-		)
-	);
+	const required = idTerms.map((term) => new Set(matchesForIdTerm(term)));
+	return nameMatches.filter((entry) => required.every((matches) => matches.has(entry)));
 }
 
 export function signalIdentityKey(
