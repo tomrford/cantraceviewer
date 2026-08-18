@@ -18,11 +18,7 @@ import {
 } from './dbc-library.js';
 import { DBC_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '$lib/file-limits.js';
 import { assertTextFileContent } from '$lib/file-preflight.js';
-import {
-	createFuzzySearchIndex,
-	searchFuzzyIndex,
-	type FuzzySearchIndex
-} from '$lib/fuzzy-match.js';
+import { createSearchIndex, searchIndex, type SearchIndex } from '$lib/search-index.js';
 
 export type DbcFileEntry = {
 	id: string;
@@ -51,6 +47,7 @@ type SelectorDbcSignal = {
 	label: string;
 	messageName: string;
 	signalName: string;
+	arbitrationId?: string;
 };
 
 type SelectorFilterOptions = {
@@ -94,7 +91,7 @@ type SelectorSearchEntry = {
 };
 export type SelectorSearchIndex = {
 	dbc: SelectorDbcFile;
-	signals: FuzzySearchIndex<SelectorSearchEntry>;
+	signals: SearchIndex<SelectorSearchEntry>;
 };
 
 class DbcFilesStore {
@@ -157,7 +154,7 @@ class DbcFilesStore {
 		const indexes = [...this.selectorSearchIndexes, ...additionalIndexes];
 		return indexes.flatMap((index) => {
 			const signalsByMessage: Record<string, SelectorDbcSignal[]> = {};
-			const visibleSignals = searchFuzzyIndex(index.signals, query).filter(
+			const visibleSignals = searchIndex(index.signals, query).filter(
 				({ signal }) => !filter.activeOnly || filter.isSignalSelected(signal.key)
 			);
 
@@ -394,7 +391,11 @@ export function buildSelectorSearchIndexes(files: SelectorDbcFile[]): SelectorSe
 
 		return {
 			dbc,
-			signals: createFuzzySearchIndex(signals, ({ signal }) => signal.label)
+			signals: createSearchIndex(
+				signals,
+				({ signal }) => signal.label,
+				({ signal }) => signal.arbitrationId
+			)
 		};
 	});
 }
@@ -420,11 +421,14 @@ function selectorSignal(
 	message: DbcMessage,
 	signal: DbcSignal
 ): SelectorDbcSignal {
+	const label = `${message.name}.${signal.name}`;
+
 	return {
 		key: signalIdentityKey(dbcFileId, message, signal.name),
-		label: `${message.name}.${signal.name}`,
+		label,
 		messageName: message.name,
-		signalName: signal.name
+		signalName: signal.name,
+		arbitrationId: message.canId.toString(16)
 	};
 }
 

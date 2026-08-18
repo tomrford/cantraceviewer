@@ -276,7 +276,7 @@ describe('dbcFiles', () => {
 		]);
 	});
 
-	it('filters selector signals by fuzzy query and hides empty messages and DBCs', () => {
+	it('filters selector signals by query and hides empty messages and DBCs', () => {
 		dbcFiles.files = [
 			dbcEntry({
 				id: 'dbc-1',
@@ -318,9 +318,50 @@ describe('dbcFiles', () => {
 				]
 			}
 		]);
+		expect(visibleSelectorSignals('101 engine')).toMatchObject([
+			{
+				id: 'dbc-1',
+				messages: [
+					{
+						name: 'PowertrainStatus',
+						signals: [{ signalName: 'EngineRpm' }]
+					}
+				]
+			}
+		]);
 	});
 
-	it('merges prebuilt native MF4 indexes into the tree and fuzzy search', () => {
+	it('matches a hex subset of an arbitration ID without treating short prefixes as IDs', () => {
+		dbcFiles.files = [
+			dbcEntry({
+				id: 'dbc-1',
+				name: 'j1939.dbc',
+				messages: [
+					message({
+						name: 'CruiseControlVehicleSpeed',
+						canId: 0x18fef100,
+						isExtended: true,
+						signals: [signal({ name: 'WheelBasedSpeed' })]
+					})
+				]
+			})
+		];
+
+		expect(visibleSelectorSignals('fef100')).toMatchObject([
+			{
+				id: 'dbc-1',
+				messages: [
+					{
+						name: 'CruiseControlVehicleSpeed',
+						signals: [{ signalName: 'WheelBasedSpeed' }]
+					}
+				]
+			}
+		]);
+		expect(visibleSelectorSignals('18')).toEqual([]);
+	});
+
+	it('merges prebuilt native MF4 indexes into the tree and search', () => {
 		dbcFiles.files = [
 			dbcEntry({
 				id: 'dbc-1',

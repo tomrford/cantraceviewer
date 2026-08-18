@@ -69,10 +69,10 @@
 		"wrangler": "^4.107.0"
 	},
 	"dependencies": {
+		"@tanstack/svelte-virtual": "3.13.31",
 		"cantraceviewer": "0.1.0",
 		"chartgpu": "0.3.3",
 		"idb": "8.0.3",
-		"minisearch": "7.2.0",
 		"modern-screenshot": "4.7.0",
 		"runed": "0.37.1"
 	}
