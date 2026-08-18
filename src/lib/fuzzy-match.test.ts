@@ -34,46 +34,32 @@ describe('searchFuzzyIndex', () => {
 		expect(search('   ')).toHaveLength(signals.length);
 	});
 
-	it('uses MiniSearch token matching with camel and separator boundaries', () => {
-		expect(search('vehicle speed')).toEqual(
-			expect.arrayContaining(['SpeedMessage.VehicleSpeed', 'PowertrainStatus.vehicle_speed'])
-		);
-		expect(search('status')).toEqual(
-			expect.arrayContaining(['PowertrainStatus.vehicle_speed', 'EngineStatus.EngineRpm'])
-		);
+	it('matches name substrings and ANDs whitespace-separated terms', () => {
+		expect(search('vehicle speed')).toEqual([
+			'SpeedMessage.VehicleSpeed',
+			'PowertrainStatus.vehicle_speed'
+		]);
+		expect(search('status')).toEqual(['PowertrainStatus.vehicle_speed', 'EngineStatus.EngineRpm']);
+		expect(search('veh')).toEqual([
+			'SpeedMessage.VehicleSpeed',
+			'PowertrainStatus.vehicle_speed',
+			'VehicleAcceleration.LongitudinalAccel'
+		]);
+		expect(search('message.sign')).toEqual(['Message.Signal']);
 	});
 
-	it('keeps partial fuzzy searches useful', () => {
-		expect(search('s')).toEqual(
-			expect.arrayContaining([
-				'Message.Signal',
-				'SpeedMessage.VehicleSpeed',
-				'PowertrainStatus.vehicle_speed'
-			])
+	it('matches hex subsets and keeps one- and two-digit hex exact', () => {
+		const withIds = createFuzzySearchIndex(
+			[
+				{ label: 'Cruise.WheelBasedSpeed', searchText: 'Cruise.WheelBasedSpeed 18fef100' },
+				{ label: 'Status.EngineRpm', searchText: 'PowertrainStatus.EngineRpm 101' }
+			],
+			(item) => item.searchText
 		);
-		expect(search('veh')).toEqual(
-			expect.arrayContaining([
-				'SpeedMessage.VehicleSpeed',
-				'PowertrainStatus.vehicle_speed',
-				'VehicleAcceleration.LongitudinalAccel'
-			])
-		);
-		expect(search('veh')).not.toContain('VeryLongUnrelatedSignal.Other');
-	});
+		const labels = (query: string) => searchFuzzyIndex(withIds, query).map((item) => item.label);
 
-	it('supports full label searches across message and signal names', () => {
-		expect(search('message.sign')[0]).toBe('Message.Signal');
-		expect(search('age.sign')).toEqual([]);
-	});
-
-	it('keeps a little typo tolerance without broadening short abbreviations', () => {
-		expect(search('vehcile')).toEqual(
-			expect.arrayContaining([
-				'SpeedMessage.VehicleSpeed',
-				'PowertrainStatus.vehicle_speed',
-				'VehicleAcceleration.LongitudinalAccel'
-			])
-		);
-		expect(search('vhc')).toEqual([]);
+		expect(labels('fef100')).toEqual(['Cruise.WheelBasedSpeed']);
+		expect(labels('0x18fef100')).toEqual(['Cruise.WheelBasedSpeed']);
+		expect(labels('18')).toEqual([]);
 	});
 });

@@ -1,72 +1,54 @@
-import MiniSearch from 'minisearch';
-
-type SearchDocument = {
-	id: number;
-	searchText: string;
-};
-
 export type FuzzySearchIndex<T> = {
 	items: T[];
-	miniSearch: MiniSearch<SearchDocument>;
+	entries: Array<{ item: T; haystack: string; tokens: string[] }>;
 };
 
 export function createFuzzySearchIndex<T>(
 	items: T[],
 	getSearchText: (item: T) => string
 ): FuzzySearchIndex<T> {
-	const documents = items.map<SearchDocument>((item, id) => ({
-		id,
-		searchText: getSearchText(item)
-	}));
-	const miniSearch = new MiniSearch<SearchDocument>({
-		fields: ['searchText'],
-		tokenize: tokenizeSearchText,
-		processTerm: normalizeSearchTerm
-	});
-
-	miniSearch.addAll(documents);
-
-	return { items, miniSearch };
+	return {
+		items,
+		entries: items.map((item) => {
+			const haystack = normalizeSearchText(getSearchText(item));
+			return { item, haystack, tokens: tokenizeSearchText(haystack) };
+		})
+	};
 }
 
 export function searchFuzzyIndex<T>(index: FuzzySearchIndex<T>, query: string): T[] {
-	const trimmedQuery = query.trim();
-	if (trimmedQuery.length === 0) return index.items;
+	const terms = tokenizeSearchText(normalizeSearchText(query));
+	if (terms.length === 0) return index.items;
 
-	return index.miniSearch
-		.search(trimmedQuery, {
-			prefix: (term) => !isShortHexTerm(term),
-			fuzzy: (term) => (term.length >= 3 && !/\d/u.test(term) ? 0.3 : false),
-			combineWith: 'AND'
-		})
-		.map((result) => index.items[result.id as number]);
+	return index.entries
+		.filter(({ haystack, tokens }) =>
+			terms.every((term) => matchSearchTerm(term, haystack, tokens))
+		)
+		.map(({ item }) => item);
+}
+
+function matchSearchTerm(term: string, haystack: string, tokens: string[]): boolean {
+	if (isShortHexTerm(term)) return tokens.includes(term);
+	return haystack.includes(term);
 }
 
 function tokenizeSearchText(text: string): string[] {
-	return Array.from(
-		new Set(
-			text
-				.trim()
-				.split(/[\s\p{P}]+/u)
-				.flatMap((term) => [term, ...camelCaseTerms(term)])
-				.filter(Boolean)
-		)
-	);
+	return text
+		.split(/[\s\p{P}]+/u)
+		.map(stripHexPrefix)
+		.filter(Boolean);
 }
 
-function camelCaseTerms(term: string): string[] {
-	return term.split(/(?<=[\p{Ll}\p{Nd}])(?=\p{Lu})|(?<=\p{Lu})(?=\p{Lu}\p{Ll})/u);
-}
-
-function normalizeSearchTerm(term: string): string {
-	const normalized = term
+function normalizeSearchText(text: string): string {
+	return text
 		.normalize('NFKD')
 		.replace(/[\u0300-\u036f]/g, '')
 		.toLowerCase();
-	if (normalized.startsWith('0x') && /^[0-9a-f]+$/u.test(normalized.slice(2))) {
-		return normalized.slice(2);
-	}
-	return normalized;
+}
+
+function stripHexPrefix(term: string): string {
+	if (term.startsWith('0x') && /^[0-9a-f]+$/u.test(term.slice(2))) return term.slice(2);
+	return term;
 }
 
 function isShortHexTerm(term: string): boolean {

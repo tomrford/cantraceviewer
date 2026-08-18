@@ -331,7 +331,7 @@ describe('dbcFiles', () => {
 		]);
 	});
 
-	it('matches an arbitration ID token without treating short hex prefixes as IDs', () => {
+	it('matches a hex subset of an arbitration ID without treating short prefixes as IDs', () => {
 		dbcFiles.files = [
 			dbcEntry({
 				id: 'dbc-1',
@@ -347,7 +347,7 @@ describe('dbcFiles', () => {
 			})
 		];
 
-		expect(visibleSelectorSignals('18fef')).toMatchObject([
+		expect(visibleSelectorSignals('fef100')).toMatchObject([
 			{
 				id: 'dbc-1',
 				messages: [
@@ -356,12 +356,6 @@ describe('dbcFiles', () => {
 						signals: [{ signalName: 'WheelBasedSpeed' }]
 					}
 				]
-			}
-		]);
-		expect(visibleSelectorSignals('0x18fef100')).toMatchObject([
-			{
-				id: 'dbc-1',
-				messages: [{ signals: [{ signalName: 'WheelBasedSpeed' }] }]
 			}
 		]);
 		expect(visibleSelectorSignals('18')).toEqual([]);
