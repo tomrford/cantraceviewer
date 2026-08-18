@@ -432,18 +432,24 @@ function normalizeArbitrationId(term: string): string {
 
 const MIN_ARBITRATION_ID_SUBSTRING_LENGTH = 3;
 
+function searchEntryKeys(entries: SelectorSearchEntry[]): Record<string, true> {
+	const keys: Record<string, true> = {};
+	for (const entry of entries) keys[entry.signal.key] = true;
+	return keys;
+}
+
 function arbitrationIdHits(index: SelectorSearchIndex, term: string): SelectorSearchEntry[] {
 	const raw = hexDigits(term);
 	if (raw.length === 0) return [];
 
 	const exactId = normalizeArbitrationId(term);
 	const hits: SelectorSearchEntry[] = [];
-	const seen = new Set<SelectorSearchEntry>();
+	const seen: Record<string, true> = {};
 	const add = (entries: SelectorSearchEntry[] | undefined): void => {
 		if (entries === undefined) return;
 		for (const entry of entries) {
-			if (seen.has(entry)) continue;
-			seen.add(entry);
+			if (seen[entry.signal.key]) continue;
+			seen[entry.signal.key] = true;
 			hits.push(entry);
 		}
 	};
@@ -482,8 +488,8 @@ function searchSelectorIndex(index: SelectorSearchIndex, query: string): Selecto
 		const idHits = arbitrationIdHits(index, term);
 		if (idHits.length === 0) return nameHits;
 
-		const seen = new Set(nameHits);
-		const extra = idHits.filter((entry) => !seen.has(entry));
+		const seen = searchEntryKeys(nameHits);
+		const extra = idHits.filter((entry) => !seen[entry.signal.key]);
 		return extra.length === 0 ? nameHits : [...nameHits, ...extra];
 	};
 
@@ -491,15 +497,15 @@ function searchSelectorIndex(index: SelectorSearchIndex, query: string): Selecto
 		const [first, ...rest] = idTerms.map(matchesForIdTerm);
 		if (first === undefined) return [];
 
-		const required = rest.map((entries) => new Set(entries));
-		return first.filter((entry) => required.every((matches) => matches.has(entry)));
+		const required = rest.map(searchEntryKeys);
+		return first.filter((entry) => required.every((matches) => matches[entry.signal.key]));
 	}
 
 	const nameMatches = searchFuzzyIndex(index.signals, nameTerms.join(' '));
 	if (idTerms.length === 0) return nameMatches;
 
-	const required = idTerms.map((term) => new Set(matchesForIdTerm(term)));
-	return nameMatches.filter((entry) => required.every((matches) => matches.has(entry)));
+	const required = idTerms.map((term) => searchEntryKeys(matchesForIdTerm(term)));
+	return nameMatches.filter((entry) => required.every((matches) => matches[entry.signal.key]));
 }
 
 export function signalIdentityKey(
