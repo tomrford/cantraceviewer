@@ -184,10 +184,10 @@ function initWasm(wasm: DirectWasmInput): void {
 		initSync({ module: wasm });
 	} catch (error) {
 		if (error instanceof WebAssembly.RuntimeError) {
-			throw new Error(`WebAssembly execution failed: ${error.message}`);
+			throw new Error(`WebAssembly execution failed: ${error.message}`, { cause: error });
 		}
 		if (error instanceof WebAssembly.CompileError || error instanceof WebAssembly.LinkError) {
-			throw new Error(`WebAssembly failed to load: ${error.message}`);
+			throw new Error(`WebAssembly failed to load: ${error.message}`, { cause: error });
 		}
 		throw error;
 	}
