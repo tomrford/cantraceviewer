@@ -47,7 +47,8 @@ describe('searchIndex', () => {
 		const withIds = createSearchIndex(
 			[
 				{ label: 'Cruise.WheelBasedSpeed', arbitrationId: '18fef100' },
-				{ label: 'Status.EngineRpm', arbitrationId: '101' }
+				{ label: 'Status.EngineRpm', arbitrationId: '101' },
+				{ label: 'EEC1.EngineSpeed', arbitrationId: 'cf00400' }
 			],
 			(item) => item.label,
 			(item) => item.arbitrationId
@@ -55,8 +56,11 @@ describe('searchIndex', () => {
 		const labels = (query: string) => searchIndex(withIds, query).map((item) => item.label);
 
 		expect(labels('b')).toEqual(['Cruise.WheelBasedSpeed']);
+		expect(labels('101')).toEqual(['Status.EngineRpm']);
 		expect(labels('fef100')).toEqual(['Cruise.WheelBasedSpeed']);
 		expect(labels('0x18fef100')).toEqual(['Cruise.WheelBasedSpeed']);
+		expect(labels('0cf00400')).toEqual(['EEC1.EngineSpeed']);
+		expect(labels('0x0cf00400')).toEqual(['EEC1.EngineSpeed']);
 		expect(labels('18')).toEqual([]);
 	});
 });

@@ -16,7 +16,7 @@ export function createSearchIndex<T>(
 			return {
 				item,
 				haystack,
-				identifier: identifier == null ? null : normalizeSearchText(identifier)
+				identifier: identifier == null ? null : canonicalHexId(normalizeSearchText(identifier))
 			};
 		})
 	};
@@ -36,7 +36,9 @@ export function searchIndex<T>(index: SearchIndex<T>, query: string): T[] {
 function matchSearchTerm(term: string, haystack: string, identifier: string | null): boolean {
 	if (haystack.includes(term)) return true;
 	if (identifier === null) return false;
-	return isShortHexTerm(term) ? identifier === term : identifier.includes(term);
+	const idTerm = canonicalHexId(term);
+	if (idTerm === null) return false;
+	return isShortHexTerm(idTerm) ? identifier === idTerm : identifier.includes(idTerm);
 }
 
 function tokenizeSearchText(text: string): string[] {
@@ -58,6 +60,11 @@ function stripHexPrefix(term: string): string {
 	return term;
 }
 
+function canonicalHexId(text: string): string | null {
+	if (!/^[0-9a-f]+$/u.test(text)) return null;
+	return text.replace(/^0+/u, '') || '0';
+}
+
 function isShortHexTerm(term: string): boolean {
-	return term.length > 0 && term.length < 3 && /^[0-9a-f]+$/u.test(term);
+	return term.length > 0 && term.length < 3;
 }
