@@ -3,7 +3,9 @@
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import * as Popover from '$lib/components/ui/popover/index.js';
-	import { flattenSelectorTree, windowSelectorRows } from '$lib/selector-list.js';
+	import { createVirtualizer } from '@tanstack/svelte-virtual';
+	import { get } from 'svelte/store';
+	import { flattenSelectorTree, type SelectorListRow } from '$lib/selector-list.js';
 	import {
 		dbcFilesFromDrop,
 		dragLeftCurrentTarget,
@@ -39,8 +41,6 @@
 	let signalSearchForm = $state<HTMLFormElement | null>(null);
 	let signalListScroller = $state<HTMLDivElement>();
 	let signalListContent = $state<HTMLDivElement>();
-	let listScrollTop = $state(0);
-	let listViewportHeight = $state(0);
 	let signalSearch = $state('');
 	let dbcDropActive = $state(false);
 	let showActiveOnly = $state(false);
@@ -67,9 +67,31 @@
 		dbcFiles.visibleSelectorTree(selectorFilter, traceFile.mf4SelectorIndexes)
 	);
 	let selectorRows = $derived(flattenSelectorTree(visibleDbcFiles));
-	let selectorWindow = $derived(
-		windowSelectorRows(selectorRows, listScrollTop, listViewportHeight)
-	);
+	const selectorRowGapPx = 4;
+	const selectorDbcRowHeightPx = 32;
+	const selectorItemRowHeightPx = 28;
+	const selectorRowOverscan = 8;
+	const rowVirtualizer = createVirtualizer<HTMLDivElement, HTMLElement>({
+		count: 0,
+		getScrollElement: () => null,
+		estimateSize: () => selectorItemRowHeightPx,
+		overscan: selectorRowOverscan,
+		gap: selectorRowGapPx
+	});
+
+	$effect(() => {
+		const rows = selectorRows;
+		const scroller = signalListScroller;
+		// Read the scroller here so getScrollElement is not a stale closure.
+		get(rowVirtualizer).setOptions({
+			count: rows.length,
+			getScrollElement: () => scroller ?? null,
+			estimateSize: (index) => estimateSelectorRowHeight(rows[index]),
+			getItemKey: (index) => rows[index]?.key ?? index,
+			overscan: selectorRowOverscan,
+			gap: selectorRowGapPx
+		});
+	});
 
 	const menuButtonClass =
 		'flex w-full min-w-0 items-center gap-2 overflow-hidden rounded-[calc(var(--radius-sm)+2px)] p-2 text-left text-xs text-popover-foreground transition-[background-color,color,box-shadow] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden';
@@ -96,7 +118,6 @@
 		const resizeObserver = new ResizeObserver(handleSignalListResize);
 		resizeObserver.observe(signalListScroller);
 		resizeObserver.observe(signalListContent);
-		listViewportHeight = signalListScroller.clientHeight;
 		pendingScrollRestore = savedScrollTop;
 		restoreScrollPosition();
 
@@ -173,7 +194,6 @@
 			return;
 		}
 
-		listViewportHeight = signalListScroller.clientHeight;
 		signalListOverflows = signalListScroller.scrollHeight > signalListScroller.clientHeight + 1;
 	}
 
@@ -182,16 +202,10 @@
 		restoreScrollPosition();
 	}
 
-	function handleListScroll(): void {
-		if (signalListScroller) listScrollTop = signalListScroller.scrollTop;
-		persistScrollPosition();
-	}
-
 	function restoreScrollPosition(): void {
 		if (pendingScrollRestore === null || !signalListScroller) return;
 
 		signalListScroller.scrollTop = pendingScrollRestore;
-		listScrollTop = signalListScroller.scrollTop;
 		if (signalListScroller.scrollTop === pendingScrollRestore) {
 			pendingScrollRestore = null;
 		} else {
@@ -209,6 +223,21 @@
 		}
 
 		savedScrollTop = signalListScroller.scrollTop;
+	}
+
+	function estimateSelectorRowHeight(row: SelectorListRow | undefined): number {
+		return row?.kind === 'dbc' ? selectorDbcRowHeightPx : selectorItemRowHeightPx;
+	}
+
+	function measureSelectorRow(node: HTMLElement) {
+		get(rowVirtualizer).measureElement(node);
+		return () => get(rowVirtualizer).measureElement(null);
+	}
+
+	function selectorRowClass(kind: SelectorListRow['kind']): string {
+		if (kind === 'dbc') return 'absolute top-0 left-0 flex h-8 w-full items-center gap-1';
+		if (kind === 'message') return 'absolute top-0 left-0 h-7 w-full pl-6';
+		return 'absolute top-0 left-0 h-7 w-full pl-12';
 	}
 </script>
 
@@ -306,115 +335,116 @@
 			bind:this={signalListScroller}
 			class="h-full [scrollbar-gutter:stable] overflow-y-auto pb-4 [--scroll-fade-size:2rem]"
 			class:scroll-fade={signalListOverflows}
-			onscroll={handleListScroll}
+			onscroll={persistScrollPosition}
 		>
 			<div
 				bind:this={signalListContent}
 				class="relative w-full"
-				style="height: {selectorWindow.totalHeight}px"
+				style="height: {$rowVirtualizer.getTotalSize()}px"
 			>
-				<ul
-					class="absolute right-0 left-0 flex w-full min-w-0 flex-col gap-1"
-					style="top: {selectorWindow.startOffset}px"
-				>
-					{#each selectorWindow.rows as row (row.key)}
-						{#if row.kind === 'dbc'}
-							<li class="flex h-8 items-center gap-1">
-								<button
-									type="button"
-									class="{menuButtonClass} h-full min-w-0 flex-1 py-0"
-									aria-expanded={row.dbc.expanded}
-									aria-label={row.dbc.expanded
-										? `Collapse ${row.dbc.name}`
-										: `Expand ${row.dbc.name}`}
-									onclick={() => setDbcExpanded(row.dbc.id, !row.dbc.expanded)}
-								>
-									{#if row.dbc.expanded}
-										<ChevronDownIcon class="size-4 shrink-0 text-muted-foreground" />
-									{:else}
-										<ChevronRightIcon class="size-4 shrink-0 text-muted-foreground" />
-									{/if}
-									<span class="min-w-0 truncate" class:italic={row.dbc.transient}
-										>{row.dbc.name}</span
-									>
-									{#if row.dbc.transient}
-										<span
-											class="shrink-0 rounded border border-border/70 bg-muted px-1 py-0.5 text-[9px] leading-none font-medium text-muted-foreground not-italic"
-											>MF4</span
-										>
-									{/if}
-								</button>
-								{#if !row.dbc.transient && row.dbc.kind === 'dbc'}
+				<ul class="absolute top-0 right-0 left-0 w-full min-w-0">
+					{#each $rowVirtualizer.getVirtualItems() as virtualItem (virtualItem.key)}
+						{@const row = selectorRows[virtualItem.index]}
+						{#if row}
+							<li
+								data-index={virtualItem.index}
+								{@attach measureSelectorRow}
+								class={selectorRowClass(row.kind)}
+								style="transform: translateY({virtualItem.start}px)"
+							>
+								{#if row.kind === 'dbc'}
 									<button
 										type="button"
-										class="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-70 transition-[background-color,color,box-shadow,opacity,scale] hover:bg-accent hover:text-destructive hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96]"
-										aria-label={`Delete ${row.dbc.name}`}
-										onclick={() => removeDbc(row.dbc.id)}
+										class="{menuButtonClass} h-full min-w-0 flex-1 py-0"
+										aria-expanded={row.dbc.expanded}
+										aria-label={row.dbc.expanded
+											? `Collapse ${row.dbc.name}`
+											: `Expand ${row.dbc.name}`}
+										onclick={() => setDbcExpanded(row.dbc.id, !row.dbc.expanded)}
 									>
-										<TrashIcon class="size-4" />
-									</button>
-								{/if}
-							</li>
-						{:else if row.kind === 'message'}
-							<li class="h-7 pl-6">
-								<button
-									type="button"
-									class="flex h-7 w-full min-w-0 items-center gap-2 rounded-md border-s border-border px-2 text-left text-xs text-popover-foreground transition-[background-color,color,box-shadow] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
-									aria-expanded={row.message.expanded}
-									aria-label={row.message.expanded
-										? `Collapse ${row.message.name}`
-										: `Expand ${row.message.name}`}
-									onclick={() => setMessageExpanded(row.message.key, !row.message.expanded)}
-								>
-									<span
-										class="flex size-4 shrink-0 items-center justify-center text-muted-foreground"
-									>
-										{#if row.message.expanded}
-											<ChevronDownIcon class="size-4" />
+										{#if row.dbc.expanded}
+											<ChevronDownIcon class="size-4 shrink-0 text-muted-foreground" />
 										{:else}
-											<ChevronRightIcon class="size-4" />
+											<ChevronRightIcon class="size-4 shrink-0 text-muted-foreground" />
 										{/if}
-									</span>
-									<span class="truncate">{row.message.name}</span>
-								</button>
-							</li>
-						{:else}
-							{@const isSelected = plotData.isSignalSelected(row.signal.key)}
-							{@const decodeStatus = isSelected
-								? plotData.signalDecodeStatus(row.signal.key)
-								: null}
-							{@const signalToggleId = `signal-toggle-${row.signal.key}`}
-							<li class="h-7 pl-12">
-								<Label
-									for={signalToggleId}
-									class="flex h-7 w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-s border-border px-2 text-left text-xs font-normal text-popover-foreground transition-[background-color,color,box-shadow] hover:bg-accent hover:text-accent-foreground"
-								>
-									<Checkbox
-										id={signalToggleId}
-										checked={isSelected}
-										aria-label={`Plot ${row.signal.label}`}
-										title={decodeStatus?.decodeError ?? undefined}
-										class="data-[error=true]:border-destructive/50 data-[error=true]:bg-destructive/10 data-[error=true]:text-destructive data-checked:border-sidebar-primary data-checked:bg-sidebar-primary data-checked:text-sidebar-primary-foreground"
-										data-error={decodeStatus?.decodeError != null}
-										onCheckedChange={() => toggleSignal(row.signal.key)}
-									/>
-									<span class="flex min-w-0 flex-1 items-center gap-2">
-										<span class="truncate font-mono" title={row.signal.label}>
-											{row.signal.signalName}
+										<span class="min-w-0 truncate" class:italic={row.dbc.transient}
+											>{row.dbc.name}</span
+										>
+										{#if row.dbc.transient}
+											<span
+												class="shrink-0 rounded border border-border/70 bg-muted px-1 py-0.5 text-[9px] leading-none font-medium text-muted-foreground not-italic"
+												>MF4</span
+											>
+										{/if}
+									</button>
+									{#if !row.dbc.transient && row.dbc.kind === 'dbc'}
+										<button
+											type="button"
+											class="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-70 transition-[background-color,color,box-shadow,opacity,scale] hover:bg-accent hover:text-destructive hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96]"
+											aria-label={`Delete ${row.dbc.name}`}
+											onclick={() => removeDbc(row.dbc.id)}
+										>
+											<TrashIcon class="size-4" />
+										</button>
+									{/if}
+								{:else if row.kind === 'message'}
+									<button
+										type="button"
+										class="flex h-7 w-full min-w-0 items-center gap-2 rounded-md border-s border-border px-2 text-left text-xs text-popover-foreground transition-[background-color,color,box-shadow] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
+										aria-expanded={row.message.expanded}
+										aria-label={row.message.expanded
+											? `Collapse ${row.message.name}`
+											: `Expand ${row.message.name}`}
+										onclick={() => setMessageExpanded(row.message.key, !row.message.expanded)}
+									>
+										<span
+											class="flex size-4 shrink-0 items-center justify-center text-muted-foreground"
+										>
+											{#if row.message.expanded}
+												<ChevronDownIcon class="size-4" />
+											{:else}
+												<ChevronRightIcon class="size-4" />
+											{/if}
 										</span>
-										{#if decodeStatus?.decodeError}
-											<CircleAlertIcon
-												class="size-3 shrink-0 text-destructive"
-												aria-label={decodeStatus.decodeError}
-											/>
-										{:else if decodeStatus?.isDecoding}
-											<LoaderCircleIcon
-												class="size-3 shrink-0 animate-spin text-muted-foreground"
-												aria-label="Decoding signal"
-											/>
-										{/if}
-									</span>
-								</Label>
+										<span class="truncate">{row.message.name}</span>
+									</button>
+								{:else}
+									{@const isSelected = plotData.isSignalSelected(row.signal.key)}
+									{@const decodeStatus = isSelected
+										? plotData.signalDecodeStatus(row.signal.key)
+										: null}
+									{@const signalToggleId = `signal-toggle-${row.signal.key}`}
+									<Label
+										for={signalToggleId}
+										class="flex h-7 w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-s border-border px-2 text-left text-xs font-normal text-popover-foreground transition-[background-color,color,box-shadow] hover:bg-accent hover:text-accent-foreground"
+									>
+										<Checkbox
+											id={signalToggleId}
+											checked={isSelected}
+											aria-label={`Plot ${row.signal.label}`}
+											title={decodeStatus?.decodeError ?? undefined}
+											class="data-[error=true]:border-destructive/50 data-[error=true]:bg-destructive/10 data-[error=true]:text-destructive data-checked:border-sidebar-primary data-checked:bg-sidebar-primary data-checked:text-sidebar-primary-foreground"
+											data-error={decodeStatus?.decodeError != null}
+											onCheckedChange={() => toggleSignal(row.signal.key)}
+										/>
+										<span class="flex min-w-0 flex-1 items-center gap-2">
+											<span class="truncate font-mono" title={row.signal.label}>
+												{row.signal.signalName}
+											</span>
+											{#if decodeStatus?.decodeError}
+												<CircleAlertIcon
+													class="size-3 shrink-0 text-destructive"
+													aria-label={decodeStatus.decodeError}
+												/>
+											{:else if decodeStatus?.isDecoding}
+												<LoaderCircleIcon
+													class="size-3 shrink-0 animate-spin text-muted-foreground"
+													aria-label="Decoding signal"
+												/>
+											{/if}
+										</span>
+									</Label>
+								{/if}
 							</li>
 						{/if}
 					{/each}
