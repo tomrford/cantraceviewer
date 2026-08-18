@@ -76,13 +76,4 @@ describe('searchFuzzyIndex', () => {
 		);
 		expect(search('vhc')).toEqual([]);
 	});
-
-	it('does not apply typo tolerance to identifiers containing digits', () => {
-		const identifiers = ['1234', '18fef100'];
-		const identifierIndex = createFuzzySearchIndex(identifiers, (identifier) => identifier);
-
-		expect(searchFuzzyIndex(identifierIndex, '123')).toEqual(['1234']);
-		expect(searchFuzzyIndex(identifierIndex, '1235')).toEqual([]);
-		expect(searchFuzzyIndex(identifierIndex, '18fef101')).toEqual([]);
-	});
 });

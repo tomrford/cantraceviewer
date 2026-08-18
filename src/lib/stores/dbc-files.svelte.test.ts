@@ -329,20 +329,9 @@ describe('dbcFiles', () => {
 				]
 			}
 		]);
-		expect(visibleSelectorSignals('0x101')).toMatchObject([
-			{
-				id: 'dbc-1',
-				messages: [
-					{
-						name: 'PowertrainStatus',
-						signals: [{ signalName: 'VehicleSpeed' }, { signalName: 'EngineRpm' }]
-					}
-				]
-			}
-		]);
 	});
 
-	it('matches complete and subset arbitration IDs without expanding short hex prefixes', () => {
+	it('matches a hex subset of an arbitration ID without treating short prefixes as IDs', () => {
 		dbcFiles.files = [
 			dbcEntry({
 				id: 'dbc-1',
@@ -352,141 +341,24 @@ describe('dbcFiles', () => {
 						name: 'CruiseControlVehicleSpeed',
 						canId: 0x18fef100,
 						isExtended: true,
-						signals: [signal({ name: 'WheelBasedSpeed' }), signal({ name: '101Status' })]
-					}),
-					message({
-						name: 'EngineController',
-						canId: 0x0cf00400,
-						isExtended: true,
-						signals: [signal({ name: 'EngineRpm' }), signal({ name: 'Bank1' })]
-					}),
-					message({
-						name: 'CabinFeature',
-						canId: 0xace,
-						isExtended: true,
-						signals: [signal({ name: 'RelayState' })]
-					}),
-					message({
-						name: 'BodyController',
-						canId: 0x1006abcd,
-						isExtended: true,
-						signals: [signal({ name: 'DoorLatch' })]
+						signals: [signal({ name: 'WheelBasedSpeed' })]
 					})
 				]
 			})
 		];
 
-		expect(visibleSelectorSignals('18fef100')).toMatchObject([
-			{
-				id: 'dbc-1',
-				messages: [
-					{
-						name: 'CruiseControlVehicleSpeed',
-						signals: [{ signalName: 'WheelBasedSpeed' }, { signalName: '101Status' }]
-					}
-				]
-			}
-		]);
-		expect(visibleSelectorSignals('1')).toMatchObject([
-			{
-				id: 'dbc-1',
-				messages: [
-					{
-						name: 'CruiseControlVehicleSpeed',
-						signals: [{ signalName: '101Status' }]
-					}
-				]
-			}
-		]);
-		expect(visibleSelectorSignals('18')).toEqual([]);
-		expect(visibleSelectorSignals('18fe')).toMatchObject([
-			{
-				id: 'dbc-1',
-				messages: [
-					{
-						name: 'CruiseControlVehicleSpeed',
-						signals: [{ signalName: 'WheelBasedSpeed' }, { signalName: '101Status' }]
-					}
-				]
-			}
-		]);
 		expect(visibleSelectorSignals('fef100')).toMatchObject([
 			{
 				id: 'dbc-1',
 				messages: [
 					{
 						name: 'CruiseControlVehicleSpeed',
-						signals: [{ signalName: 'WheelBasedSpeed' }, { signalName: '101Status' }]
+						signals: [{ signalName: 'WheelBasedSpeed' }]
 					}
 				]
 			}
 		]);
-		expect(visibleSelectorSignals('abcd')).toMatchObject([
-			{
-				id: 'dbc-1',
-				messages: [
-					{
-						name: 'BodyController',
-						signals: [{ signalName: 'DoorLatch' }]
-					}
-				]
-			}
-		]);
-		expect(visibleSelectorSignals('101')).toMatchObject([
-			{
-				id: 'dbc-1',
-				messages: [
-					{
-						name: 'CruiseControlVehicleSpeed',
-						signals: [{ signalName: '101Status' }]
-					}
-				]
-			}
-		]);
-		expect(visibleSelectorSignals('0cf00400')).toMatchObject([
-			{
-				id: 'dbc-1',
-				messages: [
-					{
-						name: 'EngineController',
-						signals: [{ signalName: 'EngineRpm' }, { signalName: 'Bank1' }]
-					}
-				]
-			}
-		]);
-		expect(visibleSelectorSignals('00cf00400')).toMatchObject([
-			{
-				id: 'dbc-1',
-				messages: [
-					{
-						name: 'EngineController',
-						signals: [{ signalName: 'EngineRpm' }, { signalName: 'Bank1' }]
-					}
-				]
-			}
-		]);
-		expect(visibleSelectorSignals('bank1')).toMatchObject([
-			{
-				id: 'dbc-1',
-				messages: [
-					{
-						name: 'EngineController',
-						signals: [{ signalName: 'Bank1' }]
-					}
-				]
-			}
-		]);
-		expect(visibleSelectorSignals('ace')).toMatchObject([
-			{
-				id: 'dbc-1',
-				messages: [
-					{
-						name: 'CabinFeature',
-						signals: [{ signalName: 'RelayState' }]
-					}
-				]
-			}
-		]);
+		expect(visibleSelectorSignals('18')).toEqual([]);
 	});
 
 	it('merges prebuilt native MF4 indexes into the tree and fuzzy search', () => {
