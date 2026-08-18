@@ -11,20 +11,24 @@ import type {
 
 export type * from 'cantraceviewer';
 
-let clientPromise: Promise<CanTraceClient> | null = null;
+/** Remember one successful client. A failed create is forgotten so the next call can retry. */
+export function createClientSlot<Client>(create: () => Promise<Client>): () => Promise<Client> {
+	let clientPromise: Promise<Client> | null = null;
+	return () => {
+		if (clientPromise) return clientPromise;
 
-function client(): Promise<CanTraceClient> {
-	if (clientPromise) return clientPromise;
-
-	const pending = createCanTraceClient();
-	clientPromise = pending;
-	void pending.catch(() => {
-		// A rejected factory produced no client. Let a later user operation retry startup without
-		// restarting a client that had already become fatal during normal operation.
-		if (clientPromise === pending) clientPromise = null;
-	});
-	return pending;
+		const pending = create();
+		clientPromise = pending;
+		void pending.catch(() => {
+			// A rejected factory produced no client. Let a later user operation retry startup without
+			// restarting a client that had already become fatal during normal operation.
+			if (clientPromise === pending) clientPromise = null;
+		});
+		return pending;
+	};
 }
+
+const client = createClientSlot(createCanTraceClient);
 
 export async function openDbc(text: string): Promise<{ handle: DbcHandle; catalog: ParsedDbc }> {
 	return (await client()).openDbc(text);
