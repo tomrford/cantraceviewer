@@ -329,6 +329,76 @@ describe('dbcFiles', () => {
 				]
 			}
 		]);
+		expect(visibleSelectorSignals('0x101')).toMatchObject([
+			{
+				id: 'dbc-1',
+				messages: [
+					{
+						name: 'PowertrainStatus',
+						signals: [{ signalName: 'VehicleSpeed' }, { signalName: 'EngineRpm' }]
+					}
+				]
+			}
+		]);
+	});
+
+	it('matches a complete arbitration ID without expanding short hex prefixes', () => {
+		dbcFiles.files = [
+			dbcEntry({
+				id: 'dbc-1',
+				name: 'j1939.dbc',
+				messages: [
+					message({
+						name: 'CruiseControlVehicleSpeed',
+						canId: 0x18fef100,
+						isExtended: true,
+						signals: [signal({ name: 'WheelBasedSpeed' }), signal({ name: '101Status' })]
+					}),
+					message({
+						name: 'EngineController',
+						canId: 0x0cf00400,
+						isExtended: true,
+						signals: [signal({ name: 'EngineRpm' })]
+					})
+				]
+			})
+		];
+
+		expect(visibleSelectorSignals('18fef100')).toMatchObject([
+			{
+				id: 'dbc-1',
+				messages: [
+					{
+						name: 'CruiseControlVehicleSpeed',
+						signals: [{ signalName: 'WheelBasedSpeed' }, { signalName: '101Status' }]
+					}
+				]
+			}
+		]);
+		expect(visibleSelectorSignals('1')).toMatchObject([
+			{
+				id: 'dbc-1',
+				messages: [
+					{
+						name: 'CruiseControlVehicleSpeed',
+						signals: [{ signalName: '101Status' }]
+					}
+				]
+			}
+		]);
+		expect(visibleSelectorSignals('18')).toEqual([]);
+		expect(visibleSelectorSignals('18fe')).toEqual([]);
+		expect(visibleSelectorSignals('101')).toMatchObject([
+			{
+				id: 'dbc-1',
+				messages: [
+					{
+						name: 'CruiseControlVehicleSpeed',
+						signals: [{ signalName: '101Status' }]
+					}
+				]
+			}
+		]);
 	});
 
 	it('merges prebuilt native MF4 indexes into the tree and fuzzy search', () => {

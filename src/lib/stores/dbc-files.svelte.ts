@@ -52,6 +52,7 @@ type SelectorDbcSignal = {
 	messageName: string;
 	signalName: string;
 	searchText: string;
+	arbitrationId?: string;
 };
 
 type SelectorFilterOptions = {
@@ -158,7 +159,7 @@ class DbcFilesStore {
 		const indexes = [...this.selectorSearchIndexes, ...additionalIndexes];
 		return indexes.flatMap((index) => {
 			const signalsByMessage: Record<string, SelectorDbcSignal[]> = {};
-			const visibleSignals = searchFuzzyIndex(index.signals, query).filter(
+			const visibleSignals = searchSelectorIndex(index, query).filter(
 				({ signal }) => !filter.activeOnly || filter.isSignalSelected(signal.key)
 			);
 
@@ -404,6 +405,37 @@ function normalizeSelectorQuery(query: string): string {
 	return query.trim().toLowerCase();
 }
 
+function normalizeArbitrationId(term: string): string {
+	return term.startsWith('0x') ? term.slice(2) : term;
+}
+
+// Hex IDs stay out of MiniSearch. Prefix search on short tokens such as "1" or
+// "18" otherwise scores every J1939-style signal and the selector mounts them all.
+function searchSelectorIndex(index: SelectorSearchIndex, query: string): SelectorSearchEntry[] {
+	const terms = query.split(/[\s\p{P}]+/u).filter(Boolean);
+	if (terms.length === 0) return index.signals.items;
+
+	const nameTerms: string[] = [];
+	const idTerms: string[] = [];
+	for (const term of terms) {
+		if (/\d/u.test(term)) idTerms.push(term);
+		else nameTerms.push(term);
+	}
+
+	const nameMatches = searchFuzzyIndex(index.signals, nameTerms.join(' '));
+	if (idTerms.length === 0) return nameMatches;
+
+	const nameMatchByIdTerm = idTerms.map((term) => new Set(searchFuzzyIndex(index.signals, term)));
+
+	return nameMatches.filter((entry) =>
+		idTerms.every(
+			(term, termIndex) =>
+				entry.signal.arbitrationId === normalizeArbitrationId(term) ||
+				nameMatchByIdTerm[termIndex]!.has(entry)
+		)
+	);
+}
+
 export function signalIdentityKey(
 	dbcFileId: string,
 	message: DbcMessageIdentity,
@@ -428,7 +460,8 @@ function selectorSignal(
 		label,
 		messageName: message.name,
 		signalName: signal.name,
-		searchText: `${label} ${message.canId.toString(16)}`
+		searchText: label,
+		arbitrationId: message.canId.toString(16)
 	};
 }
 
