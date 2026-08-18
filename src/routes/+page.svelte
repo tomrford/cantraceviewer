@@ -155,7 +155,7 @@
 
 	onMount(() => {
 		webgpuSupported = 'gpu' in navigator;
-		shortcutPlatform = detectShortcutPlatform();
+		shortcutPlatform = detectShortcutPlatform(`${navigator.platform} ${navigator.userAgent}`);
 		void dbcFiles.loadLibrary();
 	});
 

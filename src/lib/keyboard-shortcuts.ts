@@ -83,9 +83,7 @@ export function groupedShortcuts(): { group: ShortcutGroup; actions: ShortcutAct
 	})).filter((entry) => entry.actions.length > 0);
 }
 
-export function detectShortcutPlatform(
-	platform = typeof navigator === 'undefined' ? '' : `${navigator.platform} ${navigator.userAgent}`
-): ShortcutPlatform {
+export function detectShortcutPlatform(platform: string): ShortcutPlatform {
 	return /Mac|iPhone|iPad|iPod/i.test(platform) ? 'mac' : 'other';
 }
 

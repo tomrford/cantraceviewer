@@ -20,7 +20,7 @@
 	let isLastStep = $derived(stepIndex === stepCount - 1);
 
 	$effect(() => {
-		if (!panel || typeof document === 'undefined') return;
+		if (!panel) return;
 
 		const target = document.querySelector<HTMLElement>(
 			`[data-walkthrough-target="${step.target}"]`
