@@ -80,7 +80,7 @@ export type DbcSignalTarget = {
 	signal: DbcSignal;
 };
 
-type SignalTargetIndex = Map<string, DbcSignalTarget>;
+type SignalTargetIndex = Record<string, DbcSignalTarget>;
 type DbcCandidate = {
 	entry: DbcFileEntry;
 	stored: StoredDbc;
@@ -183,15 +183,17 @@ class DbcFilesStore {
 		this.error = null;
 		this.isLoading = true;
 		const candidates: DbcCandidate[] = [];
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local de-duplication
-		const seenIds = new Set(this.files.map((file) => file.id));
+		const seenIds: Record<string, true> = {};
+		for (const file of this.files) {
+			seenIds[file.id] = true;
+		}
 
 		try {
 			for (const file of files) {
 				const stored = await this.storedFile(file);
-				if (seenIds.has(stored.id)) continue;
+				if (seenIds[stored.id]) continue;
 
-				seenIds.add(stored.id);
+				seenIds[stored.id] = true;
 				candidates.push(await this.openStoredDbc(stored));
 			}
 
@@ -341,18 +343,17 @@ function assertDbcFileName(file: File): void {
 }
 
 function assertUniqueMessageIdentities(fileName: string, catalog: ParsedDbc): void {
-	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local uniqueness check
-	const seen = new Set<string>();
+	const seen: Record<string, true> = {};
 
 	for (const message of catalog.messages) {
 		const key = messageIdentityKey(message);
-		if (seen.has(key)) {
+		if (seen[key]) {
 			throw new Error(
 				`${displayDbcName(fileName)} contains multiple messages with the same CAN ID, frame format, and payload length.`
 			);
 		}
 
-		seen.add(key);
+		seen[key] = true;
 	}
 }
 
@@ -365,17 +366,16 @@ function displayDbcName(fileName: string): string {
 }
 
 function buildSignalTargetIndex(files: DbcFileEntry[]): SignalTargetIndex {
-	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived lookup, rebuilt whole
-	const index: SignalTargetIndex = new Map();
+	const index: SignalTargetIndex = {};
 
 	for (const file of files) {
 		for (const message of file.catalog.messages) {
 			for (const signal of message.signals) {
-				index.set(signalIdentityKey(file.id, message, signal.name), {
+				index[signalIdentityKey(file.id, message, signal.name)] = {
 					file,
 					message,
 					signal
-				});
+				};
 			}
 		}
 	}

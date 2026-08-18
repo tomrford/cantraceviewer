@@ -81,7 +81,7 @@ export type RpcTransportFactory = (handlers: RpcTransportHandlers) => RpcTranspo
 export async function createRpcClient(
 	createTransport: RpcTransportFactory
 ): Promise<CanTraceClient> {
-	const handles = createHandleRegistry<number, number>();
+	const handles = createHandleRegistry<{ dbc: number; trace: number }>();
 	const pending = new Map<
 		number,
 		{ resolve: (value: WorkerOkResult) => void; reject: (error: Error) => void }

@@ -75,8 +75,8 @@ export function adjacentWalkthroughStep(
 	return WALKTHROUGH_STEPS[index + direction] ?? null;
 }
 
-export function shouldShowWalkthrough(version: number): boolean {
-	return !Number.isInteger(version) || version < WALKTHROUGH_VERSION;
+export function shouldShowWalkthrough(version: unknown): boolean {
+	return typeof version !== 'number' || !Number.isInteger(version) || version < WALKTHROUGH_VERSION;
 }
 
 export function placeWalkthrough(

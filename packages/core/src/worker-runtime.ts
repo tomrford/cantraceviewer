@@ -197,7 +197,7 @@ function packSeries(series: DecodedSignalSeries): Executed {
 	return { result, transfer: [buffer] };
 }
 
-function toWireError(error: unknown): WireError {
-	if (error instanceof Error) return { name: error.name, message: error.message };
-	return { name: 'Error', message: String(error) };
+function toWireError(cause: unknown): WireError {
+	if (cause instanceof Error) return { name: cause.name, message: cause.message };
+	return { name: 'Error', message: String(cause) };
 }

@@ -308,8 +308,7 @@
 	}
 
 	async function selectTrace(event: Event) {
-		const input = event.currentTarget;
-		if (!(input instanceof HTMLInputElement)) return;
+		const input = event.currentTarget as HTMLInputElement;
 		const file = input.files?.[0] ?? null;
 		input.value = '';
 

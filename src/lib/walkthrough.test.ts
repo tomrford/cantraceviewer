@@ -27,7 +27,7 @@ describe('walkthrough steps', () => {
 
 	it('shows the current tour for missing, old or invalid versions', () => {
 		expect(shouldShowWalkthrough(0)).toBe(true);
-		expect(shouldShowWalkthrough(0.5)).toBe(true);
+		expect(shouldShowWalkthrough('1')).toBe(true);
 		expect(shouldShowWalkthrough(1)).toBe(false);
 	});
 });

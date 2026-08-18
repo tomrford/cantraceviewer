@@ -197,7 +197,7 @@ class PlotDataStore {
 }
 
 function findSignalTarget(key: PlotSignalKey) {
-	const dbc = dbcFiles.signalTargetByKey.get(key);
+	const dbc = dbcFiles.signalTargetByKey[key];
 	if (dbc) return { kind: 'dbc' as const, value: dbc };
 	const mf4 = traceFile.mf4SignalTargetByKey.get(key);
 	return mf4 ? { kind: 'mf4' as const, value: mf4 } : null;
