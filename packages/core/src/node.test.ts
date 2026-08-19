@@ -9,7 +9,7 @@ type FakeWorker = {
 	worker: NodeClientWorker;
 	requests: WorkerRequest[];
 	reply(response: WorkerResponse): void;
-	emit(event: WorkerEvent, payload: unknown): void;
+	emit(event: WorkerEvent, payload: WorkerResponse | Error | number): void;
 	terminateCalls(): number;
 	blockTermination(): () => void;
 };
@@ -20,27 +20,24 @@ type FakeWorker = {
  * node.integration.test.ts.
  */
 function createFakeWorker(): FakeWorker {
-	const listeners = new Map<WorkerEvent, ((payload: unknown) => void)[]>();
+	const listeners = new Map<WorkerEvent, ((payload: WorkerResponse | Error | number) => void)[]>();
 	const requests: WorkerRequest[] = [];
 	let terminateCount = 0;
 	let gate: Promise<void> | null = null;
 
-	function emit(event: WorkerEvent, payload: unknown): void {
+	function emit(event: WorkerEvent, payload: WorkerResponse | Error | number): void {
 		for (const listener of listeners.get(event) ?? []) listener(payload);
 	}
 
 	const worker: NodeClientWorker = {
 		postMessage(message, transfer) {
 			// worker_threads detaches transferred buffers exactly like postMessage does.
-			requests.push(
-				structuredClone(message, { transfer: transfer as ArrayBuffer[] }) as WorkerRequest
-			);
+			requests.push(structuredClone(message, { transfer: [...(transfer ?? [])] }));
 		},
 		on(event: WorkerEvent, listener: (payload: never) => void) {
 			const list = listeners.get(event) ?? [];
-			list.push(listener as (payload: unknown) => void);
+			list.push(listener as (payload: WorkerResponse | Error | number) => void);
 			listeners.set(event, list);
-			return worker;
 		},
 		async terminate() {
 			terminateCount += 1;

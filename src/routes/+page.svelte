@@ -155,7 +155,7 @@
 
 	onMount(() => {
 		webgpuSupported = 'gpu' in navigator;
-		shortcutPlatform = detectShortcutPlatform();
+		shortcutPlatform = detectShortcutPlatform(`${navigator.platform} ${navigator.userAgent}`);
 		void dbcFiles.loadLibrary();
 	});
 
@@ -168,7 +168,7 @@
 		// cannot render instead of loading it.
 		if (overridesBrowserShortcut(action)) event.preventDefault();
 
-		if (shortcutSuppressedBySurface(event.target)) return;
+		if (shortcutSuppressedBySurface(event.target instanceof Element ? event.target : null)) return;
 		if (!shortcutEnabled(action, shortcutState)) return;
 
 		runShortcut(action);

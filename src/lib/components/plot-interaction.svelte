@@ -274,7 +274,7 @@
 		};
 	}
 
-	function currentPlotSize(): { width: number; height: number } {
+	function currentPlotSize() {
 		const rect = plotSurface?.getBoundingClientRect();
 		if (rect === undefined) return { width: 0, height: 0 };
 		return {

@@ -4,6 +4,7 @@ import type {
 	WireError,
 	WireOpenDbc,
 	WireOpenTrace,
+	WorkerOkResult,
 	WorkerRequest,
 	WorkerRequestBody,
 	WorkerResponse
@@ -57,7 +58,7 @@ export type CanTraceClient = {
 /** Events a transport reports to the shared client core. @internal */
 export type RpcTransportHandlers = {
 	/** One structured-clone payload received from the worker. */
-	message(data: unknown): void;
+	message(data: WorkerResponse): void;
 	/** Unrecoverable transport failure: crash, exit, or undeliverable message. */
 	fail(error: Error): void;
 };
@@ -83,7 +84,7 @@ export async function createRpcClient(
 	const handles = createHandleRegistry<{ dbc: number; trace: number }>();
 	const pending = new Map<
 		number,
-		{ resolve: (value: unknown) => void; reject: (reason: unknown) => void }
+		{ resolve: (value: WorkerOkResult) => void; reject: (error: Error) => void }
 	>();
 	// Request IDs are never recycled.
 	let nextRequestId = 1;
@@ -93,13 +94,12 @@ export async function createRpcClient(
 	// Assigned below, once the handlers it reports to exist.
 	let transport: RpcTransport | null = null;
 
-	let ready!: { resolve: () => void; reject: (reason: unknown) => void };
+	let ready!: { resolve: () => void; reject: (error: Error) => void };
 	const readyPromise = new Promise<void>((resolve, reject) => {
 		ready = { resolve, reject };
 	});
 
-	function receive(data: unknown): void {
-		const response = data as WorkerResponse;
+	function receive(response: WorkerResponse): void {
 		if (response.type === 'ready') {
 			ready.resolve();
 			return;
@@ -134,19 +134,25 @@ export async function createRpcClient(
 		return termination;
 	}
 
-	function send<T>(body: WorkerRequestBody, transfer: ArrayBuffer[]): Promise<T> {
+	function send<T extends WorkerOkResult>(
+		body: WorkerRequestBody,
+		transfer: ArrayBuffer[]
+	): Promise<T> {
 		const active = transport;
 		if (fatalError || !active) {
 			return Promise.reject(fatalError ?? new Error('client transport is unavailable'));
 		}
 		const id = nextRequestId++;
 		return new Promise<T>((resolve, reject) => {
-			pending.set(id, { resolve: resolve as (value: unknown) => void, reject });
+			pending.set(id, {
+				resolve: (value) => resolve(value as T),
+				reject
+			});
 			try {
-				active.postMessage({ ...body, id } as WorkerRequest, transfer);
+				active.postMessage({ ...body, id }, transfer);
 			} catch (error) {
 				pending.delete(id);
-				reject(error);
+				reject(error instanceof Error ? error : new Error(String(error)));
 			}
 		});
 	}
@@ -223,14 +229,16 @@ export async function createRpcClient(
 		},
 		close() {
 			closePromise ??= (async () => {
-				let cleanupError: unknown = null;
+				let cleanupError: Error | null = null;
 				if (!fatalError) {
 					try {
 						// Runs after every previously posted request via the worker's serial queue.
 						await send<null>({ op: 'closeClient' }, []);
 					} catch (error) {
 						// A fatal crash mid-close still terminates cleanly below.
-						if (error !== fatalError) cleanupError = error;
+						if (error !== fatalError) {
+							cleanupError = error instanceof Error ? error : new Error(String(error));
+						}
 					}
 				}
 				handles.releaseAll();

@@ -22,17 +22,17 @@ export const PLOT_THEME_TOKENS = {
 } as const;
 
 export type PlotThemeRole = keyof typeof PLOT_THEME_TOKENS;
-export type PlotTheme = Record<PlotThemeRole, string>;
+export type PlotTheme = { [Role in PlotThemeRole]: string };
 
 /** Fallbacks for a document that has not applied the stylesheet yet. */
-export const FALLBACK_PLOT_THEME: PlotTheme = {
+export const FALLBACK_PLOT_THEME = {
 	background: '#ffffff',
 	text: '#71717a',
 	axisLine: '#d4d4d8',
 	axisTick: '#71717a',
 	gridLine: '#d4d4d8',
 	fontFamily: 'monospace'
-};
+} satisfies PlotTheme;
 
 export function resolvePlotTheme(styles: Pick<CSSStyleDeclaration, 'getPropertyValue'>): PlotTheme {
 	const theme = { ...FALLBACK_PLOT_THEME };

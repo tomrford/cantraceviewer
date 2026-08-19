@@ -287,7 +287,7 @@ function traceEntry(
 			skippedLineCount: 0,
 			durationNs: 1_000_000
 		}
-	} as unknown as TraceFileEntry;
+	};
 }
 
 function message(overrides: Partial<DbcMessage> = {}): DbcMessage {
@@ -333,7 +333,7 @@ function signalSeries(timesMs: number[], values: number[]): DecodedSignalSeries 
 
 function createDeferred<T>() {
 	let resolve!: (value: T) => void;
-	let reject!: (reason?: unknown) => void;
+	let reject!: (reason?: Error) => void;
 	const promise = new Promise<T>((innerResolve, innerReject) => {
 		resolve = innerResolve;
 		reject = innerReject;

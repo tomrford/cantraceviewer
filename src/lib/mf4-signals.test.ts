@@ -32,7 +32,7 @@ describe('MF4 signal sources', () => {
 
 	it('indexes native identity by trace and MDF signal id', () => {
 		const trace = mf4Trace();
-		const target = buildMf4SignalTargetIndex(trace)[mf4SignalIdentityKey(17, 3)];
+		const target = buildMf4SignalTargetIndex(trace).get(mf4SignalIdentityKey(17, 3));
 
 		expect(target).toMatchObject({
 			trace,

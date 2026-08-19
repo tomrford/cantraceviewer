@@ -11,7 +11,7 @@ import type { DbcHandle, DecodedSignalSeries, TraceHandle } from './types.ts';
 
 const identity = { canId: 288, isExtended: false, sizeBytes: 8 };
 
-function deferred(): { promise: Promise<void>; resolve: () => void } {
+function deferred() {
 	let resolve!: () => void;
 	const promise = new Promise<void>((res) => {
 		resolve = res;
@@ -27,16 +27,16 @@ function packedSeries(times: number[], values: number[]): DecodedSignalSeries {
 /** Model stores such as Svelte `$state`, which recursively proxy only plain objects. */
 function proxyPlainObjects<T>(value: T): T {
 	const proxies = new WeakMap<object, object>();
-	function wrap(nested: unknown): unknown {
+	function wrap<T>(nested: T): T {
 		if (
-			typeof nested !== 'object' ||
 			nested === null ||
+			typeof nested !== 'object' ||
 			Object.getPrototypeOf(nested) !== Object.prototype
 		) {
 			return nested;
 		}
 		const existing = proxies.get(nested);
-		if (existing) return existing;
+		if (existing) return existing as T;
 		const proxy = new Proxy(nested, {
 			get(target, property, receiver) {
 				return wrap(Reflect.get(target, property, receiver));
@@ -45,11 +45,11 @@ function proxyPlainObjects<T>(value: T): T {
 		proxies.set(nested, proxy);
 		return proxy;
 	}
-	return wrap(value) as T;
+	return wrap(value);
 }
 
 /** Synchronous stand-in for the WASM-backed direct client. */
-function createFakeDirect(): { client: DirectClient; log: string[] } {
+function createFakeDirect() {
 	const log: string[] = [];
 	const client: DirectClient = {
 		openDbc(text) {
@@ -111,7 +111,7 @@ type Harness = {
  *  reproduces postMessage semantics, including transfer-list buffer detachment. */
 function createHarness(loadClient: () => Promise<DirectClient>): Harness {
 	const clientListeners = new Map<string, ((event: ClientWorkerEvent) => void)[]>();
-	const runtimeListeners: ((event: { data: unknown }) => void)[] = [];
+	const runtimeListeners: ((event: { data: WorkerRequest }) => void)[] = [];
 	const requests: WorkerRequest[] = [];
 	let terminateCount = 0;
 	let breakOkResponses = 0;
@@ -135,7 +135,7 @@ function createHarness(loadClient: () => Promise<DirectClient>): Harness {
 
 	const worker: ClientWorker = {
 		postMessage(message, transfer) {
-			const data = structuredClone(message, { transfer }) as WorkerRequest;
+			const data = structuredClone(message, { transfer });
 			requests.push(data);
 			queueMicrotask(() => {
 				for (const listener of runtimeListeners) listener({ data });

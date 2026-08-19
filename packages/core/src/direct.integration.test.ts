@@ -321,10 +321,10 @@ async function openMf4Fixture(name: string): Promise<OpenTraceResult> {
 
 function proxyEveryObject<T>(value: T): T {
 	const proxies = new WeakMap<object, object>();
-	function wrap(nested: unknown): unknown {
-		if (typeof nested !== 'object' || nested === null) return nested;
+	function wrap<T>(nested: T): T {
+		if (nested === null || typeof nested !== 'object') return nested;
 		const existing = proxies.get(nested);
-		if (existing) return existing;
+		if (existing) return existing as T;
 		const proxy = new Proxy(nested, {
 			get(target, property, receiver) {
 				return wrap(Reflect.get(target, property, receiver));
@@ -333,7 +333,7 @@ function proxyEveryObject<T>(value: T): T {
 		proxies.set(nested, proxy);
 		return proxy;
 	}
-	return wrap(value) as T;
+	return wrap(value);
 }
 
 function generatedBlfTrace(): Uint8Array {

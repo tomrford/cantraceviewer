@@ -84,7 +84,7 @@ export function placeWalkthrough(
 	panel: WalkthroughSize,
 	viewport: WalkthroughSize,
 	placement: WalkthroughPlacement
-): { top: number; left: number } {
+) {
 	const gap = 12;
 	const margin = 8;
 	let top = target.bottom + gap;
