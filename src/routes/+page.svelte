@@ -42,6 +42,7 @@
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
 	import { onTraceOpened } from '$lib/stores/session.js';
 	import { traceFile, type TraceFileEntry } from '$lib/stores/trace-file.svelte.js';
+	import { mountWebMcp } from '$lib/webmcp.js';
 	import { TRACE_FILE_ACCEPT, TRACE_FILE_FORMAT_NAMES } from '$lib/trace-file-types.js';
 	import AudioWaveformIcon from '@lucide/svelte/icons/audio-waveform';
 	import CogIcon from '@lucide/svelte/icons/cog';
@@ -74,6 +75,7 @@
 	let helpOpen = $state(false);
 	let paletteOpen = $state(false);
 	let signalSearchFocusRequest = $state(0);
+	let dbcPickerRequest = $state(0);
 	let plotPointerRatio = $state<PlotRatioPoint | null>(null);
 	let shortcutPlatform = $state<ShortcutPlatform>('other');
 	let walkthroughStepId = $state<WalkthroughStep['id'] | null>(null);
@@ -157,6 +159,24 @@
 		webgpuSupported = 'gpu' in navigator;
 		shortcutPlatform = detectShortcutPlatform(`${navigator.platform} ${navigator.userAgent}`);
 		void dbcFiles.loadLibrary();
+		return mountWebMcp({
+			shortcutState: () => shortcutState,
+			runShortcut,
+			openDbcPicker: () => {
+				handleSignalSelectorOpen(true);
+				void tick().then(() => {
+					dbcPickerRequest += 1;
+				});
+			},
+			placeCrosshair,
+			view: () => ({
+				legendVisible,
+				boxZoomEnabled,
+				viewport: plotViewport.activeViewport,
+				isFitAll: plotViewport.isFitAll,
+				crosshairs
+			})
+		});
 	});
 
 	function handleShortcut(event: KeyboardEvent): void {
@@ -233,15 +253,17 @@
 
 	// Falls back to the viewport centre when the pointer is off the plot, which is where the
 	// toolbar already places crosshairs — and the only sensible anchor from the palette.
-	function placeCrosshair(id: CrosshairId): void {
+	function placeCrosshair(id: CrosshairId, x?: number): { x: number; y: number } | null {
 		const activeViewport = plotViewport.activeViewport;
-		if (activeViewport === null) return;
-		crosshairs = setCrosshair(crosshairs, {
-			id,
-			...(plotPointerRatio === null
-				? viewportCenter(activeViewport)
-				: dataPointAtRatio(activeViewport, plotPointerRatio))
-		});
+		if (activeViewport === null) return null;
+		const point =
+			x === undefined
+				? plotPointerRatio === null
+					? viewportCenter(activeViewport)
+					: dataPointAtRatio(activeViewport, plotPointerRatio)
+				: { x, y: viewportCenter(activeViewport).y };
+		crosshairs = setCrosshair(crosshairs, { id, ...point });
+		return point;
 	}
 
 	async function startWalkthrough(): Promise<void> {
@@ -461,6 +483,7 @@
 					</Tooltip.Root>
 					<SignalSelectorDialog
 						focusSearchRequest={signalSearchFocusRequest}
+						openDbcPickerRequest={dbcPickerRequest}
 						onDbcAdded={handleDbcAdded}
 						onSignalToggle={handleSignalToggle}
 					/>

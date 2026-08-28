@@ -6,6 +6,8 @@ The live instance is at https://cantraceviewer.com, served entirely statically f
 
 The app opens directly into the plotter. Users load one CAN trace, save one or more DBC files to the local browser library, select signals from the signal selector popover, and render decoded signal series on a shared time plot.
 
+Chrome 149+ and Edge 150+ can call page tools through WebMCP (`document.modelContext`) when `chrome://flags/#enable-webmcp-testing` is on or an origin trial is active (HTTPS or localhost). The browser file picker still supplies the trace and DBC files; tools then search, select, zoom, and place crosshairs. Do not return decoded sample arrays or WASM internals to the model.
+
 Signals share one x axis and start on one y axis. The legend manages up to five y axes: signals move between them by drag and drop or by the move menu on each row. The app owns the y axis gutters and tick labels in DOM, because ChartGPU anchors every left axis at the same edge and does not render the y axis line. Y navigation is uniform: one gesture moves every axis by the same proportion of its own fit range, so each axis keeps fitting its own signals.
 
 Axis assignments live in memory for the current session and are released with the signal, alongside its colour, when it is deselected. Deselecting a signal does not remove the axis it was on. Do not make axis assignments persist across sessions without an explicit product reason.

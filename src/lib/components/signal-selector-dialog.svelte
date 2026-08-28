@@ -30,10 +30,12 @@
 
 	let {
 		focusSearchRequest = 0,
+		openDbcPickerRequest = 0,
 		onDbcAdded,
 		onSignalToggle
 	}: {
 		focusSearchRequest?: number;
+		openDbcPickerRequest?: number;
 		onDbcAdded?: () => void;
 		onSignalToggle?: () => void;
 	} = $props();
@@ -104,6 +106,16 @@
 		if (focusSearchRequest === 0 || signalSearchForm === null) return;
 		const frame = requestAnimationFrame(() => {
 			signalSearchForm?.querySelector<HTMLInputElement>('input')?.focus();
+		});
+		return () => cancelAnimationFrame(frame);
+	});
+
+	$effect(() => {
+		if (openDbcPickerRequest === 0) return;
+		const input = dbcInput;
+		if (input === undefined) return;
+		const frame = requestAnimationFrame(() => {
+			input.click();
 		});
 		return () => cancelAnimationFrame(frame);
 	});
