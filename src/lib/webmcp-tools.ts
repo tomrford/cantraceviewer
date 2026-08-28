@@ -66,6 +66,7 @@ export type WebMcpHost = {
 	isSignalSelected: (key: string) => boolean;
 	toggleSignal: (key: string) => Promise<void>;
 	session: () => WebMcpSessionSnapshot;
+	dbcLibrary: () => { loaded: boolean; loading: boolean };
 	exportPlot: (
 		destination: 'copy' | 'save',
 		signal: AbortSignal
@@ -86,6 +87,7 @@ export type WebMcpSessionSnapshot = {
 		warning: string | null;
 	} | null;
 	traceLoading: boolean;
+	dbcLibrary: { loaded: boolean; loading: boolean };
 	dbcs: Array<{
 		name: string;
 		origin: 'library' | 'mf4';
@@ -119,6 +121,15 @@ const EMPTY_OBJECT_SCHEMA = {
 	additionalProperties: false
 } as const;
 
+export function consumeMountRequest(
+	request: number,
+	lastHandled: number,
+	ready: boolean
+): number | null {
+	if (request === 0 || request === lastHandled || !ready) return null;
+	return request;
+}
+
 export function throwIfAborted(signal: AbortSignal): void {
 	if (!signal.aborted) return;
 	if (signal.reason !== undefined) throw signal.reason;
@@ -129,6 +140,7 @@ export function describeSession(snapshot: WebMcpSessionSnapshot, view: WebMcpVie
 	return {
 		trace: snapshot.trace,
 		traceLoading: snapshot.traceLoading,
+		dbcLibrary: snapshot.dbcLibrary,
 		dbcs: snapshot.dbcs,
 		plotted: snapshot.plotted.map(({ key, label, unit, decodeStatus, decodeError }) => ({
 			key,
@@ -147,7 +159,12 @@ export function describeSession(snapshot: WebMcpSessionSnapshot, view: WebMcpVie
 		notes: [
 			'This is a read-only summary. Decoded sample arrays are not returned; inspect the plot visually.',
 			'open_trace and add_dbc open the browser file picker. They do not accept a filesystem path.',
-			'search_signals then select_signals are the way to plot signals in batch.'
+			'search_signals then select_signals are the way to plot signals in batch.',
+			...(snapshot.dbcLibrary.loaded
+				? []
+				: [
+						'The saved DBC library has not finished loading. An empty dbcs list is not the final catalog.'
+					])
 		]
 	};
 }
@@ -156,7 +173,8 @@ export function searchCatalogSignals(
 	indexes: SelectorSearchIndex[],
 	query: string,
 	isSignalSelected: (key: string) => boolean,
-	limit: number
+	limit: number,
+	library: { loaded: boolean; loading: boolean } = { loaded: true, loading: false }
 ) {
 	const cappedLimit = clampLimit(limit);
 	const hits: Array<{
@@ -181,12 +199,42 @@ export function searchCatalogSignals(
 				source: index.dbc.name
 			});
 			if (hits.length >= cappedLimit) {
-				return { query, limit: cappedLimit, truncated: true, results: hits };
+				return searchResult(query, cappedLimit, true, hits, library);
 			}
 		}
 	}
 
-	return { query, limit: cappedLimit, truncated: false, results: hits };
+	return searchResult(query, cappedLimit, false, hits, library);
+}
+
+function searchResult(
+	query: string,
+	limit: number,
+	truncated: boolean,
+	results: Array<{
+		key: string;
+		label: string;
+		messageName: string;
+		signalName: string;
+		arbitrationId: string | null;
+		selected: boolean;
+		source: string;
+	}>,
+	library: { loaded: boolean; loading: boolean }
+) {
+	return {
+		query,
+		limit,
+		truncated,
+		results,
+		libraryLoaded: library.loaded,
+		libraryLoading: library.loading,
+		...(library.loaded
+			? {}
+			: {
+					note: 'The saved DBC library has not finished loading. Empty results are not a complete catalog; call describe_session or search again after dbcLibrary.loaded is true.'
+				})
+	};
 }
 
 export function resolveSignalRefs(indexes: SelectorSearchIndex[], refs: string[]) {
@@ -284,7 +332,13 @@ export function createWebMcpTools(host: WebMcpHost): WebMcpTool[] {
 				}
 				const limit = optionalInteger(input, 'limit') ?? SEARCH_RESULT_LIMIT_DEFAULT;
 				return Promise.resolve(
-					searchCatalogSignals(host.signalCatalog(), query, host.isSignalSelected, limit)
+					searchCatalogSignals(
+						host.signalCatalog(),
+						query,
+						host.isSignalSelected,
+						limit,
+						host.dbcLibrary()
+					)
 				);
 			}
 		},
@@ -325,6 +379,12 @@ export function createWebMcpTools(host: WebMcpHost): WebMcpTool[] {
 			inputSchema: EMPTY_OBJECT_SCHEMA,
 			execute: (_input, { signal }) => {
 				throwIfAborted(signal);
+				if (host.dbcLibrary().loading) {
+					return Promise.resolve({
+						ok: false,
+						error: 'DBC files are still loading. Wait, then add a DBC.'
+					});
+				}
 				host.openDbcPicker();
 				return Promise.resolve({
 					ok: true,

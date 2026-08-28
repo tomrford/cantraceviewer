@@ -16,6 +16,7 @@
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
 	import { onDbcRemoved } from '$lib/stores/session.js';
+	import { consumeMountRequest } from '$lib/webmcp-tools.js';
 	import SearchForm from './search-form.svelte';
 	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
 	import CheckIcon from '@lucide/svelte/icons/check';
@@ -102,6 +103,8 @@
 	const closeButtonClass =
 		'flex size-8 shrink-0 items-center justify-center rounded-md text-destructive transition-[background-color,color,box-shadow,scale] hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96]';
 
+	let lastHandledDbcPickerRequest = 0;
+
 	$effect(() => {
 		if (focusSearchRequest === 0 || signalSearchForm === null) return;
 		const frame = requestAnimationFrame(() => {
@@ -111,9 +114,15 @@
 	});
 
 	$effect(() => {
-		if (openDbcPickerRequest === 0) return;
+		const request = consumeMountRequest(
+			openDbcPickerRequest,
+			lastHandledDbcPickerRequest,
+			dbcInput !== undefined
+		);
+		if (request === null) return;
 		const input = dbcInput;
 		if (input === undefined) return;
+		lastHandledDbcPickerRequest = request;
 		const frame = requestAnimationFrame(() => {
 			input.click();
 		});

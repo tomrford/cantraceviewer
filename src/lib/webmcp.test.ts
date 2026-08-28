@@ -7,6 +7,7 @@ import {
 	WEBMCP_SHORTCUT_TOOLS,
 	WEBMCP_TOOL_NAMES,
 	createWebMcpTools,
+	consumeMountRequest,
 	describeSession,
 	resolveSignalRefs,
 	runGatedShortcut,
@@ -89,7 +90,25 @@ describe('WebMCP session and search', () => {
 			}
 		]);
 		expect(summary.view.crosshairs).toEqual([{ id: 1, x: 100, y: 0 }]);
+		expect(summary.dbcLibrary).toEqual({ loaded: true, loading: false });
 		expect(JSON.stringify(summary)).not.toMatch(/timesMs|Float64Array|BO_/);
+	});
+
+	it('warns when the saved DBC library has not loaded yet', () => {
+		const summary = describeSession(
+			{ ...sessionSnapshot(), dbcLibrary: { loaded: false, loading: true }, dbcs: [] },
+			viewState()
+		);
+		expect(summary.dbcLibrary).toEqual({ loaded: false, loading: true });
+		expect(summary.notes.join(' ')).toMatch(/has not finished loading/);
+	});
+
+	it('consumes a picker request only once the target is mounted', () => {
+		expect(consumeMountRequest(0, 0, true)).toBeNull();
+		expect(consumeMountRequest(1, 0, false)).toBeNull();
+		expect(consumeMountRequest(1, 1, true)).toBeNull();
+		expect(consumeMountRequest(1, 0, true)).toBe(1);
+		expect(consumeMountRequest(2, 1, true)).toBe(2);
 	});
 
 	it('searches with the selector matcher and caps the result list', () => {
@@ -226,6 +245,32 @@ describe('WebMCP execute wrappers', () => {
 		await expect(tools.add_dbc.execute({}, abort())).resolves.toMatchObject({ ok: true });
 		expect(openDbcPicker).toHaveBeenCalledTimes(1);
 	});
+
+	it('refuses add_dbc while the DBC store is loading', async () => {
+		const openDbcPicker = vi.fn();
+		const tools = toolsByName(
+			fakeHost({
+				openDbcPicker,
+				dbcLibrary: () => ({ loaded: false, loading: true })
+			})
+		);
+		await expect(tools.add_dbc.execute({}, abort())).resolves.toEqual({
+			ok: false,
+			error: 'DBC files are still loading. Wait, then add a DBC.'
+		});
+		expect(openDbcPicker).not.toHaveBeenCalled();
+	});
+
+	it('flags incomplete search results while the library is loading', () => {
+		const result = searchCatalogSignals([], 'EngineSpeed', () => false, 25, {
+			loaded: false,
+			loading: true
+		});
+		expect(result.results).toEqual([]);
+		expect(result.libraryLoaded).toBe(false);
+		expect(result.libraryLoading).toBe(true);
+		expect(result.note).toMatch(/has not finished loading/);
+	});
 });
 
 describe('WebMCP registration', () => {
@@ -293,6 +338,7 @@ function fakeHost(overrides: Partial<WebMcpHost> = {}): WebMcpHost {
 			else selected.add(key);
 		}),
 		session: () => sessionSnapshot(),
+		dbcLibrary: () => ({ loaded: true, loading: false }),
 		exportPlot: vi.fn(async () => ({ ok: true })),
 		...overrides
 	};
@@ -344,6 +390,7 @@ function sessionSnapshot(): WebMcpSessionSnapshot {
 			warning: null
 		},
 		traceLoading: false,
+		dbcLibrary: { loaded: true, loading: false },
 		dbcs: [{ name: 'powertrain', origin: 'library', messageCount: 1, signalCount: 1 }],
 		plotted: [
 			{

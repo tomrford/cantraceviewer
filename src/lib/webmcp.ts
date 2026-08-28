@@ -103,6 +103,10 @@ function storeBackedHost(page: WebMcpPageHost): WebMcpHost {
 		],
 		isSignalSelected: (key) => plotData.isSignalSelected(key),
 		toggleSignal: (key) => plotData.toggleSignal(key),
+		dbcLibrary: () => ({
+			loaded: dbcFiles.hasLoadedLibrary,
+			loading: dbcFiles.isLoading
+		}),
 		session: () => {
 			const trace = traceFile.entry;
 			const nativeCount =
@@ -125,6 +129,10 @@ function storeBackedHost(page: WebMcpPageHost): WebMcpHost {
 								warning: traceFile.warning
 							},
 				traceLoading: traceFile.isLoading,
+				dbcLibrary: {
+					loaded: dbcFiles.hasLoadedLibrary,
+					loading: dbcFiles.isLoading
+				},
 				dbcs: dbcFiles.files.map((file) => ({
 					name: file.name.replace(/\.dbc$/i, ''),
 					origin: file.origin,
