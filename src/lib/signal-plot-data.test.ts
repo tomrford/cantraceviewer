@@ -3,13 +3,14 @@ import {
 	createSignalViewCache,
 	crosshairDeltaValue,
 	crosshairValue,
+	emptyAxisSeries,
 	formatAxisValue,
 	formatDecodedValue,
 	formatLegendNumericValue,
 	formatTimeDelta,
 	isOutsideDbcRange,
 	lineSeries,
-	lineSeriesForViews,
+	plotSeriesForViews,
 	renderIndexRange,
 	signalDomain,
 	type SignalView
@@ -67,20 +68,28 @@ describe('signal plot data', () => {
 		});
 	});
 
-	it('disables chart-side sampling and gates markers via the threshold', () => {
+	it('disables chart-side sampling for lines', () => {
 		const full = lineSeries({ ...view([0, 1, 2]), sampled: false }, 'y');
-		expect(full.type).toBe('line');
-		if (full.type !== 'line') throw new Error('expected line series');
 		expect(full.sampling).toBe('none');
-		expect(full.samplingThreshold).toBe(3);
-
-		const downsampled = lineSeries({ ...view([0, 1, 2]), sampled: true }, 'y');
-		if (downsampled.type !== 'line') throw new Error('expected line series');
-		expect(downsampled.samplingThreshold).toBe(2);
 	});
 
-	it('excludes empty lines from the chart series', () => {
-		const series = lineSeriesForViews(
+	it('adds sample markers only to full-resolution views', () => {
+		const fullView = { ...view([0, 1, 2]), sampled: false };
+		const downsampledView = { ...view([0, 1, 2]), sampled: true };
+		const series = plotSeriesForViews([fullView, downsampledView], () => 'y');
+
+		expect(series.map((entry) => entry.type)).toEqual(['line', 'scatter', 'line']);
+		const marker = series[1];
+		expect(marker).toMatchObject({
+			type: 'scatter',
+			data: { x: fullView.x, y: fullView.y },
+			symbolSize: 1.5,
+			sampling: 'none'
+		});
+	});
+
+	it('excludes empty views from the chart series', () => {
+		const series = plotSeriesForViews(
 			[
 				{ ...view([]), sampled: false },
 				{ ...view([0, 1]), sampled: false }
@@ -88,17 +97,30 @@ describe('signal plot data', () => {
 			() => 'y'
 		);
 
-		expect(series).toHaveLength(1);
+		expect(series.map((entry) => entry.type)).toEqual(['line', 'scatter']);
 	});
 
-	it('routes each line to the y axis its signal is assigned to', () => {
+	it('routes each signal series to its assigned y axis', () => {
 		const first = { ...view([0, 1]), key: 'a', sampled: false };
 		const second = { ...view([0, 1]), key: 'b', sampled: false };
-		const series = lineSeriesForViews([first, second], (candidate) =>
+		const series = plotSeriesForViews([first, second], (candidate) =>
 			candidate.key === 'b' ? 'y1' : 'y'
 		);
 
-		expect(series.map((entry) => entry.yAxis)).toEqual(['y', 'y1']);
+		expect(series.map((entry) => entry.yAxis)).toEqual(['y', 'y', 'y1', 'y1']);
+	});
+
+	it('keeps explicit axes alive with an invisible empty line', () => {
+		const series = emptyAxisSeries('y2');
+		expect(series).toMatchObject({
+			type: 'line',
+			yAxis: 'y2',
+			visible: false,
+			sampling: 'none'
+		});
+		const data = series.data as { x: Float64Array; y: Float64Array };
+		expect(data.x).toHaveLength(0);
+		expect(data.y).toHaveLength(0);
 	});
 
 	it('fits the domain across views from min/max scans', () => {

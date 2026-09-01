@@ -26,9 +26,10 @@
 		createSignalViewCache,
 		crosshairDeltaValue,
 		crosshairValue,
+		emptyAxisSeries,
 		EMPTY_AXIS_RANGE,
 		formatAxisTime,
-		lineSeriesForViews,
+		plotSeriesForViews,
 		signalYRange
 	} from '$lib/signal-plot-data.js';
 	import { PlotWindow } from '$lib/plot-window.svelte.js';
@@ -149,9 +150,13 @@
 	const activeViewport = $derived(viewport.activeViewport);
 	const plotWindow = new PlotWindow();
 	const windowedViews = $derived(plotWindow.viewsFor(signalViews, activeViewport));
-	const chartSeries = $derived(
-		lineSeriesForViews(windowedViews, (view) => axisIdByKey.get(view.key) ?? primaryAxisId)
-	);
+	const chartSeries = $derived.by(() => {
+		const series = plotSeriesForViews(
+			windowedViews,
+			(view) => axisIdByKey.get(view.key) ?? primaryAxisId
+		);
+		return series.length > 0 ? series : [emptyAxisSeries(primaryAxisId)];
+	});
 	// Visible bounds of every axis: the primary one is the viewport itself, the
 	// rest follow the same proportional y window over their own fit range.
 	const axisRanges = $derived.by(() => {
@@ -290,6 +295,9 @@
 		const axisTimestampMode = timestampMode.current;
 
 		return {
+			// PlotWindow owns the 50,000-point budget, so preserve configured line
+			// widths and sample-marker sizes instead of applying renderer-side LOD.
+			performance: { lod: 'strict' },
 			theme: {
 				backgroundColor: theme.background,
 				textColor: theme.text,

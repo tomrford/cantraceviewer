@@ -5,7 +5,6 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
-  chartgpu@0.3.3: d8e101bef704f1d675f9387ce3f8570cbc84317d0fe47b7b9051b92ec1538c5c
   svelte-check@4.7.1: 3c2f7a0fe65a25be4d9b4b0b09e3abfa407bfc3d169156b5579aa1a881d29825
 
 importers:
@@ -19,8 +18,8 @@ importers:
         specifier: 0.1.0
         version: 0.1.0
       chartgpu:
-        specifier: 0.3.3
-        version: 0.3.3(patch_hash=d8e101bef704f1d675f9387ce3f8570cbc84317d0fe47b7b9051b92ec1538c5c)
+        specifier: 0.4.0
+        version: 0.4.0
       idb:
         specifier: 8.0.3
         version: 8.0.3
@@ -1325,8 +1324,8 @@ packages:
     resolution: {integrity: sha512-NUPRluOfOiTKBKvWPtSD4PhFvWCqOi0BGStNWs57X9js7XGTprSmFoz5F0tWhR4WPjNeR9jXqdC7/UpSJTnlRg==}
     engines: {node: '>=18'}
 
-  chartgpu@0.3.3:
-    resolution: {integrity: sha512-3YkynBExehwcJsNVd2b0ZgriSrmc/kLi03kHrb0G4NsmkM1c1bGla7tO9kyAlvM25B6fTiiwzMBFj9P8Vc0QjA==}
+  chartgpu@0.4.0:
+    resolution: {integrity: sha512-NuqaXxT96u9VMYzluLAxyPY2EPTLs7IO9No9/uXplxUludx+u7A3ZGvgVEGsct/IxeyjkDqgnJmNtJmaqtlTKw==}
 
   chokidar@4.0.3:
     resolution: {integrity: sha512-Qgzu8kfBvo+cA4962jnP1KkS6Dop5NS6g7R5LFYJr4b8Ub94PPQXUksCw9PvXoeXPRRddRNC5C1JQUR2SMGtnA==}
@@ -3176,7 +3175,7 @@ snapshots:
 
   chai@6.2.2: {}
 
-  chartgpu@0.3.3(patch_hash=d8e101bef704f1d675f9387ce3f8570cbc84317d0fe47b7b9051b92ec1538c5c): {}
+  chartgpu@0.4.0: {}
 
   chokidar@4.0.3:
     dependencies:
