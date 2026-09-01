@@ -389,7 +389,7 @@
 								{:else if row.kind === 'message'}
 									<button
 										type="button"
-										class="flex h-7 w-full min-w-0 items-center gap-2 rounded-md border-s border-border px-2 text-left text-xs text-popover-foreground transition-[background-color,color,box-shadow] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
+										class="flex h-7 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs text-popover-foreground transition-[background-color,color,box-shadow] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
 										aria-expanded={row.message.expanded}
 										aria-label={row.message.expanded
 											? `Collapse ${row.message.name}`
@@ -415,7 +415,7 @@
 									{@const signalToggleId = `signal-toggle-${row.signal.key}`}
 									<Label
 										for={signalToggleId}
-										class="flex h-7 w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-s border-border px-2 text-left text-xs font-normal text-popover-foreground transition-[background-color,color,box-shadow] hover:bg-accent hover:text-accent-foreground"
+										class="flex h-7 w-full min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 text-left text-xs font-normal text-popover-foreground transition-[background-color,color,box-shadow] hover:bg-accent hover:text-accent-foreground"
 									>
 										<Checkbox
 											id={signalToggleId}
