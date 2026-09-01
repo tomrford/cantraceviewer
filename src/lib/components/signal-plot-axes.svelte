@@ -2,7 +2,9 @@
 	import {
 		axisGutterOffset,
 		axisTicks,
+		axisTicksAtRatios,
 		Y_AXIS_GUTTER,
+		type AxisTickGenerator,
 		type PlotGrid
 	} from '$lib/plot-axis-layout.js';
 	import type { YAxisId } from '$lib/plot-axes.js';
@@ -11,12 +13,14 @@
 
 	let {
 		axes,
+		generateTicks,
 		grid,
 		numbered,
 		ranges
 	}: {
 		/** Axes that hold signals, primary first. Empty axes get no gutter. */
 		axes: { id: YAxisId; index: number; label: string }[];
+		generateTicks: AxisTickGenerator;
 		grid: PlotGrid;
 		/** Whether the legend is showing axis sections, so the chips have a partner. */
 		numbered: boolean;
@@ -29,13 +33,19 @@
 	//
 	// The gutter's place in the stack follows the drawn axes rather than the axis
 	// list, so an empty axis in the middle does not leave a hole.
-	const columns = $derived(
-		axes.map((axis, position) => ({
+	const columns = $derived.by(() => {
+		const primaryAxis = axes[0];
+		const primaryTicks = axisTicks(
+			primaryAxis === undefined ? null : (ranges.get(primaryAxis.id) ?? null),
+			generateTicks
+		);
+		const ratios = primaryTicks.map((tick) => tick.ratio);
+		return axes.map((axis, position) => ({
 			...axis,
 			offset: axisGutterOffset(position, axes.length),
-			ticks: axisTicks(ranges.get(axis.id) ?? null)
-		}))
-	);
+			ticks: position === 0 ? primaryTicks : axisTicksAtRatios(ranges.get(axis.id) ?? null, ratios)
+		}));
+	});
 </script>
 
 <div class="pointer-events-none absolute inset-0 z-20">

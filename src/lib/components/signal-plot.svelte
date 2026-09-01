@@ -8,7 +8,7 @@
 		savePlotImage
 	} from '$lib/plot-image-export.js';
 	import type { PlotAxisRange, PlotPoint, PlotViewport } from '$lib/plot-viewport.js';
-	import { plotGrid } from '$lib/plot-axis-layout.js';
+	import { plotGrid, Y_TICK_COUNT, type AxisTickGenerator } from '$lib/plot-axis-layout.js';
 	import { FALLBACK_PLOT_THEME, resolvePlotTheme, type PlotTheme } from '$lib/plot-theme.js';
 	import { groupSignalsByYAxis, yAxisLabel, yAxisUnit, type YAxisId } from '$lib/plot-axes.js';
 	import { plotAxes } from '$lib/stores/plot-axes.svelte.js';
@@ -84,6 +84,7 @@
 	let plotRoot = $state<HTMLElement | null>(null);
 	let container = $state<HTMLDivElement | null>(null);
 	let chart: ChartGPUInstance | null = null;
+	let generateYAxisTicks = $state<AxisTickGenerator | null>(null);
 	let chartError = $state<string | null>(null);
 	let contextMenuPoint = $state<PlotPoint | null>(null);
 	let contextMenuCrosshairId = $state<CrosshairId | null>(null);
@@ -211,6 +212,7 @@
 			const mod = await import('chartgpu');
 			const createChart = mod.ChartGPU.create;
 			chart = await createChart(chartContainer, chartOptions());
+			generateYAxisTicks = mod.generateValueAxisTicks;
 
 			resizeObserver = new ResizeObserver(() => chart?.resize());
 			resizeObserver.observe(chartContainer);
@@ -332,6 +334,7 @@
 					position: 'left' as const,
 					min: axisRanges.get(axis.id)?.min,
 					max: axisRanges.get(axis.id)?.max,
+					tickCount: Y_TICK_COUNT,
 					tickFormatter: () => null
 				}))
 			},
@@ -545,8 +548,14 @@
 		></div>
 	{/if}
 
-	{#if hasPlottableSignals && plotReady}
-		<SignalPlotAxes axes={gutterAxes} {grid} numbered={axisViews.length > 1} ranges={axisRanges} />
+	{#if hasPlottableSignals && plotReady && generateYAxisTicks !== null}
+		<SignalPlotAxes
+			axes={gutterAxes}
+			generateTicks={generateYAxisTicks}
+			{grid}
+			numbered={axisViews.length > 1}
+			ranges={axisRanges}
+		/>
 	{/if}
 
 	{#if hasPlottableSignals && legendVisible}
@@ -571,7 +580,7 @@
 		<div
 			class={[
 				'absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-muted-foreground',
-				plotReady ? 'pointer-events-none z-30' : ''
+				plotReady ? 'pointer-events-auto z-30' : ''
 			]}
 		>
 			{#if !plotReady && chartError}
