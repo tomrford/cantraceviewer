@@ -8,7 +8,7 @@
 		savePlotImage
 	} from '$lib/plot-image-export.js';
 	import type { PlotAxisRange, PlotPoint, PlotViewport } from '$lib/plot-viewport.js';
-	import { plotGrid } from '$lib/plot-axis-layout.js';
+	import { plotGrid, Y_TICK_COUNT, type AxisTickGenerator } from '$lib/plot-axis-layout.js';
 	import { FALLBACK_PLOT_THEME, resolvePlotTheme, type PlotTheme } from '$lib/plot-theme.js';
 	import { groupSignalsByYAxis, yAxisLabel, yAxisUnit, type YAxisId } from '$lib/plot-axes.js';
 	import { plotAxes } from '$lib/stores/plot-axes.svelte.js';
@@ -26,9 +26,10 @@
 		createSignalViewCache,
 		crosshairDeltaValue,
 		crosshairValue,
+		emptyAxisSeries,
 		EMPTY_AXIS_RANGE,
 		formatAxisTime,
-		lineSeriesForViews,
+		plotSeriesForViews,
 		signalYRange
 	} from '$lib/signal-plot-data.js';
 	import { PlotWindow } from '$lib/plot-window.svelte.js';
@@ -83,6 +84,7 @@
 	let plotRoot = $state<HTMLElement | null>(null);
 	let container = $state<HTMLDivElement | null>(null);
 	let chart: ChartGPUInstance | null = null;
+	let generateYAxisTicks = $state<AxisTickGenerator | null>(null);
 	let chartError = $state<string | null>(null);
 	let contextMenuPoint = $state<PlotPoint | null>(null);
 	let contextMenuCrosshairId = $state<CrosshairId | null>(null);
@@ -149,9 +151,13 @@
 	const activeViewport = $derived(viewport.activeViewport);
 	const plotWindow = new PlotWindow();
 	const windowedViews = $derived(plotWindow.viewsFor(signalViews, activeViewport));
-	const chartSeries = $derived(
-		lineSeriesForViews(windowedViews, (view) => axisIdByKey.get(view.key) ?? primaryAxisId)
-	);
+	const chartSeries = $derived.by(() => {
+		const series = plotSeriesForViews(
+			windowedViews,
+			(view) => axisIdByKey.get(view.key) ?? primaryAxisId
+		);
+		return series.length > 0 ? series : [emptyAxisSeries(primaryAxisId)];
+	});
 	// Visible bounds of every axis: the primary one is the viewport itself, the
 	// rest follow the same proportional y window over their own fit range.
 	const axisRanges = $derived.by(() => {
@@ -206,6 +212,7 @@
 			const mod = await import('chartgpu');
 			const createChart = mod.ChartGPU.create;
 			chart = await createChart(chartContainer, chartOptions());
+			generateYAxisTicks = mod.generateValueAxisTicks;
 
 			resizeObserver = new ResizeObserver(() => chart?.resize());
 			resizeObserver.observe(chartContainer);
@@ -290,6 +297,9 @@
 		const axisTimestampMode = timestampMode.current;
 
 		return {
+			// PlotWindow owns the 50,000-point budget, so preserve configured line
+			// widths and sample-marker sizes instead of applying renderer-side LOD.
+			performance: { lod: 'strict' },
 			theme: {
 				backgroundColor: theme.background,
 				textColor: theme.text,
@@ -324,6 +334,7 @@
 					position: 'left' as const,
 					min: axisRanges.get(axis.id)?.min,
 					max: axisRanges.get(axis.id)?.max,
+					tickCount: Y_TICK_COUNT,
 					tickFormatter: () => null
 				}))
 			},
@@ -537,8 +548,16 @@
 		></div>
 	{/if}
 
-	{#if hasPlottableSignals && plotReady}
-		<SignalPlotAxes axes={gutterAxes} {grid} numbered={axisViews.length > 1} ranges={axisRanges} />
+	{#if hasPlottableSignals && plotReady && generateYAxisTicks !== null}
+		<SignalPlotAxes
+			axes={gutterAxes}
+			generateTicks={generateYAxisTicks}
+			{grid}
+			numbered={axisViews.length > 1}
+			{primaryAxisId}
+			primaryRange={axisRanges.get(primaryAxisId) ?? null}
+			ranges={axisRanges}
+		/>
 	{/if}
 
 	{#if hasPlottableSignals && legendVisible}
@@ -563,7 +582,7 @@
 		<div
 			class={[
 				'absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-muted-foreground',
-				plotReady ? 'pointer-events-none z-30' : ''
+				plotReady ? 'pointer-events-auto z-30' : ''
 			]}
 		>
 			{#if !plotReady && chartError}

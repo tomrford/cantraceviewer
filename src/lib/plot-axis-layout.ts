@@ -3,11 +3,7 @@ import type { PlotAxisRange } from './plot-viewport.js';
 /** Width of one y axis gutter in CSS pixels. */
 export const Y_AXIS_GUTTER = 64;
 
-/**
- * Rows of y tick labels. ChartGPU draws its horizontal grid lines at
- * `i / (count - 1)` across the plot area with the same default count, so
- * matching it here keeps every axis's labels sitting on the grid lines.
- */
+/** Preferred number of y tick labels and horizontal grid lines. */
 export const Y_TICK_COUNT = 5;
 
 export type PlotGrid = { left: number; right: number; top: number; bottom: number };
@@ -29,14 +25,29 @@ export function axisGutterOffset(index: number, axisCount: number): number {
 }
 
 export type AxisTick = { ratio: number; value: number };
+export type AxisTickGenerator = (min: number, max: number, count: number) => number[];
 
-/** Tick rows top-down: ratio 0 is the top of the plot area, 1 the bottom. */
-export function axisTicks(range: PlotAxisRange | null, count = Y_TICK_COUNT): AxisTick[] {
+/** Primary-axis tick rows, using the same nice-tick generator as ChartGPU. */
+export function axisTicks(
+	range: PlotAxisRange | null,
+	generateTicks: AxisTickGenerator,
+	count = Y_TICK_COUNT
+): AxisTick[] {
 	if (range === null || count < 1) return [];
 	const span = range.max - range.min;
+	if (!(span > 0) || count === 1) return [{ ratio: 0.5, value: (range.min + range.max) / 2 }];
 
-	return Array.from({ length: count }, (_, index) => {
-		const ratio = count === 1 ? 0.5 : index / (count - 1);
-		return { ratio, value: range.max - ratio * span };
-	});
+	return generateTicks(range.min, range.max, count)
+		.map((value) => ({ ratio: (range.max - value) / span, value }))
+		.reverse();
+}
+
+/** Secondary-axis values at the primary axis's shared horizontal grid rows. */
+export function axisTicksAtRatios(
+	range: PlotAxisRange | null,
+	ratios: readonly number[]
+): AxisTick[] {
+	if (range === null) return [];
+	const span = range.max - range.min;
+	return ratios.map((ratio) => ({ ratio, value: range.max - ratio * span }));
 }

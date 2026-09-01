@@ -2,7 +2,9 @@
 	import {
 		axisGutterOffset,
 		axisTicks,
+		axisTicksAtRatios,
 		Y_AXIS_GUTTER,
+		type AxisTickGenerator,
 		type PlotGrid
 	} from '$lib/plot-axis-layout.js';
 	import type { YAxisId } from '$lib/plot-axes.js';
@@ -11,15 +13,22 @@
 
 	let {
 		axes,
+		generateTicks,
 		grid,
 		numbered,
+		primaryAxisId,
+		primaryRange,
 		ranges
 	}: {
 		/** Axes that hold signals, primary first. Empty axes get no gutter. */
 		axes: { id: YAxisId; index: number; label: string }[];
+		generateTicks: AxisTickGenerator;
 		grid: PlotGrid;
 		/** Whether the legend is showing axis sections, so the chips have a partner. */
 		numbered: boolean;
+		/** The first ChartGPU axis, which drives the shared horizontal grid. */
+		primaryAxisId: YAxisId;
+		primaryRange: PlotAxisRange | null;
 		ranges: ReadonlyMap<YAxisId, PlotAxisRange>;
 	} = $props();
 
@@ -29,13 +38,18 @@
 	//
 	// The gutter's place in the stack follows the drawn axes rather than the axis
 	// list, so an empty axis in the middle does not leave a hole.
-	const columns = $derived(
-		axes.map((axis, position) => ({
+	const columns = $derived.by(() => {
+		const primaryTicks = axisTicks(primaryRange, generateTicks);
+		const ratios = primaryTicks.map((tick) => tick.ratio);
+		return axes.map((axis, position) => ({
 			...axis,
 			offset: axisGutterOffset(position, axes.length),
-			ticks: axisTicks(ranges.get(axis.id) ?? null)
-		}))
-	);
+			ticks:
+				axis.id === primaryAxisId
+					? primaryTicks
+					: axisTicksAtRatios(ranges.get(axis.id) ?? null, ratios)
+		}));
+	});
 </script>
 
 <div class="pointer-events-none absolute inset-0 z-20">

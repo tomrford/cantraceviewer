@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { generateValueAxisTicks } from 'chartgpu';
 import {
 	axisGutterOffset,
 	axisTicks,
+	axisTicksAtRatios,
 	plotGrid,
-	Y_AXIS_GUTTER,
-	Y_TICK_COUNT
+	Y_AXIS_GUTTER
 } from './plot-axis-layout.js';
 
 describe('plotGrid', () => {
@@ -28,20 +29,31 @@ describe('axisGutterOffset', () => {
 });
 
 describe('axisTicks', () => {
-	it('walks the range top-down on the grid line rows', () => {
-		expect(axisTicks({ min: 0, max: 100 }, 5)).toEqual([
-			{ ratio: 0, value: 100 },
-			{ ratio: 0.25, value: 75 },
-			{ ratio: 0.5, value: 50 },
-			{ ratio: 0.75, value: 25 },
-			{ ratio: 1, value: 0 }
-		]);
+	it('matches ChartGPU nice ticks and walks them top-down', () => {
+		const ticks = axisTicks({ min: 11.3, max: 38.8 }, generateValueAxisTicks, 5);
+		expect(ticks.map((tick) => tick.value)).toEqual([35, 30, 25, 20, 15]);
+		ticks.forEach((tick) => {
+			expect(tick.ratio).toBeCloseTo((38.8 - tick.value) / 27.5);
+		});
 	});
 
-	it('defaults to the grid line count and handles degenerate input', () => {
-		expect(axisTicks({ min: 0, max: 1 })).toHaveLength(Y_TICK_COUNT);
-		expect(axisTicks(null)).toEqual([]);
-		expect(axisTicks({ min: 0, max: 1 }, 0)).toEqual([]);
-		expect(axisTicks({ min: 5, max: 5 }, 1)).toEqual([{ ratio: 0.5, value: 5 }]);
+	it('uses the default tick hint and handles degenerate input', () => {
+		const ticks = axisTicks({ min: 0, max: 1 }, generateValueAxisTicks);
+		expect(ticks).toHaveLength(6);
+		ticks.forEach((tick, index) => expect(tick.value).toBeCloseTo(1 - index * 0.2));
+		expect(axisTicks(null, generateValueAxisTicks)).toEqual([]);
+		expect(axisTicks({ min: 0, max: 1 }, generateValueAxisTicks, 0)).toEqual([]);
+		expect(axisTicks({ min: 5, max: 5 }, generateValueAxisTicks, 1)).toEqual([
+			{ ratio: 0.5, value: 5 }
+		]);
+	});
+});
+
+describe('axisTicksAtRatios', () => {
+	it('maps a secondary range onto the primary grid rows', () => {
+		expect(axisTicksAtRatios({ min: 0, max: 200 }, [0.2, 0.6])).toEqual([
+			{ ratio: 0.2, value: 160 },
+			{ ratio: 0.6, value: 80 }
+		]);
 	});
 });
