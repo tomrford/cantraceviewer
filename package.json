@@ -69,6 +69,7 @@
 		"wrangler": "^4.107.0"
 	},
 	"dependencies": {
+		"@tanstack/charts": "0.16.0",
 		"@tanstack/svelte-virtual": "3.13.31",
 		"cantraceviewer": "0.1.0",
 		"chartgpu": "0.3.3",

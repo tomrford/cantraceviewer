@@ -12,6 +12,8 @@ packages:
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
   - cantraceviewer
+  # Spike-only: 0.16.0 is inside the 7-day age gate. Remove with the spike.
+  - '@tanstack/charts'
 patchedDependencies:
   chartgpu@0.3.3: patches/chartgpu@0.3.3.patch
   svelte-check@4.7.1: patches/svelte-check@4.7.1.patch
