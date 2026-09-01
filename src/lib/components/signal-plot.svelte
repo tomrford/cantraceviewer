@@ -554,6 +554,8 @@
 			generateTicks={generateYAxisTicks}
 			{grid}
 			numbered={axisViews.length > 1}
+			{primaryAxisId}
+			primaryRange={axisRanges.get(primaryAxisId) ?? null}
 			ranges={axisRanges}
 		/>
 	{/if}

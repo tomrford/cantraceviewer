@@ -16,6 +16,8 @@
 		generateTicks,
 		grid,
 		numbered,
+		primaryAxisId,
+		primaryRange,
 		ranges
 	}: {
 		/** Axes that hold signals, primary first. Empty axes get no gutter. */
@@ -24,6 +26,9 @@
 		grid: PlotGrid;
 		/** Whether the legend is showing axis sections, so the chips have a partner. */
 		numbered: boolean;
+		/** The first ChartGPU axis, which drives the shared horizontal grid. */
+		primaryAxisId: YAxisId;
+		primaryRange: PlotAxisRange | null;
 		ranges: ReadonlyMap<YAxisId, PlotAxisRange>;
 	} = $props();
 
@@ -34,16 +39,15 @@
 	// The gutter's place in the stack follows the drawn axes rather than the axis
 	// list, so an empty axis in the middle does not leave a hole.
 	const columns = $derived.by(() => {
-		const primaryAxis = axes[0];
-		const primaryTicks = axisTicks(
-			primaryAxis === undefined ? null : (ranges.get(primaryAxis.id) ?? null),
-			generateTicks
-		);
+		const primaryTicks = axisTicks(primaryRange, generateTicks);
 		const ratios = primaryTicks.map((tick) => tick.ratio);
 		return axes.map((axis, position) => ({
 			...axis,
 			offset: axisGutterOffset(position, axes.length),
-			ticks: position === 0 ? primaryTicks : axisTicksAtRatios(ranges.get(axis.id) ?? null, ratios)
+			ticks:
+				axis.id === primaryAxisId
+					? primaryTicks
+					: axisTicksAtRatios(ranges.get(axis.id) ?? null, ratios)
 		}));
 	});
 </script>
