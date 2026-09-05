@@ -16,7 +16,7 @@ Trace files and decoded series stay in memory for the current browser session. S
 
 The UI uses SvelteKit, Svelte 5, Node.js, pnpm, Tailwind, and shadcn-svelte style components. Rust code under `wasm/` compiles through wasm-bindgen for DBC parsing, trace parsing, and signal decoding. The published `cantraceviewer` package exposes asynchronous browser and Node clients plus a synchronous direct entry. This app uses an exact registry version of the browser client, which runs its WASM work in a dedicated Worker.
 
-Chrome 149+ and Edge 150+ can drive the plotter through WebMCP (`document.modelContext`) when `chrome://flags/#enable-webmcp-testing` is enabled, or when an origin trial is active. HTTPS or localhost is required. Agents still complete the browser file picker to open a trace or add a DBC; the page tools then search, select, zoom, and place crosshairs. Decoded sample arrays stay in the tab.
+Chrome 149+ and Edge 150+ can analyse a loaded trace through WebMCP (`document.modelContext`) when `chrome://flags/#enable-webmcp-testing` is enabled, or when an origin trial is active. HTTPS or localhost is required. Users load trace and DBC files with the visible browser controls. The page tools search and select signals, arrange up to five Y axes, set or reset the time window, place C1/C2 crosshairs and choose their legend readout. Numerical inspection reads a capped set of nearest decoded samples at explicit times or the current crosshairs without moving the plot. Use screenshots for signal shape and tool results for precise values and timestamps. Decoded sample arrays stay in the tab.
 
 ```sh
 nix develop -c pnpm install

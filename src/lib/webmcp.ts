@@ -1,39 +1,10 @@
-import {
-	capturePlotImage,
-	copyPlotImage,
-	plotImageFilename,
-	savePlotImage
-} from '$lib/plot-image-export.js';
 import { buildSelectorSearchIndexes, dbcFiles } from '$lib/stores/dbc-files.svelte.js';
 import { plotData } from '$lib/stores/plot-data.svelte.js';
 import { traceFile } from '$lib/stores/trace-file.svelte.js';
-import {
-	createWebMcpTools,
-	throwIfAborted,
-	type WebMcpHost,
-	type WebMcpTool
-} from '$lib/webmcp-tools.js';
-import type { CrosshairId } from '$lib/plot-crosshair.js';
-import type { ShortcutAction, ShortcutState } from '$lib/keyboard-shortcuts.js';
-import type { PlotViewport } from '$lib/plot-viewport.js';
-
-export type { WebMcpTool, WebMcpToolName } from '$lib/webmcp-tools.js';
-export { WEBMCP_SHORTCUT_TOOLS, WEBMCP_TOOL_NAMES } from '$lib/webmcp-tools.js';
-
-/** Page-owned actions the tools cannot read from stores alone. */
-export type WebMcpPageHost = {
-	shortcutState: () => ShortcutState;
-	runShortcut: (action: ShortcutAction) => void;
-	openDbcPicker: () => void;
-	placeCrosshair: (id: CrosshairId, x?: number) => { x: number; y: number } | null;
-	view: () => {
-		legendVisible: boolean;
-		boxZoomEnabled: boolean;
-		viewport: PlotViewport | null;
-		isFitAll: boolean;
-		crosshairs: ReadonlyArray<{ id: CrosshairId; x: number; y: number }>;
-	};
-};
+import { plotAxes } from '$lib/stores/plot-axes.svelte.js';
+import { PRIMARY_Y_AXIS_ID } from '$lib/plot-axes.js';
+import type { WebMcpPlotHost } from '$lib/webmcp-plot.js';
+import { createWebMcpTools, type WebMcpHost, type WebMcpTool } from '$lib/webmcp-tools.js';
 
 type ModelContext = {
 	registerTool: (
@@ -42,7 +13,7 @@ type ModelContext = {
 			title?: string;
 			description: string;
 			inputSchema?: object;
-			execute: (input: object, options: { signal: AbortSignal }) => Promise<unknown>;
+			execute: (input: object, options?: { signal?: AbortSignal }) => Promise<unknown>;
 			annotations?: { readOnlyHint?: boolean; untrustedContentHint?: boolean };
 		},
 		options?: { signal?: AbortSignal }
@@ -62,12 +33,9 @@ export function documentModelContext(): ModelContext | null {
 	return context;
 }
 
-/**
- * Feature-detect `document.modelContext` and register the draft tool set.
- * Aborting the returned controller unregisters every tool.
- */
+/** Feature-detect `document.modelContext` and register the bounded analysis tools. */
 export function mountWebMcp(
-	page: WebMcpPageHost,
+	page: WebMcpPlotHost,
 	context: ModelContext | null = documentModelContext()
 ): () => void {
 	if (context === null) return () => {};
@@ -94,13 +62,17 @@ export async function registerTools(
 	}
 }
 
-function storeBackedHost(page: WebMcpPageHost): WebMcpHost {
+function storeBackedHost(page: WebMcpPlotHost): WebMcpHost {
 	return {
 		...page,
 		signalCatalog: () => [
 			...buildSelectorSearchIndexes(dbcFiles.selectorFiles),
 			...traceFile.mf4SelectorIndexes
 		],
+		plottedSignals: () =>
+			plotData.signals.flatMap((signal) =>
+				signal.series === null ? [] : [{ ...signal, series: signal.series }]
+			),
 		isSignalSelected: (key) => plotData.isSignalSelected(key),
 		toggleSignal: (key) => plotData.toggleSignal(key),
 		dbcLibrary: () => ({
@@ -142,72 +114,25 @@ function storeBackedHost(page: WebMcpPageHost): WebMcpHost {
 						0
 					)
 				})),
-				plotted: plotData.signals.map((item) => {
-					const decode = plotData.signalDecodeStatus(item.key);
+				plotted: plotData.signals.map((signal) => {
+					const decode = plotData.signalDecodeStatus(signal.key);
 					return {
-						key: item.key,
-						label: item.label,
-						unit: item.unit,
+						key: signal.key,
+						label: signal.label,
+						unit: signal.unit,
+						axis:
+							plotAxes.ids.indexOf(plotAxes.assignment.get(signal.key) ?? PRIMARY_Y_AXIS_ID) + 1,
 						decodeStatus: decode.isDecoding
 							? ('decoding' as const)
 							: decode.decodeError !== null
 								? ('error' as const)
-								: item.series !== null
+								: signal.series !== null
 									? ('ready' as const)
 									: ('idle' as const),
 						decodeError: decode.decodeError
 					};
 				})
 			};
-		},
-		exportPlot: (destination, signal) => exportPlotFromDom(destination, signal)
-	};
-}
-
-async function exportPlotFromDom(
-	destination: 'copy' | 'save',
-	signal: AbortSignal
-): Promise<Record<string, unknown>> {
-	throwIfAborted(signal);
-	if (typeof document === 'undefined') {
-		return { ok: false, error: 'Plot export is only available in the browser.' };
-	}
-
-	const root = document.querySelector<HTMLElement>('[data-plot-export-root]');
-	if (root === null) {
-		return {
-			ok: false,
-			error: 'No plot is on screen. Open a trace and select signals first.'
-		};
-	}
-
-	try {
-		const image = capturePlotImage(root);
-		throwIfAborted(signal);
-		if (destination === 'copy') {
-			await copyPlotImage(image);
-			throwIfAborted(signal);
-			return {
-				ok: true,
-				destination,
-				message: 'Copied the current plot image to the clipboard. Image bytes are not returned.'
-			};
 		}
-
-		const filename = plotImageFilename(traceFile.displayName);
-		await savePlotImage(image, filename);
-		throwIfAborted(signal);
-		return {
-			ok: true,
-			destination,
-			filename,
-			message: `Triggered download of ${filename}. Image bytes are not returned.`
-		};
-	} catch (error) {
-		throwIfAborted(signal);
-		return {
-			ok: false,
-			error: error instanceof Error ? error.message : 'Plot export failed.'
-		};
-	}
+	};
 }

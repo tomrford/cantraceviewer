@@ -10,6 +10,7 @@ import {
 	formatTimeDelta,
 	isOutsideDbcRange,
 	lineSeries,
+	nearestSignalSample,
 	plotSeriesForViews,
 	renderIndexRange,
 	signalDomain,
@@ -247,6 +248,15 @@ describe('signal plot data', () => {
 			text: '15.0 V',
 			outOfRange: false
 		});
+	});
+
+	it('returns the nearest sample with ties resolved towards the earlier sample', () => {
+		const times = new Float64Array([0, 10, 20]);
+		const values = new Float64Array([5, 10, 25]);
+
+		expect(nearestSignalSample(times, values, 15)).toEqual({ timeMs: 10, value: 10 });
+		expect(nearestSignalSample(times, values, 19)).toEqual({ timeMs: 20, value: 25 });
+		expect(nearestSignalSample(times, values, Number.NaN)).toBeNull();
 	});
 
 	it('does not calculate numeric deltas for enumerated signals', () => {
