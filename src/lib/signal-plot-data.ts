@@ -33,6 +33,11 @@ export type LegendSignalValue = {
 	outOfRange: boolean;
 };
 
+export type SignalSample = {
+	timeMs: number;
+	value: number;
+};
+
 export type WindowedSignalView = SignalView & {
 	x: Float64Array<ArrayBufferLike>;
 	y: Float64Array<ArrayBufferLike>;
@@ -233,7 +238,7 @@ export function emptyAxisSeries(yAxis: YAxisId): LineSeriesConfig {
 }
 
 export function crosshairValue(view: SignalView, x: number): LegendSignalValue {
-	const formatted = formatDecodedValue(nearestValue(view, x), view);
+	const formatted = formatDecodedValue(nearestSignalSample(view.x, view.y, x)?.value ?? null, view);
 	return {
 		key: view.key,
 		text: formatted.text,
@@ -250,8 +255,8 @@ export function crosshairDeltaValue(
 		return { key: view.key, text: 'N/A', outOfRange: false };
 	}
 
-	const from = nearestValue(view, fromX);
-	const to = nearestValue(view, toX);
+	const from = nearestSignalSample(view.x, view.y, fromX)?.value ?? null;
+	const to = nearestSignalSample(view.x, view.y, toX)?.value ?? null;
 	if (from === null || to === null || !Number.isFinite(from) || !Number.isFinite(to)) {
 		return { key: view.key, text: '-', outOfRange: false };
 	}
@@ -420,20 +425,26 @@ function scanViewDomain(
 	return { xMin, xMax, yMin, yMax };
 }
 
-function nearestValue(view: SignalView, x: number): number | null {
-	if (view.points === 0) return null;
+export function nearestSignalSample(
+	timesMs: Float64Array<ArrayBufferLike>,
+	values: Float64Array<ArrayBufferLike>,
+	timeMs: number
+): SignalSample | null {
+	const points = Math.min(timesMs.length, values.length);
+	if (points === 0 || !Number.isFinite(timeMs)) return null;
 	let low = 0;
-	let high = view.points - 1;
+	let high = points - 1;
 
 	while (low < high) {
 		const mid = Math.floor((low + high) / 2);
-		if (view.x[mid] < x) low = mid + 1;
+		if (timesMs[mid] < timeMs) low = mid + 1;
 		else high = mid;
 	}
 
 	const previous = Math.max(0, low - 1);
-	const nearest = Math.abs(view.x[previous] - x) <= Math.abs(view.x[low] - x) ? previous : low;
-	return view.y[nearest];
+	const nearest =
+		Math.abs(timesMs[previous] - timeMs) <= Math.abs(timesMs[low] - timeMs) ? previous : low;
+	return { timeMs: timesMs[nearest], value: values[nearest] };
 }
 
 function visibleIndexRange(x: Float64Array<ArrayBufferLike>, xMin: number, xMax: number) {

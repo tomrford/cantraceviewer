@@ -42,6 +42,8 @@
 	import { plotData } from '$lib/stores/plot-data.svelte.js';
 	import { onTraceOpened } from '$lib/stores/session.js';
 	import { traceFile, type TraceFileEntry } from '$lib/stores/trace-file.svelte.js';
+	import { mountWebMcp } from '$lib/webmcp.js';
+	import { createWebMcpPlotHost } from '$lib/webmcp-plot.js';
 	import { TRACE_FILE_ACCEPT, TRACE_FILE_FORMAT_NAMES } from '$lib/trace-file-types.js';
 	import AudioWaveformIcon from '@lucide/svelte/icons/audio-waveform';
 	import CogIcon from '@lucide/svelte/icons/cog';
@@ -157,6 +159,22 @@
 		webgpuSupported = 'gpu' in navigator;
 		shortcutPlatform = detectShortcutPlatform(`${navigator.platform} ${navigator.userAgent}`);
 		void dbcFiles.loadLibrary();
+		return mountWebMcp(
+			createWebMcpPlotHost(plotViewport, {
+				get crosshairs() {
+					return crosshairs;
+				},
+				set crosshairs(value) {
+					crosshairs = value;
+				},
+				get readout() {
+					return legendCrosshairMode;
+				},
+				set readout(value) {
+					legendCrosshairMode = value;
+				}
+			})
+		);
 	});
 
 	function handleShortcut(event: KeyboardEvent): void {
@@ -236,12 +254,11 @@
 	function placeCrosshair(id: CrosshairId): void {
 		const activeViewport = plotViewport.activeViewport;
 		if (activeViewport === null) return;
-		crosshairs = setCrosshair(crosshairs, {
-			id,
-			...(plotPointerRatio === null
+		const point =
+			plotPointerRatio === null
 				? viewportCenter(activeViewport)
-				: dataPointAtRatio(activeViewport, plotPointerRatio))
-		});
+				: dataPointAtRatio(activeViewport, plotPointerRatio);
+		crosshairs = setCrosshair(crosshairs, { id, ...point });
 	}
 
 	async function startWalkthrough(): Promise<void> {
