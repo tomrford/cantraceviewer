@@ -3,8 +3,7 @@ import { deleteDB, openDB, type DBSchema, type IDBPDatabase } from 'idb';
 export type StoredDbc = {
 	id: string;
 	name: string;
-	text: string;
-};
+} & ({ bytes: Uint8Array; text?: never } | { text: string; bytes?: never });
 
 interface CanTraceViewerDatabase extends DBSchema {
 	'dbc-files': {
@@ -55,8 +54,9 @@ function isIndexedDbAvailable(): boolean {
 	return typeof indexedDB !== 'undefined' && typeof globalThis.crypto?.subtle !== 'undefined';
 }
 
-export async function storedDbcId(text: string): Promise<string> {
-	const bytes = new TextEncoder().encode(text);
+export async function storedDbcId(input: string | Uint8Array): Promise<string> {
+	const bytes =
+		typeof input === 'string' ? new TextEncoder().encode(input) : Uint8Array.from(input);
 	const digest = await crypto.subtle.digest('SHA-256', bytes);
 	return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
