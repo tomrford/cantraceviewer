@@ -449,6 +449,7 @@ function plottedSignal(
 		key,
 		label,
 		unit: overrides.unit ?? 'rpm',
+		valueType: 'integer' as const,
 		factor: 1,
 		offset: 0,
 		minimum: 0,
