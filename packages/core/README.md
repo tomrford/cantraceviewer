@@ -93,6 +93,34 @@ await client.close();
 
 The copy in this example creates an exact `ArrayBuffer`. If a Node buffer already spans an ordinary `ArrayBuffer` exactly, that underlying buffer can be passed directly.
 
+## Raw sources
+
+`trace.metadata.rawMessages` lists the distinct raw data-frame identifiers and their
+`source: { channel, direction }`. Channels retain the format's one-based number;
+`null` means unavailable or unspecified. Direction is `rx`, `tx`, or `unknown`.
+Numeric channels through 65535 are supported. Malformed text channel numbers are
+reported as skipped lines; they are never merged into a valid channel.
+
+Pass a source as the optional fifth argument to `getSignalValues` to decode only
+that channel and direction. Omitting it selects the sole source for the requested
+CAN identifier and standard/extended status. Multiple sources cause an error;
+an absent identifier or explicitly selected absent source returns empty arrays.
+
+```ts
+const series = await client.getSignalValues(dbc, trace.handle, message, signal.name, {
+	channel: 2,
+	direction: 'rx'
+});
+```
+
+Source identity is separate from DBC payload and frame-format matching. DLC and
+per-occurrence CAN FD flags do not split sources. Opening a trace builds its raw
+frame index to expose this catalogue; subsequent decoding reuses the index.
+
+Raw and MF4-native decoded series are chronological. Equal timestamps retain
+their order in the source, and trace duration uses the latest timestamp even
+when records arrive out of order.
+
 ## Handles and lifecycle
 
 DBC and trace handles are opaque and belong to the client that created them. A handle cannot be used with another client. Closing a handle is idempotent. Closing a client invalidates all of its remaining handles.

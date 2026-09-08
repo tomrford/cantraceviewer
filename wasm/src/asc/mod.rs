@@ -83,7 +83,9 @@ pub(crate) fn parse_bytes(bytes: &[u8]) -> Result<Trace, TraceError> {
                 .payloads
                 .extend_from_slice(&payload_buffer[..payload_len]);
             trace.data_frame_count += 1;
-            trace.last_data_timestamp_ns = Some(parsed_frame.timestamp_ns);
+            trace.last_data_timestamp_ns = trace
+                .last_data_timestamp_ns
+                .max(Some(parsed_frame.timestamp_ns));
         }
 
         trace.frames.push(parsed_frame);

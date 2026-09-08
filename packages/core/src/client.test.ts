@@ -70,6 +70,7 @@ function createFakeDirect() {
 			return {
 				handle: {} as TraceHandle,
 				metadata: {
+					rawMessages: [],
 					measurementStartMs: 7,
 					validMessageCount: bytes.length,
 					skippedLineCount: 0,
@@ -195,6 +196,7 @@ describe('createCanTraceClient worker transport', () => {
 		const trace = await client.openTrace('asc', buffer);
 		expect(buffer.byteLength).toBe(0); // transferred to the worker and detached here
 		expect(trace.metadata).toEqual({
+			rawMessages: [],
 			measurementStartMs: 7,
 			validMessageCount: 3,
 			skippedLineCount: 0,
