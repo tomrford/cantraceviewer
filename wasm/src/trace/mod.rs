@@ -6,7 +6,7 @@ mod time;
 
 pub(crate) use dlc::fd_payload_length_from_dlc;
 pub(crate) use error::TraceError;
-pub(crate) use frame::{CanId, Frame, FrameKind};
+pub(crate) use frame::{CanId, Direction, Frame, FrameKind, RawSource, parse_channel};
 pub(crate) use frame_index::FrameIndex;
 pub(crate) use time::{ExtraPrecision, days_from_civil, decimal_fraction_to_units};
 

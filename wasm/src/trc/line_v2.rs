@@ -1,4 +1,4 @@
-use crate::trace::{Frame, FrameKind, TraceError};
+use crate::trace::{Direction, Frame, FrameKind, RawSource, TraceError, parse_channel};
 
 use super::frame::{self, ColumnMap};
 
@@ -33,9 +33,20 @@ pub(super) fn parse_line(
         columns.record_type.expect("validated record type column"),
     );
 
+    let source = RawSource {
+        channel: columns
+            .bus
+            .map(|i| parse_channel(token_at(tokens, i).as_bytes()))
+            .transpose()?
+            .flatten(),
+        direction: columns.direction.map_or(Direction::Unknown, |i| {
+            Direction::from_text(token_at(tokens, i).as_bytes())
+        }),
+    };
     if is_non_data_record(record_type) {
         return Ok(Some(Frame {
             timestamp_ns,
+            source,
             kind: if record_type == "ER" {
                 FrameKind::Error
             } else {
@@ -50,6 +61,7 @@ pub(super) fn parse_line(
         Err(_) => {
             return Ok(Some(Frame {
                 timestamp_ns,
+                source,
                 kind: FrameKind::Unknown,
                 ..Frame::default()
             }));
@@ -59,6 +71,7 @@ pub(super) fn parse_line(
     if record_type == "RR" {
         return Ok(Some(Frame {
             timestamp_ns,
+            source,
             kind: FrameKind::Remote,
             id: Some(id),
             dlc: parse_length_or_dlc(columns, tokens, false),
@@ -70,6 +83,7 @@ pub(super) fn parse_line(
     if record_type != "DT" && !is_fd {
         return Ok(Some(Frame {
             timestamp_ns,
+            source,
             kind: FrameKind::Unknown,
             ..Frame::default()
         }));
@@ -105,6 +119,7 @@ pub(super) fn parse_line(
 
     Ok(Some(Frame {
         timestamp_ns,
+        source,
         kind: FrameKind::Data,
         id: Some(id),
         is_fd,
@@ -146,6 +161,18 @@ mod tests {
     use super::*;
 
     #[test]
+    fn keeps_an_absent_bus_explicit() {
+        let columns = ColumnMap::from_text("N,O,T,I,d,L,D").unwrap();
+        let mut payload = [0; 64];
+        let frame = parse_line(&columns, "1 1.000 DT 0123 Tx 1 55", &mut payload)
+            .unwrap()
+            .unwrap();
+        assert_eq!(frame.source.channel, None);
+        assert_eq!(frame.source.direction, Direction::Tx);
+        assert_eq!(payload[0], 85);
+    }
+
+    #[test]
     fn parses_classic_and_fd_records_through_columns() {
         let columns = ColumnMap::from_text("N,O,T,B,I,d,R,L,D").unwrap();
         let mut payload = [0_u8; 64];
@@ -153,6 +180,8 @@ mod tests {
         let classic = parse_line(&columns, "1 0.100 DT 1 0123 Rx - 2 AA BB", &mut payload)
             .unwrap()
             .unwrap();
+        assert_eq!(classic.source.channel.map(|v| v.get()), Some(1));
+        assert_eq!(classic.source.direction, Direction::Rx);
         assert_eq!(classic.kind, FrameKind::Data);
         assert!(!classic.is_fd);
         assert_eq!(classic.payload_len, 2);
@@ -160,12 +189,14 @@ mod tests {
 
         let fd = parse_line(
             &columns,
-            "2 0.200 FD 1 18FEE900 Rx - 9 01 02 03 04 05 06 07 08 09 0A 0B 0C",
+            "2 0.200 FD 2 18FEE900 Tx - 9 01 02 03 04 05 06 07 08 09 0A 0B 0C",
             &mut payload,
         )
         .unwrap()
         .unwrap();
         assert!(fd.is_fd);
+        assert_eq!(fd.source.channel.map(|v| v.get()), Some(2));
+        assert_eq!(fd.source.direction, Direction::Tx);
         assert_eq!(fd.payload_len, 12);
         assert_eq!(payload[11], 0x0c);
     }
