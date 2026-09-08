@@ -32,7 +32,7 @@ pub enum DbcError {
     },
     RawValueOutsideJsSafeIntegerRange(i64),
     UnsupportedMessageLength(u16),
-    UnsupportedMultiplexing,
+    InvalidDefinition(&'static str),
     UnsupportedSignalType,
     InvalidSignalBitLength(u16),
     SignalOutsideMessage,
@@ -96,9 +96,7 @@ impl fmt::Display for DbcError {
             Self::UnsupportedSignalType => {
                 formatter.write_str("named signal types can change decoding and are not supported")
             }
-            Self::UnsupportedMultiplexing => {
-                formatter.write_str("multiplexed DBC signals are not supported")
-            }
+            Self::InvalidDefinition(detail) => formatter.write_str(detail),
             Self::InvalidSignalBitLength(length) => {
                 write!(formatter, "invalid signal bit length: {length}")
             }
