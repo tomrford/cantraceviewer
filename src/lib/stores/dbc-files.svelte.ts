@@ -1,13 +1,16 @@
+import { traceFile } from './trace-file.svelte.js';
 import {
 	closeDbc,
 	openDbc,
 	type DbcHandle,
+	type DbcDiagnostic,
 	type DbcMessage,
 	type DbcMessageIdentity,
 	type DbcSignal,
 	type EmbeddedDbc,
 	type ParsedDbc
 } from '$lib/wasm.js';
+import type { RawMessage, RawSource } from '$lib/wasm.js';
 import {
 	deleteStoredDbc,
 	listStoredDbcs,
@@ -25,6 +28,7 @@ export type DbcFileEntry = {
 	name: string;
 	handle: DbcHandle;
 	catalog: ParsedDbc;
+	warnings: DbcDiagnostic[];
 	origin: 'library' | 'mf4';
 };
 
@@ -75,6 +79,7 @@ type SelectorTreeMessage = {
 };
 
 export type DbcSignalTarget = {
+	source?: RawSource;
 	file: DbcFileEntry;
 	message: DbcMessage;
 	signal: DbcSignal;
@@ -99,8 +104,13 @@ class DbcFilesStore {
 	isLoading = $state(false);
 	error = $state<string | null>(null);
 	hasLoadedLibrary = $state(false);
+	private libraryOperation = Promise.resolve();
 
-	signalTargetByKey = $derived.by(() => buildSignalTargetIndex(this.files));
+	private rawMessagesById = $derived(
+		Map.groupBy(traceFile.entry?.metadata.rawMessages ?? [], rawMessageIdentityKey)
+	);
+
+	signalTargetByKey = $derived.by(() => buildSignalTargetIndex(this.files, this.rawMessagesById));
 
 	selectorFiles = $derived.by<SelectorDbcFile[]>(() =>
 		this.files.map((entry) => ({
@@ -108,11 +118,15 @@ class DbcFilesStore {
 			name: displayDbcName(entry.name),
 			kind: 'dbc',
 			transient: entry.origin === 'mf4',
-			messages: entry.catalog.messages.map((message) => ({
-				key: selectorMessageKey(entry.id, message),
-				name: message.name,
-				signals: message.signals.map((signal) => selectorSignal(entry.id, message, signal))
-			}))
+			messages: entry.catalog.messages.flatMap((message) =>
+				sourceOptions(message, this.rawMessagesById).map((source) => ({
+					key: selectorMessageKey(entry.id, message, source),
+					name: message.name + sourceLabel(source),
+					signals: message.signals.map((signal) =>
+						selectorSignal(entry.id, message, signal, source)
+					)
+				}))
+			)
 		}))
 	);
 
@@ -177,11 +191,13 @@ class DbcFilesStore {
 		});
 	}
 
-	async addFiles(files: Iterable<File>): Promise<void> {
-		if (this.isLoading) return;
+	addFiles(files: Iterable<File>): Promise<void> {
+		if (this.isLoading) return Promise.resolve();
+		return this.runLibraryOperation(() => this.importFiles(files));
+	}
 
+	private async importFiles(files: Iterable<File>): Promise<void> {
 		this.error = null;
-		this.isLoading = true;
 		const candidates: DbcCandidate[] = [];
 		const seenIds: Record<string, true> = {};
 		for (const file of this.files) {
@@ -205,8 +221,6 @@ class DbcFilesStore {
 		} catch (error) {
 			await closeEntries(candidates.map((candidate) => candidate.entry));
 			this.error = error instanceof Error ? error.message : 'DBC load failed';
-		} finally {
-			this.isLoading = false;
 		}
 	}
 
@@ -253,22 +267,26 @@ class DbcFilesStore {
 		await Promise.all(handles.map((handle) => closeDbc(handle)));
 	}
 
-	async resetLibrary(): Promise<void> {
-		this.error = null;
-		this.hasLoadedLibrary = true;
-		await this.clear();
-		await resetStoredDbcs();
+	resetLibrary(): Promise<void> {
+		return this.runLibraryOperation(async () => {
+			this.error = null;
+			this.hasLoadedLibrary = true;
+			await this.clear();
+			await resetStoredDbcs();
+		});
 	}
 
 	clearError(): void {
 		this.error = null;
 	}
 
-	async loadLibrary(): Promise<void> {
-		if (this.hasLoadedLibrary || this.isLoading) return;
+	loadLibrary(): Promise<void> {
+		if (this.hasLoadedLibrary || this.isLoading) return Promise.resolve();
+		return this.runLibraryOperation(() => this.readLibrary());
+	}
 
+	private async readLibrary(): Promise<void> {
 		this.error = null;
-		this.isLoading = true;
 
 		const candidates: DbcFileEntry[] = [];
 		const failedNames: string[] = [];
@@ -289,8 +307,18 @@ class DbcFilesStore {
 			this.error = 'Saved DBC library could not be read.';
 		} finally {
 			this.hasLoadedLibrary = true;
-			this.isLoading = false;
 		}
+	}
+
+	// Reset runs after an in-flight read/import, including its persistent writes.
+	// Keep the loading gate held until the last queued operation has finished.
+	private runLibraryOperation(action: () => Promise<void>): Promise<void> {
+		this.isLoading = true;
+		const operation = this.libraryOperation.then(action, action);
+		this.libraryOperation = operation;
+		return operation.finally(() => {
+			if (this.libraryOperation === operation) this.isLoading = false;
+		});
 	}
 
 	private async storedFile(file: File): Promise<StoredDbc> {
@@ -299,15 +327,16 @@ class DbcFilesStore {
 
 		const bytes = new Uint8Array(await file.arrayBuffer());
 		assertTextFileContent(bytes, 'DBC');
-		const text = new TextDecoder().decode(bytes);
-		return { id: await storedDbcId(text), name: file.name, text };
+		return { id: await storedDbcId(bytes), name: file.name, bytes };
 	}
 
 	private async openStoredDbc(
 		dbc: StoredDbc,
 		origin: DbcFileEntry['origin'] = 'library'
 	): Promise<DbcCandidate> {
-		const { handle, catalog } = await openDbc(dbc.text);
+		const { handle, catalog, warnings } = await openDbc(dbc.bytes ?? dbc.text).catch((error) => {
+			throw new Error(`${dbc.name}: ${error instanceof Error ? error.message : 'DBC load failed'}`);
+		});
 
 		try {
 			assertUniqueMessageIdentities(dbc.name, catalog);
@@ -317,6 +346,7 @@ class DbcFilesStore {
 					name: dbc.name,
 					handle,
 					catalog,
+					warnings,
 					origin
 				},
 				stored: dbc
@@ -365,17 +395,23 @@ function displayDbcName(fileName: string): string {
 	return fileName.replace(/\.dbc$/i, '');
 }
 
-function buildSignalTargetIndex(files: DbcFileEntry[]): SignalTargetIndex {
+function buildSignalTargetIndex(
+	files: DbcFileEntry[],
+	rawMessages: Map<string, RawMessage[]>
+): SignalTargetIndex {
 	const index: SignalTargetIndex = {};
 
 	for (const file of files) {
 		for (const message of file.catalog.messages) {
-			for (const signal of message.signals) {
-				index[signalIdentityKey(file.id, message, signal.name)] = {
-					file,
-					message,
-					signal
-				};
+			for (const source of sourceOptions(message, rawMessages)) {
+				for (const signal of message.signals) {
+					index[signalIdentityKey(file.id, message, signal.name, source)] = {
+						file,
+						message,
+						signal,
+						source
+					};
+				}
 			}
 		}
 	}
@@ -407,29 +443,60 @@ function normalizeSelectorQuery(query: string): string {
 export function signalIdentityKey(
 	dbcFileId: string,
 	message: DbcMessageIdentity,
-	signalName: string
+	signalName: string,
+	source?: RawSource
 ): string {
-	return JSON.stringify([dbcFileId, messageIdentityKey(message), signalName]);
+	return JSON.stringify([
+		dbcFileId,
+		messageIdentityKey(message),
+		signalName,
+		...(source ? [source.channel, source.direction] : [])
+	]);
 }
 
-function selectorMessageKey(dbcFileId: string, message: DbcMessage): string {
-	return JSON.stringify([dbcFileId, messageIdentityKey(message)]);
+function selectorMessageKey(dbcFileId: string, message: DbcMessage, source?: RawSource): string {
+	return JSON.stringify([
+		dbcFileId,
+		messageIdentityKey(message),
+		...(source ? [source.channel, source.direction] : [])
+	]);
 }
 
 function selectorSignal(
 	dbcFileId: string,
 	message: DbcMessage,
-	signal: DbcSignal
+	signal: DbcSignal,
+	source?: RawSource
 ): SelectorDbcSignal {
-	const label = `${message.name}.${signal.name}`;
+	const label = `${message.name}.${signal.name}${sourceLabel(source)}`;
 
 	return {
-		key: signalIdentityKey(dbcFileId, message, signal.name),
+		key: signalIdentityKey(dbcFileId, message, signal.name, source),
 		label,
-		messageName: message.name,
+		messageName: message.name + sourceLabel(source),
 		signalName: signal.name,
 		arbitrationId: message.canId.toString(16)
 	};
+}
+
+function sourceOptions(
+	message: DbcMessage,
+	rawMessages: Map<string, RawMessage[]>
+): (RawSource | undefined)[] {
+	if (message.rawFrameDecodable === false) return [];
+	const matches = rawMessages.get(rawMessageIdentityKey(message)) ?? [];
+	return matches.length > 1 ? matches.map((raw) => raw.source) : [undefined];
+}
+
+function rawMessageIdentityKey(message: Pick<DbcMessageIdentity, 'canId' | 'isExtended'>): string {
+	return `${message.canId}:${message.isExtended}`;
+}
+
+export function sourceLabel(source?: RawSource): string {
+	if (!source) return '';
+	const channel = source.channel === null ? 'Unknown channel' : `Channel ${source.channel}`;
+	const direction = { unknown: 'unknown direction', rx: 'Rx', tx: 'Tx' }[source.direction];
+	return ` [${channel} · ${direction}]`;
 }
 
 async function closeEntries(entries: DbcFileEntry[]): Promise<void> {

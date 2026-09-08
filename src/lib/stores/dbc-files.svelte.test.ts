@@ -20,7 +20,9 @@ vi.mock('./dbc-library.js', () => ({
 	listStoredDbcs: vi.fn(() => Promise.resolve([])),
 	putStoredDbcs: vi.fn(() => Promise.resolve()),
 	resetStoredDbcs: vi.fn(() => Promise.resolve()),
-	storedDbcId: vi.fn((text: string) => Promise.resolve(text))
+	storedDbcId: vi.fn((input: string | Uint8Array) =>
+		Promise.resolve(typeof input === 'string' ? input : new TextDecoder().decode(input))
+	)
 }));
 
 const openDbcMock = openDbc as Mock<typeof openDbc>;
@@ -38,15 +40,75 @@ describe('dbcFiles', () => {
 		dbcFiles.hasLoadedLibrary = false;
 	});
 
+	it('retains legacy bytes and recoverable warnings in the library flow', async () => {
+		const bytes = new Uint8Array([0x42, 0x4f, 0x5f, 0x20, 0x80]);
+		const warnings = [
+			{
+				category: 'unsupported-record' as const,
+				keyword: 'CM_',
+				line: 3,
+				column: 2,
+				message: 'Record is not used by the viewer.'
+			}
+		];
+		openDbcMock.mockResolvedValueOnce({
+			...openDbcResult({} as DbcHandle, catalog(message())),
+			warnings
+		});
+		await dbcFiles.addFiles([new File([bytes], 'legacy.dbc')]);
+		expect(openDbcMock).toHaveBeenCalledExactlyOnceWith(bytes);
+		expect(vi.mocked(putStoredDbcs).mock.calls[0][0][0]).toMatchObject({
+			name: 'legacy.dbc',
+			bytes
+		});
+		expect(dbcFiles.files[0].warnings).toEqual(warnings);
+		expect(dbcFiles.error).toBeNull();
+	});
+
+	it('rejects an oversized DBC before reading file contents', async () => {
+		const oversized = new File([new Uint8Array(1024 * 1024 + 1)], 'large.dbc');
+		const read = vi.spyOn(oversized, 'arrayBuffer');
+		await dbcFiles.addFiles([oversized]);
+		expect(read).not.toHaveBeenCalled();
+		expect(openDbcMock).not.toHaveBeenCalled();
+		expect(dbcFiles.error).toContain('1 MiB');
+	});
+
+	it('keeps transport-only J1939 catalogued without offering raw plot targets', () => {
+		dbcFiles.files = [
+			dbcEntry({
+				messages: [
+					message({ name: 'Raw', signals: [signal()] }),
+					message({
+						name: 'Transport',
+						canId: 0x18f00400,
+						isExtended: true,
+						sizeBytes: 12,
+						frameFormat: 'j1939',
+						rawFrameDecodable: false,
+						j1939: { pgn: 0xf004, sourceAddress: 0, priority: 6 },
+						signals: [signal()]
+					})
+				]
+			})
+		];
+
+		expect(dbcFiles.files[0].catalog.messages).toHaveLength(2);
+		expect(dbcFiles.selectorFiles[0].messages.map((entry) => entry.name)).toEqual(['Raw']);
+		expect(Object.values(dbcFiles.signalTargetByKey).map((target) => target.message.name)).toEqual([
+			'Raw'
+		]);
+	});
+
 	it('reports an open failure without closing a handle', async () => {
 		openDbcMock.mockRejectedValueOnce(new Error('catalog failed'));
 
 		await dbcFiles.addFiles([file('broken.dbc', 'BO_ 1 Broken: 8 ECU')]);
 
-		expect(openDbcMock).toHaveBeenCalledWith('BO_ 1 Broken: 8 ECU');
+		expect(openDbcMock).toHaveBeenCalledWith(new TextEncoder().encode('BO_ 1 Broken: 8 ECU'));
 		expect(closeDbcMock).not.toHaveBeenCalled();
 		expect(dbcFiles.files).toEqual([]);
-		expect(dbcFiles.error).toBe('catalog failed');
+		expect(dbcFiles.error).toBe('broken.dbc: catalog failed');
 		expect(dbcFiles.isLoading).toBe(false);
 	});
 
@@ -117,7 +179,7 @@ describe('dbcFiles', () => {
 		openDbcMock.mockRejectedValueOnce(new Error('embedded catalog failed'));
 
 		await dbcFiles.addTransientDbcs(42, [{ name: 'broken.dbc', text: 'broken' }]);
-		expect(dbcFiles.error).toBe('embedded catalog failed');
+		expect(dbcFiles.error).toBe('broken.dbc: embedded catalog failed');
 
 		await dbcFiles.addTransientDbcs(43, []);
 
@@ -135,10 +197,10 @@ describe('dbcFiles', () => {
 		]);
 		await dbcFiles.addFiles([file('vehicle-again.dbc', 'same-content')]);
 
-		expect(openDbcMock).toHaveBeenCalledExactlyOnceWith('same-content');
+		expect(openDbcMock).toHaveBeenCalledExactlyOnceWith(new TextEncoder().encode('same-content'));
 		expect(closeDbcMock).not.toHaveBeenCalled();
 		expect(putStoredDbcsMock).toHaveBeenCalledExactlyOnceWith([
-			{ id: 'same-content', name: 'vehicle.dbc', text: 'same-content' }
+			{ id: 'same-content', name: 'vehicle.dbc', bytes: new TextEncoder().encode('same-content') }
 		]);
 		expect(dbcFiles.files).toHaveLength(1);
 		expect(dbcFiles.files[0]?.id).toBe('same-content');
@@ -579,6 +641,77 @@ describe('dbcFiles', () => {
 		expect(openDbcMock).not.toHaveBeenCalled();
 	});
 
+	it('waits for an earlier load before resetting its handles and storage', async () => {
+		const handle = dbcHandle(502);
+		let finishRead!: (stored: Awaited<ReturnType<typeof listStoredDbcs>>) => void;
+		listStoredDbcsMock.mockReturnValueOnce(
+			new Promise((resolve) => {
+				finishRead = resolve;
+			})
+		);
+		openDbcMock.mockResolvedValueOnce(openDbcResult(handle, catalog(message())));
+		const loading = dbcFiles.loadLibrary();
+		const resetting = dbcFiles.resetLibrary();
+		await vi.waitFor(() => expect(listStoredDbcsMock).toHaveBeenCalledOnce());
+		expect(dbcFiles.isLoading).toBe(true);
+		expect(resetStoredDbcsMock).not.toHaveBeenCalled();
+		finishRead([{ id: 'old', name: 'old.dbc', text: 'old' }]);
+		await Promise.all([loading, resetting]);
+		expect(dbcFiles.files).toEqual([]);
+		expect(closeDbcMock).toHaveBeenCalledExactlyOnceWith(handle);
+		expect(resetStoredDbcsMock).toHaveBeenCalledOnce();
+		expect(dbcFiles.isLoading).toBe(false);
+	});
+
+	it('finishes an in-flight import write before deleting the library', async () => {
+		const handle = dbcHandle(503);
+		let finishWrite!: () => void;
+		openDbcMock.mockResolvedValueOnce(openDbcResult(handle, catalog(message())));
+		putStoredDbcsMock.mockReturnValueOnce(
+			new Promise<void>((resolve) => {
+				finishWrite = resolve;
+			})
+		);
+		const importing = dbcFiles.addFiles([file('new.dbc', 'new')]);
+		await vi.waitFor(() => expect(putStoredDbcsMock).toHaveBeenCalledOnce());
+		const resetting = dbcFiles.resetLibrary();
+		expect(resetStoredDbcsMock).not.toHaveBeenCalled();
+		finishWrite();
+		await Promise.all([importing, resetting]);
+		expect(dbcFiles.files).toEqual([]);
+		expect(closeDbcMock).toHaveBeenCalledExactlyOnceWith(handle);
+		expect(resetStoredDbcsMock).toHaveBeenCalledOnce();
+		expect(dbcFiles.isLoading).toBe(false);
+	});
+
+	it('keeps imports blocked through a queued reset after the first reset fails', async () => {
+		let failReset!: (error: Error) => void;
+		let finishReset!: () => void;
+		resetStoredDbcsMock
+			.mockReturnValueOnce(
+				new Promise((_, reject) => {
+					failReset = reject;
+				})
+			)
+			.mockReturnValueOnce(
+				new Promise((resolve) => {
+					finishReset = resolve;
+				})
+			);
+		const first = dbcFiles.resetLibrary();
+		const second = dbcFiles.resetLibrary();
+		await vi.waitFor(() => expect(resetStoredDbcsMock).toHaveBeenCalledOnce());
+		failReset(new Error('storage unavailable'));
+		await expect(first).rejects.toThrow('storage unavailable');
+		await vi.waitFor(() => expect(resetStoredDbcsMock).toHaveBeenCalledTimes(2));
+		expect(dbcFiles.isLoading).toBe(true);
+		await dbcFiles.addFiles([file('ignored.dbc', 'ignored')]);
+		expect(openDbcMock).not.toHaveBeenCalled();
+		finishReset();
+		await second;
+		expect(dbcFiles.isLoading).toBe(false);
+	});
+
 	it('resets loaded DBC handles and the stored DBC library', async () => {
 		const handle = dbcHandle(501);
 		dbcFiles.files = [
@@ -587,6 +720,7 @@ describe('dbcFiles', () => {
 				name: 'stored.dbc',
 				handle,
 				catalog: catalog(message({ name: 'Stored' })),
+				warnings: [],
 				origin: 'library'
 			}
 		];
@@ -633,6 +767,7 @@ function dbcEntry({
 		name,
 		handle,
 		catalog: catalog(...messages),
+		warnings: [],
 		origin: 'library'
 	};
 }
