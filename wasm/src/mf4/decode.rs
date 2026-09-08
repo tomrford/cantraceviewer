@@ -109,6 +109,23 @@ pub(super) fn decode_native_signal(
         }
         Ok(())
     })?;
+    // Usually records are already chronological. Allocate a permutation only
+    // for out-of-order channels, keeping equal-time samples in record order.
+    if !times.is_sorted() {
+        let mut order: Vec<_> = (0..times.len()).collect();
+        order.sort_unstable_by(|&a, &b| {
+            if times[a] == times[b] {
+                a.cmp(&b)
+            } else {
+                times[a].total_cmp(&times[b])
+            }
+        });
+        return Ok(order
+            .iter()
+            .map(|&i| times[i])
+            .chain(order.iter().map(|&i| values[i]))
+            .collect());
+    }
     times.extend(values);
     Ok(times)
 }
@@ -236,6 +253,8 @@ struct RawPlan {
     data_length: Option<Channel>,
     data_bytes: Option<Channel>,
     edl: Option<Channel>,
+    bus: Option<Channel>,
+    direction: Option<Channel>,
 }
 
 fn raw_plan(group: &ChannelGroup) -> Option<RawPlan> {
@@ -273,6 +292,8 @@ fn raw_plan(group: &ChannelGroup) -> Option<RawPlan> {
         data_length: member("DataLength"),
         data_bytes: member("DataBytes"),
         edl: member("EDL"),
+        bus: member("BusChannel"),
+        direction: member("Dir"),
     })
 }
 
@@ -314,7 +335,26 @@ fn append_raw_frame(
         .as_ref()
         .map(|channel| decode_raw(record, channel))
         .transpose()?;
+    let metadata = |channel: &Option<Channel>| -> Result<Option<u64>, Mf4Error> {
+        channel
+            .as_ref()
+            .filter(|channel| channel_is_valid(record, group, channel))
+            .map(|channel| decode_raw(record, channel))
+            .transpose()
+    };
+    let source = crate::trace::RawSource {
+        channel: metadata(&plan.bus)?
+            .map(u16::try_from)
+            .transpose()
+            .map_err(|_| Mf4Error::InvalidRecord)?
+            .and_then(std::num::NonZeroU16::new),
+        direction: metadata(&plan.direction)?.map_or(
+            crate::trace::Direction::Unknown,
+            crate::trace::Direction::from_bit,
+        ),
+    };
     let mut frame = Frame {
+        source,
         timestamp_ns,
         kind: plan.kind,
         id: Some(id),
@@ -486,6 +526,81 @@ fn seconds_to_ns(seconds: f64) -> Result<u64, Mf4Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn preserves_raw_sources_and_missing_or_invalid_metadata() {
+        use crate::trace::Direction;
+        // A fixed 18-byte record: seconds f64, bus u16, ID u32, DLC u8,
+        // direction u8 (0=Rx, 1=Tx), payload u8, invalidation byte.
+        // The channel names, offsets and values are independent of append_raw_frame.
+        for prefix in ["CAN_DataFrame", "CAN_RemoteFrame", "CAN_ErrorFrame"] {
+            let channel = |name: &str, offset, bits, data_type| Channel {
+                address: 0,
+                name: format!("{prefix}.{name}"),
+                channel_type: 0,
+                sync_type: 0,
+                data_type,
+                bit_offset: 0,
+                byte_offset: offset,
+                bit_count: bits,
+                flags: 0,
+                invalidation_bit: 0,
+                conversion: Default::default(),
+                unit: String::new(),
+            };
+            let mut time = channel("time", 0, 64, 4);
+            time.channel_type = 2;
+            time.sync_type = 1;
+            let mut composite = channel("", 0, 0, 10);
+            composite.name = prefix.to_owned();
+            let mut group = ChannelGroup {
+                name: String::new(),
+                record_id: 0,
+                cycles: 1,
+                flags: 2,
+                sample_size: 17,
+                invalidation_size: 1,
+                is_can_bus: true,
+                channels: vec![
+                    time,
+                    composite,
+                    channel("BusChannel", 8, 16, 0),
+                    channel("ID", 10, 32, 0),
+                    channel("DLC", 14, 8, 0),
+                    channel("Dir", 15, 8, 0),
+                    channel("DataBytes", 16, 8, 10),
+                ],
+            };
+            let mut record = [0_u8; 18];
+            record[..8].copy_from_slice(&0.001_f64.to_le_bytes());
+            record[8..10].copy_from_slice(&65534_u16.to_le_bytes());
+            record[10..14].copy_from_slice(&291_u32.to_le_bytes());
+            record[14..17].copy_from_slice(&[1, 1, 85]);
+            let parse = |group: &ChannelGroup, record: &[u8]| {
+                let mut trace = Trace::default();
+                append_raw_frame(&mut trace, group, &raw_plan(group).unwrap(), record).unwrap();
+                trace.frames[0].source
+            };
+            let source = parse(&group, &record);
+            assert_eq!(source.channel.map(|value| value.get()), Some(65534));
+            assert_eq!(source.direction, Direction::Tx);
+            record[15] = 0;
+            assert_eq!(parse(&group, &record).direction, Direction::Rx);
+            record[15] = 2;
+            assert_eq!(parse(&group, &record).direction, Direction::Unknown);
+            for channel in &mut group.channels {
+                if channel.name.ends_with(".BusChannel") || channel.name.ends_with(".Dir") {
+                    channel.flags = 2;
+                }
+            }
+            record[17] = 1;
+            assert_eq!(parse(&group, &record), crate::trace::RawSource::default());
+            group.channels.retain(|channel| {
+                !channel.name.ends_with(".BusChannel") && !channel.name.ends_with(".Dir")
+            });
+            assert_eq!(parse(&group, &record), crate::trace::RawSource::default());
+        }
+    }
 
     #[test]
     fn infers_can_fd_from_long_payloads_when_edl_is_absent() {

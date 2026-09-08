@@ -12,6 +12,7 @@ import type {
 import type {
 	DbcHandle,
 	DbcMessageIdentity,
+	RawSource,
 	DecodedSignalSeries,
 	OpenDbcResult,
 	OpenTraceResult,
@@ -45,7 +46,8 @@ export type CanTraceClient = {
 		dbcHandle: DbcHandle,
 		traceHandle: TraceHandle,
 		messageIdentity: DbcMessageIdentity,
-		signalName: string
+		signalName: string,
+		source?: RawSource
 	): Promise<DecodedSignalSeries>;
 	getMf4SignalValues(traceHandle: TraceHandle, signalId: number): Promise<DecodedSignalSeries>;
 	/**
@@ -209,13 +211,13 @@ export async function createRpcClient(
 			if (traceId === null) return;
 			await sendClose({ op: 'closeTrace', traceId });
 		},
-		async getSignalValues(dbcHandle, traceHandle, messageIdentity, signalName) {
+		async getSignalValues(dbcHandle, traceHandle, messageIdentity, signalName, source) {
 			assertOpen();
 			const dbcId = handles.payload('dbc', dbcHandle);
 			const traceId = handles.payload('trace', traceHandle);
 			return unpackSeries(
 				await send<SeriesPayload>(
-					{ op: 'getSignalValues', dbcId, traceId, messageIdentity, signalName },
+					{ op: 'getSignalValues', dbcId, traceId, messageIdentity, signalName, source },
 					[]
 				)
 			);

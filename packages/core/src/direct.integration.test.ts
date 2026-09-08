@@ -32,41 +32,95 @@ afterAll(() => {
 });
 
 describe('cantraceviewer/direct', () => {
-	it('returns resolved mux metadata and activity-filtered WASM samples', async () => {
-		const dbc = client.openDbc(
-			await readFile(resolve(fixturesDir, 'nested-selectors.dbc'), 'utf8')
-		);
+	it('selects channels and directions independently, including unknown metadata', () => {
+		const dbc = client.openDbc('BO_ 291 Example: 1 ECU\n SG_ Value : 0|8@1+ (1,0) [0|255] "" ECU');
 		const trace = client.openTrace(
 			'asc',
 			new TextEncoder().encode(
-				'base hex timestamps absolute\n0.001 1 123 Rx d 4 01 03 00 64\n0.002 1 123 Rx d 4 02 03 00 64\n0.003 1 123 Rx d 4 02 05 ff 9c'
+				'base hex timestamps absolute\n0.001 1 123 Rx d 1 11\n0.002 2 123 Rx d 1 22\n0.003 1 123 Tx d 1 33\n0.004 1 123x Rx d 1 44\n0.005 0 123 ? d 1 55'
 			)
 		);
+		const message = { canId: 291, isExtended: false, sizeBytes: 1 };
 		try {
-			expect(dbc.catalog.messages[0]).toMatchObject({
-				frameFormat: 'standard-can',
-				rawFrameDecodable: true
-			});
-			expect(dbc.catalog.messages[0].signals[2].multiplex).toEqual({
-				selector: 'Child',
-				ranges: [
-					{ first: '3', last: '5' },
-					{ first: '9', last: '9' }
-				]
-			});
-			const series = client.getSignalValues(
-				dbc.handle,
-				trace.handle,
-				{ canId: 291, isExtended: false, sizeBytes: 4 },
-				'Data'
+			expect(trace.metadata.rawMessages).toEqual([
+				{ canId: 291, isExtended: false, source: { channel: null, direction: 'unknown' } },
+				{ canId: 291, isExtended: false, source: { channel: 1, direction: 'rx' } },
+				{ canId: 291, isExtended: false, source: { channel: 1, direction: 'tx' } },
+				{ canId: 291, isExtended: false, source: { channel: 2, direction: 'rx' } },
+				{ canId: 291, isExtended: true, source: { channel: 1, direction: 'rx' } }
+			]);
+			expect(() => client.getSignalValues(dbc.handle, trace.handle, message, 'Value')).toThrow(
+				'Multiple raw sources'
 			);
-			expect(Array.from(series.timesMs)).toEqual([2, 3]);
-			expect(Array.from(series.values)).toEqual([40, -60]);
+			for (const [source, expected] of [
+				[{ channel: 1, direction: 'rx' }, 17],
+				[{ channel: 2, direction: 'rx' }, 34],
+				[{ channel: 1, direction: 'tx' }, 51],
+				[{ channel: null, direction: 'unknown' }, 85]
+			] as const) {
+				expect(
+					Array.from(
+						client.getSignalValues(dbc.handle, trace.handle, message, 'Value', source).values
+					)
+				).toEqual([expected]);
+			}
+			for (const channel of [0, -1, 65536, 1.5, NaN]) {
+				expect(() =>
+					client.getSignalValues(dbc.handle, trace.handle, message, 'Value', {
+						channel,
+						direction: 'rx'
+					})
+				).toThrow('Invalid raw source');
+			}
 		} finally {
 			client.closeTrace(trace.handle);
 			client.closeDbc(dbc.handle);
 		}
 	});
+
+	it.each([
+		['standard-can', 0, [2, 3], [40, -60]],
+		['standard-can-fd', 14, [4], [50]]
+	] as const)(
+		'orders selected-source %s mux samples',
+		async (frameFormat, format, times, values) => {
+			const dbc = client.openDbc(
+				(await readFile(resolve(fixturesDir, 'nested-selectors.dbc'), 'utf8')) +
+					`\nBA_ "VFrameFormat" BO_ 291 ${format};`
+			);
+			const trace = client.openTrace(
+				'asc',
+				new TextEncoder().encode(
+					'base hex timestamps absolute\n0.003 1 123 Rx d 4 02 05 ff 9c\n0.001 1 123 Rx d 4 01 03 00 64\n0.002 2 123 Rx d 4 02 03 00 80\n0.002 1 123 Rx d 4 02 03 00 64\n0.004 CANFD 1 Rx 123 - 1 0 4 4 02 03 00 78\n0.005 1 123 Tx d 4 02 03 00 10'
+				)
+			);
+			try {
+				expect(dbc.catalog.messages[0]).toMatchObject({
+					frameFormat,
+					rawFrameDecodable: true
+				});
+				expect(dbc.catalog.messages[0].signals[2].multiplex).toEqual({
+					selector: 'Child',
+					ranges: [
+						{ first: '3', last: '5' },
+						{ first: '9', last: '9' }
+					]
+				});
+				const series = client.getSignalValues(
+					dbc.handle,
+					trace.handle,
+					{ canId: 291, isExtended: false, sizeBytes: 4 },
+					'Data',
+					{ channel: 1, direction: 'rx' }
+				);
+				expect(Array.from(series.timesMs)).toEqual(times);
+				expect(Array.from(series.values)).toEqual(values);
+			} finally {
+				client.closeTrace(trace.handle);
+				client.closeDbc(dbc.handle);
+			}
+		}
+	);
 
 	it('initializes and answers every operation synchronously', () => {
 		const openedDbc: OpenDbcResult = client.openDbc(dbcText);
@@ -101,7 +155,7 @@ describe('cantraceviewer/direct', () => {
 				signedness: 'unsigned',
 				valueType: 'integer'
 			});
-			expect(metadata).toEqual({
+			expect(metadata).toMatchObject({
 				measurementStartMs: 1777550400000,
 				validMessageCount: 1506,
 				skippedLineCount: 0,
@@ -124,6 +178,92 @@ describe('cantraceviewer/direct', () => {
 			client.closeDbc(dbc);
 		}
 	});
+
+	it.each(['asc', 'trc', 'blf'] as const)(
+		'orders %s samples without losing equal-time records',
+		(format) => {
+			const rows = [
+				[300, 3],
+				[100, 1],
+				[200, 2],
+				[100, 4]
+			];
+			const bytes =
+				format === 'blf'
+					? concatBytes(
+							blfFileHeader(),
+							blfContainer(
+								concatBytes(
+									...rows.map(([time, value]) => blfCanMessage(time * 1_000_000, 0x123, [value]))
+								)
+							)
+						)
+					: new TextEncoder().encode(
+							format === 'asc'
+								? 'base hex timestamps absolute\n' +
+										rows
+											.map(([time, value]) => (time / 1000).toFixed(3) + ' 1 123 Rx d 1 0' + value)
+											.join('\n')
+								: ';$FILEVERSION=1.1\n' +
+										rows
+											.map(
+												([time, value], index) => index + 1 + ' ' + time + ' Rx 0123 1 0' + value
+											)
+											.join('\n')
+						);
+			const dbc = client.openDbc(
+				'BO_ 291 Example: 1 ECU\n SG_ Value : 0|8@1+ (1,0) [0|255] "" ECU'
+			);
+			const trace = client.openTrace(format, bytes);
+			try {
+				expect(trace.metadata).toMatchObject({
+					validMessageCount: 4,
+					skippedLineCount: 0,
+					durationNs: 300_000_000
+				});
+				const series = client.getSignalValues(
+					dbc.handle,
+					trace.handle,
+					{ canId: 0x123, isExtended: false, sizeBytes: 1 },
+					'Value'
+				);
+				expect(Array.from(series.timesMs)).toEqual([100, 100, 200, 300]);
+				expect(Array.from(series.values)).toEqual([1, 4, 2, 3]);
+			} finally {
+				client.closeTrace(trace.handle);
+				client.closeDbc(dbc.handle);
+			}
+		}
+	);
+
+	it.each([0.1, 0])(
+		'orders native MF4 samples while retaining equal-time values at %s',
+		async (time) => {
+			const bytes = new Uint8Array(
+				await readFile(resolve(fixturesDir, 'mf4/decoded-channels.mf4'))
+			);
+			// This fixture's DT payload has three 24-byte records, each beginning with f64 seconds.
+			const records = new DataView(bytes.buffer, bytes.byteOffset + 272, 72);
+			records.setFloat64(0, 0.3, true);
+			records.setFloat64(24, time, true);
+			records.setFloat64(48, time === 0 ? -0 : time, true);
+			const trace = client.openTrace('mf4', bytes);
+			try {
+				expect(trace.metadata.durationNs).toBe(300_000_000);
+				const series = client.getMf4SignalValues(trace.handle, 0);
+				expect(Array.from(series.timesMs)).toEqual([
+					time * 1000,
+					time === 0 ? -0 : time * 1000,
+					300
+				]);
+				expect(Array.from(series.values)).toEqual([25, 37.5, 12.5]);
+				expect(series.timesMs.buffer).toBe(series.values.buffer);
+				expect(series.timesMs.buffer.byteLength).toBe(48);
+			} finally {
+				client.closeTrace(trace.handle);
+			}
+		}
+	);
 
 	it('parses and decodes a PCAN TRC trace', () => {
 		const { handle: dbc } = openFixtureDbc();
@@ -158,7 +298,7 @@ describe('cantraceviewer/direct', () => {
 		const opened = client.openTrace('blf', generatedBlfTrace());
 		const compressed = client.openTrace('blf', generatedCompressedBlfTrace());
 		try {
-			expect(opened.metadata).toEqual({
+			expect(opened.metadata).toMatchObject({
 				measurementStartMs: 1778494830400,
 				validMessageCount: 2,
 				skippedLineCount: 0,

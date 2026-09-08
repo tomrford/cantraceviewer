@@ -13,12 +13,14 @@ use crate::trace::{Frame, FrameIndex, Trace};
 #[derive(Debug)]
 pub(crate) enum SeriesError {
     SignalNotFound,
+    Source(&'static str),
     Decode(DbcError),
 }
 
 impl fmt::Display for SeriesError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Source(message) => formatter.write_str(message),
             Self::SignalNotFound => formatter.write_str("Signal not found in DBC"),
             Self::Decode(error) => error.fmt(formatter),
         }
@@ -28,7 +30,7 @@ impl fmt::Display for SeriesError {
 impl StdError for SeriesError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
-            Self::SignalNotFound => None,
+            Self::SignalNotFound | Self::Source(_) => None,
             Self::Decode(error) => Some(error),
         }
     }
@@ -40,6 +42,7 @@ impl From<DbcError> for SeriesError {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn selected_signal_values(
     dbc: &Dbc,
     trace: &Trace,
@@ -48,6 +51,7 @@ pub(crate) fn selected_signal_values(
     is_extended: bool,
     size_bytes: u16,
     signal_name: &str,
+    source: Option<crate::trace::RawSource>,
 ) -> Result<Vec<f64>, SeriesError> {
     let (message, signal) = dbc
         .find_signal(can_id, is_extended, size_bytes, signal_name)
@@ -59,7 +63,14 @@ pub(crate) fn selected_signal_values(
         .into());
     }
     let plan = signal.plan_decode(message.size_bytes)?;
-    let lookup = index.lookup(message.can_id, message.is_extended, message.size_bytes);
+    let lookup = index
+        .lookup(
+            message.can_id,
+            message.is_extended,
+            message.size_bytes,
+            source,
+        )
+        .map_err(SeriesError::Source)?;
     let frame_indices = lookup.frame_indices;
 
     let all_frames_carry =
@@ -125,7 +136,52 @@ mod tests {
         let dbc = Dbc::parse(dbc_text).unwrap();
         let trace = asc::parse(asc_text).unwrap();
         let index = FrameIndex::build(&trace.frames);
-        selected_signal_values(&dbc, &trace, &index, 0x123, false, size, signal).unwrap()
+        selected_signal_values(&dbc, &trace, &index, 0x123, false, size, signal, None).unwrap()
+    }
+
+    #[test]
+    fn separates_sources_and_rejects_ambiguous_selection() {
+        use crate::trace::{Direction, RawSource};
+        let dbc = Dbc::parse("BO_ 291 Example: 1 ECU\n SG_ Value : 0|8@1+ (1,0) [0|255] \"\" ECU")
+            .unwrap();
+        let trace = asc::parse("base hex timestamps absolute\n0.005 1 123 Rx d 1 55\n0.002 2 123 Rx d 1 22\n0.003 1 123 Tx d 1 33\n0.004 1 123x Rx d 1 44\n0.001 1 123 Rx d 1 11\n0.001 1 123 Rx d 1 77\n0.006 0 123 ? d 1 66").unwrap();
+        let index = FrameIndex::build(&trace.frames);
+        assert!(matches!(
+            selected_signal_values(&dbc, &trace, &index, 291, false, 1, "Value", None),
+            Err(SeriesError::Source(_))
+        ));
+        for (channel, direction, expected) in [
+            (
+                Some(1),
+                Direction::Rx,
+                vec![1.0, 1.0, 5.0, 17.0, 119.0, 85.0],
+            ),
+            (Some(2), Direction::Rx, vec![2.0, 34.0]),
+            (Some(1), Direction::Tx, vec![3.0, 51.0]),
+            (None, Direction::Unknown, vec![6.0, 102.0]),
+            (Some(3), Direction::Rx, vec![]),
+        ] {
+            let source = RawSource {
+                channel: channel.and_then(std::num::NonZeroU16::new),
+                direction,
+            };
+            assert_eq!(
+                selected_signal_values(&dbc, &trace, &index, 291, false, 1, "Value", Some(source))
+                    .unwrap(),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn orders_mixed_payload_lengths_and_preserves_equal_time_values() {
+        let values = decode(
+            "BO_ 291 Example: 2 ECU\n SG_ Value : 0|16@1+ (1,0) [0|65535] \"\" ECU",
+            "base hex timestamps absolute\n0.300 1 123 Rx d 2 03 00\n0.100 1 123 Rx d 8 01 00 00 00 00 00 00 00\n0.200 1 123 Rx d 1 ff\n0.100 1 123 Rx d 2 04 00",
+            2,
+            "Value",
+        );
+        assert_eq!(values, [100.0, 100.0, 300.0, 1.0, 4.0, 3.0]);
     }
 
     #[test]
@@ -176,6 +232,7 @@ mod tests {
                 true,
                 size,
                 "Value",
+                None,
             )
             .unwrap_err()
             .to_string();
@@ -269,11 +326,13 @@ mod tests {
         let index = FrameIndex::build(&trace.frames);
 
         assert_eq!(
-            selected_signal_values(&dbc, &trace, &index, 0x123, false, 8, "ClassicSpeed").unwrap(),
+            selected_signal_values(&dbc, &trace, &index, 0x123, false, 8, "ClassicSpeed", None)
+                .unwrap(),
             [1.0, 2.0, 1.0, 2.0]
         );
         assert_eq!(
-            selected_signal_values(&dbc, &trace, &index, 0x123, false, 12, "FdSpeed").unwrap(),
+            selected_signal_values(&dbc, &trace, &index, 0x123, false, 12, "FdSpeed", None)
+                .unwrap(),
             [3.0, 3.0]
         );
     }

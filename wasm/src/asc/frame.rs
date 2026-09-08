@@ -1,4 +1,4 @@
-use crate::trace::{CanId, Frame, FrameKind, TraceError};
+use crate::trace::{CanId, Direction, Frame, FrameKind, RawSource, TraceError, parse_channel};
 
 pub(crate) use crate::trace::fd_payload_length_from_dlc;
 
@@ -95,6 +95,10 @@ pub(crate) fn parse_line(
         return Ok(Some(Frame {
             timestamp_ns,
             kind: FrameKind::Error,
+            source: RawSource {
+                channel: parse_channel(first)?,
+                direction: Direction::Unknown,
+            },
             ..Frame::default()
         }));
     }
@@ -109,9 +113,13 @@ pub(crate) fn parse_line(
             }));
         }
     };
-    if tokens.next().is_none() {
+    let Some(direction) = tokens.next() else {
         return Ok(Some(unknown_frame(timestamp_ns)));
-    }
+    };
+    let source = RawSource {
+        channel: parse_channel(first)?,
+        direction: Direction::from_text(direction),
+    };
     let Some(frame_kind) = tokens.next() else {
         return Ok(Some(unknown_frame(timestamp_ns)));
     };
@@ -129,6 +137,7 @@ pub(crate) fn parse_line(
                 timestamp_ns,
                 kind: FrameKind::Data,
                 id: Some(id),
+                source,
                 dlc,
                 payload_len: dlc,
                 ..Frame::default()
@@ -140,6 +149,7 @@ pub(crate) fn parse_line(
                 timestamp_ns,
                 kind: FrameKind::Remote,
                 id: Some(id),
+                source,
                 dlc,
                 ..Frame::default()
             }))
@@ -154,8 +164,9 @@ fn parse_can_fd(
     tokens: &mut LineTokens<'_>,
     payload_out: &mut [u8; 64],
 ) -> Result<Frame, TraceError> {
-    tokens.next().ok_or(TraceError::InvalidFrameLine)?;
-    tokens.next().ok_or(TraceError::InvalidFrameLine)?;
+    let channel = parse_channel(tokens.next().ok_or(TraceError::InvalidFrameLine)?)?;
+    let direction = Direction::from_text(tokens.next().ok_or(TraceError::InvalidFrameLine)?);
+    let source = RawSource { channel, direction };
     let id = parse_id(base, tokens.next().ok_or(TraceError::InvalidFrameLine)?)?;
     let after_id = tokens.next().ok_or(TraceError::InvalidFrameLine)?;
     if !is_unsigned_decimal(after_id) {
@@ -176,6 +187,7 @@ fn parse_can_fd(
         timestamp_ns,
         kind: FrameKind::Data,
         id: Some(id),
+        source,
         is_fd: true,
         dlc,
         payload_len,
@@ -303,6 +315,8 @@ mod tests {
         let data = parse_line(Base::Hex, "0.003040 1 123 Rx d 2 AA bb", &mut payload)
             .unwrap()
             .unwrap();
+        assert_eq!(data.source.channel.map(|v| v.get()), Some(1));
+        assert_eq!(data.source.direction, Direction::Rx);
         assert_eq!(data.timestamp_ns, 3_040_000);
         assert_eq!(data.kind, FrameKind::Data);
         assert_eq!(data.id, Some(CanId::standard(0x123).unwrap()));
@@ -330,10 +344,12 @@ mod tests {
     #[test]
     fn parses_extended_classic_frame() {
         let mut payload = [0_u8; 64];
-        let frame = parse_line(Base::Hex, "1.0 CAN_A 18fee900x Tx d 1 55", &mut payload)
+        let frame = parse_line(Base::Hex, "1.0 2 18fee900x Tx d 1 55", &mut payload)
             .unwrap()
             .unwrap();
         assert_eq!(frame.id, Some(CanId::extended(0x18fee900).unwrap()));
+        assert_eq!(frame.source.channel.map(|v| v.get()), Some(2));
+        assert_eq!(frame.source.direction, Direction::Tx);
     }
 
     #[test]
@@ -347,6 +363,8 @@ mod tests {
         .unwrap()
         .unwrap();
         assert!(symbolic.is_fd);
+        assert_eq!(symbolic.source.channel.map(|v| v.get()), Some(1));
+        assert_eq!(symbolic.source.direction, Direction::Rx);
         assert_eq!(symbolic.dlc, 9);
         assert_eq!(symbolic.payload_len, 12);
         assert_eq!(payload[11], 0x0c);
@@ -373,6 +391,26 @@ mod tests {
             ),
             Err(TraceError::InvalidPayloadLength)
         );
+    }
+
+    #[test]
+    fn rejects_malformed_channels_instead_of_merging_them() {
+        let mut payload = [0; 64];
+        for channel in ["CAN_A", "-1", "65536"] {
+            assert!(
+                parse_line(
+                    Base::Hex,
+                    format!("1.0 {channel} 123 Rx d 1 55"),
+                    &mut payload
+                )
+                .is_err()
+            );
+        }
+        let frame = parse_line(Base::Hex, "1.0 0 123 Rx d 1 55", &mut payload)
+            .unwrap()
+            .unwrap();
+        assert_eq!(frame.source.channel, None);
+        assert_eq!(frame.source.direction, Direction::Rx);
     }
 
     #[test]
