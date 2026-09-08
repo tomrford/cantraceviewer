@@ -5,8 +5,7 @@ use super::{Dbc, Message, Signal};
 /// Serializes the parsed DBC catalog consumed by the signal picker.
 ///
 /// This is intentionally a UI catalog rather than a full DBC interchange
-/// format. Unsupported multiplexed signals remain in the parsed model but are
-/// omitted from this browser-facing projection.
+/// format. Selector bounds are decimal strings to preserve all 64 wire bits.
 pub fn to_json(parsed: &Dbc) -> String {
     let mut output = String::new();
     output.push_str("{\"messages\":[");
@@ -29,16 +28,34 @@ fn write_message(output: &mut String, message: &Message) {
         .expect("writing to String cannot fail");
     write!(output, ",\"isFd\":{}", message.is_fd).expect("writing to String cannot fail");
     write!(output, ",\"sizeBytes\":{}", message.size_bytes).expect("writing to String cannot fail");
+    write_string_value_field(output, "frameFormat", message.frame_format);
+    write!(
+        output,
+        ",\"rawFrameDecodable\":{}",
+        message.raw_frame_decodable()
+    )
+    .unwrap();
+    if message.frame_format == "j1939" {
+        let mut pgn = (message.can_id >> 8) & 0x3ffff;
+        if (pgn >> 8) & 0xff < 240 {
+            pgn &= 0x3ff00;
+        }
+        write!(
+            output,
+            ",\"j1939\":{{\"pgn\":{pgn},\"sourceAddress\":{},\"priority\":{}}}",
+            message.can_id & 0xff,
+            message.can_id >> 26
+        )
+        .unwrap();
+    } else {
+        output.push_str(",\"j1939\":null");
+    }
     output.push_str(",\"transmitter\":");
     write_json_string(output, &message.transmitter);
 
     output.push_str(",\"signals\":[");
     let mut first = true;
-    for signal in message
-        .signals
-        .iter()
-        .filter(|signal| !signal.unsupported_mux)
-    {
+    for signal in &message.signals {
         if !first {
             output.push(',');
         }
@@ -62,8 +79,22 @@ fn write_signal(output: &mut String, signal: &Signal) {
     output.push_str(",\"unit\":");
     write_json_string(output, &signal.unit);
     write_string_value_field(output, "valueType", signal.value_type.as_catalog_str());
-    write!(output, ",\"unsupportedMux\":{}", signal.unsupported_mux)
-        .expect("writing to String cannot fail");
+    write!(output, ",\"isMultiplexer\":{}", signal.is_multiplexer).unwrap();
+    output.push_str(",\"multiplex\":");
+    if let Some(condition) = &signal.multiplex {
+        output.push('{');
+        write_string_field(output, "selector", &condition.selector);
+        output.push_str(",\"ranges\":[");
+        for (index, (first, last)) in condition.ranges.iter().enumerate() {
+            if index != 0 {
+                output.push(',');
+            }
+            write!(output, "{{\"first\":\"{first}\",\"last\":\"{last}\"}}").unwrap();
+        }
+        output.push_str("]}");
+    } else {
+        output.push_str("null");
+    }
 
     output.push_str(",\"receivers\":[");
     for (index, receiver) in signal.receivers.iter().enumerate() {
@@ -158,28 +189,28 @@ VAL_ 100 State 0 "Off" 1 "On";
 
         assert_eq!(
             json,
-            r#"{"messages":[{"name":"Example","dbcId":100,"canId":100,"isExtended":false,"isFd":false,"sizeBytes":8,"transmitter":"ECU","signals":[{"name":"State","startBit":0,"bitLength":8,"endianness":"intel","signedness":"unsigned","factor":1,"offset":0,"minimum":0,"maximum":255,"unit":"","valueType":"integer","unsupportedMux":false,"receivers":["DASH"],"valueDescriptions":[{"rawValue":0,"label":"Off"},{"rawValue":1,"label":"On"}]}]}]}"#
+            r#"{"messages":[{"name":"Example","dbcId":100,"canId":100,"isExtended":false,"isFd":false,"sizeBytes":8,"frameFormat":"standard-can","rawFrameDecodable":true,"j1939":null,"transmitter":"ECU","signals":[{"name":"State","startBit":0,"bitLength":8,"endianness":"intel","signedness":"unsigned","factor":1,"offset":0,"minimum":0,"maximum":255,"unit":"","valueType":"integer","isMultiplexer":false,"multiplex":null,"receivers":["DASH"],"valueDescriptions":[{"rawValue":0,"label":"Off"},{"rawValue":1,"label":"On"}]}]}]}"#
         );
     }
 
     #[test]
-    fn omits_unsupported_multiplexed_signals() {
+    fn includes_multiplexed_signals() {
         let parsed = Dbc::parse(
             r#"
 BO_ 100 Example: 8 ECU
- SG_ Visible : 0|8@1+ (1,0) [0|255] "" DASH
+ SG_ Visible M : 0|8@1+ (1,0) [0|255] "" DASH
  SG_ Hidden m1 : 8|8@1+ (1,0) [0|255] "" DASH
 "#,
         )
         .unwrap();
 
         assert_eq!(parsed.messages[0].signals.len(), 2);
-        assert!(parsed.messages[0].signals[1].unsupported_mux);
+        assert!(parsed.messages[0].signals[1].multiplex.is_some());
 
         let json = to_json(&parsed);
         assert!(json.contains("\"Visible\""));
-        assert!(!json.contains("\"Hidden\""));
-        assert!(json.contains("\"unsupportedMux\":false"));
+        assert!(json.contains("\"Hidden\""));
+        assert!(json.contains("\"selector\":\"Visible\""));
     }
 
     #[test]

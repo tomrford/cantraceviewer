@@ -32,6 +32,42 @@ afterAll(() => {
 });
 
 describe('cantraceviewer/direct', () => {
+	it('returns resolved mux metadata and activity-filtered WASM samples', async () => {
+		const dbc = client.openDbc(
+			await readFile(resolve(fixturesDir, 'nested-selectors.dbc'), 'utf8')
+		);
+		const trace = client.openTrace(
+			'asc',
+			new TextEncoder().encode(
+				'base hex timestamps absolute\n0.001 1 123 Rx d 4 01 03 00 64\n0.002 1 123 Rx d 4 02 03 00 64\n0.003 1 123 Rx d 4 02 05 ff 9c'
+			)
+		);
+		try {
+			expect(dbc.catalog.messages[0]).toMatchObject({
+				frameFormat: 'standard-can',
+				rawFrameDecodable: true
+			});
+			expect(dbc.catalog.messages[0].signals[2].multiplex).toEqual({
+				selector: 'Child',
+				ranges: [
+					{ first: '3', last: '5' },
+					{ first: '9', last: '9' }
+				]
+			});
+			const series = client.getSignalValues(
+				dbc.handle,
+				trace.handle,
+				{ canId: 291, isExtended: false, sizeBytes: 4 },
+				'Data'
+			);
+			expect(Array.from(series.timesMs)).toEqual([2, 3]);
+			expect(Array.from(series.values)).toEqual([40, -60]);
+		} finally {
+			client.closeTrace(trace.handle);
+			client.closeDbc(dbc.handle);
+		}
+	});
+
 	it('initializes and answers every operation synchronously', () => {
 		const openedDbc: OpenDbcResult = client.openDbc(dbcText);
 		const openedTrace: OpenTraceResult = client.openTrace('asc', ascBytes);

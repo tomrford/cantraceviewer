@@ -7,7 +7,7 @@
 use std::error::Error as StdError;
 use std::fmt;
 
-use crate::dbc::{Dbc, DbcError, Message};
+use crate::dbc::{ActivityPlan, Dbc, DbcError, Message};
 use crate::trace::{Frame, FrameIndex, Trace};
 
 #[derive(Debug)]
@@ -52,64 +52,42 @@ pub(crate) fn selected_signal_values(
     let (message, signal) = dbc
         .find_signal(can_id, is_extended, size_bytes, signal_name)
         .ok_or(SeriesError::SignalNotFound)?;
+    if !message.raw_frame_decodable() {
+        return Err(DbcError::InvalidDefinition(
+            "Message requires transport reassembly or a payload longer than 64 bytes",
+        )
+        .into());
+    }
     let plan = signal.plan_decode(message.size_bytes)?;
     let lookup = index.lookup(message.can_id, message.is_extended, message.size_bytes);
     let frame_indices = lookup.frame_indices;
 
-    let sample_count = if lookup.all_frames_carry {
+    let all_frames_carry =
+        lookup.all_frames_carry && !message.format_explicit && signal.multiplex.is_none();
+    let activity = ActivityPlan::new(message, signal)?;
+    let compatible = frame_indices.iter().filter_map(|&frame_index| {
+        let frame = &trace.frames[frame_index as usize];
+        let payload = if all_frames_carry {
+            let start = frame.payload_offset as usize;
+            &trace.payloads[start..start + usize::from(message.size_bytes)]
+        } else {
+            payload_prefix_for_message(trace, frame, message)?
+        };
+        activity.active(payload).then_some((frame, payload))
+    });
+    let count = if all_frames_carry {
         frame_indices.len()
     } else {
-        frame_indices
-            .iter()
-            .filter(|&&frame_index| {
-                trace
-                    .frames
-                    .get(frame_index as usize)
-                    .and_then(|frame| payload_prefix_for_message(trace, frame, message))
-                    .is_some()
-            })
-            .count()
+        compatible.clone().count()
     };
-
-    let mut packed = vec![0.0; sample_count * 2];
-    let (times, values) = packed.split_at_mut(sample_count);
-
-    if lookup.all_frames_carry {
-        for ((time, value), &frame_index) in
-            times.iter_mut().zip(values.iter_mut()).zip(frame_indices)
-        {
-            let frame = &trace.frames[frame_index as usize];
-            let payload = payload_for_compatible_frame(trace, frame, message.size_bytes);
-            *time = frame.timestamp_ns as f64 / 1_000_000.0;
-            *value = plan.decode(payload)?;
-        }
-    } else {
-        let compatible_frames = frame_indices.iter().filter_map(|&frame_index| {
-            let frame = trace.frames.get(frame_index as usize)?;
-            let payload = payload_prefix_for_message(trace, frame, message)?;
-            Some((frame, payload))
-        });
-        for ((time, value), (frame, payload)) in times
-            .iter_mut()
-            .zip(values.iter_mut())
-            .zip(compatible_frames)
-        {
-            *time = frame.timestamp_ns as f64 / 1_000_000.0;
-            *value = plan.decode(payload)?;
-        }
+    let mut packed = vec![0.0; count * 2];
+    let (times, values) = packed.split_at_mut(count);
+    for ((time, value), (frame, payload)) in times.iter_mut().zip(values).zip(compatible) {
+        *time = frame.timestamp_ns as f64 / 1_000_000.0;
+        *value = plan.decode(payload)?;
     }
 
     Ok(packed)
-}
-
-fn payload_for_compatible_frame<'a>(
-    trace: &'a Trace,
-    frame: &Frame,
-    message_size_bytes: u16,
-) -> &'a [u8] {
-    let start = frame.payload_offset as usize;
-    let end = start + usize::from(message_size_bytes);
-    &trace.payloads[start..end]
 }
 
 fn payload_prefix_for_message<'a>(
@@ -125,6 +103,9 @@ fn payload_prefix_for_message<'a>(
 }
 
 fn frame_can_carry_message(frame: &Frame, message: &Message) -> bool {
+    if message.format_explicit && frame.is_fd != message.is_fd {
+        return false;
+    }
     let payload_len = u16::from(frame.payload_len);
     if frame.is_fd {
         return payload_len == message.size_bytes;
@@ -145,6 +126,110 @@ mod tests {
         let trace = asc::parse(asc_text).unwrap();
         let index = FrameIndex::build(&trace.frames);
         selected_signal_values(&dbc, &trace, &index, 0x123, false, size, signal).unwrap()
+    }
+
+    #[test]
+    fn comments_do_not_change_multiplex_activity() {
+        let base = "BO_ 291 M: 2 ECU\n SG_ Mode M : 0|8@1+ (1,0) [0|255] \"\" ECU\n SG_ Value m1 : 8|8@1+ (1,0) [0|255] \"\" ECU\n";
+        let trace =
+            "base hex timestamps absolute\n0.001 1 123 Rx d 2 01 11\n0.002 1 123 Rx d 2 02 22";
+        let comment = "CM_ \"An example, not a definition:\nSG_MUL_VAL_ 291 Value Mode 1-2;\n\";\n";
+        assert_eq!(
+            decode(&format!("{base}{comment}"), trace, 2, "Value"),
+            [1.0, 17.0]
+        );
+        let ranges = "SG_MUL_VAL_\n 291 Value Mode\n 1 - 2;\n";
+        assert_eq!(
+            decode(&format!("{base}{ranges}"), trace, 2, "Value"),
+            [1.0, 2.0, 17.0, 34.0]
+        );
+    }
+
+    #[test]
+    fn multiline_frame_format_selects_fd_instead_of_classical_samples() {
+        let dbc = "BO_ 291 M: 1 ECU\n SG_ Value : 0|8@1+ (1,0) [0|255] \"\" ECU\nBA_DEF_ BO_ \"VFrameFormat\" ENUM\n \"StandardCAN_FD\", \"StandardCAN\";\nBA_ \"VFrameFormat\"\n BO_ 291 0;\n";
+        let trace = "base hex timestamps absolute\n0.001 1 123 Rx d 1 11\n0.002 CANFD 1 Rx 123 - 1 0 1 1 22";
+        assert_eq!(decode(dbc, trace, 1, "Value"), [2.0, 34.0]);
+    }
+
+    #[test]
+    fn simple_motorola_selector_compares_wire_value_and_omits_inactive_frames() {
+        let dbc = "BO_ 291 Simple: 2 ECU\n SG_ Mode M : 7|2@0+ (10,100) [0|0] \"\" ECU\n SG_ Value m2 : 8|8@1+ (2,-1) [0|0] \"\" ECU";
+        let trace = "base hex timestamps absolute\n0.001 1 123 Rx d 2 80 05\n0.002 1 123 Rx d 2 40 ff\n0.003 1 123 Rx d 2 bf 08";
+        assert_eq!(decode(dbc, trace, 2, "Value"), [1.0, 3.0, 9.0, 15.0]);
+    }
+
+    #[test]
+    fn long_j1939_catalogue_does_not_enable_partial_raw_frame_decoding() {
+        for size in [9, 1785] {
+            let dbc = Dbc::parse(&format!("BO_ 2566834942 Long: {size} ECU\n SG_ Value : 0|8@1+ (1,0) [0|0] \"\" ECU\nBA_ \"ProtocolType\" \"J1939\";")).unwrap();
+            let trace = asc::parse(
+                "base hex timestamps absolute\n0.001 1 18fecafex Rx d 8 01 00 00 00 00 00 00 00",
+            )
+            .unwrap();
+            let index = FrameIndex::build(&trace.frames);
+            let error = selected_signal_values(
+                &dbc,
+                &trace,
+                &index,
+                dbc.messages[0].can_id,
+                true,
+                size,
+                "Value",
+            )
+            .unwrap_err()
+            .to_string();
+            assert!(error.contains("transport reassembly"), "{error}");
+        }
+    }
+
+    #[test]
+    fn filters_nested_activity_before_decoding_signed_scaled_values() {
+        let dbc = include_str!("../tests/fixtures/nested-selectors.dbc");
+        let trace = "base hex timestamps absolute\n0.001 1 123 Rx d 4 01 03 00 64\n0.002 1 123 Rx d 4 02 03 00 64\n0.003 1 123 Rx d 4 02 05 ff 9c\n0.004 1 123 Rx d 4 02 06 00 64\n0.005 1 123 Rx d 4 02 09 01 00";
+        assert_eq!(
+            decode(dbc, trace, 4, "Data"),
+            [2.0, 3.0, 5.0, 40.0, -60.0, 118.0]
+        );
+        assert_eq!(
+            decode(dbc, trace, 4, "Child"),
+            [2.0, 3.0, 4.0, 5.0, 106.0, 110.0, 112.0, 118.0]
+        );
+    }
+
+    #[test]
+    fn declared_short_fd_and_classic_formats_filter_same_length_frames() {
+        let base = "BO_ 291 Example: 2 ECU\n SG_ Value : 0|16@1+ (1,0) [0|0] \"\" ECU\n";
+        let trace = "base hex timestamps absolute\n0.001 1 123 Rx d 2 34 12\n0.002 CANFD 1 Rx 123 - 1 0 2 2 78 56";
+        assert_eq!(
+            decode(
+                &format!("{base}BA_ \"VFrameFormat\" BO_ 291 14;"),
+                trace,
+                2,
+                "Value"
+            ),
+            [2.0, 22136.0]
+        );
+        assert_eq!(
+            decode(
+                &format!("{base}BA_ \"VFrameFormat\" BO_ 291 0;"),
+                trace,
+                2,
+                "Value"
+            ),
+            [1.0, 4660.0]
+        );
+        // A uniform bucket must still honour the declared format.
+        let only_classic = "base hex timestamps absolute\n0.001 1 123 Rx d 2 34 12";
+        assert!(
+            decode(
+                &format!("{base}BA_ \"VFrameFormat\" BO_ 291 14;"),
+                only_classic,
+                2,
+                "Value"
+            )
+            .is_empty()
+        );
     }
 
     #[test]
