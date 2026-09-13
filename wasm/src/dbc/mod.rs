@@ -22,6 +22,9 @@ pub use values::{
     ValueType,
 };
 
+// CANdb++ stores unassigned signals in this zero-length pseudo-message.
+const INDEPENDENT_SIGNAL_MESSAGE_ID: u32 = 0xc000_0000;
+
 /// Parsed subset of a DBC file used by the viewer.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Dbc {
@@ -67,6 +70,13 @@ impl Dbc {
                     "BO_" => {
                         finish_message(&mut messages, &mut current_message, &mut current_signals);
                         let message = Message::parse(line)?;
+                        if message.dbc_id == INDEPENDENT_SIGNAL_MESSAGE_ID {
+                            warnings.push(record.position.warning(
+                                "omitted-feature",
+                                "BO_",
+                                "Independent signal container is omitted from the viewer catalogue.",
+                            ));
+                        }
                         if messages.iter().any(|other: &Message| {
                             other.dbc_id == message.dbc_id && other.size_bytes == message.size_bytes
                         }) {
@@ -152,6 +162,9 @@ impl Dbc {
             .flat_map(|message| message.signals.iter().map(move |signal| (message, signal)))
             .zip(signal_positions)
         {
+            if message.dbc_id == INDEPENDENT_SIGNAL_MESSAGE_ID {
+                continue;
+            }
             if signal.unsupported_mux {
                 warnings.push(position.warning(
                     "omitted-feature",
@@ -169,6 +182,7 @@ impl Dbc {
                 }
             }
         }
+        messages.retain(|message| message.dbc_id != INDEPENDENT_SIGNAL_MESSAGE_ID);
         warnings.sort_by_key(|warning| (warning.line, warning.column));
 
         Ok(Self {
@@ -425,6 +439,27 @@ mod tests {
             assert!(error.contains(location), "{error}");
             assert!(!error.contains("private"));
         }
+    }
+
+    #[test]
+    fn omits_independent_signals_without_rejecting_usable_messages() {
+        let dbc = Dbc::parse(
+            "BO_ 3221225472 VECTOR__INDEPENDENT_SIG_MSG: 0 Vector__XXX\n\
+             SG_ Orphan : 0|8@1+ (1,0) [0|255] \"\" Vector__XXX\n\
+             BO_ 42 Status: 1 ECU\n\
+             SG_ State : 0|8@1+ (1,0) [0|255] \"\" ECU",
+        )
+        .unwrap();
+        assert_eq!(dbc.messages.len(), 1);
+        assert_eq!(dbc.messages[0].name, "Status");
+        assert_eq!(dbc.messages[0].signals[0].name, "State");
+        assert_eq!(dbc.warnings.len(), 1);
+        let warning = &dbc.warnings[0];
+        assert_eq!(warning.category, "omitted-feature");
+        assert_eq!(
+            (warning.keyword, warning.line, warning.column),
+            ("BO_", 1, 1)
+        );
     }
 
     #[test]
