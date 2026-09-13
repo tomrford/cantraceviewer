@@ -1,0 +1,7 @@
+VERSION "independent wire fixture: root byte, child byte, signed big-endian data"
+BO_ 291 Nested: 4 ECU
+ SG_ Root M : 0|8@1+ (10,7) [0|255] "" DASH
+ SG_ Child m2M : 8|8@1+ (2,100) [0|255] "" DASH
+ SG_ Data m3 : 23|16@0- (0.5,-10) [-32768|32767] "unit" DASH
+SG_MUL_VAL_ 291 Child Root 2-2;
+SG_MUL_VAL_ 291 Data Child 3-5, 9-9;

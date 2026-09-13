@@ -57,6 +57,10 @@ pub struct DecodePlan {
 }
 
 impl DecodePlan {
+    pub(crate) fn raw_bits(self, payload: &[u8]) -> u64 {
+        read_packed_bits(payload, self.bit_offset, self.bit_count, self.endian)
+    }
+
     /// Decodes one raw CAN payload into the signal's physical value.
     #[inline(always)]
     pub fn decode(self, payload: &[u8]) -> Result<f64, DbcError> {
@@ -101,8 +105,10 @@ pub struct Signal {
     pub value_descriptions: Option<Rc<[ValueDescription]>>,
     pub value_type: ValueType,
 
-    /// True when the signal uses multiplexing that the viewer cannot decode.
-    pub unsupported_mux: bool,
+    pub is_multiplexer: bool,
+    pub(crate) simple_mux_value: Option<u64>,
+    pub multiplex: Option<super::multiplex::MultiplexCondition>,
+    pub(super) position: super::source::Position,
 }
 
 impl Signal {
@@ -128,12 +134,25 @@ impl Signal {
         let name = cursor[..name_end].to_owned();
         cursor = trim_dbc(&cursor[name_end..]);
 
-        let mut unsupported_mux = false;
+        let mut is_multiplexer = false;
+        let mut simple_mux_value = None;
         if !cursor.starts_with(':') {
             let Some(marker_end) = find_dbc_whitespace(cursor) else {
                 return Err(DbcError::InvalidSignalLine);
             };
-            unsupported_mux = true;
+            let marker = &cursor[..marker_end];
+            is_multiplexer = marker.ends_with('M');
+            if marker != "M" {
+                let value = marker
+                    .strip_prefix('m')
+                    .ok_or(DbcError::InvalidSignalLine)?;
+                let value = value.strip_suffix('M').unwrap_or(value);
+                simple_mux_value = Some(
+                    value
+                        .parse()
+                        .map_err(|error| DbcError::invalid_integer("multiplex value", error))?,
+                );
+            }
             cursor = trim_dbc(&cursor[marker_end..]);
         }
         let Some(rest) = cursor.strip_prefix(':') else {
@@ -234,7 +253,10 @@ impl Signal {
             receivers,
             value_descriptions: None,
             value_type: ValueType::Integer,
-            unsupported_mux,
+            is_multiplexer,
+            simple_mux_value,
+            multiplex: None,
+            position: Default::default(),
         })
     }
 
@@ -246,9 +268,26 @@ impl Signal {
         if message_size_bytes > 64 {
             return Err(DbcError::UnsupportedMessageLength(message_size_bytes));
         }
-        if self.unsupported_mux {
-            return Err(DbcError::UnsupportedMultiplexing);
-        }
+        let (bit_offset, endian) = self.layout(message_size_bytes)?;
+        let bit_count = usize::from(self.bit_length);
+
+        Ok(DecodePlan {
+            bit_offset,
+            bit_count,
+            endian,
+            signedness: self.signedness,
+            value_type: self.value_type,
+            required_payload_len: usize::from(message_size_bytes),
+            factor: self.factor,
+            offset: self.offset,
+        })
+    }
+
+    pub(crate) fn validate_layout(&self, message_size_bytes: u16) -> Result<(), DbcError> {
+        self.layout(message_size_bytes).map(|_| ())
+    }
+
+    fn layout(&self, message_size_bytes: u16) -> Result<(usize, PackedEndian), DbcError> {
         match self.value_type {
             ValueType::Integer if self.bit_length == 0 || self.bit_length > 64 => {
                 return Err(DbcError::InvalidSignalBitLength(self.bit_length));
@@ -283,16 +322,7 @@ impl Signal {
             return Err(DbcError::SignalOutsideMessage);
         }
 
-        Ok(DecodePlan {
-            bit_offset,
-            bit_count,
-            endian,
-            signedness: self.signedness,
-            value_type: self.value_type,
-            required_payload_len: usize::from(message_size_bytes),
-            factor: self.factor,
-            offset: self.offset,
-        })
+        Ok((bit_offset, endian))
     }
 
     /// Returns attached `VAL_` or `VAL_TABLE_` descriptions, if any.
@@ -418,7 +448,7 @@ mod tests {
         assert_eq!(signal.maximum, Some(250.0));
         assert_eq!(signal.unit, "km/h");
         assert_eq!(signal.receivers, ["Dashboard"]);
-        assert!(!signal.unsupported_mux);
+        assert!(!signal.is_multiplexer);
     }
 
     #[test]
@@ -437,13 +467,13 @@ mod tests {
     }
 
     #[test]
-    fn marks_multiplexed_signal_as_unsupported() {
+    fn parses_simple_multiplex_value() {
         let signal =
             Signal::parse(" SG_ muxed_D_1 m1 : 48|8@1- (1,0) [0|0] \"\" Vector__XXX").unwrap();
 
         assert_eq!(signal.name, "muxed_D_1");
         assert_eq!(signal.signedness, Signedness::Signed);
-        assert!(signal.unsupported_mux);
+        assert_eq!(signal.simple_mux_value, Some(1));
     }
 
     #[test]

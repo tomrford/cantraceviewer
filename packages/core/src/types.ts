@@ -22,7 +22,9 @@ export type DbcSignal = {
 	maximum: number;
 	unit: string;
 	valueType: DbcValueType;
-	unsupportedMux: boolean;
+	isMultiplexer: boolean;
+	/** Inclusive unsigned wire values, as decimal strings (including values above 2^53). */
+	multiplex: { selector: string; ranges: { first: string; last: string }[] } | null;
 	receivers: string[];
 	valueDescriptions: DbcValueDescription[];
 };
@@ -33,6 +35,10 @@ export type DbcMessage = {
 	canId: number;
 	isExtended: boolean;
 	isFd: boolean;
+	frameFormat: 'standard-can' | 'extended-can' | 'standard-can-fd' | 'extended-can-fd' | 'j1939';
+	/** Whether the message payload fits raw-frame decoding; no J1939 transport reassembly. */
+	rawFrameDecodable: boolean;
+	j1939: { pgn: number; sourceAddress: number; priority: number } | null;
 	sizeBytes: number;
 	transmitter: string;
 	signals: DbcSignal[];

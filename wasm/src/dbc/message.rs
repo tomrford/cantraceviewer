@@ -17,6 +17,9 @@ pub struct Message {
 
     pub is_extended: bool,
     pub is_fd: bool,
+    pub frame_format: &'static str,
+    pub(crate) format_explicit: bool,
+    pub(super) position: super::source::Position,
     pub name: String,
     pub size_bytes: u16,
     pub transmitter: String,
@@ -24,6 +27,10 @@ pub struct Message {
 }
 
 impl Message {
+    pub(crate) fn raw_frame_decodable(&self) -> bool {
+        self.size_bytes <= 64 && (self.frame_format != "j1939" || self.size_bytes <= 8)
+    }
+
     /// Parses one `BO_ <id> <name>: <size> <transmitter>` line.
     pub fn parse(line: &str) -> Result<Self, DbcError> {
         let mut tokens = line.split_ascii_whitespace();
@@ -56,6 +63,19 @@ impl Message {
             },
             is_extended,
             is_fd: size_bytes > 8,
+            frame_format: if size_bytes > 8 {
+                if is_extended {
+                    "extended-can-fd"
+                } else {
+                    "standard-can-fd"
+                }
+            } else if is_extended {
+                "extended-can"
+            } else {
+                "standard-can"
+            },
+            format_explicit: false,
+            position: Default::default(),
             name: name.to_owned(),
             size_bytes,
             transmitter: transmitter.to_owned(),
