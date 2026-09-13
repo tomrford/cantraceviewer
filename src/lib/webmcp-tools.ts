@@ -31,7 +31,15 @@ export type WebMcpCrosshairInput = Omit<WebMcpCrosshair, 'value'> & { value?: nu
 
 export type WebMcpPlottedSignal = Pick<
 	PlotSignal,
-	'key' | 'label' | 'unit' | 'factor' | 'offset' | 'minimum' | 'maximum' | 'valueDescriptions'
+	| 'key'
+	| 'label'
+	| 'unit'
+	| 'valueType'
+	| 'factor'
+	| 'offset'
+	| 'minimum'
+	| 'maximum'
+	| 'valueDescriptions'
 > & {
 	series: NonNullable<PlotSignal['series']>;
 };
