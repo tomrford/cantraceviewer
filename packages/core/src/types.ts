@@ -94,10 +94,20 @@ export type TraceHandle = {
 	readonly [TraceHandleBrand]: true;
 };
 
+/** Warnings contain no source text. Positions identify the record keyword (one-based). */
+export type DbcDiagnostic = {
+	category: 'unsupported-record' | 'dangling-reference' | 'omitted-feature';
+	keyword: string;
+	line: number;
+	column: number;
+	message: string;
+};
+
 /** Everything one `openDbc` call produces. The catalog is plain data and outlives the handle. */
 export type OpenDbcResult = {
 	handle: DbcHandle;
 	catalog: ParsedDbc;
+	warnings: DbcDiagnostic[];
 };
 
 /** Everything one `openTrace` call produces. Every field except `handle` is plain data. */

@@ -1,0 +1,3 @@
+﻿BO_ 42 Status: 1 ECU
+ SG_ State : 0|8@1+ (1,0) [0|255] "°C € – ™" DASH
+VAL_ 42 State 0 "Arrêt";

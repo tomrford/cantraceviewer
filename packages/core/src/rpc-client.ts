@@ -29,7 +29,7 @@ import type {
  * restart. Create a new client to recover.
  */
 export type CanTraceClient = {
-	openDbc(text: string): Promise<OpenDbcResult>;
+	openDbc(input: Uint8Array | string): Promise<OpenDbcResult>;
 	/** Idempotent for handles this client issued; repeat calls resolve without effect. */
 	closeDbc(handle: DbcHandle): Promise<void>;
 	/**
@@ -177,10 +177,10 @@ export async function createRpcClient(
 	await readyPromise;
 
 	return {
-		async openDbc(text) {
+		async openDbc(input) {
 			assertOpen();
-			const { dbcId, catalog } = await send<WireOpenDbc>({ op: 'openDbc', text }, []);
-			return { handle: handles.issue('dbc', dbcId), catalog };
+			const { dbcId, catalog, warnings } = await send<WireOpenDbc>({ op: 'openDbc', input }, []);
+			return { handle: handles.issue('dbc', dbcId), catalog, warnings };
 		},
 		async closeDbc(handle) {
 			const dbcId = handles.release('dbc', handle);

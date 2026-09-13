@@ -8,6 +8,7 @@ mod error;
 mod message;
 mod quotes;
 mod signal;
+mod source;
 mod values;
 
 use std::rc::Rc;
@@ -15,10 +16,14 @@ use std::rc::Rc;
 pub use error::DbcError;
 pub use message::Message;
 pub use signal::Signal;
+pub use source::Diagnostic;
 pub use values::{
     SignalValueDescriptions, SignalValueType, ValueDescription, ValueDescriptionRef, ValueTable,
     ValueType,
 };
+
+// CANdb++ stores unassigned signals in this zero-length pseudo-message.
+const INDEPENDENT_SIGNAL_MESSAGE_ID: u32 = 0xc000_0000;
 
 /// Parsed subset of a DBC file used by the viewer.
 #[derive(Clone, Debug, PartialEq)]
@@ -28,10 +33,17 @@ pub struct Dbc {
 
     /// Value tables in source order.
     pub value_tables: Vec<ValueTable>,
+
+    pub warnings: Vec<Diagnostic>,
 }
 
 impl Dbc {
-    /// Parses DBC text into an owned model.
+    /// UTF-8 (optional BOM), otherwise Windows-1252; undefined bytes become U+FFFD.
+    pub fn parse_bytes(bytes: &[u8]) -> Result<Self, DbcError> {
+        Self::parse(&source::decode(bytes))
+    }
+
+    /// Parses already decoded DBC text without a BOM into an owned model.
     pub fn parse(text: &str) -> Result<Self, DbcError> {
         let mut messages = Vec::new();
         let mut value_tables = Vec::new();
@@ -41,53 +53,142 @@ impl Dbc {
         let mut current_signals = Vec::new();
         let mut current_message: Option<Message> = None;
 
-        for raw_line in text.split('\n') {
-            let line = trim_dbc(raw_line);
-            if line.is_empty() {
-                continue;
-            }
-
-            if starts_with_record(line, "BO_") {
-                finish_message(&mut messages, &mut current_message, &mut current_signals);
-                current_message = Some(Message::parse(line)?);
-                continue;
-            }
-
-            if line.starts_with("VAL_TABLE_ ") {
-                value_tables.push(ValueTable::parse(line)?);
-                continue;
-            }
-
-            if line.starts_with("VAL_ ") {
-                pending_values.push(SignalValueDescriptions::parse(line)?);
-                continue;
-            }
-
-            if line.starts_with("SIG_VALTYPE_ ") {
-                pending_value_types.push(SignalValueType::parse(line)?);
-                continue;
-            }
-
-            if starts_with_record(line, "SG_") {
-                if current_message.is_none() {
-                    return Err(DbcError::SignalWithoutMessage);
+        let mut warnings = Vec::new();
+        let mut signal_positions = Vec::new();
+        for record in source::records(text) {
+            let record = record?;
+            let line = record.text;
+            let mut parse = || -> Result<(), DbcError> {
+                if record.keyword == "CM_" {
+                    let quote = line.find('"').ok_or(DbcError::InvalidQuotedString)?;
+                    let (_, rest) = quotes::parse_quoted(&line[quote..])?;
+                    if trim_dbc(rest) != ";" {
+                        return Err(DbcError::UnterminatedRecord);
+                    }
                 }
-                current_signals.push(Signal::parse(line)?);
-            }
+                match record.keyword {
+                    "BO_" => {
+                        finish_message(&mut messages, &mut current_message, &mut current_signals);
+                        let message = Message::parse(line)?;
+                        if message.dbc_id == INDEPENDENT_SIGNAL_MESSAGE_ID {
+                            warnings.push(record.position.warning(
+                                "omitted-feature",
+                                "BO_",
+                                "Independent signal container is omitted from the viewer catalogue.",
+                            ));
+                        }
+                        if messages.iter().any(|other: &Message| {
+                            other.dbc_id == message.dbc_id && other.size_bytes == message.size_bytes
+                        }) {
+                            return Err(DbcError::InvalidMessageLine);
+                        }
+                        current_message = Some(message);
+                    }
+                    "VAL_TABLE_" => {
+                        let table = ValueTable::parse(line)?;
+                        if value_tables
+                            .iter()
+                            .any(|other: &ValueTable| other.name == table.name)
+                        {
+                            return Err(DbcError::InvalidValueTableLine);
+                        }
+                        value_tables.push(table);
+                    }
+                    "VAL_" => pending_values
+                        .push((SignalValueDescriptions::parse(line)?, record.position)),
+                    "SIG_VALTYPE_" => {
+                        pending_value_types.push((SignalValueType::parse(line)?, record.position))
+                    }
+                    "SG_" => {
+                        current_message
+                            .as_ref()
+                            .ok_or(DbcError::SignalWithoutMessage)?;
+                        let signal = Signal::parse(line)?;
+                        if current_signals
+                            .iter()
+                            .any(|other: &Signal| other.name == signal.name)
+                        {
+                            return Err(DbcError::InvalidSignalLine);
+                        }
+                        signal_positions.push(record.position);
+                        current_signals.push(signal);
+                    }
+                    "SGTYPE_" | "SGTYPE_VAL_" | "SIG_TYPE_REF_" | "SIGTYPE_VALTYPE_"
+                    | "BA_DEF_SGTYPE_" | "BA_SGTYPE_" => {
+                        return Err(DbcError::UnsupportedSignalType);
+                    }
+                    "VERSION" | "NS_" | "BS_" | "BU_" => {}
+                    _ => warnings.push(record.position.warning(
+                        "unsupported-record",
+                        record.keyword,
+                        "Record is not used by the viewer.",
+                    )),
+                }
+                Ok(())
+            };
+            parse().map_err(|error| record.position.error(record.keyword, error))?;
         }
 
         finish_message(&mut messages, &mut current_message, &mut current_signals);
 
-        for pending in pending_values {
-            attach_value_descriptions(&mut messages, &value_tables, pending);
+        for (pending, position) in pending_values {
+            if messages
+                .iter()
+                .filter(|message| message.dbc_id == pending.message_id)
+                .count()
+                > 1
+            {
+                return Err(position.error("VAL_", DbcError::InvalidValueDescriptionLine));
+            }
+            if let Err(message) = attach_value_descriptions(&mut messages, &value_tables, pending) {
+                warnings.push(position.warning("dangling-reference", "VAL_", message));
+            }
         }
-        for pending in pending_value_types {
-            attach_value_type(&mut messages, pending);
+        for (pending, position) in pending_value_types {
+            if messages
+                .iter()
+                .filter(|message| message.dbc_id == pending.message_id)
+                .count()
+                > 1
+            {
+                return Err(position.error("SIG_VALTYPE_", DbcError::InvalidSignalValueTypeLine));
+            }
+            if let Err(message) = attach_value_type(&mut messages, pending) {
+                warnings.push(position.warning("dangling-reference", "SIG_VALTYPE_", message));
+            }
         }
+        for ((message, signal), position) in messages
+            .iter()
+            .flat_map(|message| message.signals.iter().map(move |signal| (message, signal)))
+            .zip(signal_positions)
+        {
+            if message.dbc_id == INDEPENDENT_SIGNAL_MESSAGE_ID {
+                continue;
+            }
+            if signal.unsupported_mux {
+                warnings.push(position.warning(
+                    "omitted-feature",
+                    "SG_",
+                    "Multiplexed signal is omitted from the viewer catalogue.",
+                ));
+            } else if let Err(error) = signal.plan_decode(message.size_bytes) {
+                match error {
+                    DbcError::UnsupportedMessageLength(_) => warnings.push(position.warning(
+                        "omitted-feature",
+                        "SG_",
+                        "Signal requires a payload longer than 64 bytes and cannot be decoded.",
+                    )),
+                    error => return Err(position.error("SG_", error)),
+                }
+            }
+        }
+        messages.retain(|message| message.dbc_id != INDEPENDENT_SIGNAL_MESSAGE_ID);
+        warnings.sort_by_key(|warning| (warning.line, warning.column));
 
         Ok(Self {
             messages,
             value_tables,
+            warnings,
         })
     }
 
@@ -135,58 +236,48 @@ fn attach_value_descriptions(
     messages: &mut [Message],
     value_tables: &[ValueTable],
     pending: SignalValueDescriptions,
-) {
-    let descriptions = match pending.value_descriptions {
+) -> Result<(), &'static str> {
+    let signal = attachment_signal(messages, pending.message_id, &pending.signal_name)?;
+    signal.value_descriptions = Some(match pending.value_descriptions {
         ValueDescriptionRef::InlineValues(descriptions) => descriptions,
         ValueDescriptionRef::TableName(name) => {
-            let Some(table) = value_tables.iter().find(|table| table.name == name) else {
-                return;
-            };
+            let table = value_tables
+                .iter()
+                .find(|table| table.name == name)
+                .ok_or("Unknown value table; attachment was ignored.")?;
             Rc::clone(&table.values)
         }
-    };
-
-    if let Some(signal) = messages
-        .iter_mut()
-        .find(|message| message.dbc_id == pending.message_id)
-        .and_then(|message| {
-            message
-                .signals
-                .iter_mut()
-                .find(|signal| signal.name == pending.signal_name)
-        })
-    {
-        signal.value_descriptions = Some(descriptions);
-    }
+    });
+    Ok(())
 }
 
-fn attach_value_type(messages: &mut [Message], pending: SignalValueType) {
-    if let Some(signal) = messages
-        .iter_mut()
-        .find(|message| message.dbc_id == pending.message_id)
-        .and_then(|message| {
-            message
-                .signals
-                .iter_mut()
-                .find(|signal| signal.name == pending.signal_name)
-        })
-    {
-        signal.value_type = pending.value_type;
-    }
+fn attach_value_type(
+    messages: &mut [Message],
+    pending: SignalValueType,
+) -> Result<(), &'static str> {
+    attachment_signal(messages, pending.message_id, &pending.signal_name)?.value_type =
+        pending.value_type;
+    Ok(())
 }
 
-fn starts_with_record(line: &str, keyword: &str) -> bool {
-    line.strip_prefix(keyword)
-        .and_then(|rest| rest.as_bytes().first())
-        .is_some_and(|byte| is_dbc_whitespace(*byte))
+fn attachment_signal<'a>(
+    messages: &'a mut [Message],
+    id: u32,
+    name: &str,
+) -> Result<&'a mut Signal, &'static str> {
+    let message = messages
+        .iter_mut()
+        .find(|message| message.dbc_id == id)
+        .ok_or("Unknown message; attachment was ignored.")?;
+    message
+        .signals
+        .iter_mut()
+        .find(|signal| signal.name == name)
+        .ok_or("Unknown signal; attachment was ignored.")
 }
 
 pub(crate) fn trim_dbc(text: &str) -> &str {
-    text.trim_matches(|character| matches!(character, ' ' | '\t' | '\r'))
-}
-
-pub(crate) fn trim_space_tab(text: &str) -> &str {
-    text.trim_matches(|character| matches!(character, ' ' | '\t'))
+    text.trim_matches(|character| matches!(character, ' ' | '\t' | '\r' | '\n'))
 }
 
 pub(crate) fn find_dbc_whitespace(text: &str) -> Option<usize> {
@@ -196,12 +287,194 @@ pub(crate) fn find_dbc_whitespace(text: &str) -> Option<usize> {
 }
 
 pub(crate) const fn is_dbc_whitespace(byte: u8) -> bool {
-    matches!(byte, b' ' | b'\t' | b'\r')
+    matches!(byte, b' ' | b'\t' | b'\r' | b'\n')
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ignored_records_cannot_swallow_value_types_or_named_signal_types() {
+        let body = "BO_ 1 M: 4 ECU\n SG_ X : 0|32@1+ (1,0) [0|255] \"\" ECU\n";
+        for record in [
+            "SIG_VALTYPE_ 1 X : 1;",
+            "VAL_ 1 X 0 \"Off\";",
+            "VAL_TABLE_ State 0 \"Off\";",
+        ] {
+            for separator in ["\n", " "] {
+                assert!(Dbc::parse(&format!("{body}CM_ \"comment\"{separator}{record}")).is_err());
+            }
+        }
+        let typed = Dbc::parse(&format!("{body}SIG_VALTYPE_ 1 X : 1;")).unwrap();
+        assert_eq!(typed.messages[0].signals[0].value_type, ValueType::Float32);
+        let error = Dbc::parse(&format!("{body}SIG_TYPE_REF_ 1 X : Custom;"))
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("3:1: SIG_TYPE_REF_"));
+        assert!(error.contains("named signal types"));
+    }
+
+    #[test]
+    fn multiline_values_preserve_quoted_whitespace() {
+        let dbc = Dbc::parse(
+            "BO_ 1 M: 4 ECU\n SG_ X : 0|32@1+ (1,0) [0|255] \"\" ECU\n\
+             VAL_TABLE_\n States\n 0\n \"Off\r\n\tline\"\n 1 \"On\";\n\
+             VAL_\n 1\n X\n States;\n\
+             SIG_VALTYPE_\n 1\n X\n :\n 1;",
+        )
+        .unwrap();
+        let signal = &dbc.messages[0].signals[0];
+        assert_eq!(signal.value_type, ValueType::Float32);
+        assert_eq!(
+            signal.value_descriptions().unwrap()[0].label,
+            "Off\r\n\tline"
+        );
+    }
+
+    #[test]
+    fn positions_count_unicode_scalars_and_legacy_undefined_bytes_are_explicit() {
+        let dbc = Dbc::parse("CM_ \"😀\";  VAL_ 1 X 0 \"Off\";").unwrap();
+        assert_eq!((dbc.warnings[1].line, dbc.warnings[1].column), (1, 11));
+        let mut bytes = b"BO_ 1 M: 1 ECU\n SG_ X : 0|8@1+ (1,0) [0|255] \"".to_vec();
+        bytes.extend_from_slice(&[0x81, 0x8d, 0x8f, 0x90, 0x9d]);
+        bytes.extend_from_slice(b"\" ECU");
+        assert_eq!(
+            Dbc::parse_bytes(&bytes).unwrap().messages[0].signals[0].unit,
+            "\u{fffd}".repeat(5)
+        );
+    }
+
+    #[test]
+    fn namespace_whitespace_does_not_swallow_definitions() {
+        let body = "BS_:\nBU_: ECU\nBO_ 1 M: 1 ECU\n SG_ X : 0|8@1+ (1,0) [0|255] \"\" ECU\nVAL_ 1 X 0 \"Off\";";
+        let expected = Dbc::parse(body).unwrap();
+        for declarations in [" CM_ \r\n VAL_\t\n", "CM_ VAL_ SIG_VALTYPE_\n"] {
+            assert_eq!(
+                Dbc::parse(&format!("NS_ :\n{declarations}{body}")).unwrap(),
+                expected
+            );
+        }
+        let malformed = format!("CM_ \"comment\"\n{body}");
+        assert!(
+            Dbc::parse(&malformed)
+                .unwrap_err()
+                .to_string()
+                .contains("1:1: CM_")
+        );
+        let attribute = format!("BA_ \"comment\"\n BO_ 1 \"quoted : colon\";\n{body}");
+        let parsed = Dbc::parse(&attribute).unwrap();
+        assert_eq!(parsed.messages, expected.messages);
+        assert_eq!(parsed.warnings.len(), 1);
+    }
+
+    #[test]
+    fn decodes_utf8_bom_and_windows1252_identically() {
+        let utf8 =
+            Dbc::parse_bytes(include_bytes!("../../tests/fixtures/encoding-utf8-bom.dbc")).unwrap();
+        let legacy = Dbc::parse_bytes(include_bytes!(
+            "../../tests/fixtures/encoding-windows1252.dbc"
+        ))
+        .unwrap();
+        assert_eq!(utf8, legacy);
+        assert_eq!(utf8.messages[0].signals[0].unit, "°C € – ™");
+        assert_eq!(
+            utf8.messages[0].signals[0].value_descriptions().unwrap()[0].label,
+            "Arrêt"
+        );
+        assert!(utf8.warnings.is_empty());
+    }
+
+    #[test]
+    fn warns_at_record_positions_and_does_not_parse_comment_contents() {
+        let dbc = Dbc::parse(include_str!("../../tests/fixtures/diagnostics.dbc")).unwrap();
+        assert_eq!(dbc.messages.len(), 1);
+        assert_eq!(dbc.messages[0].signals.len(), 1);
+        assert_eq!(
+            dbc.messages[0].signals[0].value_descriptions().unwrap()[1].label,
+            "On"
+        );
+        let positions: Vec<_> = dbc
+            .warnings
+            .iter()
+            .map(|w| (w.category, w.keyword, w.line, w.column))
+            .collect();
+        assert_eq!(
+            positions,
+            vec![
+                ("dangling-reference", "VAL_", 8, 3),
+                ("dangling-reference", "VAL_", 9, 2),
+                ("dangling-reference", "VAL_", 10, 1),
+                ("dangling-reference", "SIG_VALTYPE_", 11, 1),
+                ("unsupported-record", "CM_", 12, 1),
+            ]
+        );
+        assert_eq!(
+            dbc.warnings
+                .iter()
+                .take(3)
+                .map(|w| w.message)
+                .collect::<Vec<_>>(),
+            vec![
+                "Unknown message; attachment was ignored.",
+                "Unknown signal; attachment was ignored.",
+                "Unknown value table; attachment was ignored.",
+            ]
+        );
+        assert!(!dbc.warnings_json().contains("private"));
+    }
+
+    #[test]
+    fn rejects_unsafe_records_with_context_without_echoing_source() {
+        for (text, location) in [
+            ("BO_ private Bad: 8 ECU", "1:1: BO_"),
+            (
+                "BO_ 1 Good: 1 ECU\n  SG_ X : 8|8@1+ (1,0) [0|255] \"\" ECU",
+                "2:3: SG_",
+            ),
+            ("BO_ 1 Good: 1 ECU\nVAL_ 1 X 0 \"private", "2:1: VAL_"),
+            ("BO_ 1 A: 1 ECU\nBO_ 1 B: 1 ECU", "2:1: BO_"),
+        ] {
+            let error = Dbc::parse(text).unwrap_err().to_string();
+            assert!(error.contains(location), "{error}");
+            assert!(!error.contains("private"));
+        }
+    }
+
+    #[test]
+    fn omits_independent_signals_without_rejecting_usable_messages() {
+        let dbc = Dbc::parse(
+            "BO_ 3221225472 VECTOR__INDEPENDENT_SIG_MSG: 0 Vector__XXX\n\
+             SG_ Orphan : 0|8@1+ (1,0) [0|255] \"\" Vector__XXX\n\
+             BO_ 42 Status: 1 ECU\n\
+             SG_ State : 0|8@1+ (1,0) [0|255] \"\" ECU",
+        )
+        .unwrap();
+        assert_eq!(dbc.messages.len(), 1);
+        assert_eq!(dbc.messages[0].name, "Status");
+        assert_eq!(dbc.messages[0].signals[0].name, "State");
+        assert_eq!(dbc.warnings.len(), 1);
+        let warning = &dbc.warnings[0];
+        assert_eq!(warning.category, "omitted-feature");
+        assert_eq!(
+            (warning.keyword, warning.line, warning.column),
+            ("BO_", 1, 1)
+        );
+    }
+
+    #[test]
+    fn extended_mux_omissions_are_visible() {
+        let dbc = Dbc::parse(include_str!("../../tests/fixtures/extended-multiplex.dbc")).unwrap();
+        assert!(dbc.to_catalog_json().contains("\"signals\":[]"));
+        assert_eq!(
+            dbc.warnings
+                .iter()
+                .filter(|w| w.category == "omitted-feature")
+                .count(),
+            12
+        );
+        assert!(dbc.warnings.iter().any(|w| w.keyword == "SG_MUL_VAL_"));
+    }
 
     #[test]
     fn parses_messages_and_signals() {
@@ -336,7 +609,7 @@ SIG_VALTYPE_ 100 Temperature : 1;
     fn rejects_signal_before_message() {
         assert!(matches!(
             Dbc::parse("SG_ Value : 0|8@1+ (1,0) [0|255] \"\" DASH"),
-            Err(DbcError::SignalWithoutMessage)
+            Err(DbcError::AtRecord { .. })
         ));
     }
 

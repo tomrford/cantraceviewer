@@ -32,7 +32,7 @@ export const wasmUrl = new URL('./wasm-bindgen/cantraceviewer_bg.wasm', import.m
  * thread; use the asynchronous browser or Node clients there.
  */
 export type DirectClient = {
-	openDbc(text: string): OpenDbcResult;
+	openDbc(input: Uint8Array | string): OpenDbcResult;
 	/** Idempotent for handles this client issued; repeat calls do nothing. */
 	closeDbc(handle: DbcHandle): void;
 	openTrace(traceType: TraceType, bytes: Uint8Array): OpenTraceResult;
@@ -72,12 +72,15 @@ export function createDirectClient(wasm: DirectWasmInput): DirectClient {
 	}
 
 	return {
-		openDbc(text) {
+		openDbc(input) {
 			assertClientOpen();
-			const dbc = WasmDbc.parse(text);
+			const dbc = WasmDbc.parse(
+				typeof input === 'string' ? new TextEncoder().encode(input) : input
+			);
 			try {
 				const catalog = JSON.parse(dbc.catalogJson()) as ParsedDbc;
-				return { handle: handles.issue('dbc', dbc), catalog };
+				const warnings = JSON.parse(dbc.warningsJson()) as OpenDbcResult['warnings'];
+				return { handle: handles.issue('dbc', dbc), catalog, warnings };
 			} catch (error) {
 				dbc.free();
 				throw error;

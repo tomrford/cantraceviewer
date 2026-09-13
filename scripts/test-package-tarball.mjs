@@ -61,6 +61,7 @@ void client;
 	await writeFile(
 		join(root, 'direct-type-smoke.ts'),
 		`import { createDirectClient } from 'cantraceviewer/direct';
+
 const direct = createDirectClient(new Uint8Array());
 void direct;
 `
@@ -107,7 +108,9 @@ const dbcText = await readFile(new URL('agentic-demo.dbc', ${JSON.stringify(path
 const asc = await readFile(new URL('agentic-demo.asc', ${JSON.stringify(pathToFileURL(resolve(repo, 'wasm/tests/fixtures') + '/').href)}));
 const identity = { canId: 288, isExtended: false, sizeBytes: 8 };
 
+${await readFile(join(repo, 'scripts/dbc-transport-check.js'), 'utf8')}
 const direct = createDirectClient(await readFile(wasmUrl));
+await checkDbc(direct);
 const directDbc = direct.openDbc(dbcText).handle;
 const directTrace = direct.openTrace('asc', Uint8Array.from(asc));
 assert.equal(directTrace.metadata.validMessageCount, 1506);
@@ -115,6 +118,7 @@ assert.equal(direct.getSignalValues(directDbc, directTrace.handle, identity, 've
 direct.close();
 
 const node = await createCanTraceClient();
+await checkDbc(node);
 const nodeDbc = (await node.openDbc(dbcText)).handle;
 const input = Uint8Array.from(asc).buffer;
 const nodeTrace = await node.openTrace('asc', input);
@@ -142,7 +146,11 @@ await node.close();
 	await writeFile(
 		join(root, 'entry.js'),
 		`import { createCanTraceClient } from 'cantraceviewer';
-createCanTraceClient().then((client) => client.close());
+${await readFile(join(repo, 'scripts/dbc-transport-check.js'), 'utf8')}
+const client = await createCanTraceClient();
+try { await checkDbc(client); document.body.textContent = 'DBC transport checks passed'; }
+catch (error) { document.body.textContent = String(error); throw error; }
+finally { await client.close(); }
 `
 	);
 	await build({
@@ -168,7 +176,8 @@ createCanTraceClient().then((client) => client.close());
 	);
 	assert(!scripts.some((source) => source.includes('worker_threads')), 'Node built-ins leaked');
 
+	if (process.env.KEEP_PACKAGE_SMOKE) console.log(`Browser fixture: ${root}`);
 	console.log(`validated installed ${basename(tarball)} through direct, Node, and browser build`);
 } finally {
-	await rm(root, { recursive: true, force: true });
+	if (!process.env.KEEP_PACKAGE_SMOKE) await rm(root, { recursive: true, force: true });
 }

@@ -16,7 +16,7 @@ Create the client in browser code, not during server-side rendering. `openTrace`
 import { createCanTraceClient } from 'cantraceviewer';
 
 const client = await createCanTraceClient();
-const { handle: dbc, catalog } = await client.openDbc(await dbcFile.text());
+const { handle: dbc, catalog } = await client.openDbc(new Uint8Array(await dbcFile.arrayBuffer()));
 const trace = await client.openTrace('asc', await traceFile.arrayBuffer());
 
 const message = catalog.messages[0];
@@ -79,7 +79,7 @@ import { readFile } from 'node:fs/promises';
 import { createCanTraceClient } from 'cantraceviewer/node';
 
 const client = await createCanTraceClient();
-const { handle: dbc, catalog } = await client.openDbc(await readFile('network.dbc', 'utf8'));
+const { handle: dbc, catalog } = await client.openDbc(await readFile('network.dbc'));
 const file = await readFile('drive.blf');
 const buffer = Uint8Array.from(file).buffer;
 const trace = await client.openTrace('blf', buffer);
@@ -116,3 +116,13 @@ The direct client accepts a `Uint8Array` and does not detach it.
 - ESM-aware bundlers that preserve the standard `new Worker(new URL(..., import.meta.url))` asset pattern
 
 The package does not support CommonJS or browsers without module Workers.
+
+## DBC input and diagnostics
+
+All three clients accept `openDbc(input: Uint8Array | string)`. Bytes are decoded in Rust: strip one initial UTF-8 BOM, accept valid UTF-8, otherwise decode the entire remaining input as Windows-1252. Undefined Windows-1252 bytes (81, 8D, 8F, 90 and 9D hex) become U+FFFD. Strings are UTF-8 encoded before using the same parser. Byte views, including Node Buffers and subviews, are copied, never transferred or detached.
+
+`OpenDbcResult.warnings` is an array of plain `DbcDiagnostic` objects, independent of the handle lifetime. Each contains `category`, `keyword`, `line`, `column`, and `message`. Categories are `unsupported-record`, `dangling-reference`, and `omitted-feature`. Positions identify the start of the record keyword in decoded text: one-based lines and Unicode scalar columns, with tabs counting as one column and the initial BOM excluded. Warnings are ordered by source position and contain no raw source or record contents. Unknown keywords are reported as `unknown`.
+
+Unsupported records (including comments and attributes the viewer does not use), unresolved value attachments, and omitted multiplexed signals or Vector independent-signal containers produce warnings while retaining the usable catalogue. Namespace keyword declarations and the VERSION, BS*, and BU* headers do not warn. Semicolon records may span lines; quoted contents are never interpreted as definitions. Invalid supported records, unterminated semicolon records, duplicate message identities or signal names, ambiguous value attachments, named signal-type records that could change decoding, and invalid supported signal layouts reject the load. Errors include the record position and keyword; their text is for display, not application branching.
+
+The viewer retains multiplexed signals internally but omits them from its catalogue. Long-payload signal definitions remain metadata with a warning; decoding payloads longer than 64 bytes is unsupported. Callers should inspect warnings even when a catalogue contains no selectable signals.

@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use super::quotes::parse_quoted;
-use super::{DbcError, find_dbc_whitespace, trim_dbc, trim_space_tab};
+use super::{DbcError, find_dbc_whitespace, is_dbc_whitespace, trim_dbc};
 
 /// Largest exact integer representable by JavaScript `number`.
 const JS_SAFE_INTEGER_MAX: i64 = 9_007_199_254_740_991;
@@ -43,16 +43,16 @@ impl ValueTable {
     /// Parses a named table and its raw-value/label pairs.
     pub fn parse(line: &str) -> Result<Self, DbcError> {
         let mut cursor = trim_dbc(line);
-        let Some(rest) = cursor.strip_prefix("VAL_TABLE_ ") else {
+        let Some(("VAL_TABLE_", rest)) = cursor.split_once([' ', '\t', '\r', '\n']) else {
             return Err(DbcError::InvalidValueTableLine);
         };
-        cursor = trim_space_tab(rest);
+        cursor = trim_dbc(rest);
 
         let Some(name_end) = find_dbc_whitespace(cursor) else {
             return Err(DbcError::InvalidValueTableLine);
         };
         let name = cursor[..name_end].to_owned();
-        cursor = trim_space_tab(&cursor[name_end..]);
+        cursor = trim_dbc(&cursor[name_end..]);
 
         Ok(Self {
             name,
@@ -80,25 +80,25 @@ impl SignalValueDescriptions {
     /// Parses either inline descriptions or a named value-table reference.
     pub fn parse(line: &str) -> Result<Self, DbcError> {
         let mut cursor = trim_dbc(line);
-        let Some(rest) = cursor.strip_prefix("VAL_ ") else {
+        let Some(("VAL_", rest)) = cursor.split_once([' ', '\t', '\r', '\n']) else {
             return Err(DbcError::InvalidValueDescriptionLine);
         };
-        cursor = trim_space_tab(rest);
+        cursor = trim_dbc(rest);
 
         let Some(message_id_end) = find_dbc_whitespace(cursor) else {
             return Err(DbcError::InvalidValueDescriptionLine);
         };
         let message_id_text = &cursor[..message_id_end];
-        let message_id = message_id_text.parse().map_err(|error| {
-            DbcError::invalid_integer("value-description message ID", message_id_text, error)
-        })?;
-        cursor = trim_space_tab(&cursor[message_id_end..]);
+        let message_id = message_id_text
+            .parse()
+            .map_err(|error| DbcError::invalid_integer("value-description message ID", error))?;
+        cursor = trim_dbc(&cursor[message_id_end..]);
 
         let Some(signal_name_end) = find_dbc_whitespace(cursor) else {
             return Err(DbcError::InvalidValueDescriptionLine);
         };
         let signal_name = cursor[..signal_name_end].to_owned();
-        cursor = trim_space_tab(&cursor[signal_name_end..]);
+        cursor = trim_dbc(&cursor[signal_name_end..]);
 
         if cursor.is_empty() {
             return Err(DbcError::InvalidValueDescriptionLine);
@@ -136,37 +136,37 @@ impl SignalValueType {
     /// Parses the integer type code used by DBC value-type metadata.
     pub fn parse(line: &str) -> Result<Self, DbcError> {
         let mut cursor = trim_dbc(line);
-        let Some(rest) = cursor.strip_prefix("SIG_VALTYPE_ ") else {
+        let Some(("SIG_VALTYPE_", rest)) = cursor.split_once([' ', '\t', '\r', '\n']) else {
             return Err(DbcError::InvalidSignalValueTypeLine);
         };
-        cursor = trim_space_tab(rest);
+        cursor = trim_dbc(rest);
 
         let Some(message_id_end) = find_dbc_whitespace(cursor) else {
             return Err(DbcError::InvalidSignalValueTypeLine);
         };
         let message_id_text = &cursor[..message_id_end];
-        let message_id = message_id_text.parse().map_err(|error| {
-            DbcError::invalid_integer("signal value-type message ID", message_id_text, error)
-        })?;
-        cursor = trim_space_tab(&cursor[message_id_end..]);
+        let message_id = message_id_text
+            .parse()
+            .map_err(|error| DbcError::invalid_integer("signal value-type message ID", error))?;
+        cursor = trim_dbc(&cursor[message_id_end..]);
 
         let Some(signal_name_end) = cursor
             .as_bytes()
             .iter()
-            .position(|byte| matches!(byte, b' ' | b'\t' | b'\r' | b':'))
+            .position(|&byte| is_dbc_whitespace(byte) || byte == b':')
         else {
             return Err(DbcError::InvalidSignalValueTypeLine);
         };
         let signal_name = cursor[..signal_name_end].to_owned();
-        cursor = trim_space_tab(&cursor[signal_name_end..]);
+        cursor = trim_dbc(&cursor[signal_name_end..]);
         if let Some(rest) = cursor.strip_prefix(':') {
-            cursor = trim_space_tab(rest);
+            cursor = trim_dbc(rest);
         }
         cursor = strip_record_semicolon(cursor);
 
         let value_type_code: u8 = cursor
             .parse()
-            .map_err(|error| DbcError::invalid_integer("signal value type", cursor, error))?;
+            .map_err(|error| DbcError::invalid_integer("signal value type", error))?;
         let value_type = match value_type_code {
             0 => ValueType::Integer,
             1 => ValueType::Float32,
@@ -198,18 +198,18 @@ fn parse_value_description_pairs(text: &str) -> Result<Vec<ValueDescription>, Db
             return Err(DbcError::InvalidValueDescriptionLine);
         };
         let raw_text = &cursor[..raw_end];
-        let raw_value: i64 = raw_text.parse().map_err(|error| {
-            DbcError::invalid_integer("value-description raw value", raw_text, error)
-        })?;
+        let raw_value: i64 = raw_text
+            .parse()
+            .map_err(|error| DbcError::invalid_integer("value-description raw value", error))?;
         ensure_js_safe_integer(raw_value)?;
-        cursor = trim_space_tab(&cursor[raw_end..]);
+        cursor = trim_dbc(&cursor[raw_end..]);
 
         let (label, rest) = parse_quoted(cursor).map_err(|error| match error {
             DbcError::InvalidQuotedString => DbcError::InvalidValueDescriptionLine,
             other => other,
         })?;
         descriptions.push(ValueDescription { raw_value, label });
-        cursor = trim_space_tab(rest);
+        cursor = trim_dbc(rest);
     }
 
     Ok(descriptions)

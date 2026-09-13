@@ -1,0 +1,15 @@
+VERSION ""
+NS_ :
+    CM_
+    VAL_
+BS_:
+BO_ 42 Status: 1 ECU
+ SG_ State : 0|8@1+ (1,0) [0|255] "°C €" DASH
+  VAL_ 999 State 0 "private label";
+	VAL_ 42 Missing 0 "private label";
+VAL_ 42 State MissingTable;
+SIG_VALTYPE_ 999 State : 1;
+CM_ BO_ 42 "private comment;
+BO_ 99 Fake: 8 ECU
+ SG_ Fake : 0|8@1+ (1,0) [0|255] \"\" DASH";
+VAL_ 42 State 0 "Off" 1 "On";

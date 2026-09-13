@@ -95,10 +95,10 @@ export function startWorkerRuntime(
 	function execute(client: DirectClient, request: WorkerRequest): Executed {
 		switch (request.op) {
 			case 'openDbc': {
-				const { handle, catalog } = client.openDbc(request.text);
+				const { handle, catalog, warnings } = client.openDbc(request.input);
 				const dbcId = nextWireId++;
 				dbcs.set(dbcId, handle);
-				const result: WireOpenDbc = { dbcId, catalog };
+				const result: WireOpenDbc = { dbcId, catalog, warnings };
 				return {
 					result,
 					undo: () => {

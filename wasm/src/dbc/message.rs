@@ -41,10 +41,10 @@ impl Message {
         };
         let dbc_id = dbc_id_text
             .parse()
-            .map_err(|error| DbcError::invalid_integer("message ID", dbc_id_text, error))?;
+            .map_err(|error| DbcError::invalid_integer("message ID", error))?;
         let size_bytes = size_text
             .parse()
-            .map_err(|error| DbcError::invalid_integer("message size", size_text, error))?;
+            .map_err(|error| DbcError::invalid_integer("message size", error))?;
         let is_extended = dbc_id & EXTENDED_FLAG != 0;
 
         Ok(Self {

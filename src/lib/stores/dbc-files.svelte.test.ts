@@ -613,7 +613,8 @@ function dbcHandle(id: number): DbcHandle {
 }
 
 function openDbcResult(handle: DbcHandle, catalog: ParsedDbc): OpenDbcResult {
-	return { handle, catalog };
+	const result = { handle, catalog, warnings: [] };
+	return result;
 }
 
 function dbcEntry({

@@ -1,4 +1,5 @@
 import type {
+	DbcDiagnostic,
 	DbcMessageIdentity,
 	EmbeddedDbc,
 	Mf4SignalCatalog,
@@ -10,7 +11,7 @@ import type {
 export type WireError = { name: string; message: string };
 
 export type WorkerRequestBody =
-	| { op: 'openDbc'; text: string }
+	| { op: 'openDbc'; input: Uint8Array | string }
 	| { op: 'closeDbc'; dbcId: number }
 	| { op: 'openTrace'; traceType: TraceType; buffer: ArrayBuffer }
 	| { op: 'closeTrace'; traceId: number }
@@ -26,7 +27,11 @@ export type WorkerRequestBody =
 
 export type WorkerRequest = WorkerRequestBody & { id: number };
 
-export type WireOpenDbc = { dbcId: number; catalog: ParsedDbc };
+export type WireOpenDbc = {
+	dbcId: number;
+	catalog: ParsedDbc;
+	warnings: DbcDiagnostic[];
+};
 
 export type WireOpenTrace = {
 	traceId: number;

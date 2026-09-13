@@ -118,7 +118,7 @@ fn write_optional_number_field(output: &mut String, field: &str, value: Option<f
     }
 }
 
-fn write_json_string(output: &mut String, value: &str) {
+pub(super) fn write_json_string(output: &mut String, value: &str) {
     output.push('"');
     for character in value.chars() {
         match character {

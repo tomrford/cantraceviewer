@@ -59,7 +59,7 @@ function createFakeDirect() {
 				error.name = 'DbcParseError';
 				throw error;
 			}
-			return { handle: {} as DbcHandle, catalog: { messages: [] } };
+			return { handle: {} as DbcHandle, catalog: { messages: [] }, warnings: [] };
 		},
 		closeDbc() {
 			log.push('closeDbc');

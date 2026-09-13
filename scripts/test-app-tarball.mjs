@@ -39,6 +39,16 @@ try {
 	await cp(join(repo, 'pnpm-lock.yaml'), join(root, 'pnpm-lock.yaml'));
 
 	execFileSync('pnpm', ['install', '--no-frozen-lockfile'], { cwd: root, stdio: 'inherit' });
+	execFileSync('pnpm', ['exec', 'svelte-kit', 'sync'], { cwd: root, stdio: 'inherit' });
+	execFileSync(
+		'pnpm',
+		['exec', 'svelte-check', '--tsgo-experimental-api', '--tsconfig', './tsconfig.json'],
+		{ cwd: root, stdio: 'inherit' }
+	);
+	execFileSync('pnpm', ['exec', 'vitest', 'run', '--configLoader', 'runner'], {
+		cwd: root,
+		stdio: 'inherit'
+	});
 	const installed = JSON.parse(
 		await readFile(join(root, 'node_modules/cantraceviewer/package.json'), 'utf8')
 	);
@@ -55,7 +65,8 @@ try {
 		output.some((name) => /cantraceviewer_bg-.*\.wasm$/.test(name)),
 		'app omitted WASM'
 	);
+	if (process.env.KEEP_PACKAGE_SMOKE) console.log(`App fixture: ${root}`);
 	console.log('validated the CAN Trace Viewer production build against the installed tarball');
 } finally {
-	await rm(root, { recursive: true, force: true });
+	if (!process.env.KEEP_PACKAGE_SMOKE) await rm(root, { recursive: true, force: true });
 }

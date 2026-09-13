@@ -145,18 +145,18 @@ impl Signal {
             return Err(DbcError::InvalidSignalLine);
         };
         let start_bit_text = &cursor[..start_separator];
-        let start_bit = start_bit_text.parse().map_err(|error| {
-            DbcError::invalid_integer("signal start bit", start_bit_text, error)
-        })?;
+        let start_bit = start_bit_text
+            .parse()
+            .map_err(|error| DbcError::invalid_integer("signal start bit", error))?;
         cursor = &cursor[start_separator + 1..];
 
         let Some(length_separator) = cursor.find('@') else {
             return Err(DbcError::InvalidSignalLine);
         };
         let bit_length_text = &cursor[..length_separator];
-        let bit_length = bit_length_text.parse().map_err(|error| {
-            DbcError::invalid_integer("signal bit length", bit_length_text, error)
-        })?;
+        let bit_length = bit_length_text
+            .parse()
+            .map_err(|error| DbcError::invalid_integer("signal bit length", error))?;
         cursor = &cursor[length_separator + 1..];
         if cursor.len() < 2 {
             return Err(DbcError::InvalidSignalLine);
@@ -304,12 +304,9 @@ impl Signal {
 fn parse_finite_float(field: &'static str, text: &str) -> Result<f64, DbcError> {
     let value = text
         .parse()
-        .map_err(|error| DbcError::invalid_float(field, text, error))?;
+        .map_err(|error| DbcError::invalid_float(field, error))?;
     if !f64::is_finite(value) {
-        return Err(DbcError::NonFiniteSignalNumber {
-            field,
-            value: text.to_owned(),
-        });
+        return Err(DbcError::NonFiniteSignalNumber { field });
     }
     Ok(value)
 }

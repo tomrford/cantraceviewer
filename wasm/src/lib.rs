@@ -22,10 +22,15 @@ pub struct WasmDbc {
 #[wasm_bindgen]
 impl WasmDbc {
     /// Parse DBC text and retain the decoded model for subsequent signal work.
-    pub fn parse(input: &str) -> Result<WasmDbc, JsError> {
+    pub fn parse(input: &[u8]) -> Result<WasmDbc, JsError> {
         Ok(Self {
-            inner: Dbc::parse(input)?,
+            inner: Dbc::parse_bytes(input)?,
         })
+    }
+
+    #[wasm_bindgen(js_name = warningsJson)]
+    pub fn warnings_json(&self) -> String {
+        self.inner.warnings_json()
     }
 
     /// Return the browser catalog projection as JSON.
