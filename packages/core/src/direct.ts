@@ -5,6 +5,7 @@ import { initSync, Dbc as WasmDbc, Trace as WasmTrace } from './wasm-bindgen/can
 import type {
 	DbcHandle,
 	DbcMessageIdentity,
+	RawSource,
 	DecodedSignalSeries,
 	Mf4SignalCatalog,
 	OpenDbcResult,
@@ -46,7 +47,8 @@ export type DirectClient = {
 		dbcHandle: DbcHandle,
 		traceHandle: TraceHandle,
 		messageIdentity: DbcMessageIdentity,
-		signalName: string
+		signalName: string,
+		source?: RawSource
 	): DecodedSignalSeries;
 	/** Read one signal the trace already carries decoded, identified by its MF4 catalog id. */
 	getMf4SignalValues(traceHandle: TraceHandle, signalId: number): DecodedSignalSeries;
@@ -94,6 +96,7 @@ export function createDirectClient(wasm: DirectWasmInput): DirectClient {
 			const trace = parseTrace(traceType, bytes);
 			try {
 				const metadata: TraceMetadata = {
+					rawMessages: JSON.parse(trace.rawMessagesJson()) as TraceMetadata['rawMessages'],
 					measurementStartMs: trace.measurementStartMs ?? null,
 					validMessageCount: trace.validMessageCount,
 					skippedLineCount: trace.skippedLineCount,
@@ -122,17 +125,29 @@ export function createDirectClient(wasm: DirectWasmInput): DirectClient {
 		closeTrace(handle) {
 			freeHandle(handles.release('trace', handle));
 		},
-		getSignalValues(dbcHandle, traceHandle, messageIdentity, signalName) {
+		getSignalValues(dbcHandle, traceHandle, messageIdentity, signalName, source) {
 			assertClientOpen();
 			const dbc = handles.payload('dbc', dbcHandle);
 			const trace = handles.payload('trace', traceHandle);
+			if (
+				source &&
+				((source.channel !== null &&
+					(!Number.isInteger(source.channel) || source.channel < 1 || source.channel > 65535)) ||
+					!['unknown', 'rx', 'tx'].includes(source.direction))
+			) {
+				throw new Error(
+					'Invalid raw source: channel must be null or 1–65535 and direction unknown, rx or tx'
+				);
+			}
 			return unpackSeries(
 				dbc.decodeSignal(
 					trace,
 					messageIdentity.canId,
 					messageIdentity.isExtended,
 					messageIdentity.sizeBytes,
-					signalName
+					signalName,
+					source?.channel ?? undefined,
+					source ? { unknown: 0, rx: 1, tx: 2 }[source.direction] : undefined
 				)
 			);
 		},
