@@ -22,12 +22,15 @@ Use repo-native commands through `nix`:
 
 ```sh
 nix develop -c pnpm run dev
+nix develop -c pnpm run validate
 nix develop -c pnpm run test
 nix develop -c pnpm run check
 nix develop -c pnpm run wasm:build:release
 nix develop -c pnpm run wasm:check
 nix develop -c pnpm run wasm:test
 ```
+
+`validate` is the full serial CI check and builds release WASM once. `package:validate` is the release workflow's Rust and installed-package validation. Keep build-generating commands serial within a checkout; they share output directories. Install dependencies separately with `CI=true nix develop -c pnpm install --frozen-lockfile` for noninteractive runs.
 
 Generated wasm-bindgen JavaScript, TypeScript declarations, and WASM under `packages/core/src/wasm-bindgen` are build outputs and are not committed. Package build and release commands generate them from Rust before compiling or packing the package. The application build consumes the published package and does not require a Rust toolchain.
 
