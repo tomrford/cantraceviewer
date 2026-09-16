@@ -29,7 +29,6 @@ try {
 
 	const manifest = JSON.parse(await readFile(join(repo, 'package.json'), 'utf8'));
 	manifest.dependencies.cantraceviewer = `file:${tarball}`;
-	manifest.scripts['package:build'] = "node -e ''";
 	await writeFile(join(root, 'package.json'), `${JSON.stringify(manifest, null, '\t')}\n`);
 
 	const workspaceSource = await readFile(join(repo, 'pnpm-workspace.yaml'), 'utf8');
@@ -39,16 +38,9 @@ try {
 	await cp(join(repo, 'pnpm-lock.yaml'), join(root, 'pnpm-lock.yaml'));
 
 	execFileSync('pnpm', ['install', '--no-frozen-lockfile'], { cwd: root, stdio: 'inherit' });
-	execFileSync('pnpm', ['exec', 'svelte-kit', 'sync'], { cwd: root, stdio: 'inherit' });
-	execFileSync(
-		'pnpm',
-		['exec', 'svelte-check', '--tsgo-experimental-api', '--tsconfig', './tsconfig.json'],
-		{ cwd: root, stdio: 'inherit' }
-	);
-	execFileSync('pnpm', ['exec', 'vitest', 'run', '--configLoader', 'runner'], {
-		cwd: root,
-		stdio: 'inherit'
-	});
+	for (const script of ['check:app', 'test:run']) {
+		execFileSync('pnpm', ['run', script], { cwd: root, stdio: 'inherit' });
+	}
 	const installed = JSON.parse(
 		await readFile(join(root, 'node_modules/cantraceviewer/package.json'), 'utf8')
 	);

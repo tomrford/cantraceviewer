@@ -40,22 +40,8 @@ jobs:
       - name: Install dependencies
         run: nix develop -c pnpm install --frozen-lockfile
 
-      - name: Check and test Rust
-        run: |
-          nix develop -c pnpm run wasm:check
-          nix develop -c pnpm run wasm:test
-
-      - name: Build release WASM
-        run: nix develop -c pnpm run wasm:build:release
-
-      - name: Build package tarball
-        run: nix develop -c pnpm run package:pack
-
-      - name: Validate installed package entries
-        run: nix develop -c pnpm run package:test:tarball
-
-      - name: Build app against installed package
-        run: nix develop -c pnpm run package:test:app
+      - name: Validate package
+        run: nix develop -c pnpm run package:validate
 
       - name: Verify package checksum
         env:
