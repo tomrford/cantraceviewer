@@ -103,6 +103,7 @@ function plotSignal(
 		color: '#000000',
 		messageName: label.split('.')[0] ?? label,
 		signalName: label.split('.')[1] ?? label,
+		valueType: 'integer' as const,
 		factor: overrides.factor ?? 1,
 		offset: overrides.offset ?? 0,
 		minimum: 0,

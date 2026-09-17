@@ -30,6 +30,7 @@ function view(x: number[], y: number[] = x): SignalView {
 		x: new Float64Array(x),
 		y: new Float64Array(y),
 		points: x.length,
+		valueType: 'integer' as const,
 		factor: 1,
 		offset: 0,
 		minimum: 0,
@@ -40,6 +41,7 @@ function view(x: number[], y: number[] = x): SignalView {
 
 const formatContext = {
 	unit: 'km/h',
+	valueType: 'integer' as const,
 	factor: 0.1,
 	offset: 0,
 	minimum: 0,
@@ -170,6 +172,43 @@ describe('signal plot data', () => {
 		expect(isOutsideDbcRange(999, 0, 0)).toBe(false);
 	});
 
+	it('preserves fractional floating-point values, deltas and range checks', () => {
+		const floating = {
+			...view([0, 10], [12.34, 12.49]),
+			valueType: 'float64' as const,
+			unit: 'V',
+			maximum: 12.4
+		};
+		expect(crosshairValue(floating, 0)).toEqual({
+			key: 'signal',
+			text: '12.34 V',
+			outOfRange: false
+		});
+		expect(crosshairValue(floating, 10)).toEqual({
+			key: 'signal',
+			text: '12.49 V',
+			outOfRange: true
+		});
+		expect(crosshairDeltaValue(floating, 0, 10)).toEqual({
+			key: 'signal',
+			text: '0.15 V',
+			outOfRange: false
+		});
+		expect(formatDecodedValue(12.34, { ...floating, valueType: 'float32' }).text).toBe('12.34 V');
+		expect(formatLegendNumericValue(0.00001234567, null)).toBe('0.00001234567');
+	});
+
+	it('treats absent bounds as unspecified for positive and negative native values', () => {
+		const context = {
+			...formatContext,
+			valueType: 'float64' as const,
+			minimum: null,
+			maximum: null
+		};
+		expect(formatDecodedValue(-12.34, context)).toEqual({ text: '-12.34 km/h', outOfRange: false });
+		expect(formatDecodedValue(12.34, context)).toEqual({ text: '12.34 km/h', outOfRange: false });
+	});
+
 	it('caps legend numeric width at seven significant digits', () => {
 		expect(formatLegendNumericValue(12345.678, 1)).toBe('12346');
 		expect(formatLegendNumericValue(12.34567, 0.01)).toBe('12.35');
@@ -186,6 +225,7 @@ describe('signal plot data', () => {
 		expect(
 			formatDecodedValue(12.5, {
 				...formatContext,
+				valueType: 'integer' as const,
 				factor: 1,
 				offset: 0.5
 			})
@@ -284,6 +324,7 @@ function plotSignal(overrides: Partial<PlotSignal> = {}): PlotSignal {
 		messageName: 'Message',
 		signalName: 'Signal',
 		label: 'Message.Signal',
+		valueType: 'integer' as const,
 		factor: 1,
 		offset: 0,
 		minimum: 0,

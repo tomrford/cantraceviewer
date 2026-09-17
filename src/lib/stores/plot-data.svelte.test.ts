@@ -4,6 +4,11 @@ import { dbcFiles, signalIdentityKey, type DbcFileEntry } from './dbc-files.svel
 import { plotData } from './plot-data.svelte';
 import { traceFile, type TraceFileEntry } from './trace-file.svelte';
 import { getMf4SignalValues, getSignalValues } from '$lib/wasm.js';
+import {
+	createSignalViewCache,
+	crosshairValue,
+	crosshairDeltaValue
+} from '$lib/signal-plot-data.js';
 import { mf4SignalIdentityKey } from '$lib/mf4-signals.js';
 import type {
 	DbcHandle,
@@ -34,6 +39,56 @@ describe('plotData', () => {
 		plotData.clearSelectedSignals();
 	});
 
+	it('offers and decodes separate source choices only for ambiguous identifiers', async () => {
+		const trace = traceFile.entry!;
+		trace.metadata.rawMessages = [
+			{ canId: 291, isExtended: false, source: { channel: 1, direction: 'rx' } },
+			{ canId: 291, isExtended: false, source: { channel: 2, direction: 'rx' } },
+			{ canId: 291, isExtended: false, source: { channel: 1, direction: 'tx' } },
+			{ canId: 291, isExtended: true, source: { channel: 3, direction: 'rx' } }
+		];
+		const choices = dbcFiles.selectorFiles[0]!.messages;
+		expect(choices.map((message) => message.name)).toEqual([
+			'SpeedMessage [Channel 1 · Rx]',
+			'SpeedMessage [Channel 2 · Rx]',
+			'SpeedMessage [Channel 1 · Tx]'
+		]);
+		getSignalValuesMock.mockImplementation(async (...args) => {
+			// Worker requests must be structured-cloneable even when metadata came from $state.
+			structuredClone(args[4]);
+			return signalSeries([1], [17]);
+		});
+		await plotData.toggleSignal(choices[1]!.signals[0]!.key);
+		await plotData.toggleSignal(choices[2]!.signals[0]!.key);
+		expect(getSignalValuesMock.mock.calls.map((call) => call.slice(2))).toEqual([
+			[
+				{ canId: 291, isExtended: false, sizeBytes: 8 },
+				'VehicleSpeed',
+				{ channel: 2, direction: 'rx' }
+			],
+			[
+				{ canId: 291, isExtended: false, sizeBytes: 8 },
+				'VehicleSpeed',
+				{ channel: 1, direction: 'tx' }
+			]
+		]);
+		expect(plotData.signals.map((signal) => signal.label)).toEqual(
+			expect.arrayContaining([
+				'SpeedMessage.VehicleSpeed [Channel 2 · Rx]',
+				'SpeedMessage.VehicleSpeed [Channel 1 · Tx]'
+			])
+		);
+		expect(plotData.signals.map((signal) => Array.from(signal.series!.values))).toEqual([
+			[17],
+			[17]
+		]);
+		plotData.deselectDbcFile(dbcFiles.files[0]!.id);
+		expect(plotData.signals).toEqual([]);
+		trace.metadata.rawMessages = trace.metadata.rawMessages.slice(0, 1);
+		expect(dbcFiles.selectorFiles[0]!.messages[0]!.name).toBe('SpeedMessage');
+		expect(dbcFiles.selectorFiles[0]!.messages[0]!.signals[0]!.key).toBe(key());
+	});
+
 	it('decodes a selected signal into samples', async () => {
 		const series = signalSeries([0.001], [12.5]);
 		getSignalValuesMock.mockResolvedValueOnce(series);
@@ -44,7 +99,8 @@ describe('plotData', () => {
 			dbcFiles.files[0]!.handle,
 			traceFile.entry!.handle,
 			{ canId: 291, isExtended: false, sizeBytes: 8 },
-			'VehicleSpeed'
+			'VehicleSpeed',
+			undefined
 		);
 		expect(plotData.signals).toMatchObject([
 			{
@@ -104,6 +160,53 @@ describe('plotData', () => {
 		});
 	});
 
+	it.each(['success', 'error'] as const)(
+		'ignores an old selection completion (%s) after reselecting',
+		async (outcome) => {
+			const first = createDeferred<DecodedSignalSeries>();
+			const second = createDeferred<DecodedSignalSeries>();
+			getSignalValuesMock.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+			const oldSelection = plotData.toggleSignal(key());
+			await plotData.toggleSignal(key());
+			const newSelection = plotData.toggleSignal(key());
+			if (outcome === 'success') first.resolve(signalSeries([1], [12]));
+			else first.reject(new Error('old decode failed'));
+			await oldSelection;
+			expect(plotData.signalDecodeStatus(key())).toEqual({ isDecoding: true, decodeError: null });
+			expect(plotData.signals[0].series).toBeNull();
+			second.resolve(signalSeries([2], [34]));
+			await newSelection;
+			expect(plotData.signals[0].series?.values).toEqual(new Float64Array([34]));
+		}
+	);
+
+	it('retains native views and fractional readouts across selection rebuilds', async () => {
+		traceFile.entry = traceEntry(9, {
+			mf4Catalog: {
+				groups: [{ name: 'Native', signals: [{ id: 7, name: 'Speed', unit: 'km/h' }] }]
+			}
+		});
+		getMf4SignalValuesMock.mockResolvedValueOnce(signalSeries([0, 10], [12.34, 12.49]));
+		await plotData.toggleSignal(mf4SignalIdentityKey(9, 7));
+		const cache = createSignalViewCache();
+		const first = cache(plotData.signals)[0];
+		getSignalValuesMock.mockResolvedValueOnce(signalSeries([0], [5]));
+		await plotData.toggleSignal(key());
+		expect(cache(plotData.signals)[0]).toBe(first);
+		expect(crosshairValue(first, 0).text).toBe('12.34 km/h');
+		expect(crosshairDeltaValue(first, 0, 10).text).toBe('0.15 km/h');
+	});
+
+	it('carries the DBC floating-point type into its readout', async () => {
+		dbcFiles.files = [
+			dbcEntry({ messages: [message({ signals: [signal({ valueType: 'float32', factor: 1 })] })] })
+		];
+		getSignalValuesMock.mockResolvedValueOnce(signalSeries([0], [12.5]));
+		await plotData.toggleSignal(key());
+		const view = createSignalViewCache()(plotData.signals)[0];
+		expect(crosshairValue(view, 0).text).toBe('12.5 km/h');
+	});
+
 	it('keeps a stale decode result out of state after the trace changes', async () => {
 		const deferred = createDeferred<DecodedSignalSeries>();
 		getSignalValuesMock.mockReturnValueOnce(deferred.promise);
@@ -152,7 +255,8 @@ describe('plotData', () => {
 			dbcFiles.files[0]!.handle,
 			traceFile.entry!.handle,
 			{ canId: 291, isExtended: false, sizeBytes: 8 },
-			'VehicleSpeed'
+			'VehicleSpeed',
+			undefined
 		);
 	});
 
@@ -183,7 +287,8 @@ describe('plotData', () => {
 			dbcFiles.files[0]!.handle,
 			traceFile.entry!.handle,
 			{ canId: 0x200, isExtended: false, sizeBytes: 1 },
-			'Value'
+			'Value',
+			undefined
 		);
 		expect(plotData.signals[0]).toMatchObject({
 			messageName: 'SpeedMessage',
@@ -198,7 +303,7 @@ describe('plotData', () => {
 
 		expect(plotData.isSignalSelected(key())).toBe(true);
 		expect(plotData.selectedSignals.get(key())).toEqual({
-			status: 'idle',
+			isDecoding: false,
 			series: null,
 			error: null
 		});
@@ -264,7 +369,8 @@ function dbcEntry(overrides: { messages?: DbcMessage[] } = {}): DbcFileEntry {
 		catalog: {
 			messages: overrides.messages ?? [message()]
 		},
-		origin: 'library'
+		origin: 'library',
+		warnings: []
 	};
 }
 
