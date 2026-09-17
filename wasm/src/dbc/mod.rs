@@ -5,7 +5,9 @@
 
 mod catalog;
 mod error;
+mod format;
 mod message;
+mod multiplex;
 mod quotes;
 mod signal;
 mod source;
@@ -15,6 +17,7 @@ use std::rc::Rc;
 
 pub use error::DbcError;
 pub use message::Message;
+pub(crate) use multiplex::ActivityPlan;
 pub use signal::Signal;
 pub use source::Diagnostic;
 pub use values::{
@@ -54,7 +57,8 @@ impl Dbc {
         let mut current_message: Option<Message> = None;
 
         let mut warnings = Vec::new();
-        let mut signal_positions = Vec::new();
+        let mut mux_records = Vec::new();
+        let mut format_records = Vec::new();
         for record in source::records(text) {
             let record = record?;
             let line = record.text;
@@ -69,7 +73,8 @@ impl Dbc {
                 match record.keyword {
                     "BO_" => {
                         finish_message(&mut messages, &mut current_message, &mut current_signals);
-                        let message = Message::parse(line)?;
+                        let mut message = Message::parse(line)?;
+                        message.position = record.position;
                         if message.dbc_id == INDEPENDENT_SIGNAL_MESSAGE_ID {
                             warnings.push(record.position.warning(
                                 "omitted-feature",
@@ -103,20 +108,22 @@ impl Dbc {
                         current_message
                             .as_ref()
                             .ok_or(DbcError::SignalWithoutMessage)?;
-                        let signal = Signal::parse(line)?;
+                        let mut signal = Signal::parse(line)?;
+                        signal.position = record.position;
                         if current_signals
                             .iter()
                             .any(|other: &Signal| other.name == signal.name)
                         {
                             return Err(DbcError::InvalidSignalLine);
                         }
-                        signal_positions.push(record.position);
                         current_signals.push(signal);
                     }
                     "SGTYPE_" | "SGTYPE_VAL_" | "SIG_TYPE_REF_" | "SIGTYPE_VALTYPE_"
                     | "BA_DEF_SGTYPE_" | "BA_SGTYPE_" => {
                         return Err(DbcError::UnsupportedSignalType);
                     }
+                    "SG_MUL_VAL_" => mux_records.push(record),
+                    "BA_" | "BA_DEF_" | "BA_DEF_DEF_" => format_records.push(record),
                     "VERSION" | "NS_" | "BS_" | "BU_" => {}
                     _ => warnings.push(record.position.warning(
                         "unsupported-record",
@@ -157,32 +164,27 @@ impl Dbc {
                 warnings.push(position.warning("dangling-reference", "SIG_VALTYPE_", message));
             }
         }
-        for ((message, signal), position) in messages
-            .iter()
-            .flat_map(|message| message.signals.iter().map(move |signal| (message, signal)))
-            .zip(signal_positions)
-        {
-            if message.dbc_id == INDEPENDENT_SIGNAL_MESSAGE_ID {
-                continue;
+        messages.retain(|message| message.dbc_id != INDEPENDENT_SIGNAL_MESSAGE_ID);
+        for message in &messages {
+            for signal in &message.signals {
+                signal
+                    .validate_layout(message.size_bytes)
+                    .map_err(|error| signal.position.error("SG_", error))?;
             }
-            if signal.unsupported_mux {
-                warnings.push(position.warning(
-                    "omitted-feature",
-                    "SG_",
-                    "Multiplexed signal is omitted from the viewer catalogue.",
-                ));
-            } else if let Err(error) = signal.plan_decode(message.size_bytes) {
-                match error {
-                    DbcError::UnsupportedMessageLength(_) => warnings.push(position.warning(
+        }
+        multiplex::resolve(&mut messages, &mux_records)?;
+        format::resolve(&mut messages, &format_records, &mut warnings)?;
+        for message in &messages {
+            for signal in &message.signals {
+                if !message.raw_frame_decodable() {
+                    warnings.push(signal.position.warning(
                         "omitted-feature",
                         "SG_",
-                        "Signal requires a payload longer than 64 bytes and cannot be decoded.",
-                    )),
-                    error => return Err(position.error("SG_", error)),
+                        "Signal requires transport reassembly or a payload longer than 64 bytes.",
+                    ));
                 }
             }
         }
-        messages.retain(|message| message.dbc_id != INDEPENDENT_SIGNAL_MESSAGE_ID);
         warnings.sort_by_key(|warning| (warning.line, warning.column));
 
         Ok(Self {
@@ -351,8 +353,10 @@ mod tests {
         let expected = Dbc::parse(body).unwrap();
         for declarations in [" CM_ \r\n VAL_\t\n", "CM_ VAL_ SIG_VALTYPE_\n"] {
             assert_eq!(
-                Dbc::parse(&format!("NS_ :\n{declarations}{body}")).unwrap(),
-                expected
+                Dbc::parse(&format!("NS_ :\n{declarations}{body}"))
+                    .unwrap()
+                    .to_catalog_json(),
+                expected.to_catalog_json()
             );
         }
         let malformed = format!("CM_ \"comment\"\n{body}");
@@ -364,7 +368,7 @@ mod tests {
         );
         let attribute = format!("BA_ \"comment\"\n BO_ 1 \"quoted : colon\";\n{body}");
         let parsed = Dbc::parse(&attribute).unwrap();
-        assert_eq!(parsed.messages, expected.messages);
+        assert_eq!(parsed.to_catalog_json(), expected.to_catalog_json());
         assert_eq!(parsed.warnings.len(), 1);
     }
 
@@ -463,17 +467,14 @@ mod tests {
     }
 
     #[test]
-    fn extended_mux_omissions_are_visible() {
+    fn extended_mux_no_longer_reports_omitted_signals() {
         let dbc = Dbc::parse(include_str!("../../tests/fixtures/extended-multiplex.dbc")).unwrap();
-        assert!(dbc.to_catalog_json().contains("\"signals\":[]"));
-        assert_eq!(
-            dbc.warnings
+        assert_eq!(dbc.messages[0].signals.len(), 12);
+        assert!(
+            !dbc.warnings
                 .iter()
-                .filter(|w| w.category == "omitted-feature")
-                .count(),
-            12
+                .any(|w| w.category == "omitted-feature" || w.keyword == "SG_MUL_VAL_")
         );
-        assert!(dbc.warnings.iter().any(|w| w.keyword == "SG_MUL_VAL_"));
     }
 
     #[test]
@@ -513,34 +514,6 @@ BO_ 304 BodyStatus: 3 Agent
         assert_eq!(dbc.messages[0].name, "PowertrainStatus");
         assert_eq!(dbc.messages[0].signals.len(), 1);
         assert_eq!(dbc.messages[0].signals[0].name, "vehicle_speed");
-    }
-
-    #[test]
-    fn parses_extended_multiplexed_signals() {
-        let text = r#"
-BO_ 2147483650 ext_MUX_multiplexors: 7 Vector__XXX
- SG_ muxed_D_1 m1 : 48|8@1- (1,0) [0|0] "" Vector__XXX
- SG_ muxed_D_0 m0 : 48|8@1- (1,0) [0|0] "" Vector__XXX
- SG_ muxed_C_1_MUX_D m1M : 40|8@1- (1,0) [0|0] "" Vector__XXX
- SG_ muxed_C_0 m0 : 40|16@1- (1,0) [0|0] "" Vector__XXX
- SG_ MUX_C M : 32|8@1- (1,0) [0|0] "" Vector__XXX
- SG_ muxed_B_5 m5 : 24|8@1- (1,0) [0|0] "" Vector__XXX
- SG_ muxed_B_1 m1 : 24|8@1- (1,0) [0|0] "" Vector__XXX
- SG_ muxed_B_2 m2 : 24|8@1- (1,0) [0|0] "" Vector__XXX
- SG_ MUX_B M : 16|8@1- (1,0) [0|0] "" Vector__XXX
- SG_ muxed_A_0 m0 : 8|8@1- (1,0) [0|0] "" Vector__XXX
- SG_ muxed_A_1 m1 : 8|8@1- (1,0) [0|0] "" Vector__XXX
- SG_ MUX_A M : 0|8@1- (1,0) [0|0] "" Vector__XXX
-"#;
-        let dbc = Dbc::parse(text).unwrap();
-
-        assert_eq!(dbc.messages.len(), 1);
-        assert_eq!(dbc.messages[0].dbc_id, 2_147_483_650);
-        assert_eq!(dbc.messages[0].can_id, 2);
-        assert!(dbc.messages[0].is_extended);
-        assert_eq!(dbc.messages[0].signals.len(), 12);
-        assert_eq!(dbc.messages[0].signals[0].name, "muxed_D_1");
-        assert!(dbc.messages[0].signals[0].unsupported_mux);
     }
 
     #[test]

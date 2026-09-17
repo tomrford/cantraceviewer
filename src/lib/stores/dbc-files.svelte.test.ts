@@ -648,6 +648,7 @@ function message(overrides: Partial<DbcMessage> = {}): DbcMessage {
 		canId: 1,
 		isExtended: false,
 		isFd: false,
+		...{ frameFormat: 'standard-can' as const, rawFrameDecodable: true, j1939: null },
 		sizeBytes: 8,
 		transmitter: 'ECU',
 		signals: [],
@@ -668,7 +669,7 @@ function signal(overrides: Partial<DbcSignal> = {}): DbcSignal {
 		maximum: 255,
 		unit: '',
 		valueType: 'integer',
-		unsupportedMux: false,
+		...{ unsupportedMux: false, isMultiplexer: false, multiplex: null },
 		receivers: [],
 		valueDescriptions: [],
 		...overrides

@@ -297,6 +297,7 @@ function message(overrides: Partial<DbcMessage> = {}): DbcMessage {
 		canId: overrides.canId ?? 291,
 		isExtended: false,
 		isFd: false,
+		...{ frameFormat: 'standard-can' as const, rawFrameDecodable: true, j1939: null },
 		sizeBytes: 8,
 		transmitter: 'ECU',
 		signals: [signal()],
@@ -317,7 +318,7 @@ function signal(overrides: Partial<DbcSignal> = {}): DbcSignal {
 		maximum: 250,
 		unit: 'km/h',
 		valueType: 'integer',
-		unsupportedMux: false,
+		...{ unsupportedMux: false, isMultiplexer: false, multiplex: null },
 		receivers: ['DASH'],
 		valueDescriptions: [],
 		...overrides
