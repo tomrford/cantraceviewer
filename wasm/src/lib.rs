@@ -41,6 +41,7 @@ impl WasmDbc {
 
     /// Decode one selected signal as packed parallel time/value arrays.
     #[wasm_bindgen(js_name = decodeSignal)]
+    #[allow(clippy::too_many_arguments)]
     pub fn decode_signal(
         &self,
         trace: &mut WasmTrace,
@@ -48,6 +49,8 @@ impl WasmDbc {
         is_extended: bool,
         size_bytes: u16,
         signal_name: &str,
+        channel: Option<u16>,
+        direction: Option<u8>,
     ) -> Result<Box<[f64]>, JsError> {
         let index = trace
             .index
@@ -60,6 +63,14 @@ impl WasmDbc {
             is_extended,
             size_bytes,
             signal_name,
+            direction.map(|direction| trace::RawSource {
+                channel: channel.and_then(std::num::NonZeroU16::new),
+                direction: match direction {
+                    1 => trace::Direction::Rx,
+                    2 => trace::Direction::Tx,
+                    _ => trace::Direction::Unknown,
+                },
+            }),
         )?
         .into_boxed_slice())
     }
@@ -98,6 +109,14 @@ impl WasmTrace {
             index: None,
             mf4: Some(document),
         })
+    }
+
+    /// Available data-frame identities, sorted by CAN ID, extended status and source.
+    #[wasm_bindgen(js_name = rawMessagesJson)]
+    pub fn raw_messages_json(&mut self) -> String {
+        self.index
+            .get_or_insert_with(|| FrameIndex::build(&self.inner.frames))
+            .catalog_json()
     }
 
     #[wasm_bindgen(getter, js_name = hasRawFrames)]

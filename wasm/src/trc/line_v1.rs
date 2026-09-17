@@ -1,4 +1,4 @@
-use crate::trace::{Frame, FrameKind, TraceError};
+use crate::trace::{Direction, Frame, FrameKind, RawSource, TraceError, parse_channel};
 
 use super::frame;
 
@@ -42,11 +42,20 @@ pub(super) fn parse_line(
     } else {
         ""
     };
+    let source = RawSource {
+        channel: if id_index >= 2 {
+            parse_channel(rest[id_index - 2].as_bytes())?
+        } else {
+            None
+        },
+        direction: Direction::from_text(type_token.as_bytes()),
+    };
     let id_text = rest[id_index];
 
     if id_text == "FFFFFFFF" || is_error_type(type_token) {
         return Ok(Some(Frame {
             timestamp_ns,
+            source,
             kind: FrameKind::Error,
             ..Frame::default()
         }));
@@ -73,6 +82,7 @@ pub(super) fn parse_line(
     if is_error_type(data_marker) {
         return Ok(Some(Frame {
             timestamp_ns,
+            source,
             kind: FrameKind::Error,
             ..Frame::default()
         }));
@@ -80,6 +90,7 @@ pub(super) fn parse_line(
     if is_remote_type(type_token) || is_remote_type(data_marker) {
         return Ok(Some(Frame {
             timestamp_ns,
+            source,
             kind: FrameKind::Remote,
             id: Some(id),
             dlc,
@@ -95,6 +106,7 @@ pub(super) fn parse_line(
     }
     Ok(Some(Frame {
         timestamp_ns,
+        source,
         kind: FrameKind::Data,
         id: Some(id),
         dlc,
@@ -149,6 +161,8 @@ mod tests {
         let data = parse_line("1 0.100 Rx 0123 2 AA bb", &mut payload)
             .unwrap()
             .unwrap();
+        assert_eq!(data.source.channel, None);
+        assert_eq!(data.source.direction, Direction::Rx);
         assert_eq!(data.timestamp_ns, 100_000);
         assert_eq!(data.kind, FrameKind::Data);
         assert_eq!(data.id, Some(CanId::standard(0x123).unwrap()));
@@ -170,9 +184,11 @@ mod tests {
             .unwrap();
         assert_eq!(marker_error.kind, FrameKind::Error);
 
-        let with_bus = parse_line("3 0.300 1 Rx 0124 1 CC", &mut payload)
+        let with_bus = parse_line("3 0.300 2 Tx 0124 1 CC", &mut payload)
             .unwrap()
             .unwrap();
+        assert_eq!(with_bus.source.channel.map(|v| v.get()), Some(2));
+        assert_eq!(with_bus.source.direction, Direction::Tx);
         assert_eq!(with_bus.id, Some(CanId::standard(0x124).unwrap()));
 
         let v13 = parse_line("1) 1.600 1 Rx 10062123 - 6 D2 AF AA 88 18 80", &mut payload)

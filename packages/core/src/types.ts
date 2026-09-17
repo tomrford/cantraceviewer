@@ -49,13 +49,25 @@ export type ParsedDbc = {
 	messages: DbcMessage[];
 };
 
+/** Source identity is independent of DBC frame-format and payload matching. */
+export type RawSource = {
+	/** One-based format channel; null when absent or unspecified (zero). */
+	channel: number | null;
+	direction: 'unknown' | 'rx' | 'tx';
+};
+
+export type RawMessage = Pick<DbcMessage, 'canId' | 'isExtended'> & { source: RawSource };
+
 export type TraceMetadata = {
+	/** Distinct raw data-frame identities, sorted by identifier, format, channel and direction. */
+	rawMessages: RawMessage[];
 	measurementStartMs: number | null;
 	validMessageCount: number;
 	skippedLineCount: number;
 	durationNs: number | null;
 };
 
+/** Chronological samples; equal timestamps retain their source order. */
 export type DecodedSignalSeries = {
 	timesMs: Float64Array;
 	values: Float64Array;

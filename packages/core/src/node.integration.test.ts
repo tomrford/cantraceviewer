@@ -20,6 +20,40 @@ afterAll(async () => {
 });
 
 describe('cantraceviewer/node', () => {
+	it('transports explicit source selection and ambiguity errors through the worker', async () => {
+		const dbc = await client.openDbc(
+			'BO_ 291 Example: 1 ECU\n SG_ Value : 0|8@1+ (1,0) [0|255] "" ECU'
+		);
+		const trace = await client.openTrace(
+			'trc',
+			new TextEncoder().encode(
+				';$FILEVERSION=2.1\n;$COLUMNS=N,O,T,B,I,d,L,D\n1 1.000 DT 1 0123 Rx 1 11\n2 2.000 DT 2 0123 Rx 1 22\n3 3.000 DT 1 0123 Tx 1 33'
+			).buffer
+		);
+		const message = { canId: 291, isExtended: false, sizeBytes: 1 };
+		try {
+			expect(trace.metadata.rawMessages).toHaveLength(3);
+			await expect(
+				client.getSignalValues(dbc.handle, trace.handle, message, 'Value')
+			).rejects.toThrow('Multiple raw sources');
+			const rx = await client.getSignalValues(dbc.handle, trace.handle, message, 'Value', {
+				channel: 2,
+				direction: 'rx'
+			});
+			const tx = await client.getSignalValues(dbc.handle, trace.handle, message, 'Value', {
+				channel: 1,
+				direction: 'tx'
+			});
+			expect(Array.from(rx.values)).toEqual([34]);
+			expect(Array.from(rx.timesMs)).toEqual([2]);
+			expect(Array.from(tx.values)).toEqual([51]);
+			expect(Array.from(tx.timesMs)).toEqual([3]);
+		} finally {
+			await client.closeTrace(trace.handle);
+			await client.closeDbc(dbc.handle);
+		}
+	});
+
 	it('parses and decodes through a real worker thread that loads WASM from disk', async () => {
 		const { handle: dbc, catalog } = await client.openDbc(dbcText);
 		// One exact ArrayBuffer copy: Node file reads come out of a shared pool.
@@ -34,7 +68,7 @@ describe('cantraceviewer/node', () => {
 					sizeBytes: 8
 				}
 			);
-			expect(trace.metadata).toEqual({
+			expect(trace.metadata).toMatchObject({
 				measurementStartMs: 1777550400000,
 				validMessageCount: 1506,
 				skippedLineCount: 0,

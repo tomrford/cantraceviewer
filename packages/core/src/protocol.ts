@@ -1,6 +1,7 @@
 import type {
 	DbcDiagnostic,
 	DbcMessageIdentity,
+	RawSource,
 	EmbeddedDbc,
 	Mf4SignalCatalog,
 	ParsedDbc,
@@ -21,6 +22,7 @@ export type WorkerRequestBody =
 			traceId: number;
 			messageIdentity: DbcMessageIdentity;
 			signalName: string;
+			source?: RawSource;
 	  }
 	| { op: 'getMf4SignalValues'; traceId: number; signalId: number }
 	| { op: 'closeClient' };
