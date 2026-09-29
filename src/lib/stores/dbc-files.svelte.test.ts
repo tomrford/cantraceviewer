@@ -51,7 +51,7 @@ describe('dbcFiles', () => {
 	});
 
 	it('rejects unsupported DBC extensions before size checks', async () => {
-		await dbcFiles.addFiles([new File([new Uint8Array(2 * 1024 * 1024)], 'large.asc')]);
+		await dbcFiles.addFiles([new File([new Uint8Array(6 * 1024 * 1024)], 'large.asc')]);
 
 		expect(openDbcMock).not.toHaveBeenCalled();
 		expect(dbcFiles.error).toBe('Unsupported DBC file type. Open .dbc.');

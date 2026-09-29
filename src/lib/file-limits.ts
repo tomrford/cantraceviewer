@@ -1,6 +1,6 @@
 const MIB = 1024 * 1024;
 
-export const DBC_MAX_FILE_BYTES = 1 * MIB;
+export const DBC_MAX_FILE_BYTES = 5 * MIB;
 export const TRACE_MAX_FILE_BYTES = 500 * MIB;
 
 function formatBytes(bytes: number): string {

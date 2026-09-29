@@ -8,7 +8,7 @@ I built this for all those times I wanted to "just see quickly what the 3 or 4 i
 
 The app is free and open source. It is a purely static site on Cloudflare Workers, so it costs me nothing to host. Feature requests are welcome, but I cannot promise to add everything. Keeping it focused is the point.
 
-Trace files and decoded series stay in memory for the current browser session. Saved DBC files and display preferences stay in IndexedDB on the current device, so you can reuse them between sessions. DBC files embedded in MF4 traces are temporary and disappear with the trace. Trace files can be up to 500 MiB. Each DBC file, including an embedded DBC after decompression, can be up to 1 MiB.
+Trace files and decoded series stay in memory for the current browser session. Saved DBC files and display preferences stay in IndexedDB on the current device, so you can reuse them between sessions. DBC files embedded in MF4 traces are temporary and disappear with the trace. Trace files can be up to 500 MiB. Each uploaded DBC file can be up to 5 MiB. Embedded DBCs can be up to 1 MiB after decompression.
 
 [Request a feature or report a file-size problem in GitHub issues](https://github.com/tomrford/cantraceviewer/issues).
 

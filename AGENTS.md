@@ -16,7 +16,7 @@ The UI uses SvelteKit, Svelte 5, Node.js, pnpm, Tailwind, and shadcn-svelte styl
 
 Saved DBC files and UI preferences live only in browser storage on the current device. Loaded traces, MF4-native signal catalogs, temporary embedded DBCs, and derived signal series live in memory for the current browser session. Do not add server persistence or new persisted state without an explicit product reason.
 
-Enforce browser file-size caps in TypeScript before reading file contents: DBC files are capped at 1 MiB per file, and trace files are capped at 500 MiB per file.
+Enforce browser file-size caps in TypeScript before reading file contents: uploaded DBC files are capped at 5 MiB per file, and trace files are capped at 500 MiB per file. Embedded DBCs in MF4 traces are capped at 1 MiB after decompression by the core package.
 
 Use repo-native commands through `nix`:
 

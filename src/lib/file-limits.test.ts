@@ -3,7 +3,7 @@ import { DBC_MAX_FILE_BYTES, assertFileSizeWithinLimit } from './file-limits';
 
 describe('assertFileSizeWithinLimit', () => {
 	it('accepts files at the configured limit', () => {
-		const file = new File([new Uint8Array(DBC_MAX_FILE_BYTES)], 'limit.dbc');
+		const file = new File([new Uint8Array(5 * 1024 * 1024)], 'limit.dbc');
 
 		assertFileSizeWithinLimit(file, DBC_MAX_FILE_BYTES, 'DBC');
 
@@ -14,7 +14,7 @@ describe('assertFileSizeWithinLimit', () => {
 		const file = new File([new Uint8Array(DBC_MAX_FILE_BYTES + 1)], 'too-large.dbc');
 
 		expect(() => assertFileSizeWithinLimit(file, DBC_MAX_FILE_BYTES, 'DBC')).toThrow(
-			'DBC file exceeds the 1 MiB limit'
+			'DBC file exceeds the 5 MiB limit'
 		);
 	});
 });
