@@ -5,7 +5,7 @@ use super::{Dbc, Message, Signal};
 /// Serializes the parsed DBC catalog consumed by the signal picker.
 ///
 /// This is intentionally a UI catalog rather than a full DBC interchange
-/// format. Unsupported multiplexed signals remain in the parsed model but are
+/// format. Unsupported signals remain in the parsed model but are
 /// omitted from this browser-facing projection.
 pub fn to_json(parsed: &Dbc) -> String {
     let mut output = String::new();
@@ -37,7 +37,7 @@ fn write_message(output: &mut String, message: &Message) {
     for signal in message
         .signals
         .iter()
-        .filter(|signal| !signal.unsupported_mux)
+        .filter(|signal| !signal.unsupported_mux && signal.bit_length <= 64)
     {
         if !first {
             output.push(',');

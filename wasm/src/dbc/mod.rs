@@ -173,6 +173,15 @@ impl Dbc {
                 ));
             } else if let Err(error) = signal.plan_decode(message.size_bytes) {
                 match error {
+                    DbcError::InvalidSignalBitLength(length)
+                        if signal.value_type == ValueType::Integer && length > 64 =>
+                    {
+                        warnings.push(position.warning(
+                            "omitted-feature",
+                            "SG_",
+                            "Integer signal wider than 64 bits is omitted from the viewer catalogue.",
+                        ));
+                    }
                     DbcError::UnsupportedMessageLength(_) => warnings.push(position.warning(
                         "omitted-feature",
                         "SG_",
@@ -460,6 +469,90 @@ mod tests {
             (warning.keyword, warning.line, warning.column),
             ("BO_", 1, 1)
         );
+    }
+
+    #[test]
+    fn omits_wide_integers_after_attaching_value_types() {
+        for definition in ["0|65@1+", "0|512@1-", "7|512@0+"] {
+            let dbc = Dbc::parse(&format!(
+                "BO_ 291 FD: 64 ECU\n\
+                 SG_ Raw : {definition} (1,0) [0|0] \"\" DASH\n\
+                 SG_ Scalar : 448|64@1+ (1,0) [0|0] \"\" DASH\n\
+                 SIG_VALTYPE_ 291 Raw : 0;\n\
+                 VAL_ 291 Raw 0 \"Empty\";"
+            ))
+            .unwrap();
+            assert_eq!(dbc.messages[0].signals.len(), 2);
+            assert_eq!(
+                dbc.messages[0].signals[0].value_descriptions().unwrap()[0].label,
+                "Empty"
+            );
+            let catalog = dbc.to_catalog_json();
+            assert!(!catalog.contains("\"Raw\""));
+            assert!(catalog.contains("\"Scalar\""));
+            assert_eq!(dbc.warnings.len(), 1);
+            let warning = &dbc.warnings[0];
+            assert_eq!(
+                (
+                    warning.category,
+                    warning.keyword,
+                    warning.line,
+                    warning.column
+                ),
+                ("omitted-feature", "SG_", 2, 1)
+            );
+            assert!(dbc.messages[0].signals[0].plan_decode(64).is_err());
+        }
+    }
+
+    #[test]
+    fn wide_integer_omission_preserves_scalar_validation() {
+        for (definition, value_type, expected) in [
+            ("0|0@1+", 0, "invalid signal bit length: 0"),
+            ("0|16@1+", 1, "invalid signal bit length: 16"),
+            ("0|32@1+", 2, "invalid signal bit length: 32"),
+            ("0|512@1+", 1, "invalid signal bit length: 512"),
+            ("0|512@1+", 2, "invalid signal bit length: 512"),
+            ("512|8@1+", 0, "signal bit range falls outside its message"),
+            ("511|16@0+", 0, "signal bit range falls outside its message"),
+        ] {
+            let text = format!(
+                "BO_ 291 FD: 64 ECU\n\
+                 SG_ Raw : 0|512@1+ (1,0) [0|0] \"\" DASH\n\
+                 SG_ Invalid : {definition} (1,0) [0|0] \"\" DASH\n\
+                 SIG_VALTYPE_ 291 Invalid : {value_type};"
+            );
+            let error = Dbc::parse(&text).unwrap_err().to_string();
+            assert!(error.contains("3:1: SG_"), "{error}");
+            assert!(error.contains(expected), "{error}");
+        }
+    }
+
+    #[test]
+    fn wide_selectors_leave_multiplexed_dependents_unavailable() {
+        let dbc = Dbc::parse(
+            "BO_ 291 FD: 64 ECU\n\
+             SG_ Raw M : 0|512@1+ (1,0) [0|0] \"\" DASH\n\
+             SG_ Dependent m1 : 8|8@1+ (1,0) [0|255] \"\" DASH\n\
+             SG_ Scalar : 504|8@1+ (1,0) [0|255] \"\" DASH\n\
+             SG_MUL_VAL_ 291 Dependent Raw 1-1;",
+        )
+        .unwrap();
+        let catalog = dbc.to_catalog_json();
+        assert!(!catalog.contains("\"Raw\""));
+        assert!(!catalog.contains("\"Dependent\""));
+        assert!(catalog.contains("\"Scalar\""));
+        assert_eq!(
+            dbc.warnings.iter().map(|w| w.category).collect::<Vec<_>>(),
+            ["omitted-feature", "omitted-feature", "unsupported-record"]
+        );
+        for name in ["Raw", "Dependent"] {
+            let (_, signal) = dbc.find_signal(291, false, 64, name).unwrap();
+            assert!(matches!(
+                signal.plan_decode(64),
+                Err(DbcError::UnsupportedMultiplexing)
+            ));
+        }
     }
 
     #[test]
