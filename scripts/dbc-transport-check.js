@@ -1,5 +1,5 @@
 // Executed verbatim by the packed direct, Node and browser transport smoke tests.
-export async function checkDbc(client) {
+export async function checkDbc(client, isDirect = false) {
 	function equal(actual, expected) {
 		if (JSON.stringify(actual) !== JSON.stringify(expected)) {
 			throw new Error(`DBC result mismatch: ${JSON.stringify(actual)}`);
@@ -65,4 +65,44 @@ export async function checkDbc(client) {
 		equal(error.message.includes('private'), false);
 	}
 	equal(failed, true);
+
+	const wide = await client.openDbc(
+		'BO_ 291 FD: 64 ECU\n SG_ Raw : 0|512@1+ (1,0) [0|0] "" DASH\n SG_ Scalar : 504|8@1+ (2,-1) [0|509] "" DASH'
+	);
+	try {
+		equal(
+			wide.catalog.messages[0].signals.map(({ name }) => name),
+			['Scalar']
+		);
+		equal(
+			wide.warnings.map(({ category, keyword, line, column }) => ({
+				category,
+				keyword,
+				line,
+				column
+			})),
+			[{ category: 'omitted-feature', keyword: 'SG_', line: 2, column: 2 }]
+		);
+		const payload = [...Array(63).fill('00'), '2a'].join(' ');
+		const bytes = new TextEncoder().encode(
+			`base hex timestamps absolute\n0.001 CANFD 1 Rx 123 - 1 0 15 64 ${payload}`
+		);
+		const trace = await client.openTrace('asc', isDirect ? bytes : bytes.buffer);
+		try {
+			equal(trace.metadata.validMessageCount, 1);
+			equal(trace.metadata.skippedLineCount, 0);
+			const series = await client.getSignalValues(
+				wide.handle,
+				trace.handle,
+				{ canId: 291, isExtended: false, sizeBytes: 64 },
+				'Scalar'
+			);
+			equal(Array.from(series.timesMs), [1]);
+			equal(Array.from(series.values), [83]);
+		} finally {
+			await client.closeTrace(trace.handle);
+		}
+	} finally {
+		await client.closeDbc(wide.handle);
+	}
 }

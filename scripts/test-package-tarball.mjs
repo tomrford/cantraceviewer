@@ -110,7 +110,7 @@ const identity = { canId: 288, isExtended: false, sizeBytes: 8 };
 
 ${await readFile(join(repo, 'scripts/dbc-transport-check.js'), 'utf8')}
 const direct = createDirectClient(await readFile(wasmUrl));
-await checkDbc(direct);
+await checkDbc(direct, true);
 const directDbc = direct.openDbc(dbcText).handle;
 const directTrace = direct.openTrace('asc', Uint8Array.from(asc));
 assert.equal(directTrace.metadata.validMessageCount, 1506);
