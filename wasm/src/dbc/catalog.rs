@@ -58,7 +58,7 @@ fn write_message(output: &mut String, message: &Message) {
     for (index, signal) in message
         .signals
         .iter()
-        .filter(|signal| super::multiplex::supported(message, signal))
+        .filter(|signal| super::multiplex::has_supported_width(message, signal))
         .enumerate()
     {
         if index != 0 {

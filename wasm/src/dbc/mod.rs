@@ -178,7 +178,7 @@ impl Dbc {
         format::resolve(&mut messages, &format_records, &mut warnings)?;
         for message in &messages {
             for signal in &message.signals {
-                if !multiplex::supported(message, signal) {
+                if !multiplex::has_supported_width(message, signal) {
                     warnings.push(signal.position.warning(
                         "omitted-feature",
                         "SG_",

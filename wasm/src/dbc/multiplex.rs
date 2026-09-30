@@ -176,7 +176,7 @@ fn resolve_graph(message: &mut Message) -> Result<(), DbcError> {
 }
 
 /// Wide integers stay in the model so their references can still be resolved.
-pub(super) fn supported(message: &Message, mut signal: &Signal) -> bool {
+pub(super) fn has_supported_width<'a>(message: &'a Message, mut signal: &'a Signal) -> bool {
     loop {
         if signal.bit_length > 64 {
             return false;
