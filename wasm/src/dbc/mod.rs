@@ -457,9 +457,11 @@ mod tests {
     fn omits_independent_signals_without_rejecting_usable_messages() {
         let dbc = Dbc::parse(
             "BO_ 3221225472 VECTOR__INDEPENDENT_SIG_MSG: 0 Vector__XXX\n\
-             SG_ Orphan : 0|8@1+ (1,0) [0|255] \"\" Vector__XXX\n\
+             SG_ Root M : 0|8@1+ (1,0) [0|255] \"\" Vector__XXX\n\
+             SG_ Orphan m1 : 8|8@1+ (1,0) [0|255] \"\" Vector__XXX\n\
              BO_ 42 Status: 1 ECU\n\
-             SG_ State : 0|8@1+ (1,0) [0|255] \"\" ECU",
+             SG_ State : 0|8@1+ (1,0) [0|255] \"\" ECU\n\
+             SG_MUL_VAL_ 3221225472 Orphan Root 1-1;",
         )
         .unwrap();
         assert_eq!(dbc.messages.len(), 1);
@@ -557,17 +559,6 @@ mod tests {
         for signal in &message.signals[1..3] {
             assert!(multiplex::ActivityPlan::new(message, signal).is_err());
         }
-    }
-
-    #[test]
-    fn extended_mux_no_longer_reports_omitted_signals() {
-        let dbc = Dbc::parse(include_str!("../../tests/fixtures/extended-multiplex.dbc")).unwrap();
-        assert_eq!(dbc.messages[0].signals.len(), 12);
-        assert!(
-            !dbc.warnings
-                .iter()
-                .any(|w| w.category == "omitted-feature" || w.keyword == "SG_MUL_VAL_")
-        );
     }
 
     #[test]

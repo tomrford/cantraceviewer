@@ -138,10 +138,10 @@ mod tests {
             decode(&format!("{base}{comment}"), trace, 2, "Value"),
             [1.0, 17.0]
         );
-        let ranges = "SG_MUL_VAL_\n 291 Value Mode\n 1 - 2;\n";
+        let ranges = "SG_MUL_VAL_\n 291 Value Mode\n 2 - 3;\n";
         assert_eq!(
             decode(&format!("{base}{ranges}"), trace, 2, "Value"),
-            [1.0, 2.0, 17.0, 34.0]
+            [2.0, 34.0]
         );
     }
 

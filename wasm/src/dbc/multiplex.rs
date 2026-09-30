@@ -31,6 +31,9 @@ pub(super) fn resolve(messages: &mut [Message], records: &[Record]) -> Result<()
             .ok_or_else(invalid)?
             .parse()
             .map_err(|_| invalid())?;
+        if id == super::INDEPENDENT_SIGNAL_MESSAGE_ID {
+            continue;
+        }
         let name = tokens.next().ok_or_else(invalid)?;
         let selector = tokens.next().ok_or_else(invalid)?;
         let tail = tokens.collect::<String>();
@@ -76,28 +79,19 @@ pub(super) fn resolve(messages: &mut [Message], records: &[Record]) -> Result<()
             .map(|s| s.name.clone())
             .collect();
         for signal in &mut message.signals {
+            // Extended records name the selector and its complete active ranges.
+            if signal.multiplex.is_some() {
+                continue;
+            }
             if let Some(value) = signal.simple_mux_value {
-                if let Some(condition) = &signal.multiplex {
-                    if !condition
-                        .ranges
-                        .iter()
-                        .any(|&(a, b)| a <= value && value <= b)
-                    {
-                        return Err(error(
-                            signal.position,
-                            "simple multiplex value is outside extended ranges",
-                        ));
-                    }
-                } else {
-                    if roots.len() != 1 {
-                        return Err(error(signal.position, "signal needs an explicit selector"));
-                    }
-                    signal.multiplex = Some(MultiplexCondition {
-                        selector: roots[0].clone(),
-                        selector_index: 0,
-                        ranges: vec![(value, value)],
-                    });
+                if roots.len() != 1 {
+                    return Err(error(signal.position, "signal needs an explicit selector"));
                 }
+                signal.multiplex = Some(MultiplexCondition {
+                    selector: roots[0].clone(),
+                    selector_index: 0,
+                    ranges: vec![(value, value)],
+                });
             }
         }
         if message
@@ -231,6 +225,11 @@ mod tests {
         let dbc = Dbc::parse(include_str!("../../tests/fixtures/extended-multiplex.dbc")).unwrap();
         let message = &dbc.messages[0];
         assert_eq!(message.signals.len(), 12);
+        assert!(
+            !dbc.warnings
+                .iter()
+                .any(|w| w.category == "omitted-feature" || w.keyword == "SG_MUL_VAL_")
+        );
         let data = message
             .signals
             .iter()
@@ -285,7 +284,6 @@ mod tests {
             ),
             ("SG_MUL_VAL_ 1 Data Data 2-2;", "invalid integer selector"),
             ("SG_MUL_VAL_ 1 Data Root 2-256;", "exceeds its bit width"),
-            ("SG_MUL_VAL_ 1 Data Root 3-4;", "outside extended ranges"),
             ("SG_MUL_VAL_ 1 Data Root 4-2;", "invalid multiplex range"),
             ("SIG_VALTYPE_ 1 Root : 1;", "invalid signal bit length"),
         ] {

@@ -55,16 +55,15 @@ fn write_message(output: &mut String, message: &Message) {
     write_json_string(output, &message.transmitter);
 
     output.push_str(",\"signals\":[");
-    let mut first = true;
-    for signal in message
+    for (index, signal) in message
         .signals
         .iter()
         .filter(|signal| super::multiplex::supported(message, signal))
+        .enumerate()
     {
-        if !first {
+        if index != 0 {
             output.push(',');
         }
-        first = false;
         write_signal(output, signal);
     }
     output.push_str("]}");
