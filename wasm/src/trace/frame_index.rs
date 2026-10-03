@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt::Write;
 
 use super::{Frame, FrameKind, RawSource};
 
@@ -123,11 +124,24 @@ impl FrameIndex {
             })
             .collect();
         entries.sort_unstable();
-        let entries: Vec<_> = entries.into_iter().map(|(id, extended, source)| format!(
-            "{{\"canId\":{id},\"isExtended\":{extended},\"source\":{{\"channel\":{},\"direction\":\"{}\"}}}}",
-            source.channel.map_or_else(|| "null".to_owned(), |channel| channel.to_string()), source.direction.name()
-        )).collect();
-        format!("[{}]", entries.join(","))
+        let mut output = String::from("[");
+        for (index, (id, extended, source)) in entries.into_iter().enumerate() {
+            if index != 0 {
+                output.push(',');
+            }
+            write!(
+                output,
+                "{{\"canId\":{id},\"isExtended\":{extended},\"source\":{{\"channel\":"
+            )
+            .unwrap();
+            match source.channel {
+                Some(channel) => write!(output, "{channel}").unwrap(),
+                None => output.push_str("null"),
+            }
+            write!(output, ",\"direction\":\"{}\"}}}}", source.direction.name()).unwrap();
+        }
+        output.push(']');
+        output
     }
 }
 
