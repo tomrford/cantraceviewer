@@ -53,6 +53,7 @@ pub(crate) enum BlfError {
     InvalidBlfContainer,
     InvalidBlfContainerSize,
     OutOfMemory,
+    DataLimitExceeded(usize),
     UnsupportedBlfCompression(u16),
     InvalidBlfSystemTime,
     InvalidBlfTimestamp,
@@ -87,6 +88,9 @@ impl fmt::Display for BlfError {
                 formatter.write_str("BLF log container decompressed to an unexpected size")
             }
             Self::OutOfMemory => formatter.write_str("not enough memory to parse the BLF trace"),
+            Self::DataLimitExceeded(limit) => {
+                write!(formatter, "BLF data stream exceeds the {limit} byte limit")
+            }
             Self::UnsupportedBlfCompression(method) => {
                 write!(formatter, "unsupported BLF compression method {method}")
             }
@@ -169,7 +173,7 @@ fn map_decompression_error(error: DecompressionError) -> BlfError {
     }
 }
 
-pub(crate) fn from_bytes(bytes: &[u8]) -> Result<Trace, BlfError> {
+pub(crate) fn from_bytes(bytes: &[u8], max_data_bytes: usize) -> Result<Trace, BlfError> {
     if bytes.len() < FILE_HEADER_PARSED_SIZE {
         return Err(BlfError::InvalidBlfHeader);
     }
@@ -186,7 +190,7 @@ pub(crate) fn from_bytes(bytes: &[u8]) -> Result<Trace, BlfError> {
     let measurement_start_ms = bytes
         .get(40..56)
         .and_then(|system_time| parse_system_time_to_unix_ms(system_time).ok());
-    let mut parser = Parser::new(measurement_start_ms);
+    let mut parser = Parser::new(measurement_start_ms, max_data_bytes);
 
     let mut position = header_size;
     while position < bytes.len() {
@@ -232,6 +236,8 @@ pub(crate) fn from_bytes(bytes: &[u8]) -> Result<Trace, BlfError> {
 }
 
 struct Parser {
+    max_data_bytes: usize,
+    data_bytes: usize,
     measurement_start_ms: Option<i64>,
     frames: Vec<Frame>,
     payloads: Vec<u8>,
@@ -241,8 +247,10 @@ struct Parser {
 }
 
 impl Parser {
-    const fn new(measurement_start_ms: Option<i64>) -> Self {
+    const fn new(measurement_start_ms: Option<i64>, max_data_bytes: usize) -> Self {
         Self {
+            max_data_bytes,
+            data_bytes: 0,
             measurement_start_ms,
             frames: Vec::new(),
             payloads: Vec::new(),
@@ -272,6 +280,17 @@ impl Parser {
             usize::try_from(read_u32(body, 8).ok_or(BlfError::InvalidBlfContainer)?)
                 .map_err(|_| BlfError::InvalidBlfContainerSize)?;
         let payload = &body[LOG_CONTAINER_SIZE..];
+
+        let additional = match method {
+            NO_COMPRESSION => payload.len(),
+            ZLIB_DEFLATE => uncompressed_size,
+            method => return Err(BlfError::UnsupportedBlfCompression(method)),
+        };
+        self.data_bytes = self
+            .data_bytes
+            .checked_add(additional)
+            .filter(|&total| total <= self.max_data_bytes)
+            .ok_or(BlfError::DataLimitExceeded(self.max_data_bytes))?;
 
         match method {
             NO_COMPRESSION => self.parse_container(payload),
@@ -761,7 +780,11 @@ mod tests {
         fixture::append_file_header(&mut file);
         fixture::append_outer_container(&mut file, &inner);
 
-        let parsed = from_bytes(&file).unwrap();
+        let parsed = from_bytes(&file, inner.len()).unwrap();
+        assert!(matches!(
+            from_bytes(&file, inner.len() - 1),
+            Err(BlfError::DataLimitExceeded(_))
+        ));
         assert_eq!(parsed.measurement_start_ms, Some(1_778_494_830_400));
         assert_eq!(parsed.frames.len(), 1);
         assert_eq!(parsed.data_frame_count, 1);
@@ -779,7 +802,11 @@ mod tests {
         fixture::append_file_header(&mut file);
         fixture::append_outer_zlib_stored_container(&mut file, &inner);
 
-        let parsed = from_bytes(&file).unwrap();
+        let parsed = from_bytes(&file, inner.len()).unwrap();
+        assert!(matches!(
+            from_bytes(&file, inner.len() - 1),
+            Err(BlfError::DataLimitExceeded(_))
+        ));
         assert_eq!(parsed.frames.len(), 1);
         assert_eq!(parsed.payloads, [0xaa, 0xbb]);
     }
@@ -793,7 +820,7 @@ mod tests {
         fixture::append_file_header(&mut file);
         fixture::append_outer_container(&mut file, &inner);
 
-        let parsed = from_bytes(&file).unwrap();
+        let parsed = from_bytes(&file, 4096).unwrap();
         assert_eq!(parsed.frames.len(), 1);
         assert_eq!(parsed.frames[0].timestamp_ns, 123);
     }
@@ -813,7 +840,11 @@ mod tests {
         fixture::append_outer_container(&mut file, &inner[..20]);
         fixture::append_outer_container(&mut file, &inner[20..]);
 
-        let parsed = from_bytes(&file).unwrap();
+        let parsed = from_bytes(&file, inner.len()).unwrap();
+        assert!(matches!(
+            from_bytes(&file, inner.len() - 1),
+            Err(BlfError::DataLimitExceeded(_))
+        ));
         assert_eq!(parsed.frames.len(), 1);
         assert_eq!(
             parsed.frames[0].id,
@@ -833,7 +864,7 @@ mod tests {
         fixture::append_outer_container(&mut file, &inner[..98]);
         fixture::append_outer_container(&mut file, &inner[98..]);
 
-        let parsed = from_bytes(&file).unwrap();
+        let parsed = from_bytes(&file, 4096).unwrap();
         assert_eq!(parsed.frames.len(), 1);
         assert_eq!(parsed.frames[0].id, Some(CanId::standard(0x123).unwrap()));
         assert_eq!(parsed.payloads[0], 0xdd);
@@ -845,7 +876,7 @@ mod tests {
         fixture::append_file_header(&mut file);
         fixture::append_object_base(&mut file, 0xffff_fff0, CAN_MESSAGE, OBJECT_HEADER_BASE_SIZE);
         assert!(matches!(
-            from_bytes(&file),
+            from_bytes(&file, 4096),
             Err(BlfError::TruncatedBlfObject)
         ));
     }
@@ -864,7 +895,7 @@ mod tests {
         fixture::append_file_header(&mut file);
         fixture::append_outer_container(&mut file, &inner);
         assert!(matches!(
-            from_bytes(&file),
+            from_bytes(&file, 4096),
             Err(BlfError::TruncatedBlfObject)
         ));
     }
@@ -883,7 +914,7 @@ mod tests {
         file.resize(file.len() + 14, 0);
 
         assert!(matches!(
-            from_bytes(&file),
+            from_bytes(&file, 4096),
             Err(BlfError::UnsupportedBlfCompression(99))
         ));
     }
@@ -910,7 +941,7 @@ mod tests {
         fixture::append_file_header(&mut file);
         fixture::append_outer_container(&mut file, &inner);
 
-        let parsed = from_bytes(&file).unwrap();
+        let parsed = from_bytes(&file, 4096).unwrap();
         assert_eq!(parsed.frames.len(), 3);
         assert_eq!(parsed.data_frame_count, 2);
         assert_eq!(parsed.frames[0].kind, FrameKind::Error);
@@ -951,7 +982,7 @@ mod tests {
         fixture::append_file_header(&mut file);
         fixture::append_outer_container(&mut file, &inner);
 
-        let parsed = from_bytes(&file).unwrap();
+        let parsed = from_bytes(&file, 4096).unwrap();
         assert_eq!(parsed.frames.len(), 2);
         assert_eq!(parsed.frames[0].id, Some(CanId::standard(0x456).unwrap()));
         assert_eq!(parsed.frames[1].id, Some(CanId::standard(0x123).unwrap()));
@@ -966,7 +997,7 @@ mod tests {
         fixture::append_file_header(&mut file);
         fixture::append_outer_container(&mut file, &inner);
 
-        let parsed = from_bytes(&file).unwrap();
+        let parsed = from_bytes(&file, 4096).unwrap();
         assert_eq!(parsed.frames.len(), 1);
         assert_eq!(parsed.frames[0].payload_len, 12);
         let offset = parsed.frames[0].payload_offset as usize;

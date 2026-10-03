@@ -1,4 +1,5 @@
 import type { DirectClient } from './direct.ts';
+import { snapshotLimits, type ParsingLimits } from './limits.ts';
 import type {
 	SeriesPayload,
 	WireError,
@@ -38,7 +39,7 @@ type Executed = {
  */
 export function startWorkerRuntime(
 	endpoint: WorkerRuntimeEndpoint,
-	loadClient: () => Promise<DirectClient>
+	loadClient: (limits: ParsingLimits) => Promise<DirectClient>
 ): void {
 	const dbcs = new Map<number, DbcHandle>();
 	const traces = new Map<number, TraceHandle>();
@@ -48,7 +49,11 @@ export function startWorkerRuntime(
 
 	// Loading WASM is the only asynchronous step: bytes arrive over fetch or from disk, and may be
 	// compiled, before the synchronous direct client exists.
-	const boot = loadClient()
+	let initialize: ((limits: ParsingLimits) => void) | null = null;
+	const boot = new Promise<ParsingLimits>((resolve) => {
+		initialize = resolve;
+	})
+		.then((limits) => loadClient(snapshotLimits(limits)))
 		.then(
 			(loaded) => {
 				direct = loaded;
@@ -64,6 +69,11 @@ export function startWorkerRuntime(
 	// synchronously in the order the endpoint delivered it.
 	let queue: Promise<void> = boot;
 	endpoint.addEventListener('message', (event) => {
+		if (event.data.op === 'init' && initialize) {
+			initialize(event.data.limits);
+			initialize = null;
+			return;
+		}
 		queue = queue.then(() => handle(event.data)).catch(() => undefined);
 	});
 
@@ -94,6 +104,8 @@ export function startWorkerRuntime(
 
 	function execute(client: DirectClient, request: WorkerRequest): Executed {
 		switch (request.op) {
+			case 'init':
+				throw new Error('worker is already initialized');
 			case 'openDbc': {
 				const { handle, catalog, warnings } = client.openDbc(request.input);
 				const dbcId = nextWireId++;

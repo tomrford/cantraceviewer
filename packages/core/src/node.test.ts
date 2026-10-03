@@ -32,7 +32,8 @@ function createFakeWorker(): FakeWorker {
 	const worker: NodeClientWorker = {
 		postMessage(message, transfer) {
 			// worker_threads detaches transferred buffers exactly like postMessage does.
-			requests.push(structuredClone(message, { transfer: [...(transfer ?? [])] }));
+			if (message.op !== 'init')
+				requests.push(structuredClone(message, { transfer: [...(transfer ?? [])] }));
 		},
 		on(event: WorkerEvent, listener: (payload: never) => void) {
 			const list = listeners.get(event) ?? [];

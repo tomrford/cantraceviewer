@@ -53,26 +53,28 @@ try {
 
 	await writeFile(
 		join(root, 'node-type-smoke.ts'),
-		`import { createCanTraceClient } from 'cantraceviewer/node';
-const client = createCanTraceClient();
+		`import { createCanTraceClient, DEFAULT_PARSING_LIMITS, type ParsingLimits } from 'cantraceviewer/node';
+const limits: ParsingLimits = DEFAULT_PARSING_LIMITS;
+const client = createCanTraceClient(limits);
 void client;
 `
 	);
 	await writeFile(
 		join(root, 'direct-type-smoke.ts'),
-		`import { createDirectClient } from 'cantraceviewer/direct';
-
-const direct = createDirectClient(new Uint8Array());
+		`import { createDirectClient, DEFAULT_PARSING_LIMITS, type ParsingLimits } from 'cantraceviewer/direct';
+const limits: ParsingLimits = DEFAULT_PARSING_LIMITS;
+const direct = createDirectClient(new Uint8Array(), limits);
 void direct;
 `
 	);
 	await writeFile(
 		join(root, 'browser-type-smoke.ts'),
-		`import { createCanTraceClient } from 'cantraceviewer';
+		`import { createCanTraceClient, DEFAULT_PARSING_LIMITS, type ParsingLimits } from 'cantraceviewer';
 import { createDirectClient, type DbcEndianness } from 'cantraceviewer/direct';
 const endianness: DbcEndianness = 'intel';
 const direct = createDirectClient(new Uint8Array());
-void [endianness, direct, createCanTraceClient];
+const limits: ParsingLimits = DEFAULT_PARSING_LIMITS;
+void [endianness, direct, createCanTraceClient(limits)];
 `
 	);
 	for (const [name, lib, file] of [
@@ -109,7 +111,9 @@ const asc = await readFile(new URL('agentic-demo.asc', ${JSON.stringify(pathToFi
 const identity = { canId: 288, isExtended: false, sizeBytes: 8 };
 
 ${await readFile(join(repo, 'scripts/dbc-transport-check.js'), 'utf8')}
-const direct = createDirectClient(await readFile(wasmUrl));
+const wasm = await readFile(wasmUrl);
+await checkParsingLimits((limits) => createDirectClient(wasm, limits), false);
+const direct = createDirectClient(wasm);
 await checkDbc(direct, false);
 const directDbc = direct.openDbc(dbcText).handle;
 const directTrace = direct.openTrace('asc', Uint8Array.from(asc));
@@ -117,6 +121,7 @@ assert.equal(directTrace.metadata.validMessageCount, 1506);
 assert.equal(direct.getSignalValues(directDbc, directTrace.handle, identity, 'vehicle_speed').values[1], 123.4);
 direct.close();
 
+await checkParsingLimits(createCanTraceClient);
 const node = await createCanTraceClient();
 await checkDbc(node);
 const nodeDbc = (await node.openDbc(dbcText)).handle;
@@ -147,6 +152,7 @@ await node.close();
 		join(root, 'entry.js'),
 		`import { createCanTraceClient } from 'cantraceviewer';
 ${await readFile(join(repo, 'scripts/dbc-transport-check.js'), 'utf8')}
+await checkParsingLimits(createCanTraceClient);
 const client = await createCanTraceClient();
 try { await checkDbc(client); document.body.textContent = 'DBC transport checks passed'; }
 catch (error) { document.body.textContent = String(error); throw error; }

@@ -6,6 +6,7 @@ import {
 	type RpcTransportHandlers
 } from './rpc-client.ts';
 import type { WorkerRequest, WorkerResponse } from './protocol.ts';
+import type { ParsingLimits } from './limits.ts';
 
 /** @internal */
 export type NodeClientWorker = {
@@ -19,9 +20,10 @@ export type NodeClientWorker = {
 
 /** @internal */
 export async function createNodeClientForWorker(
-	createWorker: () => NodeClientWorker
+	createWorker: () => NodeClientWorker,
+	limits?: ParsingLimits
 ): Promise<CanTraceClient> {
-	return createRpcClient((handlers) => nodeTransport(createWorker(), handlers));
+	return createRpcClient((handlers) => nodeTransport(createWorker(), handlers), limits);
 }
 
 function nodeTransport(worker: NodeClientWorker, handlers: RpcTransportHandlers): RpcTransport {
