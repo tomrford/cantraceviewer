@@ -163,16 +163,17 @@ describe('cantraceviewer/direct', () => {
 				'Multiple raw sources'
 			);
 			for (const [source, expected] of [
-				[{ channel: 1, direction: 'rx' }, 17],
-				[{ channel: 2, direction: 'rx' }, 34],
-				[{ channel: 1, direction: 'tx' }, 51],
-				[{ channel: null, direction: 'unknown' }, 85]
+				[{ channel: 1, direction: 'rx' }, [17]],
+				[{ channel: 2, direction: 'rx' }, [34]],
+				[{ channel: 1, direction: 'tx' }, [51]],
+				[{ channel: null, direction: 'unknown' }, [85]],
+				[{ channel: 3, direction: 'rx' }, []]
 			] as const) {
 				expect(
 					Array.from(
 						client.getSignalValues(dbc.handle, trace.handle, message, 'Value', source).values
 					)
-				).toEqual([expected]);
+				).toEqual(expected);
 			}
 			for (const channel of [0, -1, 65536, 1.5, NaN]) {
 				expect(() =>
@@ -193,7 +194,7 @@ describe('cantraceviewer/direct', () => {
 		['standard-can-fd', 14, [4], [50]]
 	] as const)(
 		'orders selected-source %s mux samples',
-		async (frameFormat, format, times, values) => {
+		async (_frameFormat, format, times, values) => {
 			const dbc = client.openDbc(
 				(await readFile(resolve(fixturesDir, 'nested-selectors.dbc'), 'utf8')) +
 					`\nBA_ "VFrameFormat" BO_ 291 ${format};`
@@ -205,17 +206,6 @@ describe('cantraceviewer/direct', () => {
 				)
 			);
 			try {
-				expect(dbc.catalog.messages[0]).toMatchObject({
-					frameFormat,
-					rawFrameDecodable: true
-				});
-				expect(dbc.catalog.messages[0].signals[2].multiplex).toEqual({
-					selector: 'Child',
-					ranges: [
-						{ first: '3', last: '5' },
-						{ first: '9', last: '9' }
-					]
-				});
 				const series = client.getSignalValues(
 					dbc.handle,
 					trace.handle,

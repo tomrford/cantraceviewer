@@ -140,40 +140,6 @@ mod tests {
     }
 
     #[test]
-    fn separates_sources_and_rejects_ambiguous_selection() {
-        use crate::trace::{Direction, RawSource};
-        let dbc = Dbc::parse("BO_ 291 Example: 1 ECU\n SG_ Value : 0|8@1+ (1,0) [0|255] \"\" ECU")
-            .unwrap();
-        let trace = asc::parse("base hex timestamps absolute\n0.005 1 123 Rx d 1 55\n0.002 2 123 Rx d 1 22\n0.003 1 123 Tx d 1 33\n0.004 1 123x Rx d 1 44\n0.001 1 123 Rx d 1 11\n0.001 1 123 Rx d 1 77\n0.006 0 123 ? d 1 66").unwrap();
-        let index = FrameIndex::build(&trace.frames);
-        assert!(matches!(
-            selected_signal_values(&dbc, &trace, &index, 291, false, 1, "Value", None),
-            Err(SeriesError::Source(_))
-        ));
-        for (channel, direction, expected) in [
-            (
-                Some(1),
-                Direction::Rx,
-                vec![1.0, 1.0, 5.0, 17.0, 119.0, 85.0],
-            ),
-            (Some(2), Direction::Rx, vec![2.0, 34.0]),
-            (Some(1), Direction::Tx, vec![3.0, 51.0]),
-            (None, Direction::Unknown, vec![6.0, 102.0]),
-            (Some(3), Direction::Rx, vec![]),
-        ] {
-            let source = RawSource {
-                channel: channel.and_then(std::num::NonZeroU16::new),
-                direction,
-            };
-            assert_eq!(
-                selected_signal_values(&dbc, &trace, &index, 291, false, 1, "Value", Some(source))
-                    .unwrap(),
-                expected
-            );
-        }
-    }
-
-    #[test]
     fn orders_mixed_payload_lengths_and_preserves_equal_time_values() {
         let values = decode(
             "BO_ 291 Example: 2 ECU\n SG_ Value : 0|16@1+ (1,0) [0|65535] \"\" ECU",

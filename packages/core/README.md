@@ -148,8 +148,8 @@ unchanged.
 `trace.metadata.rawMessages` lists the distinct raw data-frame identifiers and their
 `source: { channel, direction }`. Channels retain the format's one-based number;
 `null` means unavailable or unspecified. Direction is `rx`, `tx`, or `unknown`.
-Numeric channels through 65535 are supported. Malformed text channel numbers are
-reported as skipped lines; they are never merged into a valid channel.
+The source argument accepts channel numbers 1–65535; each file format defines its
+own channel range. Malformed text channel numbers are reported as skipped lines.
 
 Pass a source as the optional fifth argument to `getSignalValues` to decode only
 that channel and direction. Omitting it selects the sole source for the requested
@@ -165,7 +165,9 @@ const series = await client.getSignalValues(dbc, trace.handle, message, signal.n
 
 Source identity is separate from DBC payload and frame-format matching. DLC and
 per-occurrence CAN FD flags do not split sources. Opening a trace builds its raw
-frame index to expose this catalogue; subsequent decoding reuses the index.
+frame index to expose this catalogue; subsequent decoding reuses the index. The
+catalogue reports raw traffic presence, not DBC signal availability. Ambiguity is
+checked before filtering by payload length, frame format or multiplex activity.
 
 Raw and MF4-native decoded series are chronological. Equal timestamps retain
 their order in the source, and trace duration uses the latest timestamp even
