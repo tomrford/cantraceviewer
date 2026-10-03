@@ -300,35 +300,54 @@
 		</Tooltip.Root>
 	</div>
 
-	<div class="flex items-center gap-2">
-		<SearchForm
-			bind:ref={signalSearchForm}
-			class="min-w-0 flex-1"
-			bind:value={signalSearch}
-			placeholder="Filter signals..."
-		/>
-		<Tooltip.Root>
-			<Tooltip.Trigger>
-				{#snippet child({ props })}
-					<button
-						{...props}
-						type="button"
-						class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border/70 text-muted-foreground transition-[background-color,border-color,color,box-shadow,scale] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96] data-[active=true]:border-sidebar-primary/60 data-[active=true]:bg-sidebar-primary/15 data-[active=true]:text-sidebar-primary"
-						data-active={showActiveOnly}
-						aria-pressed={showActiveOnly}
-						aria-label={showActiveOnly ? 'Show all DBC signals' : 'Show selected DBC signals only'}
-						onclick={() => (showActiveOnly = !showActiveOnly)}
-					>
-						<CheckIcon class="size-4" />
-					</button>
-				{/snippet}
-			</Tooltip.Trigger>
-			<Tooltip.Content sideOffset={6}>
-				{showActiveOnly ? 'Show all DBC signals' : 'Show selected DBC signals only'}
-			</Tooltip.Content>
-		</Tooltip.Root>
+	<div class="space-y-2">
+		{#if dbcFiles.files.some((file) => file.warnings.length > 0)}
+			<div class="max-h-40 space-y-2 overflow-y-auto">
+				{#each dbcFiles.files.filter((file) => file.warnings.length > 0) as file (file.id)}
+					<details class="rounded border border-border p-2 text-xs">
+						<summary class="cursor-pointer"
+							>{file.name}: loaded with {file.warnings.length} warnings</summary
+						>
+						<ul class="mt-2 space-y-1">
+							{#each file.warnings as warning (warning)}
+								<li>{warning.line}:{warning.column} {warning.keyword} — {warning.message}</li>
+							{/each}
+						</ul>
+					</details>
+				{/each}
+			</div>
+		{/if}
+		<div class="flex items-center gap-2">
+			<SearchForm
+				bind:ref={signalSearchForm}
+				class="min-w-0 flex-1"
+				bind:value={signalSearch}
+				placeholder="Filter signals..."
+			/>
+			<Tooltip.Root>
+				<Tooltip.Trigger>
+					{#snippet child({ props })}
+						<button
+							{...props}
+							type="button"
+							class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border/70 text-muted-foreground transition-[background-color,border-color,color,box-shadow,scale] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96] data-[active=true]:border-sidebar-primary/60 data-[active=true]:bg-sidebar-primary/15 data-[active=true]:text-sidebar-primary"
+							data-active={showActiveOnly}
+							aria-pressed={showActiveOnly}
+							aria-label={showActiveOnly
+								? 'Show all DBC signals'
+								: 'Show selected DBC signals only'}
+							onclick={() => (showActiveOnly = !showActiveOnly)}
+						>
+							<CheckIcon class="size-4" />
+						</button>
+					{/snippet}
+				</Tooltip.Trigger>
+				<Tooltip.Content sideOffset={6}>
+					{showActiveOnly ? 'Show all DBC signals' : 'Show selected DBC signals only'}
+				</Tooltip.Content>
+			</Tooltip.Root>
+		</div>
 	</div>
-
 	<div class="relative min-h-0">
 		<div
 			bind:this={signalListScroller}
