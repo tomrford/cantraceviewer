@@ -13,7 +13,7 @@ pub struct Diagnostic {
     pub message: &'static str,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub(super) struct Position {
     pub(super) line: usize,
     pub(super) column: usize,
@@ -97,6 +97,7 @@ pub(super) fn decode(bytes: &[u8]) -> Cow<'_, str> {
     )
 }
 
+#[derive(Clone, Copy)]
 pub(super) struct Record<'a> {
     pub text: &'a str,
     pub keyword: &'static str,
@@ -254,6 +255,10 @@ fn starts_record(text: &str) -> bool {
         line.split_ascii_whitespace().next(),
         Some(
             "VAL_"
+                | "SG_MUL_VAL_"
+                | "BA_"
+                | "BA_DEF_"
+                | "BA_DEF_DEF_"
                 | "VAL_TABLE_"
                 | "SIG_VALTYPE_"
                 | "SGTYPE_"
