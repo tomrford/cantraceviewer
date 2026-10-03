@@ -22,7 +22,8 @@ pub struct WasmDbc {
 #[wasm_bindgen]
 impl WasmDbc {
     /// Parse DBC text and retain the decoded model for subsequent signal work.
-    pub fn parse(input: &[u8]) -> Result<WasmDbc, JsError> {
+    pub fn parse(input: &[u8], max_bytes: u32) -> Result<WasmDbc, JsError> {
+        check_input_limit(input.len(), max_bytes, "DBC input")?;
         Ok(Self {
             inner: Dbc::parse_bytes(input)?,
         })
@@ -76,23 +77,40 @@ pub struct WasmTrace {
 #[wasm_bindgen]
 impl WasmTrace {
     #[wasm_bindgen(js_name = parseAsc)]
-    pub fn parse_asc(input: &[u8]) -> Result<WasmTrace, JsError> {
+    pub fn parse_asc(input: &[u8], max_bytes: u32) -> Result<WasmTrace, JsError> {
+        check_input_limit(input.len(), max_bytes, "Trace input")?;
         Ok(Self::from_trace(asc::parse_bytes(input)?))
     }
 
     #[wasm_bindgen(js_name = parseTrc)]
-    pub fn parse_trc(input: &[u8]) -> Result<WasmTrace, JsError> {
+    pub fn parse_trc(input: &[u8], max_bytes: u32) -> Result<WasmTrace, JsError> {
+        check_input_limit(input.len(), max_bytes, "Trace input")?;
         Ok(Self::from_trace(trc::parse_bytes(input)?))
     }
 
     #[wasm_bindgen(js_name = parseBlf)]
-    pub fn parse_blf(input: &[u8]) -> Result<WasmTrace, JsError> {
-        Ok(Self::from_trace(blf::from_bytes(input)?))
+    pub fn parse_blf(
+        input: &[u8],
+        max_bytes: u32,
+        max_data_bytes: u32,
+    ) -> Result<WasmTrace, JsError> {
+        check_input_limit(input.len(), max_bytes, "Trace input")?;
+        Ok(Self::from_trace(blf::from_bytes(
+            input,
+            max_data_bytes as usize,
+        )?))
     }
 
     #[wasm_bindgen(js_name = parseMf4)]
-    pub fn parse_mf4(input: Vec<u8>) -> Result<WasmTrace, JsError> {
-        let (inner, document) = mf4::Document::parse(input)?;
+    pub fn parse_mf4(
+        input: Vec<u8>,
+        max_bytes: u32,
+        max_dbc_bytes: u32,
+        max_data_bytes: u32,
+    ) -> Result<WasmTrace, JsError> {
+        check_input_limit(input.len(), max_bytes, "Trace input")?;
+        let (inner, document) =
+            mf4::Document::parse(input, max_dbc_bytes as usize, max_data_bytes as usize)?;
         Ok(Self {
             inner,
             index: None,
@@ -165,4 +183,13 @@ impl WasmTrace {
             mf4: None,
         }
     }
+}
+
+fn check_input_limit(bytes: usize, limit: u32, label: &str) -> Result<(), JsError> {
+    if bytes > limit as usize {
+        return Err(JsError::new(&format!(
+            "{label} exceeds the {limit} byte limit"
+        )));
+    }
+    Ok(())
 }

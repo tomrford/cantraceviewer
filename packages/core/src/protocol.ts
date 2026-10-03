@@ -7,10 +7,12 @@ import type {
 	TraceMetadata,
 	TraceType
 } from './types.ts';
+import type { ParsingLimits } from './limits.ts';
 
 export type WireError = { name: string; message: string };
 
 export type WorkerRequestBody =
+	| { op: 'init'; limits: ParsingLimits }
 	| { op: 'openDbc'; input: Uint8Array | string }
 	| { op: 'closeDbc'; dbcId: number }
 	| { op: 'openTrace'; traceType: TraceType; buffer: ArrayBuffer }

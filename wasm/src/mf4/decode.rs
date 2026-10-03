@@ -43,7 +43,11 @@ pub(super) fn native_signals(index: &FileIndex) -> Vec<NativeSignal> {
     signals
 }
 
-pub(super) fn parse_raw_trace(bytes: &[u8], index: &FileIndex) -> Result<Trace, Mf4Error> {
+pub(super) fn parse_raw_trace(
+    bytes: &[u8],
+    index: &FileIndex,
+    max_data_bytes: usize,
+) -> Result<Trace, Mf4Error> {
     let mut trace = Trace {
         measurement_start_ms: index.measurement_start_ms,
         ..Trace::default()
@@ -54,7 +58,7 @@ pub(super) fn parse_raw_trace(bytes: &[u8], index: &FileIndex) -> Result<Trace, 
         if plans.iter().all(Option::is_none) {
             continue;
         }
-        let data = collect_data(bytes, data_group.data_address)?;
+        let data = collect_data(bytes, data_group.data_address, max_data_bytes)?;
         walk_records(data_group, &data, |group_index, record| {
             let Some(plan) = plans[group_index].as_ref() else {
                 return Ok(());
@@ -72,6 +76,7 @@ pub(super) fn decode_native_signal(
     signals: &[NativeSignal],
     signal_id: u32,
     time_offset_seconds: f64,
+    max_data_bytes: usize,
 ) -> Result<Vec<f64>, Mf4Error> {
     let signal = signals
         .iter()
@@ -91,7 +96,7 @@ pub(super) fn decode_native_signal(
         .find(|channel| channel.address == signal.channel_address)
         .ok_or(Mf4Error::SignalNotFound)?;
     let master = master_channel(group).ok_or(Mf4Error::SignalNotFound)?;
-    let data = collect_data(bytes, data_group.data_address)?;
+    let data = collect_data(bytes, data_group.data_address, max_data_bytes)?;
     let mut times = Vec::new();
     let mut values = Vec::new();
     walk_records(data_group, &data, |group_index, record| {
@@ -116,6 +121,7 @@ pub(super) fn decode_native_signal(
 pub(super) fn native_time_range(
     bytes: &[u8],
     index: &FileIndex,
+    max_data_bytes: usize,
 ) -> Result<Option<(f64, f64)>, Mf4Error> {
     let mut range: Option<(f64, f64)> = None;
     for data_group in &index.data_groups {
@@ -129,7 +135,7 @@ pub(super) fn native_time_range(
         }) {
             continue;
         }
-        let data = collect_data(bytes, data_group.data_address)?;
+        let data = collect_data(bytes, data_group.data_address, max_data_bytes)?;
         walk_records(data_group, &data, |group_index, record| {
             let group = &data_group.groups[group_index];
             if raw_plan(group).is_some() {

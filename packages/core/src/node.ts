@@ -1,6 +1,9 @@
 import { Worker } from 'node:worker_threads';
 import { createNodeClientForWorker } from './node-transport.ts';
 import type { CanTraceClient } from './rpc-client.ts';
+import type { ParsingLimits } from './limits.ts';
+
+export { DEFAULT_PARSING_LIMITS, type ParsingLimits } from './limits.ts';
 
 export type { CanTraceClient } from './rpc-client.ts';
 export type * from './types.ts';
@@ -13,8 +16,11 @@ export type * from './types.ts';
  * Nothing is instantiated at module import time. Import this entry only from Node; the package root
  * stays free of Node built-ins for browser bundles.
  */
-export async function createCanTraceClient(): Promise<CanTraceClient> {
-	return createNodeClientForWorker(() => new Worker(workerEntry(), { execArgv: workerExecArgv() }));
+export async function createCanTraceClient(limits?: ParsingLimits): Promise<CanTraceClient> {
+	return createNodeClientForWorker(
+		() => new Worker(workerEntry(), { execArgv: workerExecArgv() }),
+		limits
+	);
 }
 
 /**
