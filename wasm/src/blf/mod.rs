@@ -426,6 +426,10 @@ impl Parser {
             payload_len,
         );
 
+        frame.source = crate::trace::RawSource {
+            channel: std::num::NonZeroU16::new(read_u16(body, 0).unwrap()),
+            direction: crate::trace::Direction::from_bit(u64::from(flags & 1)),
+        };
         if kind == FrameKind::Data {
             self.copy_payload(&mut frame, &body[8..8 + usize::from(payload_len)])?;
             self.record_data_frame(timestamp_ns);
@@ -449,6 +453,7 @@ impl Parser {
             dlc,
             payload_len,
         );
+        frame.source.channel = std::num::NonZeroU16::new(read_u16(body, 0).unwrap());
         self.copy_payload(&mut frame, &body[24..24 + usize::from(payload_len)])?;
         self.push_frame(frame)?;
         Ok(())
@@ -476,6 +481,10 @@ impl Parser {
             valid_bytes,
         );
 
+        frame.source = crate::trace::RawSource {
+            channel: std::num::NonZeroU16::new(read_u16(body, 0).unwrap()),
+            direction: crate::trace::Direction::from_bit(u64::from(flags & 1)),
+        };
         if kind == FrameKind::Data {
             self.copy_payload(&mut frame, &body[20..20 + usize::from(valid_bytes)])?;
             self.record_data_frame(timestamp_ns);
@@ -523,6 +532,10 @@ impl Parser {
             valid_bytes,
         );
 
+        frame.source = crate::trace::RawSource {
+            channel: std::num::NonZeroU16::new(u16::from(body[0])),
+            direction: crate::trace::Direction::from_bit(u64::from(body[34])),
+        };
         if kind == FrameKind::Data {
             let payload_len = usize::from(valid_bytes);
             self.payloads
@@ -555,6 +568,7 @@ impl Parser {
             id: Some(id),
             is_fd,
             dlc,
+            source: crate::trace::RawSource::default(),
             payload_offset: 0,
             payload_len,
         }
@@ -591,7 +605,7 @@ impl Parser {
 
     fn record_data_frame(&mut self, timestamp_ns: u64) {
         self.data_frame_count += 1;
-        self.last_data_timestamp_ns = Some(timestamp_ns);
+        self.last_data_timestamp_ns = self.last_data_timestamp_ns.max(Some(timestamp_ns));
     }
 }
 
@@ -688,6 +702,41 @@ fn parse_system_time_to_unix_ms(bytes: &[u8]) -> Result<i64, BlfError> {
 mod tests {
     use super::*;
     use test_fixture as fixture;
+
+    #[test]
+    fn preserves_sources_in_each_raw_object_layout() {
+        use crate::trace::Direction;
+        let mut objects = Vec::new();
+        // Body offsets below are specified by the BLF object layouts, independently
+        // of the parser: classic/FD channel u16 at 0, flags at 2; FD64 u8 at 0, dir at 34.
+        for object_type in [1, 86, 100, 101] {
+            let start = objects.len();
+            match object_type {
+                1 | 86 => test_fixture::append_classic_can_object(&mut objects, 1, 0x123, &[17]),
+                100 => test_fixture::append_can_fd_message_object(&mut objects, 2, 0x123, 1, &[34]),
+                _ => test_fixture::append_can_fd_message_64_object(
+                    &mut objects,
+                    3,
+                    0x123,
+                    1,
+                    1,
+                    &[51],
+                ),
+            }
+            objects[start + 12..start + 16].copy_from_slice(&(object_type as u32).to_le_bytes());
+            objects[start + 32] = 2;
+            objects[start + if object_type == 101 { 66 } else { 34 }] = 1;
+        }
+        let mut bytes = Vec::new();
+        test_fixture::append_file_header(&mut bytes);
+        test_fixture::append_outer_container(&mut bytes, &objects);
+        let trace = from_bytes(&bytes).unwrap();
+        assert_eq!(trace.frames.len(), 4);
+        for frame in trace.frames {
+            assert_eq!(frame.source.channel.map(|v| v.get()), Some(2));
+            assert_eq!(frame.source.direction, Direction::Tx);
+        }
+    }
 
     #[test]
     fn inflates_fixed_huffman_zlib_stream() {

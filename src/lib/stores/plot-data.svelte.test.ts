@@ -272,6 +272,13 @@ function traceEntry(
 	id: number,
 	overrides: Partial<Pick<TraceFileEntry, 'hasRawFrames' | 'mf4Catalog'>> = {}
 ): TraceFileEntry {
+	const metadata = {
+		rawMessages: [],
+		measurementStartMs: null,
+		validMessageCount: 1,
+		skippedLineCount: 0,
+		durationNs: 1_000_000
+	};
 	return {
 		id,
 		handle: {} as TraceHandle,
@@ -281,12 +288,7 @@ function traceEntry(
 		embeddedDbcs: [],
 		warnings: [],
 		...overrides,
-		metadata: {
-			measurementStartMs: null,
-			validMessageCount: 1,
-			skippedLineCount: 0,
-			durationNs: 1_000_000
-		}
+		metadata
 	};
 }
 

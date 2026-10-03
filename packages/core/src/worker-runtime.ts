@@ -149,7 +149,8 @@ export function startWorkerRuntime(
 						requireHandle(dbcs, request.dbcId, 'dbc'),
 						requireHandle(traces, request.traceId, 'trace'),
 						request.messageIdentity,
-						request.signalName
+						request.signalName,
+						request.source
 					)
 				);
 			case 'getMf4SignalValues':

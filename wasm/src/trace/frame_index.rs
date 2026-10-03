@@ -1,10 +1,11 @@
 use std::collections::HashMap;
+use std::fmt::Write;
 
-use super::{Frame, FrameKind};
+use super::{Frame, FrameKind, RawSource};
 
 #[derive(Debug, Default)]
 pub(crate) struct FrameIndex {
-    buckets: HashMap<(u32, bool), Bucket>,
+    buckets: HashMap<(u32, bool), HashMap<RawSource, Bucket>>,
 }
 
 #[derive(Debug, Default)]
@@ -47,7 +48,7 @@ pub(crate) struct Lookup<'a> {
 
 impl FrameIndex {
     pub(crate) fn build(frames: &[Frame]) -> Self {
-        let mut buckets: HashMap<(u32, bool), Bucket> = HashMap::new();
+        let mut buckets: HashMap<(u32, bool), HashMap<RawSource, Bucket>> = HashMap::new();
 
         for (index, frame) in frames.iter().enumerate() {
             if frame.kind != FrameKind::Data {
@@ -58,9 +59,24 @@ impl FrameIndex {
             };
             let index = u32::try_from(index).expect("more frames than wasm memory can hold");
             buckets
-                .entry((id.value, id.is_extended))
+                .entry((id.value(), id.is_extended()))
+                .or_default()
+                .entry(frame.source)
                 .or_default()
                 .push(frame, index);
+        }
+
+        // Order each CAN source once, when the index is built. The frame
+        // index breaks timestamp ties without discarding or swapping equal-time frames.
+        for bucket in buckets.values_mut().flat_map(HashMap::values_mut) {
+            if !bucket
+                .frame_indices
+                .is_sorted_by_key(|&index| frames[index as usize].timestamp_ns)
+            {
+                bucket
+                    .frame_indices
+                    .sort_unstable_by_key(|&index| (frames[index as usize].timestamp_ns, index));
+            }
         }
 
         Self { buckets }
@@ -71,18 +87,61 @@ impl FrameIndex {
         can_id: u32,
         is_extended: bool,
         message_size_bytes: u16,
-    ) -> Lookup<'_> {
-        let Some(bucket) = self.buckets.get(&(can_id, is_extended)) else {
-            return Lookup {
-                frame_indices: &[],
-                all_frames_carry: true,
-            };
+        source: Option<RawSource>,
+    ) -> Result<Lookup<'_>, &'static str> {
+        let empty = || Lookup {
+            frame_indices: &[],
+            all_frames_carry: true,
+        };
+        let Some(sources) = self.buckets.get(&(can_id, is_extended)) else {
+            return Ok(empty());
+        };
+        let bucket = match source {
+            Some(source) => sources.get(&source),
+            None if sources.len() > 1 => {
+                return Err(
+                    "Multiple raw sources match this message; select a channel and direction",
+                );
+            }
+            None => sources.values().next(),
+        };
+        let Some(bucket) = bucket else {
+            return Ok(empty());
         };
 
-        Lookup {
+        Ok(Lookup {
             frame_indices: &bucket.frame_indices,
             all_frames_carry: bucket.all_frames_carry(message_size_bytes),
+        })
+    }
+
+    pub(crate) fn catalog_json(&self) -> String {
+        let mut entries: Vec<_> = self
+            .buckets
+            .iter()
+            .flat_map(|(&(id, extended), sources)| {
+                sources.keys().map(move |&source| (id, extended, source))
+            })
+            .collect();
+        entries.sort_unstable();
+        let mut output = String::from("[");
+        for (index, (id, extended, source)) in entries.into_iter().enumerate() {
+            if index != 0 {
+                output.push(',');
+            }
+            write!(
+                output,
+                "{{\"canId\":{id},\"isExtended\":{extended},\"source\":{{\"channel\":"
+            )
+            .unwrap();
+            match source.channel {
+                Some(channel) => write!(output, "{channel}").unwrap(),
+                None => output.push_str("null"),
+            }
+            write!(output, ",\"direction\":\"{}\"}}}}", source.direction.name()).unwrap();
         }
+        output.push(']');
+        output
     }
 }
 
@@ -120,10 +179,19 @@ mod tests {
         ];
 
         let index = FrameIndex::build(&frames);
-        let standard = index.lookup(0x123, false, 8);
+        let standard = index.lookup(0x123, false, 8, None).unwrap();
         assert_eq!(standard.frame_indices, &[0, 3]);
         assert!(standard.all_frames_carry);
-        assert_eq!(index.lookup(0x123, true, 8).frame_indices, &[2]);
-        assert!(index.lookup(0x456, false, 8).frame_indices.is_empty());
+        assert_eq!(
+            index.lookup(0x123, true, 8, None).unwrap().frame_indices,
+            &[2]
+        );
+        assert!(
+            index
+                .lookup(0x456, false, 8, None)
+                .unwrap()
+                .frame_indices
+                .is_empty()
+        );
     }
 }
