@@ -335,7 +335,7 @@
 		if (!file || traceFile.isLoading) return;
 		if (await traceFile.openFile(file)) {
 			if (traceFile.warning) {
-				toast.warning(traceFile.warning, { closeButton: true, duration: 10000 });
+				toast.warning(traceFile.warning);
 			}
 			await onTraceOpened();
 			if (walkthroughStepId === 'trace') await showWalkthroughStep('library');
