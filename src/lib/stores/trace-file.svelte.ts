@@ -16,13 +16,12 @@ class TraceFileStore {
 	entry = $state<TraceFileEntry | null>(null);
 	isLoading = $state(false);
 	error = $state<string | null>(null);
-	private dismissedWarningEntry = $state<TraceFileEntry | null>(null);
 
 	displayName = $derived(this.entry ? displayTraceName(this.entry.file.name) : 'CAN Trace Viewer');
 	mf4SignalTargetByKey = $derived.by(() => buildMf4SignalTargetIndex(this.entry));
 	mf4SelectorIndexes = $derived.by(() => mf4SelectorSearchIndexes(this.entry));
 	warning = $derived.by(() => {
-		if (!this.entry || this.entry === this.dismissedWarningEntry) return null;
+		if (!this.entry) return null;
 		const warnings = [...(this.entry.warnings ?? [])];
 		const count = this.entry.metadata.skippedLineCount;
 		if (count > 0) {
@@ -47,7 +46,6 @@ class TraceFileStore {
 
 			const previous = this.entry;
 			this.entry = next;
-			this.dismissedWarningEntry = null;
 			next = null;
 
 			if (previous) {
@@ -67,10 +65,6 @@ class TraceFileStore {
 
 	clearError(): void {
 		this.error = null;
-	}
-
-	clearWarning(): void {
-		this.dismissedWarningEntry = this.entry;
 	}
 }
 
