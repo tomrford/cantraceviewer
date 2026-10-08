@@ -36,6 +36,7 @@ pub(super) fn parse_line(
     let source = RawSource {
         channel: columns
             .bus
+            .filter(|&i| record_type != "EV" || token_at(tokens, i) != "-")
             .map(|i| parse_channel(token_at(tokens, i).as_bytes()))
             .transpose()?
             .flatten(),
