@@ -18,7 +18,6 @@ describe('traceFile', () => {
 		traceFile.entry = null;
 		traceFile.error = null;
 		traceFile.isLoading = false;
-		traceFile.clearWarning();
 	});
 
 	it('rejects unsupported trace extensions before reading bytes', async () => {
@@ -42,26 +41,27 @@ describe('traceFile', () => {
 		expect(traceFile.error).toBe('ASC file appears to be binary. Open a text ASC file.');
 	});
 
-	it('surfaces malformed skipped lines as a dismissible warning', async () => {
-		openTraceMock.mockResolvedValueOnce(openedTrace(metadata({ skippedLineCount: 2 })));
+	it('summarizes MF4 diagnostics and malformed skipped lines', async () => {
+		const trace = openedTrace(metadata({ skippedLineCount: 2 }));
+		trace.warnings = ['Embedded DBC "network.dbc" is not valid UTF-8 text.'];
+		openTraceMock.mockResolvedValueOnce(trace);
 
 		await traceFile.openFile(file('trace.asc', 'date Mon Jan 1 00:00:00.000'));
 
-		expect(traceFile.warning).toBe('Parsed with 2 malformed lines skipped.');
-		traceFile.clearWarning();
-		expect(traceFile.warning).toBe(null);
+		expect(traceFile.warning).toBe(
+			'Embedded DBC "network.dbc" is not valid UTF-8 text. Parsed with 2 malformed lines skipped.'
+		);
 		expect(closeTraceMock).not.toHaveBeenCalled();
 	});
 
-	it('keeps a dismissed warning dismissed when a later open fails', async () => {
+	it('retains the current trace diagnostics when a later open fails', async () => {
 		openTraceMock.mockResolvedValueOnce(openedTrace(metadata({ skippedLineCount: 2 })));
 
 		await traceFile.openFile(file('trace.asc', 'date Mon Jan 1 00:00:00.000'));
-		traceFile.clearWarning();
 		await traceFile.openFile(file('trace.txt', 'not a trace'));
 
 		expect(traceFile.error).not.toBe(null);
-		expect(traceFile.warning).toBe(null);
+		expect(traceFile.warning).toBe('Parsed with 2 malformed lines skipped.');
 	});
 
 	it('does not warn when no malformed lines were skipped', async () => {
