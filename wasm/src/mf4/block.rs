@@ -640,33 +640,16 @@ mod tests {
 
     #[test]
     fn materializes_only_embedded_dbcs_within_the_dbc_limit() {
-        assert!(should_materialize_attachment(
-            "network.dbc",
-            "application/octet-stream",
-            true,
-            12,
-            12,
-        ));
-        assert!(!should_materialize_attachment(
-            "photo.bin",
-            "application/octet-stream",
-            true,
-            8,
-            12,
-        ));
-        assert!(!should_materialize_attachment(
-            "network.dbc",
-            "application/x-dbc",
-            true,
-            13,
-            12,
-        ));
-        assert!(!should_materialize_attachment(
-            "network.dbc",
-            "application/x-dbc",
-            false,
-            8,
-            12,
-        ));
+        for (name, mime, embedded, size, expected) in [
+            ("network.dbc", "application/octet-stream", true, 12, true),
+            ("photo.bin", "application/octet-stream", true, 8, false),
+            ("network.dbc", "application/x-dbc", true, 13, false),
+            ("network.dbc", "application/x-dbc", false, 8, false),
+        ] {
+            assert_eq!(
+                should_materialize_attachment(name, mime, embedded, size, 12),
+                expected,
+            );
+        }
     }
 }

@@ -442,11 +442,12 @@ mod tests {
     #[test]
     fn decodes_embedded_dbcs_and_reports_oversized_attachments() {
         let text = "VERSION \"€ – ™\"";
-        let mut attachments: Vec<_> = [
-            ("legacy.dbc", b"VERSION \"\x80 \x96 \x99\"".to_vec()),
+        let attachments = [
+            ("large.dbc", None),
+            ("legacy.dbc", Some(b"VERSION \"\x80 \x96 \x99\"".to_vec())),
             (
                 "bom.dbc",
-                [b"\xef\xbb\xbf".as_slice(), text.as_bytes()].concat(),
+                Some([b"\xef\xbb\xbf".as_slice(), text.as_bytes()].concat()),
             ),
         ]
         .into_iter()
@@ -454,17 +455,10 @@ mod tests {
             name: name.to_owned(),
             mime: "application/x-dbc".to_owned(),
             is_embedded: true,
-            original_size: data.len(),
-            data: Some(data),
+            original_size: data.as_ref().map_or(65, Vec::len),
+            data,
         })
         .collect();
-        attachments.push(Attachment {
-            name: "large.dbc".to_owned(),
-            mime: "application/x-dbc".to_owned(),
-            is_embedded: true,
-            original_size: 65,
-            data: None,
-        });
         let index = FileIndex {
             measurement_start_ms: None,
             data_groups: Vec::new(),
@@ -483,6 +477,24 @@ mod tests {
             warnings,
             ["Embedded DBC \"large.dbc\" exceeds the 64 byte DBC limit."]
         );
+        let document = Document {
+            bytes: Vec::new(),
+            index,
+            signals: Vec::new(),
+            embedded_dbcs: dbcs,
+            warnings,
+            time_offset_seconds: 0.0,
+            max_data_bytes: 64,
+        };
+        assert_eq!(
+            document.embedded_dbc_bytes(0),
+            Some(b"VERSION \"\x80 \x96 \x99\"".as_slice())
+        );
+        assert_eq!(
+            document.embedded_dbc_bytes(1),
+            Some("\u{feff}VERSION \"€ – ™\"".as_bytes())
+        );
+        assert_eq!(document.embedded_dbc_bytes(2), None);
     }
 
     #[test]
