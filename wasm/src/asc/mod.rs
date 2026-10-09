@@ -83,7 +83,9 @@ pub(crate) fn parse_bytes(bytes: &[u8]) -> Result<Trace, TraceError> {
                 .payloads
                 .extend_from_slice(&payload_buffer[..payload_len]);
             trace.data_frame_count += 1;
-            trace.last_data_timestamp_ns = Some(parsed_frame.timestamp_ns);
+            trace.last_data_timestamp_ns = trace
+                .last_data_timestamp_ns
+                .max(Some(parsed_frame.timestamp_ns));
         }
 
         trace.frames.push(parsed_frame);
@@ -331,13 +333,13 @@ mod tests {
     }
 
     #[test]
-    fn reports_duration_from_the_last_data_frame_only() {
+    fn reports_duration_from_the_latest_data_frame_only() {
         let parsed = parse(
             "base hex timestamps absolute\n\
-             0.100000 1 123 Rx d 1 aa\n\
-             0.200000 CANFD_STATISTIC whatever else\n\
-             0.300000 1 123 Rx r 8\n\
-             0.400000 1 123 Rx d 1 bb",
+             0.400000 1 123 Rx d 1 aa\n\
+             0.500000 CANFD_STATISTIC whatever else\n\
+             0.600000 1 123 Rx r 8\n\
+             0.100000 1 123 Rx d 1 bb",
         )
         .unwrap();
 

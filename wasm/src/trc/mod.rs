@@ -76,7 +76,9 @@ pub(crate) fn parse_bytes(bytes: &[u8]) -> Result<Trace, TraceError> {
                 .payloads
                 .extend_from_slice(&payload_buffer[..payload_len]);
             trace.data_frame_count += 1;
-            trace.last_data_timestamp_ns = Some(parsed_frame.timestamp_ns);
+            trace.last_data_timestamp_ns = trace
+                .last_data_timestamp_ns
+                .max(Some(parsed_frame.timestamp_ns));
         }
         trace.frames.push(parsed_frame);
     }
@@ -207,14 +209,21 @@ mod tests {
             ";$FILEVERSION=2.1\n\
              ;$COLUMNS=N,O,T,B,I,d,R,L,D\n\
              1 0.100 DT 1 0123 Rx - 2 AA BB\n\
-             2 0.200 ER 1 - - - 0",
+             2 0.200 ER 1 - - - 0\n\
+             3 0.300 EV - - - - 0 Global event\n\
+             4 0.400 DT - 0123 Rx - 1 CC",
         )
         .unwrap();
 
-        assert_eq!(parsed.frames.len(), 2);
+        assert_eq!(parsed.frames.len(), 3);
         assert_eq!(parsed.data_frame_count, 1);
+        assert_eq!(parsed.skipped_line_count, 1);
         assert_eq!(parsed.frames[1].kind, FrameKind::Error);
         assert_eq!(parsed.frames[1].timestamp_ns, 200_000);
+        assert_eq!(parsed.frames[1].source.channel.map(|v| v.get()), Some(1));
+        assert_eq!(parsed.frames[2].kind, FrameKind::Unknown);
+        assert_eq!(parsed.frames[2].timestamp_ns, 300_000);
+        assert_eq!(parsed.frames[2].source, crate::trace::RawSource::default());
     }
 
     #[test]

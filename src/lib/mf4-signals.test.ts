@@ -43,6 +43,13 @@ describe('MF4 signal sources', () => {
 });
 
 function mf4Trace(): OpenTraceResult & { id: number } {
+	const metadata = {
+		rawMessages: [],
+		measurementStartMs: null,
+		validMessageCount: 0,
+		skippedLineCount: 0,
+		durationNs: 1
+	};
 	return {
 		id: 17,
 		handle: {} as TraceHandle,
@@ -57,11 +64,6 @@ function mf4Trace(): OpenTraceResult & { id: number } {
 		},
 		embeddedDbcs: [],
 		warnings: [],
-		metadata: {
-			measurementStartMs: null,
-			validMessageCount: 0,
-			skippedLineCount: 0,
-			durationNs: 1
-		}
+		metadata
 	};
 }

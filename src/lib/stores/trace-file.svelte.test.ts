@@ -89,10 +89,12 @@ function openedTrace(metadata: TraceMetadata): OpenTraceResult {
 }
 
 function metadata({ skippedLineCount }: { skippedLineCount: number }): TraceMetadata {
-	return {
+	const result = {
+		rawMessages: [],
 		measurementStartMs: null,
 		validMessageCount: 1,
 		skippedLineCount,
 		durationNs: null
 	};
+	return result;
 }
