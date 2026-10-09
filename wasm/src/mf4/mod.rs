@@ -32,6 +32,7 @@ pub(crate) struct Document {
 
 #[derive(Debug)]
 struct EmbeddedDbc {
+    attachment_index: usize,
     name: String,
     text: String,
 }
@@ -127,6 +128,11 @@ impl Document {
         output
     }
 
+    pub(crate) fn embedded_dbc_bytes(&self, index: usize) -> Option<&[u8]> {
+        let dbc = self.embedded_dbcs.get(index)?;
+        self.index.attachments[dbc.attachment_index].data.as_deref()
+    }
+
     pub(crate) fn warnings_json(&self) -> String {
         let mut output = String::from("[");
         for (index, warning) in self.warnings.iter().enumerate() {
@@ -157,7 +163,7 @@ fn classify_attachments(
 ) -> (Vec<EmbeddedDbc>, Vec<String>) {
     let mut dbcs = Vec::new();
     let mut warnings = Vec::new();
-    for attachment in &index.attachments {
+    for (attachment_index, attachment) in index.attachments.iter().enumerate() {
         if is_arxml_attachment(&attachment.name, &attachment.mime) {
             warnings.push(format!(
                 "Embedded ARXML attachment \"{}\" is not supported yet; see issue #115.",
@@ -185,16 +191,11 @@ fn classify_attachments(
         let Some(data) = attachment.data.as_deref() else {
             continue;
         };
-        match std::str::from_utf8(data) {
-            Ok(text) => dbcs.push(EmbeddedDbc {
-                name: display_attachment_name(&attachment.name, "embedded.dbc").to_owned(),
-                text: text.to_owned(),
-            }),
-            Err(_) => warnings.push(format!(
-                "Embedded DBC \"{}\" is not valid UTF-8 text.",
-                display_attachment_name(&attachment.name, "DBC")
-            )),
-        }
+        dbcs.push(EmbeddedDbc {
+            attachment_index,
+            name: display_attachment_name(&attachment.name, "embedded.dbc").to_owned(),
+            text: crate::dbc::decode_source(data).into_owned(),
+        });
     }
     (dbcs, warnings)
 }
@@ -439,25 +440,48 @@ mod tests {
     }
 
     #[test]
-    fn reports_oversized_embedded_dbcs_without_materializing_them() {
+    fn decodes_embedded_dbcs_and_reports_oversized_attachments() {
+        let text = "VERSION \"€ – ™\"";
+        let mut attachments: Vec<_> = [
+            ("legacy.dbc", b"VERSION \"\x80 \x96 \x99\"".to_vec()),
+            (
+                "bom.dbc",
+                [b"\xef\xbb\xbf".as_slice(), text.as_bytes()].concat(),
+            ),
+        ]
+        .into_iter()
+        .map(|(name, data)| Attachment {
+            name: name.to_owned(),
+            mime: "application/x-dbc".to_owned(),
+            is_embedded: true,
+            original_size: data.len(),
+            data: Some(data),
+        })
+        .collect();
+        attachments.push(Attachment {
+            name: "large.dbc".to_owned(),
+            mime: "application/x-dbc".to_owned(),
+            is_embedded: true,
+            original_size: 65,
+            data: None,
+        });
         let index = FileIndex {
             measurement_start_ms: None,
             data_groups: Vec::new(),
-            attachments: vec![Attachment {
-                name: "large.dbc".to_owned(),
-                mime: "application/x-dbc".to_owned(),
-                is_embedded: true,
-                original_size: 13,
-                data: None,
-            }],
+            attachments,
         };
 
-        let (dbcs, warnings) = classify_attachments(&index, 12);
+        let (dbcs, warnings) = classify_attachments(&index, 64);
 
-        assert!(dbcs.is_empty());
+        assert_eq!(
+            dbcs.iter()
+                .map(|dbc| (dbc.name.as_str(), dbc.text.as_str()))
+                .collect::<Vec<_>>(),
+            [("legacy.dbc", text), ("bom.dbc", text)]
+        );
         assert_eq!(
             warnings,
-            ["Embedded DBC \"large.dbc\" exceeds the 12 byte DBC limit."]
+            ["Embedded DBC \"large.dbc\" exceeds the 64 byte DBC limit."]
         );
     }
 

@@ -40,6 +40,24 @@ describe('cantraceviewer/node', () => {
 			} finally {
 				await other.close();
 			}
+			const accepted = await createCanTraceClient({
+				...limits,
+				maxDbcBytes: 1361,
+				maxTraceDataBytes: 168
+			});
+			try {
+				const opened = await accepted.openTrace(
+					'mf4',
+					Uint8Array.from(await readFile(resolve(fixturesDir, 'mf4/hybrid-embedded-dbc.mf4')))
+						.buffer
+				);
+				await accepted.closeTrace(opened.handle);
+				expect(opened.embeddedDbcs[0].bytes.byteLength).toBe(1361);
+				const imported = await accepted.openDbc(opened.embeddedDbcs[0].bytes);
+				expect(imported.catalog.messages.some((message) => message.canId === 291)).toBe(true);
+			} finally {
+				await accepted.close();
+			}
 			const dbc = await configured.openDbc('VERSION ""');
 			await configured.closeDbc(dbc.handle);
 		} finally {

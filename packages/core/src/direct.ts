@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 
 import { createHandleRegistry } from './handles.ts';
-import { snapshotLimits, assertDbcLimit, assertByteLimit, type ParsingLimits } from './limits.ts';
+import { snapshotLimits, dbcBytes, assertByteLimit, type ParsingLimits } from './limits.ts';
 import { initSync, Dbc as WasmDbc, Trace as WasmTrace } from './wasm-bindgen/cantraceviewer.js';
 import type {
 	DbcHandle,
@@ -80,11 +80,7 @@ export function createDirectClient(
 	return {
 		openDbc(input) {
 			assertClientOpen();
-			assertDbcLimit(input, limits.maxDbcBytes);
-			const dbc = WasmDbc.parse(
-				typeof input === 'string' ? new TextEncoder().encode(input) : input,
-				limits.maxDbcBytes
-			);
+			const dbc = WasmDbc.parse(dbcBytes(input, limits.maxDbcBytes));
 			try {
 				const catalog = JSON.parse(dbc.catalogJson()) as ParsedDbc;
 				const warnings = JSON.parse(dbc.warningsJson()) as OpenDbcResult['warnings'];
@@ -112,7 +108,9 @@ export function createDirectClient(
 				const hasRawFrames = trace.hasRawFrames;
 				const mf4Catalog = isMf4 ? (JSON.parse(trace.mf4CatalogJson()) as Mf4SignalCatalog) : null;
 				const embeddedDbcs = isMf4
-					? (JSON.parse(trace.mf4EmbeddedDbcsJson()) as OpenTraceResult['embeddedDbcs'])
+					? (JSON.parse(trace.mf4EmbeddedDbcsJson()) as { name: string; text: string }[]).map(
+							(dbc, index) => ({ ...dbc, bytes: trace.mf4EmbeddedDbcBytes(index) })
+						)
 					: [];
 				const warnings = isMf4 ? (JSON.parse(trace.mf4WarningsJson()) as string[]) : [];
 				return {
@@ -173,18 +171,13 @@ function freeHandle(payload: WasmDbc | WasmTrace | null): void {
 function parseTrace(traceType: TraceType, bytes: Uint8Array, limits: ParsingLimits): WasmTrace {
 	switch (traceType) {
 		case 'asc':
-			return WasmTrace.parseAsc(bytes, limits.maxTraceInputBytes);
+			return WasmTrace.parseAsc(bytes);
 		case 'trc':
-			return WasmTrace.parseTrc(bytes, limits.maxTraceInputBytes);
+			return WasmTrace.parseTrc(bytes);
 		case 'blf':
-			return WasmTrace.parseBlf(bytes, limits.maxTraceInputBytes, limits.maxTraceDataBytes);
+			return WasmTrace.parseBlf(bytes, limits.maxTraceDataBytes);
 		case 'mf4':
-			return WasmTrace.parseMf4(
-				bytes,
-				limits.maxTraceInputBytes,
-				limits.maxDbcBytes,
-				limits.maxTraceDataBytes
-			);
+			return WasmTrace.parseMf4(bytes, limits.maxDbcBytes, limits.maxTraceDataBytes);
 	}
 }
 

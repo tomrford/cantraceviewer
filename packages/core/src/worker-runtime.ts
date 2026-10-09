@@ -1,5 +1,5 @@
 import type { DirectClient } from './direct.ts';
-import { snapshotLimits, type ParsingLimits } from './limits.ts';
+import type { ParsingLimits } from './limits.ts';
 import type {
 	SeriesPayload,
 	WireError,
@@ -53,7 +53,7 @@ export function startWorkerRuntime(
 	const boot = new Promise<ParsingLimits>((resolve) => {
 		initialize = resolve;
 	})
-		.then((limits) => loadClient(snapshotLimits(limits)))
+		.then((limits) => loadClient(limits))
 		.then(
 			(loaded) => {
 				direct = loaded;
@@ -141,6 +141,7 @@ export function startWorkerRuntime(
 				};
 				return {
 					result,
+					transfer: opened.embeddedDbcs.map((dbc) => dbc.bytes.buffer as ArrayBuffer),
 					undo: () => {
 						traces.delete(traceId);
 						client.closeTrace(opened.handle);

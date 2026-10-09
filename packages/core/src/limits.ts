@@ -37,26 +37,11 @@ export function assertByteLimit(bytes: number, limit: number, label: string): vo
 	if (bytes > limit) throw new Error(`${label} exceeds the ${limit} byte limit`);
 }
 
-/** Count TextEncoder's UTF-8 bytes without allocating an encoded copy. @internal */
-export function assertDbcLimit(input: Uint8Array | string, limit: number): void {
-	if (typeof input !== 'string') {
-		assertByteLimit(input.byteLength, limit, 'DBC input');
-		return;
-	}
-	let bytes = 0;
-	for (let index = 0; index < input.length; index++) {
-		const code = input.charCodeAt(index);
-		if (code < 0x80) bytes++;
-		else if (code < 0x800) bytes += 2;
-		else if (
-			code >= 0xd800 &&
-			code <= 0xdbff &&
-			input.charCodeAt(index + 1) >= 0xdc00 &&
-			input.charCodeAt(index + 1) <= 0xdfff
-		) {
-			bytes += 4;
-			index++;
-		} else bytes += 3;
-		assertByteLimit(bytes, limit, 'DBC input');
-	}
+/** Encode string inputs once before worker messaging or WASM copying. @internal */
+export function dbcBytes(input: Uint8Array | string, limit: number): Uint8Array {
+	// UTF-16 length is a lower bound on encoded bytes; reject obviously oversized strings first.
+	if (typeof input === 'string') assertByteLimit(input.length, limit, 'DBC input');
+	const bytes = typeof input === 'string' ? new TextEncoder().encode(input) : input;
+	assertByteLimit(bytes.byteLength, limit, 'DBC input');
+	return bytes;
 }

@@ -81,7 +81,9 @@ describe('cantraceviewer node transport', () => {
 	it('boots on ready, posts requests, and resolves them from worker replies', async () => {
 		const { fake, client } = await createBootedClient();
 		const openPromise = client.openDbc('VERSION ""');
-		expect(fake.requests).toEqual([{ op: 'openDbc', input: 'VERSION ""', id: 1 }]);
+		expect(fake.requests).toEqual([
+			{ op: 'openDbc', input: new TextEncoder().encode('VERSION ""'), id: 1 }
+		]);
 
 		const result: WireOpenDbc = { dbcId: 4, catalog: { messages: [] }, warnings: [] };
 		fake.reply({ type: 'ok', id: 1, result });

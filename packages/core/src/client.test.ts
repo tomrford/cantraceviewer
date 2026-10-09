@@ -53,7 +53,8 @@ function proxyPlainObjects<T>(value: T): T {
 function createFakeDirect() {
 	const log: string[] = [];
 	const client: DirectClient = {
-		openDbc(text) {
+		openDbc(input) {
+			const text = typeof input === 'string' ? input : new TextDecoder().decode(input);
 			log.push(`openDbc:${text}`);
 			if (text === 'broken') {
 				const error = new Error('invalid DBC message record');
@@ -231,8 +232,7 @@ describe('createCanTraceClient worker transport', () => {
 			backing.set([1, 2, 3], 50);
 			await client.openDbc(backing.subarray(50, 53));
 			const posted = harness.requests.at(-1);
-			if (posted?.op !== 'openDbc' || typeof posted.input === 'string')
-				throw new Error('missing DBC request');
+			if (posted?.op !== 'openDbc') throw new Error('missing DBC request');
 			expect(posted.input.buffer.byteLength).toBe(3);
 			expect(Array.from(posted.input)).toEqual([1, 2, 3]);
 			expect(backing.byteLength).toBe(100);

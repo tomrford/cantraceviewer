@@ -73,7 +73,7 @@ impl Dbc {
     }
 }
 
-pub(super) fn decode(bytes: &[u8]) -> Cow<'_, str> {
+pub(crate) fn decode(bytes: &[u8]) -> Cow<'_, str> {
     let bytes = bytes.strip_prefix(&[0xef, 0xbb, 0xbf]).unwrap_or(bytes);
     if let Ok(text) = std::str::from_utf8(bytes) {
         return Cow::Borrowed(text);

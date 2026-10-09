@@ -92,7 +92,7 @@ describe('dbcFiles', () => {
 			openDbcResult(handle, catalog(message({ name: 'Embedded' })))
 		);
 
-		await dbcFiles.addTransientDbcs(42, [{ name: 'embedded.dbc', text: 'embedded' }]);
+		await dbcFiles.addTransientDbcs(42, [embeddedDbc('embedded.dbc', 'embedded')]);
 
 		expect(dbcFiles.files).toMatchObject([
 			{
@@ -117,7 +117,7 @@ describe('dbcFiles', () => {
 	it('clears a failed embedded DBC error when the trace is replaced', async () => {
 		openDbcMock.mockRejectedValueOnce(new Error('embedded catalog failed'));
 
-		await dbcFiles.addTransientDbcs(42, [{ name: 'broken.dbc', text: 'broken' }]);
+		await dbcFiles.addTransientDbcs(42, [embeddedDbc('broken.dbc', 'broken')]);
 		expect(dbcFiles.error).toBe('embedded catalog failed');
 
 		await dbcFiles.addTransientDbcs(43, []);
@@ -603,6 +603,10 @@ describe('dbcFiles', () => {
 		expect(dbcFiles.hasLoadedLibrary).toBe(true);
 	});
 });
+
+function embeddedDbc(name: string, text: string) {
+	return { name, text, bytes: new TextEncoder().encode(text) };
+}
 
 function file(name: string, text: string): File {
 	return new File([text], name, { type: 'text/plain' });

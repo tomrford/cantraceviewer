@@ -1,5 +1,5 @@
 import { createHandleRegistry } from './handles.ts';
-import { snapshotLimits, assertDbcLimit, assertByteLimit, type ParsingLimits } from './limits.ts';
+import { snapshotLimits, dbcBytes, assertByteLimit, type ParsingLimits } from './limits.ts';
 import type {
 	SeriesPayload,
 	WireError,
@@ -189,15 +189,14 @@ export async function createRpcClient(
 	return {
 		async openDbc(input) {
 			assertOpen();
-			assertDbcLimit(input, limits.maxDbcBytes);
+			const bytes = dbcBytes(input, limits.maxDbcBytes);
 			// Structured clone copies a view's entire backing buffer, including a Node Buffer pool.
 			const payload =
-				typeof input === 'string' ||
-				(input.buffer instanceof ArrayBuffer &&
-					input.byteOffset === 0 &&
-					input.byteLength === input.buffer.byteLength)
-					? input
-					: Uint8Array.from(input);
+				bytes.buffer instanceof ArrayBuffer &&
+				bytes.byteOffset === 0 &&
+				bytes.byteLength === bytes.buffer.byteLength
+					? bytes
+					: Uint8Array.from(bytes);
 			const { dbcId, catalog, warnings } = await send<WireOpenDbc>(
 				{ op: 'openDbc', input: payload },
 				[]
