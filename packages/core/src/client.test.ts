@@ -7,6 +7,7 @@ import {
 import type { DirectClient } from './direct.ts';
 import type { WorkerRequest } from './protocol.ts';
 import { startWorkerRuntime, type WorkerRuntimeEndpoint } from './worker-runtime.ts';
+import { DEFAULT_PARSING_LIMITS, type ParsingLimits } from './limits.ts';
 import type { DbcHandle, DecodedSignalSeries, TraceHandle } from './types.ts';
 
 const identity = { canId: 288, isExtended: false, sizeBytes: 8 };
@@ -52,7 +53,8 @@ function proxyPlainObjects<T>(value: T): T {
 function createFakeDirect() {
 	const log: string[] = [];
 	const client: DirectClient = {
-		openDbc(text) {
+		openDbc(input) {
+			const text = typeof input === 'string' ? input : new TextDecoder().decode(input);
 			log.push(`openDbc:${text}`);
 			if (text === 'broken') {
 				const error = new Error('invalid DBC message record');
@@ -109,7 +111,7 @@ type Harness = {
 
 /** In-process loopback between the real client and the real worker runtime. structuredClone
  *  reproduces postMessage semantics, including transfer-list buffer detachment. */
-function createHarness(loadClient: () => Promise<DirectClient>): Harness {
+function createHarness(loadClient: (limits: ParsingLimits) => Promise<DirectClient>): Harness {
 	const clientListeners = new Map<string, ((event: ClientWorkerEvent) => void)[]>();
 	const runtimeListeners: ((event: { data: WorkerRequest }) => void)[] = [];
 	const requests: WorkerRequest[] = [];
@@ -136,7 +138,7 @@ function createHarness(loadClient: () => Promise<DirectClient>): Harness {
 	const worker: ClientWorker = {
 		postMessage(message, transfer) {
 			const data = structuredClone(message, { transfer });
-			requests.push(data);
+			if (data.op !== 'init') requests.push(data);
 			queueMicrotask(() => {
 				for (const listener of runtimeListeners) listener({ data });
 			});
@@ -186,6 +188,58 @@ async function settle(): Promise<void> {
 }
 
 describe('createCanTraceClient worker transport', () => {
+	it('validates complete limits before creating a worker', async () => {
+		let created = false;
+		for (const value of [0, -1, 1.5, NaN, Infinity, 0x1_0000_0000, undefined]) {
+			await expect(
+				createCanTraceClientForWorker(
+					() => {
+						created = true;
+						throw new Error('unexpected worker');
+					},
+					{ ...DEFAULT_PARSING_LIMITS, maxDbcBytes: value } as ParsingLimits
+				)
+			).rejects.toThrow('maxDbcBytes must be an integer');
+		}
+		expect(created).toBe(false);
+	});
+
+	it('snapshots limits before boot and rejects oversized inputs before posting or transfer', async () => {
+		const fake = createFakeDirect();
+		const gate = deferred();
+		const limits = { maxDbcBytes: 3, maxTraceInputBytes: 2, maxTraceDataBytes: 17 };
+		let received: ParsingLimits | undefined;
+		const harness = createHarness(async (policy) => {
+			received = policy;
+			await gate.promise;
+			return fake.client;
+		});
+		const pending = createCanTraceClientForWorker(() => harness.worker, limits);
+		limits.maxDbcBytes = 100;
+		gate.resolve();
+		const client = await pending;
+		try {
+			expect(received).toEqual({ maxDbcBytes: 3, maxTraceInputBytes: 2, maxTraceDataBytes: 17 });
+			await expect(client.openDbc('😀')).rejects.toThrow('3 byte limit');
+			const buffer = new Uint8Array(3).buffer;
+			await expect(client.openTrace('asc', buffer)).rejects.toThrow('2 byte limit');
+			expect(buffer.byteLength).toBe(3);
+			expect(harness.requests).toEqual([]);
+			await client.openDbc('€');
+			await client.openTrace('asc', new Uint8Array(2).buffer);
+			expect(fake.log).toEqual(['openDbc:€', 'openTrace:asc:2']);
+			const backing = new Uint8Array(100);
+			backing.set([1, 2, 3], 50);
+			await client.openDbc(backing.subarray(50, 53));
+			const posted = harness.requests.at(-1);
+			if (posted?.op !== 'openDbc') throw new Error('missing DBC request');
+			expect(posted.input.buffer.byteLength).toBe(3);
+			expect(Array.from(posted.input)).toEqual([1, 2, 3]);
+			expect(backing.byteLength).toBe(100);
+		} finally {
+			await client.close();
+		}
+	});
 	it('boots, maps requests to direct operations, and transfers buffers both ways', async () => {
 		const { fake, harness, client } = await createPair();
 		const { handle: dbc, catalog } = await client.openDbc('VERSION ""');

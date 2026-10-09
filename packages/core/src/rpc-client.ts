@@ -1,4 +1,5 @@
 import { createHandleRegistry } from './handles.ts';
+import { snapshotLimits, dbcBytes, assertByteLimit, type ParsingLimits } from './limits.ts';
 import type {
 	SeriesPayload,
 	WireError,
@@ -34,7 +35,7 @@ export type CanTraceClient = {
 	closeDbc(handle: DbcHandle): Promise<void>;
 	/**
 	 * Parse one trace. `buffer` must be the exact ArrayBuffer holding the file bytes: it is
-	 * transferred to the worker and detached in the caller, and it stays consumed even when
+	 * transferred to the worker after input preflight and detached in the caller, even when
 	 * parsing fails. Typed-array views are rejected rather than silently copied.
 	 */
 	openTrace(traceType: TraceType, buffer: ArrayBuffer): Promise<OpenTraceResult>;
@@ -79,8 +80,10 @@ export type RpcTransportFactory = (handlers: RpcTransportHandlers) => RpcTranspo
  * threads; a transport supplies those. @internal
  */
 export async function createRpcClient(
-	createTransport: RpcTransportFactory
+	createTransport: RpcTransportFactory,
+	inputLimits?: ParsingLimits
 ): Promise<CanTraceClient> {
+	const limits = snapshotLimits(inputLimits);
 	const handles = createHandleRegistry<{ dbc: number; trace: number }>();
 	const pending = new Map<
 		number,
@@ -159,6 +162,13 @@ export async function createRpcClient(
 
 	transport = createTransport({ message: receive, fail });
 	if (fatalError) void terminate().catch(() => undefined);
+	else {
+		try {
+			transport.postMessage({ op: 'init', id: 0, limits }, []);
+		} catch (error) {
+			fail(error instanceof Error ? error : new Error(String(error)));
+		}
+	}
 
 	function assertOpen(): void {
 		if (fatalError) throw fatalError;
@@ -179,7 +189,18 @@ export async function createRpcClient(
 	return {
 		async openDbc(input) {
 			assertOpen();
-			const { dbcId, catalog, warnings } = await send<WireOpenDbc>({ op: 'openDbc', input }, []);
+			const bytes = dbcBytes(input, limits.maxDbcBytes);
+			// Structured clone copies a view's entire backing buffer, including a Node Buffer pool.
+			const payload =
+				bytes.buffer instanceof ArrayBuffer &&
+				bytes.byteOffset === 0 &&
+				bytes.byteLength === bytes.buffer.byteLength
+					? bytes
+					: Uint8Array.from(bytes);
+			const { dbcId, catalog, warnings } = await send<WireOpenDbc>(
+				{ op: 'openDbc', input: payload },
+				[]
+			);
 			return { handle: handles.issue('dbc', dbcId), catalog, warnings };
 		},
 		async closeDbc(handle) {
@@ -194,6 +215,7 @@ export async function createRpcClient(
 					'openTrace requires the exact ArrayBuffer to transfer; pass the underlying buffer, not a typed-array view'
 				);
 			}
+			assertByteLimit(buffer.byteLength, limits.maxTraceInputBytes, 'Trace input');
 			const opened = await send<WireOpenTrace>({ op: 'openTrace', traceType, buffer }, [buffer]);
 			return {
 				handle: handles.issue('trace', opened.traceId),

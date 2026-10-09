@@ -21,7 +21,7 @@ const endpoint: WorkerRuntimeEndpoint = {
 	}
 };
 
-startWorkerRuntime(endpoint, async () => {
+startWorkerRuntime(endpoint, async (limits) => {
 	const bytes = await readFile(new URL('./wasm-bindgen/cantraceviewer_bg.wasm', import.meta.url));
-	return createDirectClient(await WebAssembly.compile(bytes));
+	return createDirectClient(await WebAssembly.compile(bytes), limits);
 });

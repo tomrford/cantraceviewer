@@ -20,6 +20,7 @@ pub use message::Message;
 pub(crate) use multiplex::ActivityPlan;
 pub use signal::Signal;
 pub use source::Diagnostic;
+pub(crate) use source::decode as decode_source;
 pub use values::{
     SignalValueDescriptions, SignalValueType, ValueDescription, ValueDescriptionRef, ValueTable,
     ValueType,
@@ -43,7 +44,7 @@ pub struct Dbc {
 impl Dbc {
     /// UTF-8 (optional BOM), otherwise Windows-1252; undefined bytes become U+FFFD.
     pub fn parse_bytes(bytes: &[u8]) -> Result<Self, DbcError> {
-        Self::parse(&source::decode(bytes))
+        Self::parse(&decode_source(bytes))
     }
 
     /// Parses already decoded DBC text without a BOM into an owned model.

@@ -93,6 +93,56 @@ await client.close();
 
 The copy in this example creates an exact `ArrayBuffer`. If a Node buffer already spans an ordinary `ArrayBuffer` exactly, that underlying buffer can be passed directly.
 
+## Parsing limits
+
+All factories accept one complete, immutable policy at startup:
+
+```ts
+import { createCanTraceClient, DEFAULT_PARSING_LIMITS, type ParsingLimits } from 'cantraceviewer';
+
+const limits: ParsingLimits = {
+	...DEFAULT_PARSING_LIMITS,
+	maxDbcBytes: 5 * 1024 * 1024
+};
+const client = await createCanTraceClient(limits);
+```
+
+Use the same argument with `createCanTraceClient(limits)` from `cantraceviewer/node`, or
+`createDirectClient(wasm, limits)` from `cantraceviewer/direct`. Every entry exports
+`ParsingLimits` and `DEFAULT_PARSING_LIMITS`. Omitting the argument uses these defaults:
+
+| Field                | Default | Scope                                                               |
+| -------------------- | ------: | ------------------------------------------------------------------- |
+| `maxDbcBytes`        |   1 MiB | Each standalone input and each decompressed embedded DBC attachment |
+| `maxTraceInputBytes` | 500 MiB | Each complete ASC, TRC, BLF or MF4 input                            |
+| `maxTraceDataBytes`  | 500 MiB | Each MF4 data-group stream or complete BLF object stream            |
+
+Values are bytes; 1 MiB is 1,048,576 bytes. Each value must be an integer from 1 to
+4,294,967,295. Partial records, zero, negative, fractional and non-finite values fail before
+Worker creation or WASM initialisation. Factories snapshot the values immediately; later caller
+mutation cannot change the client. Clients sharing a WASM instance retain independent policies.
+
+DBC byte inputs count the view's `byteLength`, including any BOM. Strings count their UTF-8
+encoding as produced by `TextEncoder`, including replacement characters for lone surrogates.
+Exact-limit inputs are accepted. Oversized standalone inputs fail before worker messaging or WASM
+copying. Trace buffers rejected by preflight stay attached; accepted buffers are still consumed
+when parsing later fails.
+
+Check `File.size` against the same policy before `arrayBuffer()` to avoid reading oversized
+browser files. Node callers can check file metadata before reading. The client cannot undo a read
+the caller already performed.
+
+MF4 streams count ordinary and expanded compressed fragments together. Separate data groups
+receive separate allowances, reused when their native signals are decoded later. BLF counts
+ordinary and expanded compressed container payloads cumulatively, including objects split across
+containers. These limits apply before materialisation; compressed output must also match its
+declared size. Oversized embedded DBCs are skipped with a warning naming the effective limit,
+while malformed compressed DBC attachments selected for materialisation fail the trace load.
+
+These limits do not bound catalogue expansion, all attachments or open files together, decoded
+series, allocator overhead or total process memory. Changing the DBC cap leaves both trace caps
+unchanged.
+
 ## Handles and lifecycle
 
 DBC and trace handles are opaque and belong to the client that created them. A handle cannot be used with another client. Closing a handle is idempotent. Closing a client invalidates all of its remaining handles.
@@ -103,7 +153,7 @@ Errors are standard `Error` objects. Their names and messages are diagnostics, n
 
 ## Transfer semantics
 
-The browser and Node clients require the exact ordinary `ArrayBuffer` containing a trace. The buffer is transferred to the worker and detached immediately, including when parsing later fails. Typed-array views are rejected rather than copied implicitly. Node buffers marked as untransferable are rejected before posting and remain attached.
+The browser and Node clients require the exact ordinary `ArrayBuffer` containing a trace. After input preflight, the buffer is transferred to the worker and detached immediately, including when parsing later fails. Typed-array views are rejected rather than copied implicitly. Node buffers marked as untransferable are rejected before posting and remain attached.
 
 Decoded `timesMs` and `values` are two `Float64Array` views over one exactly sized `ArrayBuffer` transferred from the worker. Transferring that shared buffer elsewhere detaches both views.
 
@@ -120,6 +170,8 @@ The package does not support CommonJS or browsers without module Workers.
 ## DBC input and diagnostics
 
 All three clients accept `openDbc(input: Uint8Array | string)`. Bytes are decoded in Rust: strip one initial UTF-8 BOM, accept valid UTF-8, otherwise decode the entire remaining input as Windows-1252. Undefined Windows-1252 bytes (81, 8D, 8F, 90 and 9D hex) become U+FFFD. Strings are UTF-8 encoded before using the same parser. Byte views, including Node Buffers and subviews, are copied, never transferred or detached.
+
+MF4 embedded DBCs use the same decoder. Their results include original decompressed `bytes` alongside decoded `text`. Pass `bytes` to `openDbc` to preserve the original-byte cap; Windows-1252 text can occupy more bytes when re-encoded as UTF-8. Both fields stay available after closing the trace.
 
 `OpenDbcResult.warnings` is an array of plain `DbcDiagnostic` objects, independent of the handle lifetime. Each contains `category`, `keyword`, `line`, `column`, and `message`. Categories are `unsupported-record`, `dangling-reference`, and `omitted-feature`. Positions identify the start of the record keyword in decoded text: one-based lines and Unicode scalar columns, with tabs counting as one column and the initial BOM excluded. Warnings are ordered by source position and contain no raw source or record contents. Unknown keywords are reported as `unknown`.
 

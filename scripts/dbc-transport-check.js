@@ -1,4 +1,43 @@
 // Executed verbatim by the packed direct, Node and browser transport smoke tests.
+export async function checkParsingLimits(createClient, transfer = true) {
+	const dbc = 'CM_ "é € 😀 \ud800 \udc00";';
+	const trace = new TextEncoder().encode('base hex timestamps absolute\n0.001 1 120 Rx d 1 01\n');
+	const limits = {
+		maxDbcBytes: new TextEncoder().encode(dbc).byteLength,
+		maxTraceInputBytes: trace.byteLength,
+		maxTraceDataBytes: 64
+	};
+	const pending = createClient(limits);
+	limits.maxDbcBytes = 1;
+	const client = await pending;
+	try {
+		const opened = await client.openDbc(dbc);
+		await client.closeDbc(opened.handle);
+		let rejected = false;
+		try {
+			await client.openDbc(dbc + ' ');
+		} catch (error) {
+			rejected = error.message.includes('byte limit');
+		}
+		if (!rejected) throw new Error('configured DBC limit was not enforced');
+		const oversized = new Uint8Array(trace.byteLength + 1);
+		rejected = false;
+		try {
+			await client.openTrace('asc', transfer ? oversized.buffer : oversized);
+		} catch (error) {
+			rejected = error.message.includes('byte limit');
+		}
+		if (!rejected || oversized.byteLength === 0)
+			throw new Error('trace preflight consumed an oversized input');
+		const parsed = await client.openTrace('asc', transfer ? trace.buffer : trace);
+		if (parsed.metadata.validMessageCount !== 1)
+			throw new Error('exact trace boundary was rejected');
+		await client.closeTrace(parsed.handle);
+	} finally {
+		await client.close();
+	}
+}
+
 export async function checkDbc(client, transfer = true) {
 	function equal(actual, expected) {
 		if (JSON.stringify(actual) !== JSON.stringify(expected)) {

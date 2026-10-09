@@ -8,6 +8,7 @@ import {
 } from './dbc-files.svelte';
 import { listStoredDbcs, putStoredDbcs, resetStoredDbcs } from './dbc-library.js';
 import { closeDbc, openDbc } from '$lib/wasm.js';
+import { DBC_MAX_FILE_BYTES } from '$lib/file-limits.js';
 import type { DbcHandle, DbcMessage, DbcSignal, OpenDbcResult, ParsedDbc } from '$lib/wasm.js';
 
 vi.mock('$lib/wasm.js', () => ({
@@ -51,7 +52,7 @@ describe('dbcFiles', () => {
 	});
 
 	it('rejects unsupported DBC extensions before size checks', async () => {
-		await dbcFiles.addFiles([new File([new Uint8Array(2 * 1024 * 1024)], 'large.asc')]);
+		await dbcFiles.addFiles([new File([new Uint8Array(DBC_MAX_FILE_BYTES + 1)], 'large.asc')]);
 
 		expect(openDbcMock).not.toHaveBeenCalled();
 		expect(dbcFiles.error).toBe('Unsupported DBC file type. Open .dbc.');
@@ -91,7 +92,7 @@ describe('dbcFiles', () => {
 			openDbcResult(handle, catalog(message({ name: 'Embedded' })))
 		);
 
-		await dbcFiles.addTransientDbcs(42, [{ name: 'embedded.dbc', text: 'embedded' }]);
+		await dbcFiles.addTransientDbcs(42, [embeddedDbc('embedded.dbc', 'embedded')]);
 
 		expect(dbcFiles.files).toMatchObject([
 			{
@@ -116,7 +117,7 @@ describe('dbcFiles', () => {
 	it('clears a failed embedded DBC error when the trace is replaced', async () => {
 		openDbcMock.mockRejectedValueOnce(new Error('embedded catalog failed'));
 
-		await dbcFiles.addTransientDbcs(42, [{ name: 'broken.dbc', text: 'broken' }]);
+		await dbcFiles.addTransientDbcs(42, [embeddedDbc('broken.dbc', 'broken')]);
 		expect(dbcFiles.error).toBe('embedded catalog failed');
 
 		await dbcFiles.addTransientDbcs(43, []);
@@ -602,6 +603,10 @@ describe('dbcFiles', () => {
 		expect(dbcFiles.hasLoadedLibrary).toBe(true);
 	});
 });
+
+function embeddedDbc(name: string, text: string) {
+	return { name, text, bytes: new TextEncoder().encode(text) };
+}
 
 function file(name: string, text: string): File {
 	return new File([text], name, { type: 'text/plain' });

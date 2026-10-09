@@ -4,6 +4,7 @@ import { deflateSync } from 'node:zlib';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
 	createDirectClient,
+	DEFAULT_PARSING_LIMITS,
 	type DbcHandle,
 	type DirectClient,
 	type OpenDbcResult,
@@ -24,7 +25,10 @@ beforeAll(async () => {
 	);
 	dbcText = await readFile(resolve(fixturesDir, 'agentic-demo.dbc'), 'utf8');
 	ascBytes = new Uint8Array(await readFile(resolve(fixturesDir, 'agentic-demo.asc')));
-	client = createDirectClient(wasmBytes);
+	client = createDirectClient(wasmBytes, {
+		...DEFAULT_PARSING_LIMITS,
+		maxTraceInputBytes: ascBytes.byteLength
+	});
 });
 
 afterAll(() => {
@@ -32,7 +36,115 @@ afterAll(() => {
 });
 
 describe('cantraceviewer/direct', () => {
+	it('measures DBC strings as UTF-8 bytes and preserves view boundaries', () => {
+		for (const text of ['VERSION ""', 'CM_ "é € 😀 \ud800 \udc00";']) {
+			const bytes = new TextEncoder().encode(text);
+			const limit = bytes.byteLength;
+			const exact = createDirectClient(wasmBytes, {
+				...DEFAULT_PARSING_LIMITS,
+				maxDbcBytes: limit
+			});
+			const small = createDirectClient(wasmBytes, {
+				...DEFAULT_PARSING_LIMITS,
+				maxDbcBytes: limit - 1
+			});
+			try {
+				for (const input of [
+					text,
+					bytes,
+					new Uint8Array([0, ...bytes, 0]).subarray(1, limit + 1)
+				]) {
+					const opened = exact.openDbc(input);
+					exact.closeDbc(opened.handle);
+					expect(() => small.openDbc(input)).toThrow(`${limit - 1} byte limit`);
+				}
+			} finally {
+				exact.close();
+				small.close();
+			}
+		}
+	});
+
+	it('isolates retained MF4 limits across clients sharing WASM and caller mutation', async () => {
+		const native = new Uint8Array(await readFile(resolve(fixturesDir, 'mf4/decoded-channels.mf4')));
+		const limits = { ...DEFAULT_PARSING_LIMITS, maxTraceDataBytes: 72 };
+		const exact = createDirectClient(wasmBytes, limits);
+		const opened = exact.openTrace('mf4', native);
+		const small = createDirectClient(wasmBytes, { ...limits, maxTraceDataBytes: 71 });
+		limits.maxTraceDataBytes = 1;
+		try {
+			expect(() => small.openTrace('mf4', native)).toThrow('71 byte limit');
+			expect(Array.from(exact.getMf4SignalValues(opened.handle, 0).values)).toEqual([
+				12.5, 25, 37.5
+			]);
+			exact.closeTrace(exact.openTrace('mf4', native).handle);
+		} finally {
+			exact.close();
+			small.close();
+		}
+	});
+
+	it('decodes compressed embedded DBCs, skips oversized inputs and rejects dishonest sizes', async () => {
+		const hybrid = new Uint8Array(
+			await readFile(resolve(fixturesDir, 'mf4/hybrid-embedded-dbc.mf4'))
+		);
+		const exact = createDirectClient(wasmBytes, { ...DEFAULT_PARSING_LIMITS, maxDbcBytes: 1361 });
+		const small = createDirectClient(wasmBytes, { ...DEFAULT_PARSING_LIMITS, maxDbcBytes: 1360 });
+		try {
+			const accepted = exact.openTrace('mf4', hybrid);
+			const skipped = small.openTrace('mf4', hybrid);
+			expect(accepted.embeddedDbcs).toHaveLength(1);
+			expect(skipped.embeddedDbcs).toEqual([]);
+			expect(skipped.warnings).toEqual([
+				'Embedded DBC "sample.dbc" exceeds the 1360 byte DBC limit.'
+			]);
+			expect(skipped.metadata.validMessageCount).toBe(2);
+			const view = new DataView(hybrid.buffer);
+			const attachment = Number(view.getBigUint64(64 + 24 + 3 * 8, true));
+			const data = attachment + 24 + Number(view.getBigUint64(attachment + 16, true)) * 8;
+			const text = 'BO_ 291 Legacy: 1 ECU\n SG_ Value : 0|8@1+ (1,0) [0|255] "€ – ™" ECU';
+			const legacy = Uint8Array.from(
+				[...text].map(
+					(char) =>
+						(({ '€': 0x80, '–': 0x96, '™': 0x99 }) as Record<string, number>)[char] ??
+						char.charCodeAt(0)
+				)
+			);
+			for (const bytes of [
+				legacy,
+				new Uint8Array([0xef, 0xbb, 0xbf, ...new TextEncoder().encode(text)])
+			]) {
+				const compressed = deflateSync(bytes);
+				view.setUint16(data, 3, true); // Embedded and compressed; discard the original MD5.
+				view.setBigUint64(attachment + 8, BigInt(data + 40 + compressed.length - attachment), true);
+				view.setBigUint64(data + 24, BigInt(bytes.length), true);
+				view.setBigUint64(data + 32, BigInt(compressed.length), true);
+				hybrid.set(compressed, data + 40);
+				const bounded = createDirectClient(wasmBytes, {
+					...DEFAULT_PARSING_LIMITS,
+					maxDbcBytes: bytes.byteLength
+				});
+				try {
+					const opened = bounded.openTrace('mf4', hybrid);
+					expect(opened.embeddedDbcs).toEqual([{ name: 'sample.dbc', text, bytes }]);
+					expect(opened.warnings).toEqual([]);
+					const dbc = bounded.openDbc(opened.embeddedDbcs[0].bytes);
+					expect(dbc.catalog.messages[0].signals[0].unit).toBe('€ – ™');
+				} finally {
+					bounded.close();
+				}
+			}
+			view.setBigUint64(data + 24, 1n, true);
+			expect(() => exact.openTrace('mf4', hybrid)).toThrow('invalid compressed data');
+		} finally {
+			exact.close();
+			small.close();
+		}
+	});
 	it('initializes and answers every operation synchronously', () => {
+		expect(() => client.openTrace('asc', new Uint8Array(ascBytes.byteLength + 1))).toThrow(
+			`${ascBytes.byteLength} byte limit`
+		);
 		const openedDbc: OpenDbcResult = client.openDbc(dbcText);
 		const openedTrace: OpenTraceResult = client.openTrace('asc', ascBytes);
 		try {
@@ -118,10 +230,22 @@ describe('cantraceviewer/direct', () => {
 	});
 
 	it('opens uncompressed and dynamically compressed BLF traces', () => {
+		const dataLimit = 257 * 48;
+		const compressedBytes = generatedCompressedBlfTrace();
+		const bounded = createDirectClient(wasmBytes, {
+			...DEFAULT_PARSING_LIMITS,
+			maxTraceDataBytes: dataLimit
+		});
+		const small = createDirectClient(wasmBytes, {
+			...DEFAULT_PARSING_LIMITS,
+			maxTraceDataBytes: dataLimit - 1
+		});
 		const { handle: dbc } = openFixtureDbc();
 		const opened = client.openTrace('blf', generatedBlfTrace());
-		const compressed = client.openTrace('blf', generatedCompressedBlfTrace());
+		const compressed = bounded.openTrace('blf', compressedBytes);
 		try {
+			expect(compressedBytes.byteLength).toBeLessThan(dataLimit);
+			expect(() => small.openTrace('blf', compressedBytes)).toThrow(`${dataLimit - 1} byte limit`);
 			expect(opened.metadata).toEqual({
 				measurementStartMs: 1778494830400,
 				validMessageCount: 2,
@@ -137,7 +261,8 @@ describe('cantraceviewer/direct', () => {
 				durationNs: 257_000_000
 			});
 		} finally {
-			client.closeTrace(compressed.handle);
+			bounded.close();
+			small.close();
 			client.closeTrace(opened.handle);
 			client.closeDbc(dbc);
 		}

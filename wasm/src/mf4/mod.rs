@@ -9,9 +9,7 @@ use fdeflate::{DecompressionError, Decompressor};
 
 use crate::trace::Trace;
 
-use block::{
-    FileIndex, MAX_EMBEDDED_DBC_BYTES, is_arxml_attachment, is_dbc_attachment, parse_index,
-};
+use block::{FileIndex, is_arxml_attachment, is_dbc_attachment, parse_index};
 use decode::{
     NativeSignal, decode_native_signal, duration_ns, native_signals, native_time_range,
     parse_raw_trace,
@@ -29,24 +27,30 @@ pub(crate) struct Document {
     embedded_dbcs: Vec<EmbeddedDbc>,
     warnings: Vec<String>,
     time_offset_seconds: f64,
+    max_data_bytes: usize,
 }
 
 #[derive(Debug)]
 struct EmbeddedDbc {
+    attachment_index: usize,
     name: String,
     text: String,
 }
 
 impl Document {
-    pub(crate) fn parse(bytes: Vec<u8>) -> Result<(Trace, Self), Mf4Error> {
-        let index = parse_index(&bytes)?;
-        let mut trace = parse_raw_trace(&bytes, &index)?;
+    pub(crate) fn parse(
+        bytes: Vec<u8>,
+        max_dbc_bytes: usize,
+        max_data_bytes: usize,
+    ) -> Result<(Trace, Self), Mf4Error> {
+        let index = parse_index(&bytes, max_dbc_bytes)?;
+        let mut trace = parse_raw_trace(&bytes, &index, max_data_bytes)?;
         let signals = native_signals(&index);
         if trace.data_frame_count == 0 && signals.is_empty() {
             return Err(Mf4Error::NoPlottableData);
         }
 
-        let native_range = native_time_range(&bytes, &index)?;
+        let native_range = native_time_range(&bytes, &index, max_data_bytes)?;
         let raw_minimum = trace.frames.iter().map(|frame| frame.timestamp_ns).min();
         let (raw_time_offset_ns, time_offset_seconds) =
             time_offsets(raw_minimum, native_range.map(|(minimum, _)| minimum))?;
@@ -59,7 +63,7 @@ impl Document {
                     .map_or(duration, |raw_duration| raw_duration.max(duration)),
             );
         }
-        let (embedded_dbcs, warnings) = classify_attachments(&index);
+        let (embedded_dbcs, warnings) = classify_attachments(&index, max_dbc_bytes);
         Ok((
             trace,
             Self {
@@ -69,6 +73,7 @@ impl Document {
                 embedded_dbcs,
                 warnings,
                 time_offset_seconds,
+                max_data_bytes,
             },
         ))
     }
@@ -123,6 +128,11 @@ impl Document {
         output
     }
 
+    pub(crate) fn embedded_dbc_bytes(&self, index: usize) -> Option<&[u8]> {
+        let dbc = self.embedded_dbcs.get(index)?;
+        self.index.attachments[dbc.attachment_index].data.as_deref()
+    }
+
     pub(crate) fn warnings_json(&self) -> String {
         let mut output = String::from("[");
         for (index, warning) in self.warnings.iter().enumerate() {
@@ -142,14 +152,18 @@ impl Document {
             &self.signals,
             signal_id,
             self.time_offset_seconds,
+            self.max_data_bytes,
         )
     }
 }
 
-fn classify_attachments(index: &FileIndex) -> (Vec<EmbeddedDbc>, Vec<String>) {
+fn classify_attachments(
+    index: &FileIndex,
+    max_dbc_bytes: usize,
+) -> (Vec<EmbeddedDbc>, Vec<String>) {
     let mut dbcs = Vec::new();
     let mut warnings = Vec::new();
-    for attachment in &index.attachments {
+    for (attachment_index, attachment) in index.attachments.iter().enumerate() {
         if is_arxml_attachment(&attachment.name, &attachment.mime) {
             warnings.push(format!(
                 "Embedded ARXML attachment \"{}\" is not supported yet; see issue #115.",
@@ -167,9 +181,9 @@ fn classify_attachments(index: &FileIndex) -> (Vec<EmbeddedDbc>, Vec<String>) {
             ));
             continue;
         }
-        if attachment.original_size > MAX_EMBEDDED_DBC_BYTES {
+        if attachment.original_size > max_dbc_bytes {
             warnings.push(format!(
-                "Embedded DBC \"{}\" exceeds the 1 MiB DBC limit.",
+                "Embedded DBC \"{}\" exceeds the {max_dbc_bytes} byte DBC limit.",
                 display_attachment_name(&attachment.name, "DBC")
             ));
             continue;
@@ -177,16 +191,11 @@ fn classify_attachments(index: &FileIndex) -> (Vec<EmbeddedDbc>, Vec<String>) {
         let Some(data) = attachment.data.as_deref() else {
             continue;
         };
-        match std::str::from_utf8(data) {
-            Ok(text) => dbcs.push(EmbeddedDbc {
-                name: display_attachment_name(&attachment.name, "embedded.dbc").to_owned(),
-                text: text.to_owned(),
-            }),
-            Err(_) => warnings.push(format!(
-                "Embedded DBC \"{}\" is not valid UTF-8 text.",
-                display_attachment_name(&attachment.name, "DBC")
-            )),
-        }
+        dbcs.push(EmbeddedDbc {
+            attachment_index,
+            name: display_attachment_name(&attachment.name, "embedded.dbc").to_owned(),
+            text: crate::dbc::decode_source(data).into_owned(),
+        });
     }
     (dbcs, warnings)
 }
@@ -255,7 +264,7 @@ pub(super) fn inflate_zlib(input: &[u8], expected_len: usize) -> Result<Vec<u8>,
     let mut output = Vec::new();
     output
         .try_reserve_exact(expected_len)
-        .map_err(|_| Mf4Error::DecompressedBlockTooLarge)?;
+        .map_err(|_| Mf4Error::OutOfMemory)?;
     output.resize(expected_len, 0);
     let mut decoder = Decompressor::new();
     let (consumed, produced) = decoder
@@ -271,7 +280,7 @@ pub(super) fn inflate_zlib(input: &[u8], expected_len: usize) -> Result<Vec<u8>,
     }
     output
         .try_reserve_exact(1)
-        .map_err(|_| Mf4Error::DecompressedBlockTooLarge)?;
+        .map_err(|_| Mf4Error::OutOfMemory)?;
     output.push(0);
     let (additional_consumed, additional_produced) = decoder
         .read(&input[consumed..], &mut output, produced, true)
@@ -322,9 +331,12 @@ mod tests {
 
     #[test]
     fn parses_raw_can_event_groups() {
-        let (trace, document) =
-            Document::parse(include_bytes!("../../tests/fixtures/mf4/raw-can.mf4").to_vec())
-                .unwrap();
+        let (trace, document) = Document::parse(
+            include_bytes!("../../tests/fixtures/mf4/raw-can.mf4").to_vec(),
+            1024,
+            168,
+        )
+        .unwrap();
 
         assert_eq!(trace.data_frame_count, 2);
         assert_eq!(trace.frames.len(), 4);
@@ -333,15 +345,28 @@ mod tests {
             [1, 2, 3, 4, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 0xaa, 0xbb]
         );
         assert!(document.signals.is_empty());
+        assert!(matches!(
+            Document::parse(
+                include_bytes!("../../tests/fixtures/mf4/raw-can.mf4").to_vec(),
+                1024,
+                167
+            ),
+            Err(Mf4Error::DataLimitExceeded(167))
+        ));
     }
 
     #[test]
     fn parses_unsorted_and_transposed_compressed_records() {
-        let (unsorted, _) =
-            Document::parse(include_bytes!("../../tests/fixtures/mf4/raw-unsorted.mf4").to_vec())
-                .unwrap();
+        let (unsorted, _) = Document::parse(
+            include_bytes!("../../tests/fixtures/mf4/raw-unsorted.mf4").to_vec(),
+            1024,
+            4096,
+        )
+        .unwrap();
         let (compressed, _) = Document::parse(
             include_bytes!("../../tests/fixtures/mf4/raw-transposed-dz.mf4").to_vec(),
+            1024,
+            4096,
         )
         .unwrap();
 
@@ -355,6 +380,8 @@ mod tests {
     fn catalogs_and_decodes_native_channels() {
         let (trace, document) = Document::parse(
             include_bytes!("../../tests/fixtures/mf4/decoded-channels.mf4").to_vec(),
+            1024,
+            4096,
         )
         .unwrap();
 
@@ -372,6 +399,8 @@ mod tests {
     fn keeps_raw_native_and_embedded_dbc_sources_together() {
         let (trace, document) = Document::parse(
             include_bytes!("../../tests/fixtures/mf4/hybrid-embedded-dbc.mf4").to_vec(),
+            2048,
+            4096,
         )
         .unwrap();
 
@@ -401,7 +430,7 @@ mod tests {
             }],
         };
 
-        let (dbcs, warnings) = classify_attachments(&index);
+        let (dbcs, warnings) = classify_attachments(&index, 12);
 
         assert!(dbcs.is_empty());
         assert_eq!(
@@ -411,26 +440,61 @@ mod tests {
     }
 
     #[test]
-    fn reports_oversized_embedded_dbcs_without_materializing_them() {
+    fn decodes_embedded_dbcs_and_reports_oversized_attachments() {
+        let text = "VERSION \"€ – ™\"";
+        let attachments = [
+            ("large.dbc", None),
+            ("legacy.dbc", Some(b"VERSION \"\x80 \x96 \x99\"".to_vec())),
+            (
+                "bom.dbc",
+                Some([b"\xef\xbb\xbf".as_slice(), text.as_bytes()].concat()),
+            ),
+        ]
+        .into_iter()
+        .map(|(name, data)| Attachment {
+            name: name.to_owned(),
+            mime: "application/x-dbc".to_owned(),
+            is_embedded: true,
+            original_size: data.as_ref().map_or(65, Vec::len),
+            data,
+        })
+        .collect();
         let index = FileIndex {
             measurement_start_ms: None,
             data_groups: Vec::new(),
-            attachments: vec![Attachment {
-                name: "large.dbc".to_owned(),
-                mime: "application/x-dbc".to_owned(),
-                is_embedded: true,
-                original_size: MAX_EMBEDDED_DBC_BYTES + 1,
-                data: None,
-            }],
+            attachments,
         };
 
-        let (dbcs, warnings) = classify_attachments(&index);
+        let (dbcs, warnings) = classify_attachments(&index, 64);
 
-        assert!(dbcs.is_empty());
+        assert_eq!(
+            dbcs.iter()
+                .map(|dbc| (dbc.name.as_str(), dbc.text.as_str()))
+                .collect::<Vec<_>>(),
+            [("legacy.dbc", text), ("bom.dbc", text)]
+        );
         assert_eq!(
             warnings,
-            ["Embedded DBC \"large.dbc\" exceeds the 1 MiB DBC limit."]
+            ["Embedded DBC \"large.dbc\" exceeds the 64 byte DBC limit."]
         );
+        let document = Document {
+            bytes: Vec::new(),
+            index,
+            signals: Vec::new(),
+            embedded_dbcs: dbcs,
+            warnings,
+            time_offset_seconds: 0.0,
+            max_data_bytes: 64,
+        };
+        assert_eq!(
+            document.embedded_dbc_bytes(0),
+            Some(b"VERSION \"\x80 \x96 \x99\"".as_slice())
+        );
+        assert_eq!(
+            document.embedded_dbc_bytes(1),
+            Some("\u{feff}VERSION \"€ – ™\"".as_bytes())
+        );
+        assert_eq!(document.embedded_dbc_bytes(2), None);
     }
 
     #[test]

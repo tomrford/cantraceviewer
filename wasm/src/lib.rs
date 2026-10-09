@@ -86,13 +86,21 @@ impl WasmTrace {
     }
 
     #[wasm_bindgen(js_name = parseBlf)]
-    pub fn parse_blf(input: &[u8]) -> Result<WasmTrace, JsError> {
-        Ok(Self::from_trace(blf::from_bytes(input)?))
+    pub fn parse_blf(input: &[u8], max_data_bytes: u32) -> Result<WasmTrace, JsError> {
+        Ok(Self::from_trace(blf::from_bytes(
+            input,
+            max_data_bytes as usize,
+        )?))
     }
 
     #[wasm_bindgen(js_name = parseMf4)]
-    pub fn parse_mf4(input: Vec<u8>) -> Result<WasmTrace, JsError> {
-        let (inner, document) = mf4::Document::parse(input)?;
+    pub fn parse_mf4(
+        input: Vec<u8>,
+        max_dbc_bytes: u32,
+        max_data_bytes: u32,
+    ) -> Result<WasmTrace, JsError> {
+        let (inner, document) =
+            mf4::Document::parse(input, max_dbc_bytes as usize, max_data_bytes as usize)?;
         Ok(Self {
             inner,
             index: None,
@@ -117,6 +125,15 @@ impl WasmTrace {
         self.mf4
             .as_ref()
             .map_or_else(|| "[]".to_owned(), mf4::Document::embedded_dbcs_json)
+    }
+
+    #[wasm_bindgen(js_name = mf4EmbeddedDbcBytes)]
+    pub fn mf4_embedded_dbc_bytes(&self, index: u32) -> Result<Box<[u8]>, JsError> {
+        self.mf4
+            .as_ref()
+            .and_then(|document| document.embedded_dbc_bytes(index as usize))
+            .map(Into::into)
+            .ok_or_else(|| JsError::new("Embedded DBC not found"))
     }
 
     #[wasm_bindgen(js_name = mf4WarningsJson)]

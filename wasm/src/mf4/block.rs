@@ -3,8 +3,6 @@ use std::collections::BTreeSet;
 use super::{Mf4Error, inflate_zlib};
 
 const COMMON_HEADER_SIZE: usize = 24;
-const MAX_DECOMPRESSED_BYTES: usize = 500 * 1024 * 1024;
-pub(super) const MAX_EMBEDDED_DBC_BYTES: usize = 1024 * 1024;
 
 #[derive(Clone, Debug)]
 pub(super) struct Channel {
@@ -109,8 +107,9 @@ fn should_materialize_attachment(
     mime: &str,
     is_embedded: bool,
     original_size: usize,
+    max_dbc_bytes: usize,
 ) -> bool {
-    is_embedded && is_dbc_attachment(name, mime) && original_size <= MAX_EMBEDDED_DBC_BYTES
+    is_embedded && is_dbc_attachment(name, mime) && original_size <= max_dbc_bytes
 }
 
 #[derive(Debug)]
@@ -146,7 +145,7 @@ impl Block<'_> {
     }
 }
 
-pub(super) fn parse_index(bytes: &[u8]) -> Result<FileIndex, Mf4Error> {
+pub(super) fn parse_index(bytes: &[u8], max_dbc_bytes: usize) -> Result<FileIndex, Mf4Error> {
     let signature = bytes.get(..8);
     if signature == Some(b"UnFinMF ") {
         return Err(Mf4Error::UnsupportedUnfinalized);
@@ -173,7 +172,7 @@ pub(super) fn parse_index(bytes: &[u8]) -> Result<FileIndex, Mf4Error> {
     Ok(FileIndex {
         measurement_start_ms,
         data_groups: parse_data_groups(bytes, header.link(0)?)?,
-        attachments: parse_attachments(bytes, header.link(3)?)?,
+        attachments: parse_attachments(bytes, header.link(3)?, max_dbc_bytes)?,
     })
 }
 
@@ -315,7 +314,11 @@ fn parse_conversion(bytes: &[u8], address: u64) -> Result<(Conversion, Option<St
     ))
 }
 
-fn parse_attachments(bytes: &[u8], first_address: u64) -> Result<Vec<Attachment>, Mf4Error> {
+fn parse_attachments(
+    bytes: &[u8],
+    first_address: u64,
+    max_dbc_bytes: usize,
+) -> Result<Vec<Attachment>, Mf4Error> {
     let mut output = Vec::new();
     let mut address = first_address;
     let mut seen = BTreeSet::new();
@@ -338,7 +341,7 @@ fn parse_attachments(bytes: &[u8], first_address: u64) -> Result<Vec<Attachment>
         let embedded = data.get(40..40usize.saturating_add(embedded_size));
         let is_embedded = flags & 1 != 0;
         let should_materialize =
-            should_materialize_attachment(&name, &mime, is_embedded, original_size);
+            should_materialize_attachment(&name, &mime, is_embedded, original_size, max_dbc_bytes);
         let attachment_data = if !should_materialize {
             None
         } else if flags & 2 != 0 {
@@ -363,28 +366,40 @@ fn parse_attachments(bytes: &[u8], first_address: u64) -> Result<Vec<Attachment>
     Ok(output)
 }
 
-pub(super) fn collect_data(bytes: &[u8], address: u64) -> Result<Vec<u8>, Mf4Error> {
+pub(super) fn collect_data(
+    bytes: &[u8],
+    address: u64,
+    max_data_bytes: usize,
+) -> Result<Vec<u8>, Mf4Error> {
     let mut output = Vec::new();
     let mut seen = BTreeSet::new();
-    collect_data_at(bytes, address, &mut seen, &mut output)?;
+    collect_data_at(bytes, address, &mut seen, &mut output, max_data_bytes)?;
     Ok(output)
 }
 
-fn checked_materialized_size(current: usize, additional: usize) -> Result<usize, Mf4Error> {
+fn checked_materialized_size(
+    current: usize,
+    additional: usize,
+    limit: usize,
+) -> Result<usize, Mf4Error> {
     let total = current
         .checked_add(additional)
-        .ok_or(Mf4Error::DecompressedBlockTooLarge)?;
-    if total > MAX_DECOMPRESSED_BYTES {
-        return Err(Mf4Error::DecompressedBlockTooLarge);
+        .ok_or(Mf4Error::DataLimitExceeded(limit))?;
+    if total > limit {
+        return Err(Mf4Error::DataLimitExceeded(limit));
     }
     Ok(total)
 }
 
-fn reserve_materialized_data(output: &mut Vec<u8>, additional: usize) -> Result<(), Mf4Error> {
-    checked_materialized_size(output.len(), additional)?;
+fn reserve_materialized_data(
+    output: &mut Vec<u8>,
+    additional: usize,
+    limit: usize,
+) -> Result<(), Mf4Error> {
+    checked_materialized_size(output.len(), additional, limit)?;
     output
         .try_reserve(additional)
-        .map_err(|_| Mf4Error::DecompressedBlockTooLarge)
+        .map_err(|_| Mf4Error::OutOfMemory)
 }
 
 fn collect_data_at(
@@ -392,6 +407,7 @@ fn collect_data_at(
     address: u64,
     seen: &mut BTreeSet<u64>,
     output: &mut Vec<u8>,
+    max_data_bytes: usize,
 ) -> Result<(), Mf4Error> {
     if address == 0 {
         return Ok(());
@@ -402,7 +418,7 @@ fn collect_data_at(
     let block = read_block(bytes, address)?;
     match block.id() {
         b"##DT" | b"##DV" => {
-            reserve_materialized_data(output, block.data().len())?;
+            reserve_materialized_data(output, block.data().len(), max_data_bytes)?;
             output.extend_from_slice(block.data());
         }
         b"##DZ" => {
@@ -414,10 +430,10 @@ fn collect_data_at(
             let row_size = usize::try_from(read_u32(data, 4)?)
                 .map_err(|_| Mf4Error::InvalidBlock("compressed data"))?;
             let original_size = usize::try_from(read_u64(data, 8)?)
-                .map_err(|_| Mf4Error::DecompressedBlockTooLarge)?;
+                .map_err(|_| Mf4Error::DataLimitExceeded(max_data_bytes))?;
             let compressed_size = usize::try_from(read_u64(data, 16)?)
                 .map_err(|_| Mf4Error::InvalidBlock("compressed data"))?;
-            checked_materialized_size(output.len(), original_size)?;
+            checked_materialized_size(output.len(), original_size, max_data_bytes)?;
             let compressed = data
                 .get(24..24usize.saturating_add(compressed_size))
                 .ok_or(Mf4Error::Truncated("compressed data"))?;
@@ -427,19 +443,19 @@ fn collect_data_at(
                 1 if row_size != 0 => untranspose(inflated, row_size)?,
                 method => return Err(Mf4Error::UnsupportedCompression(method)),
             };
-            reserve_materialized_data(output, materialized.len())?;
+            reserve_materialized_data(output, materialized.len(), max_data_bytes)?;
             output.extend_from_slice(&materialized);
         }
         b"##DL" => {
             for index in 1..block.link_count {
                 let fragment = block.link(index)?;
                 if fragment != 0 {
-                    collect_data_at(bytes, fragment, seen, output)?;
+                    collect_data_at(bytes, fragment, seen, output, max_data_bytes)?;
                 }
             }
             let next = block.link(0)?;
             if next != 0 {
-                collect_data_at(bytes, next, seen, output)?;
+                collect_data_at(bytes, next, seen, output, max_data_bytes)?;
             }
         }
         b"##HL" => {
@@ -451,7 +467,7 @@ fn collect_data_at(
                         .filter(|address| *address != 0)
                 })
                 .ok_or(Mf4Error::InvalidBlock("header list"))?;
-            collect_data_at(bytes, next, seen, output)?;
+            collect_data_at(bytes, next, seen, output, max_data_bytes)?;
         }
         other => {
             return Err(Mf4Error::UnsupportedDataBlock(
@@ -590,46 +606,50 @@ mod tests {
     use super::*;
 
     #[test]
-    fn caps_the_combined_materialized_data_size() {
-        assert_eq!(
-            checked_materialized_size(MAX_DECOMPRESSED_BYTES - 1, 1).unwrap(),
-            MAX_DECOMPRESSED_BYTES
-        );
+    fn caps_fragments_together_but_keeps_separate_streams_independent() {
+        fn append(bytes: &mut Vec<u8>, id: &[u8; 4], links: &[u64], data: &[u8]) -> u64 {
+            let address = bytes.len() as u64;
+            bytes.extend_from_slice(id);
+            bytes.extend_from_slice(&[0; 4]);
+            bytes.extend_from_slice(
+                &(24 + links.len() as u64 * 8 + data.len() as u64).to_le_bytes(),
+            );
+            bytes.extend_from_slice(&(links.len() as u64).to_le_bytes());
+            for link in links {
+                bytes.extend_from_slice(&link.to_le_bytes());
+            }
+            bytes.extend_from_slice(data);
+            address
+        }
+        let mut bytes = vec![0; 8];
+        let first = append(&mut bytes, b"##DT", &[], b"abc");
+        let second = append(&mut bytes, b"##DV", &[], b"defg");
+        let list = append(&mut bytes, b"##DL", &[0, first, second], &[]);
+        assert_eq!(collect_data(&bytes, list, 7).unwrap(), b"abcdefg");
         assert!(matches!(
-            checked_materialized_size(MAX_DECOMPRESSED_BYTES, 1),
-            Err(Mf4Error::DecompressedBlockTooLarge)
+            collect_data(&bytes, list, 6),
+            Err(Mf4Error::DataLimitExceeded(6))
         ));
+        assert_eq!(collect_data(&bytes, first, 4).unwrap(), b"abc");
+        assert_eq!(collect_data(&bytes, second, 4).unwrap(), b"defg");
         assert!(matches!(
-            checked_materialized_size(1, usize::MAX),
-            Err(Mf4Error::DecompressedBlockTooLarge)
+            checked_materialized_size(1, usize::MAX, 17),
+            Err(Mf4Error::DataLimitExceeded(17))
         ));
     }
 
     #[test]
     fn materializes_only_embedded_dbcs_within_the_dbc_limit() {
-        assert!(should_materialize_attachment(
-            "network.dbc",
-            "application/octet-stream",
-            true,
-            MAX_EMBEDDED_DBC_BYTES,
-        ));
-        assert!(!should_materialize_attachment(
-            "photo.bin",
-            "application/octet-stream",
-            true,
-            8,
-        ));
-        assert!(!should_materialize_attachment(
-            "network.dbc",
-            "application/x-dbc",
-            true,
-            MAX_EMBEDDED_DBC_BYTES + 1,
-        ));
-        assert!(!should_materialize_attachment(
-            "network.dbc",
-            "application/x-dbc",
-            false,
-            8,
-        ));
+        for (name, mime, embedded, size, expected) in [
+            ("network.dbc", "application/octet-stream", true, 12, true),
+            ("photo.bin", "application/octet-stream", true, 8, false),
+            ("network.dbc", "application/x-dbc", true, 13, false),
+            ("network.dbc", "application/x-dbc", false, 8, false),
+        ] {
+            assert_eq!(
+                should_materialize_attachment(name, mime, embedded, size, 12),
+                expected,
+            );
+        }
     }
 }

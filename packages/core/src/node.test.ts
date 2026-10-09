@@ -32,7 +32,8 @@ function createFakeWorker(): FakeWorker {
 	const worker: NodeClientWorker = {
 		postMessage(message, transfer) {
 			// worker_threads detaches transferred buffers exactly like postMessage does.
-			requests.push(structuredClone(message, { transfer: [...(transfer ?? [])] }));
+			if (message.op !== 'init')
+				requests.push(structuredClone(message, { transfer: [...(transfer ?? [])] }));
 		},
 		on(event: WorkerEvent, listener: (payload: never) => void) {
 			const list = listeners.get(event) ?? [];
@@ -80,7 +81,9 @@ describe('cantraceviewer node transport', () => {
 	it('boots on ready, posts requests, and resolves them from worker replies', async () => {
 		const { fake, client } = await createBootedClient();
 		const openPromise = client.openDbc('VERSION ""');
-		expect(fake.requests).toEqual([{ op: 'openDbc', input: 'VERSION ""', id: 1 }]);
+		expect(fake.requests).toEqual([
+			{ op: 'openDbc', input: new TextEncoder().encode('VERSION ""'), id: 1 }
+		]);
 
 		const result: WireOpenDbc = { dbcId: 4, catalog: { messages: [] }, warnings: [] };
 		fake.reply({ type: 'ok', id: 1, result });

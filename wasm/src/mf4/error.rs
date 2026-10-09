@@ -10,7 +10,8 @@ pub(crate) enum Mf4Error {
     LinkCycle,
     UnsupportedDataBlock(String),
     UnsupportedCompression(u8),
-    DecompressedBlockTooLarge,
+    OutOfMemory,
+    DataLimitExceeded(usize),
     InvalidCompressedData,
     InvalidRecord,
     UnsupportedRecordIdSize(u8),
@@ -44,9 +45,10 @@ impl fmt::Display for Mf4Error {
             Self::UnsupportedCompression(method) => {
                 write!(formatter, "unsupported MDF4 compression method {method}")
             }
-            Self::DecompressedBlockTooLarge => {
-                formatter.write_str("MDF4 compressed data expands beyond the trace limit")
+            Self::OutOfMemory => {
+                formatter.write_str("not enough memory to materialize MDF4 data")
             }
+            Self::DataLimitExceeded(limit) => write!(formatter, "MDF4 data stream exceeds the {limit} byte limit"),
             Self::InvalidCompressedData => {
                 formatter.write_str("invalid compressed data in MDF4 file")
             }

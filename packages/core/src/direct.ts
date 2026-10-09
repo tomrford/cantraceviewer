@@ -1,6 +1,7 @@
 /// <reference lib="dom" />
 
 import { createHandleRegistry } from './handles.ts';
+import { snapshotLimits, dbcBytes, assertByteLimit, type ParsingLimits } from './limits.ts';
 import { initSync, Dbc as WasmDbc, Trace as WasmTrace } from './wasm-bindgen/cantraceviewer.js';
 import type {
 	DbcHandle,
@@ -16,6 +17,7 @@ import type {
 } from './types.ts';
 
 export type * from './types.ts';
+export { DEFAULT_PARSING_LIMITS, type ParsingLimits } from './limits.ts';
 
 /** WASM bytes or an already compiled module. Compilation of bytes is synchronous. */
 export type DirectWasmInput = BufferSource | WebAssembly.Module;
@@ -60,7 +62,11 @@ export type DirectClient = {
  * its own handles. Fetching or reading the bytes is the caller's job and can be asynchronous; this
  * call is not.
  */
-export function createDirectClient(wasm: DirectWasmInput): DirectClient {
+export function createDirectClient(
+	wasm: DirectWasmInput,
+	inputLimits?: ParsingLimits
+): DirectClient {
+	const limits = snapshotLimits(inputLimits);
 	// The generated `initSync` returns the existing instance when it is already initialized.
 	initWasm(wasm);
 
@@ -74,9 +80,7 @@ export function createDirectClient(wasm: DirectWasmInput): DirectClient {
 	return {
 		openDbc(input) {
 			assertClientOpen();
-			const dbc = WasmDbc.parse(
-				typeof input === 'string' ? new TextEncoder().encode(input) : input
-			);
+			const dbc = WasmDbc.parse(dbcBytes(input, limits.maxDbcBytes));
 			try {
 				const catalog = JSON.parse(dbc.catalogJson()) as ParsedDbc;
 				const warnings = JSON.parse(dbc.warningsJson()) as OpenDbcResult['warnings'];
@@ -91,7 +95,8 @@ export function createDirectClient(wasm: DirectWasmInput): DirectClient {
 		},
 		openTrace(traceType, bytes) {
 			assertClientOpen();
-			const trace = parseTrace(traceType, bytes);
+			assertByteLimit(bytes.byteLength, limits.maxTraceInputBytes, 'Trace input');
+			const trace = parseTrace(traceType, bytes, limits);
 			try {
 				const metadata: TraceMetadata = {
 					measurementStartMs: trace.measurementStartMs ?? null,
@@ -103,7 +108,9 @@ export function createDirectClient(wasm: DirectWasmInput): DirectClient {
 				const hasRawFrames = trace.hasRawFrames;
 				const mf4Catalog = isMf4 ? (JSON.parse(trace.mf4CatalogJson()) as Mf4SignalCatalog) : null;
 				const embeddedDbcs = isMf4
-					? (JSON.parse(trace.mf4EmbeddedDbcsJson()) as OpenTraceResult['embeddedDbcs'])
+					? (JSON.parse(trace.mf4EmbeddedDbcsJson()) as { name: string; text: string }[]).map(
+							(dbc, index) => ({ ...dbc, bytes: trace.mf4EmbeddedDbcBytes(index) })
+						)
 					: [];
 				const warnings = isMf4 ? (JSON.parse(trace.mf4WarningsJson()) as string[]) : [];
 				return {
@@ -161,16 +168,16 @@ function freeHandle(payload: WasmDbc | WasmTrace | null): void {
 	payload?.free();
 }
 
-function parseTrace(traceType: TraceType, bytes: Uint8Array): WasmTrace {
+function parseTrace(traceType: TraceType, bytes: Uint8Array, limits: ParsingLimits): WasmTrace {
 	switch (traceType) {
 		case 'asc':
 			return WasmTrace.parseAsc(bytes);
 		case 'trc':
 			return WasmTrace.parseTrc(bytes);
 		case 'blf':
-			return WasmTrace.parseBlf(bytes);
+			return WasmTrace.parseBlf(bytes, limits.maxTraceDataBytes);
 		case 'mf4':
-			return WasmTrace.parseMf4(bytes);
+			return WasmTrace.parseMf4(bytes, limits.maxDbcBytes, limits.maxTraceDataBytes);
 	}
 }
 
