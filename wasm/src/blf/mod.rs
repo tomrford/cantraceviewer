@@ -749,7 +749,7 @@ mod tests {
         let mut bytes = Vec::new();
         test_fixture::append_file_header(&mut bytes);
         test_fixture::append_outer_container(&mut bytes, &objects);
-        let trace = from_bytes(&bytes).unwrap();
+        let trace = from_bytes(&bytes, objects.len()).unwrap();
         assert_eq!(trace.frames.len(), 4);
         for frame in trace.frames {
             assert_eq!(frame.source.channel.map(|v| v.get()), Some(2));

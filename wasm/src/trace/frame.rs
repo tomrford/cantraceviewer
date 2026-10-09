@@ -97,6 +97,8 @@ pub(crate) struct Frame {
     pub(crate) payload_len: u8,
 }
 
+const _: () = assert!(std::mem::size_of::<Frame>() == 24);
+
 #[cfg(test)]
 mod tests {
     use super::*;

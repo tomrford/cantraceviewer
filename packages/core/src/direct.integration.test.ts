@@ -202,10 +202,18 @@ describe('cantraceviewer/direct', () => {
 			const trace = client.openTrace(
 				'asc',
 				new TextEncoder().encode(
-					'base hex timestamps absolute\n0.003 1 123 Rx d 4 02 05 ff 9c\n0.001 1 123 Rx d 4 01 03 00 64\n0.002 2 123 Rx d 4 02 03 00 80\n0.002 1 123 Rx d 4 02 03 00 64\n0.004 CANFD 1 Rx 123 - 1 0 4 4 02 03 00 78\n0.005 1 123 Tx d 4 02 03 00 10'
+					'base hex timestamps absolute\n0.003 1 123 Rx d 4 02 05 ff 9c\n0.001 1 123 Rx d 4 01 03 00 64\n0.002 2 123 Rx d 1 02\n0.002 1 123 Rx d 4 02 03 00 64\n0.004 CANFD 1 Rx 123 - 1 0 4 4 02 03 00 78\n0.005 1 123 Tx d 4 01 03 00 10'
 				)
 			);
 			try {
+				expect(() =>
+					client.getSignalValues(
+						dbc.handle,
+						trace.handle,
+						{ canId: 291, isExtended: false, sizeBytes: 4 },
+						'Data'
+					)
+				).toThrow('Multiple raw sources');
 				const series = client.getSignalValues(
 					dbc.handle,
 					trace.handle,

@@ -140,17 +140,6 @@ mod tests {
     }
 
     #[test]
-    fn orders_mixed_payload_lengths_and_preserves_equal_time_values() {
-        let values = decode(
-            "BO_ 291 Example: 2 ECU\n SG_ Value : 0|16@1+ (1,0) [0|65535] \"\" ECU",
-            "base hex timestamps absolute\n0.300 1 123 Rx d 2 03 00\n0.100 1 123 Rx d 8 01 00 00 00 00 00 00 00\n0.200 1 123 Rx d 1 ff\n0.100 1 123 Rx d 2 04 00",
-            2,
-            "Value",
-        );
-        assert_eq!(values, [100.0, 100.0, 300.0, 1.0, 4.0, 3.0]);
-    }
-
-    #[test]
     fn comments_do_not_change_multiplex_activity() {
         let base = "BO_ 291 M: 2 ECU\n SG_ Mode M : 0|8@1+ (1,0) [0|255] \"\" ECU\n SG_ Value m1 : 8|8@1+ (1,0) [0|255] \"\" ECU\n";
         let trace =
@@ -268,15 +257,15 @@ mod tests {
     }
 
     #[test]
-    fn skips_short_frames_and_decodes_classic_padding() {
+    fn skips_incompatible_frames_and_orders_classic_padding() {
         let values = decode(
             "BO_ 291 Example: 2 ECU\n SG_ Speed : 0|16@1+ (1,0) [0|65535] \"\" DASH",
-            "base hex timestamps absolute\n0.001 1 123 Rx d 1 10\n0.002 1 123 Rx d 2 34 12\n0.003 1 123 Rx d 8 78 56 aa bb cc dd ee ff\n0.004 CANFD 1 Rx 123 - 1 0 8 8 9a bc aa bb cc dd ee ff",
+            "base hex timestamps absolute\n0.002 1 123 Rx d 8 78 56 aa bb cc dd ee ff\n0.001 1 123 Rx d 1 10\n0.003 1 123 Rx d 2 34 12\n0.002 1 123 Rx d 2 01 00\n0.004 CANFD 1 Rx 123 - 1 0 8 8 9a bc aa bb cc dd ee ff",
             2,
             "Speed",
         );
 
-        assert_eq!(values, [2.0, 3.0, 4660.0, 22136.0]);
+        assert_eq!(values, [2.0, 2.0, 3.0, 22136.0, 1.0, 4660.0]);
     }
 
     #[test]
