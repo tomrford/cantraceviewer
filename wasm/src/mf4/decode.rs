@@ -118,13 +118,7 @@ pub(super) fn decode_native_signal(
     // for out-of-order channels, keeping equal-time samples in record order.
     if !times.is_sorted() {
         let mut order: Vec<_> = (0..times.len()).collect();
-        order.sort_unstable_by(|&a, &b| {
-            if times[a] == times[b] {
-                a.cmp(&b)
-            } else {
-                times[a].total_cmp(&times[b])
-            }
-        });
+        order.sort_by(|&a, &b| times[a].partial_cmp(&times[b]).unwrap());
         return Ok(order
             .iter()
             .map(|&i| times[i])

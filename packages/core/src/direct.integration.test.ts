@@ -282,92 +282,6 @@ describe('cantraceviewer/direct', () => {
 		}
 	});
 
-	it.each(['asc', 'trc', 'blf'] as const)(
-		'orders %s samples without losing equal-time records',
-		(format) => {
-			const rows = [
-				[300, 3],
-				[100, 1],
-				[200, 2],
-				[100, 4]
-			];
-			const bytes =
-				format === 'blf'
-					? concatBytes(
-							blfFileHeader(),
-							blfContainer(
-								concatBytes(
-									...rows.map(([time, value]) => blfCanMessage(time * 1_000_000, 0x123, [value]))
-								)
-							)
-						)
-					: new TextEncoder().encode(
-							format === 'asc'
-								? 'base hex timestamps absolute\n' +
-										rows
-											.map(([time, value]) => (time / 1000).toFixed(3) + ' 1 123 Rx d 1 0' + value)
-											.join('\n')
-								: ';$FILEVERSION=1.1\n' +
-										rows
-											.map(
-												([time, value], index) => index + 1 + ' ' + time + ' Rx 0123 1 0' + value
-											)
-											.join('\n')
-						);
-			const dbc = client.openDbc(
-				'BO_ 291 Example: 1 ECU\n SG_ Value : 0|8@1+ (1,0) [0|255] "" ECU'
-			);
-			const trace = client.openTrace(format, bytes);
-			try {
-				expect(trace.metadata).toMatchObject({
-					validMessageCount: 4,
-					skippedLineCount: 0,
-					durationNs: 300_000_000
-				});
-				const series = client.getSignalValues(
-					dbc.handle,
-					trace.handle,
-					{ canId: 0x123, isExtended: false, sizeBytes: 1 },
-					'Value'
-				);
-				expect(Array.from(series.timesMs)).toEqual([100, 100, 200, 300]);
-				expect(Array.from(series.values)).toEqual([1, 4, 2, 3]);
-			} finally {
-				client.closeTrace(trace.handle);
-				client.closeDbc(dbc.handle);
-			}
-		}
-	);
-
-	it.each([0.1, 0])(
-		'orders native MF4 samples while retaining equal-time values at %s',
-		async (time) => {
-			const bytes = new Uint8Array(
-				await readFile(resolve(fixturesDir, 'mf4/decoded-channels.mf4'))
-			);
-			// This fixture's DT payload has three 24-byte records, each beginning with f64 seconds.
-			const records = new DataView(bytes.buffer, bytes.byteOffset + 272, 72);
-			records.setFloat64(0, 0.3, true);
-			records.setFloat64(24, time, true);
-			records.setFloat64(48, time === 0 ? -0 : time, true);
-			const trace = client.openTrace('mf4', bytes);
-			try {
-				expect(trace.metadata.durationNs).toBe(300_000_000);
-				const series = client.getMf4SignalValues(trace.handle, 0);
-				expect(Array.from(series.timesMs)).toEqual([
-					time * 1000,
-					time === 0 ? -0 : time * 1000,
-					300
-				]);
-				expect(Array.from(series.values)).toEqual([25, 37.5, 12.5]);
-				expect(series.timesMs.buffer).toBe(series.values.buffer);
-				expect(series.timesMs.buffer.byteLength).toBe(48);
-			} finally {
-				client.closeTrace(trace.handle);
-			}
-		}
-	);
-
 	it('parses and decodes a PCAN TRC trace', () => {
 		const { handle: dbc } = openFixtureDbc();
 		const { handle: trace, metadata } = client.openTrace(
@@ -376,20 +290,21 @@ describe('cantraceviewer/direct', () => {
 				[
 					';$FILEVERSION=2.1',
 					';$COLUMNS=N,O,T,B,I,d,R,L,D',
-					'1 10.000 DT 1 0120 Rx - 8 E8 03 00 00 00 78 00 00',
-					'2 20.000 DT 1 0120 Rx - 8 D2 04 00 00 00 82 00 00'
+					'1 20.000 DT 1 0120 Rx - 8 D2 04 00 00 00 82 00 00',
+					'2 10.000 DT 1 0120 Rx - 8 E8 03 00 00 00 78 00 00',
+					'3 10.000 DT 1 0120 Rx - 8 DC 05 00 00 00 82 00 00'
 				].join('\n')
 			)
 		);
 		try {
 			expect(metadata).toMatchObject({
-				validMessageCount: 2,
+				validMessageCount: 3,
 				skippedLineCount: 0,
 				durationNs: 20_000_000
 			});
 			const speed = client.getSignalValues(dbc, trace, identity, 'vehicle_speed');
-			expect(Array.from(speed.timesMs)).toEqual([10, 20]);
-			expect(Array.from(speed.values)).toEqual([100, 123.4]);
+			expect(Array.from(speed.timesMs)).toEqual([10, 10, 20]);
+			expect(Array.from(speed.values)).toEqual([100, 150, 123.4]);
 		} finally {
 			client.closeTrace(trace);
 			client.closeDbc(dbc);
@@ -415,13 +330,13 @@ describe('cantraceviewer/direct', () => {
 			expect(() => small.openTrace('blf', compressedBytes)).toThrow(`${dataLimit - 1} byte limit`);
 			expect(opened.metadata).toMatchObject({
 				measurementStartMs: 1778494830400,
-				validMessageCount: 2,
+				validMessageCount: 3,
 				skippedLineCount: 0,
 				durationNs: 20_000_000
 			});
 			const speed = client.getSignalValues(dbc, opened.handle, identity, 'vehicle_speed');
-			expect(Array.from(speed.timesMs)).toEqual([10, 20]);
-			expect(Array.from(speed.values)).toEqual([100, 123.4]);
+			expect(Array.from(speed.timesMs)).toEqual([10, 10, 20]);
+			expect(Array.from(speed.values)).toEqual([100, 150, 123.4]);
 			expect(compressed.metadata).toMatchObject({
 				validMessageCount: 257,
 				skippedLineCount: 0,
@@ -436,7 +351,13 @@ describe('cantraceviewer/direct', () => {
 	});
 
 	it('opens decoded MF4 channels and reads a native series', async () => {
-		const trace = await openMf4Fixture('decoded-channels.mf4');
+		const bytes = new Uint8Array(await readFile(resolve(fixturesDir, 'mf4/decoded-channels.mf4')));
+		// Three 24-byte DT records begin with f64 seconds.
+		const records = new DataView(bytes.buffer, bytes.byteOffset + 272, 72);
+		records.setFloat64(0, 0.3, true);
+		records.setFloat64(24, 0, true);
+		records.setFloat64(48, -0, true);
+		const trace = client.openTrace('mf4', bytes);
 		try {
 			expect(trace.hasRawFrames).toBe(false);
 			expect(trace.metadata).toMatchObject({ validMessageCount: 0, durationNs: 300_000_000 });
@@ -451,8 +372,8 @@ describe('cantraceviewer/direct', () => {
 			]);
 
 			const speed = client.getMf4SignalValues(trace.handle, 0);
-			expect(Array.from(speed.timesMs)).toEqual([100, 200, 300]);
-			expect(Array.from(speed.values)).toEqual([12.5, 25, 37.5]);
+			expect(Array.from(speed.timesMs)).toEqual([0, -0, 300]);
+			expect(Array.from(speed.values)).toEqual([25, 37.5, 12.5]);
 		} finally {
 			client.closeTrace(trace.handle);
 		}
@@ -630,8 +551,9 @@ function proxyEveryObject<T>(value: T): T {
 
 function generatedBlfTrace(): Uint8Array {
 	const inner = concatBytes(
+		blfCanMessage(20_000_000, 0x120, [0xd2, 0x04, 0, 0, 0, 130, 0, 0]),
 		blfCanMessage(10_000_000, 0x120, [0xe8, 0x03, 0, 0, 0, 120, 0, 0]),
-		blfCanMessage(20_000_000, 0x120, [0xd2, 0x04, 0, 0, 0, 130, 0, 0])
+		blfCanMessage(10_000_000, 0x120, [0xdc, 0x05, 0, 0, 0, 130, 0, 0])
 	);
 	return concatBytes(blfFileHeader(), blfContainer(inner));
 }

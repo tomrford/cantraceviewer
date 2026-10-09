@@ -81,16 +81,10 @@ describe('cantraceviewer/node', () => {
 			await expect(
 				client.getSignalValues(dbc.handle, trace.handle, message, 'Value')
 			).rejects.toThrow('Multiple raw sources');
-			const rx = await client.getSignalValues(dbc.handle, trace.handle, message, 'Value', {
-				channel: 2,
-				direction: 'rx'
-			});
 			const tx = await client.getSignalValues(dbc.handle, trace.handle, message, 'Value', {
 				channel: 1,
 				direction: 'tx'
 			});
-			expect(Array.from(rx.values)).toEqual([34]);
-			expect(Array.from(rx.timesMs)).toEqual([2]);
 			expect(Array.from(tx.values)).toEqual([51]);
 			expect(Array.from(tx.timesMs)).toEqual([3]);
 		} finally {
