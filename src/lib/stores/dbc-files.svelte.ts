@@ -253,7 +253,7 @@ class DbcFilesStore {
 				const stored = {
 					id: `mf4:${ownerTraceId}:${index}`,
 					name: dbc.name,
-					text: dbc.text
+					bytes: dbc.bytes
 				};
 				entries.push((await this.openStoredDbc(stored, 'mf4')).entry);
 			}

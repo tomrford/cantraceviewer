@@ -16,7 +16,7 @@ The UI uses SvelteKit, Svelte 5, Node.js, pnpm, Tailwind, and shadcn-svelte styl
 
 Saved DBC files and UI preferences live only in browser storage on the current device. Loaded traces, MF4-native signal catalogs, temporary embedded DBCs, and derived signal series live in memory for the current browser session. Do not add server persistence or new persisted state without an explicit product reason.
 
-Enforce browser file-size caps in TypeScript before reading file contents: uploaded DBC files are capped at 5 MiB per file, and trace files are capped at 500 MiB per file. Core clients use one configurable `maxDbcBytes` cap for both standalone DBC inputs and each decompressed MF4 DBC attachment. The app remains pinned to `cantraceviewer@0.1.0`, which caps embedded DBCs at 1 MiB. When upgrading the app's package dependency in #162, configure one shared 5 MiB DBC cap and 500 MiB trace input/data caps at client startup, and derive browser preflight limits from that app-owned policy.
+Enforce browser file-size caps in TypeScript before reading file contents: uploaded DBC files are capped at 5 MiB per file, and trace files are capped at 500 MiB per file. The app consumes `cantraceviewer@0.2.0` and configures one shared 5 MiB DBC cap and 500 MiB trace input/data caps at client startup through `APP_PARSING_LIMITS`. Browser preflight limits derive from that app-owned policy. The DBC cap applies to both standalone inputs and each decompressed MF4 DBC attachment; import embedded DBCs using their original `bytes`.
 
 Use repo-native commands through `nix`:
 

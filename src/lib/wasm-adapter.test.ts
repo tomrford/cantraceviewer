@@ -19,6 +19,11 @@ describe('WASM app adapter', () => {
 		clientOpenDbc.mockResolvedValueOnce({ handle: {}, catalog: { messages: [] } });
 		await expect(openDbc('second')).resolves.toMatchObject({ catalog: { messages: [] } });
 		expect(createClientMock).toHaveBeenCalledTimes(2);
+		expect(createClientMock).toHaveBeenCalledWith({
+			maxDbcBytes: 5 * 1024 * 1024,
+			maxTraceInputBytes: 500 * 1024 * 1024,
+			maxTraceDataBytes: 500 * 1024 * 1024
+		});
 
 		clientOpenDbc.mockRejectedValue(new Error('worker crashed'));
 		await expect(openDbc('third')).rejects.toThrow('worker crashed');

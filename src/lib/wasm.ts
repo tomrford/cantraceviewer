@@ -1,4 +1,5 @@
 import { createCanTraceClient, type CanTraceClient } from 'cantraceviewer';
+import { APP_PARSING_LIMITS } from './file-limits.js';
 import type {
 	DbcHandle,
 	DbcMessageIdentity,
@@ -17,7 +18,7 @@ let clientPromise: Promise<CanTraceClient> | null = null;
 function client(): Promise<CanTraceClient> {
 	if (clientPromise) return clientPromise;
 
-	const pending = createCanTraceClient();
+	const pending = createCanTraceClient(APP_PARSING_LIMITS);
 	clientPromise = pending;
 	void pending.catch(() => {
 		// A rejected factory produced no client. Let a later user operation retry startup without

@@ -67,12 +67,12 @@ describe('dbcFiles', () => {
 	});
 
 	it('rejects an oversized DBC before reading file contents', async () => {
-		const oversized = new File([new Uint8Array(1024 * 1024 + 1)], 'large.dbc');
+		const oversized = new File([new Uint8Array(5 * 1024 * 1024 + 1)], 'large.dbc');
 		const read = vi.spyOn(oversized, 'arrayBuffer');
 		await dbcFiles.addFiles([oversized]);
 		expect(read).not.toHaveBeenCalled();
 		expect(openDbcMock).not.toHaveBeenCalled();
-		expect(dbcFiles.error).toContain('1 MiB');
+		expect(dbcFiles.error).toContain('5 MiB');
 	});
 
 	it('keeps transport-only J1939 catalogued without offering raw plot targets', () => {
@@ -154,7 +154,10 @@ describe('dbcFiles', () => {
 			openDbcResult(handle, catalog(message({ name: 'Embedded' })))
 		);
 
-		await dbcFiles.addTransientDbcs(42, [embeddedDbc('embedded.dbc', 'embedded')]);
+		const embedded = embeddedDbc('embedded.dbc', 'café');
+		embedded.bytes = Uint8Array.of(0x63, 0x61, 0x66, 0xe9);
+		await dbcFiles.addTransientDbcs(42, [embedded]);
+		expect(openDbcMock).toHaveBeenCalledExactlyOnceWith(embedded.bytes);
 
 		expect(dbcFiles.files).toMatchObject([
 			{
