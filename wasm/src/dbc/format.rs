@@ -103,7 +103,7 @@ pub(super) fn resolve(
                     0 => warnings.push(record.position.warning(
                         "dangling-reference",
                         "BA_",
-                        "Unknown message; frame-format attachment was ignored.",
+                        "Frame format references an unknown message.",
                     )),
                     1 => {}
                     _ => return Err(invalid()),
@@ -158,7 +158,7 @@ pub(super) fn resolve(
                 warnings.push(message.position.warning(
                     "omitted-feature",
                     "BO_",
-                    "Incompatible inherited frame format was ignored.",
+                    "Default frame format ignored for this message.",
                 ));
                 continue;
             };
@@ -246,6 +246,10 @@ mod tests {
         assert!(json.contains("\"rawFrameDecodable\":false"));
         assert!(json.contains("\"pgn\":59904"), "{json}");
         assert!(json.contains("\"Late\""));
+        assert_eq!(
+            dbc.warnings[0].message,
+            "J1939 transport decoding is not supported."
+        );
         assert!(message.signals[0].plan_decode(message.size_bytes).is_err());
     }
 

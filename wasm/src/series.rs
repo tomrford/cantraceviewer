@@ -50,11 +50,8 @@ pub(crate) fn selected_signal_values(
     let (message, signal) = dbc
         .find_signal(can_id, is_extended, size_bytes, signal_name)
         .ok_or(SeriesError::SignalNotFound)?;
-    if !message.raw_frame_decodable() {
-        return Err(DbcError::InvalidDefinition(
-            "Message requires transport reassembly or a payload longer than 64 bytes",
-        )
-        .into());
+    if let Some(reason) = message.raw_frame_decode_error() {
+        return Err(DbcError::InvalidDefinition(reason).into());
     }
     let plan = signal.plan_decode(message.size_bytes)?;
     let lookup = index
@@ -185,7 +182,7 @@ mod tests {
             )
             .unwrap_err()
             .to_string();
-            assert!(error.contains("transport reassembly"), "{error}");
+            assert_eq!(error, "J1939 transport decoding is not supported.");
         }
     }
 
