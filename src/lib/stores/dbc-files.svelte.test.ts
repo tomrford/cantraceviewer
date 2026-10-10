@@ -277,6 +277,31 @@ describe('dbcFiles', () => {
 		]);
 	});
 
+	it('respects collapsed search results while retaining matching group headers', () => {
+		dbcFiles.files = [
+			dbcEntry({
+				id: 'dbc-1',
+				messages: [message({ signals: [signal({ name: 'VehicleSpeed' })] })]
+			})
+		];
+		const messageKey = dbcFiles.selectorFiles[0].messages[0].key;
+		expect(visibleSelectorSignals('vehicle', { expandedDbcIds: new Set() })).toMatchObject([
+			{ id: 'dbc-1', expanded: false, messages: [] }
+		]);
+		expect(visibleSelectorSignals('vehicle', { expandedMessageKeys: new Set() })).toMatchObject([
+			{ expanded: true, messages: [{ expanded: false, signals: [] }] }
+		]);
+		expect(visibleSelectorSignals('speed', { expandedMessageKeys: new Set() })).toMatchObject([
+			{ messages: [{ expanded: false, signals: [] }] }
+		]);
+		expect(
+			visibleSelectorSignals('vehicle', { expandedMessageKeys: new Set([messageKey]) })
+		).toMatchObject([
+			{ messages: [{ expanded: true, signals: [{ signalName: 'VehicleSpeed' }] }] }
+		]);
+		expect(visibleSelectorSignals('missing', { expandedDbcIds: new Set() })).toEqual([]);
+	});
+
 	it('filters selector signals by query and hides empty messages and DBCs', () => {
 		dbcFiles.files = [
 			dbcEntry({
@@ -403,7 +428,9 @@ describe('dbcFiles', () => {
 			activeOnly: false,
 			isSignalSelected: () => false,
 			expandedDbcIds: new Set(['dbc-1', 'mf4:1:native']),
-			expandedMessageKeys: new Set<string>()
+			expandedMessageKeys: new Set(
+				query ? nativeIndexes[0].dbc.messages.map((message) => message.key) : []
+			)
 		});
 
 		expect(dbcFiles.visibleSelectorTree(filter(''), nativeIndexes)).toMatchObject([

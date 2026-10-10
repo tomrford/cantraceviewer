@@ -166,14 +166,25 @@ class DbcFilesStore {
 			const messages = index.dbc.messages
 				.map((message) => ({
 					...message,
-					expanded: true,
+					expanded: filter.expandedMessageKeys.has(message.key),
 					signals: signalsByMessage[message.key] ?? []
 				}))
 				.filter((message) => message.signals.length > 0);
 
 			if (messages.length === 0) return [];
 
-			return [{ ...index.dbc, expanded: true, messages }];
+			return [
+				{
+					...index.dbc,
+					expanded: filter.expandedDbcIds.has(index.dbc.id),
+					messages: !filter.expandedDbcIds.has(index.dbc.id)
+						? []
+						: messages.map((message) => ({
+								...message,
+								signals: message.expanded ? message.signals : []
+							}))
+				}
+			];
 		});
 	}
 

@@ -5,6 +5,7 @@
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import { createVirtualizer } from '@tanstack/svelte-virtual';
 	import { get } from 'svelte/store';
+	import { untrack } from 'svelte';
 	import { flattenSelectorTree, type SelectorListRow } from '$lib/selector-list.js';
 	import {
 		dbcFilesFromDrop,
@@ -66,6 +67,25 @@
 	let visibleDbcFiles = $derived(
 		dbcFiles.visibleSelectorTree(selectorFilter, traceFile.mf4SelectorIndexes)
 	);
+	let wasSearching = false;
+	let wasActiveOnly = false;
+	$effect(() => {
+		const searching = signalSearch.trim().length > 0;
+		const activeOnly = showActiveOnly;
+		if ((searching && !wasSearching) || (activeOnly && !wasActiveOnly)) {
+			untrack(() => {
+				for (const dbc of [
+					...dbcFiles.selectorFiles,
+					...traceFile.mf4SelectorIndexes.map((index) => index.dbc)
+				]) {
+					expandedDbcIds.add(dbc.id);
+					for (const message of dbc.messages) expandedMessageKeys.add(message.key);
+				}
+			});
+		}
+		wasSearching = searching;
+		wasActiveOnly = activeOnly;
+	});
 	let selectorRows = $derived(flattenSelectorTree(visibleDbcFiles));
 	const selectorRowGapPx = 4;
 	const selectorDbcRowHeightPx = 32;
