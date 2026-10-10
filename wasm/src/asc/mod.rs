@@ -114,8 +114,10 @@ fn parse_header_line(
     line: &[u8],
     scratch: &mut String,
 ) -> Result<bool, TraceError> {
-    if matches!(line, b"no internal events logged" | b"internal events logged")
-        || line.starts_with(b"End TriggerBlock")
+    if matches!(
+        line,
+        b"no internal events logged" | b"internal events logged"
+    ) || line.starts_with(b"End TriggerBlock")
         || line.starts_with(b"// version ")
     {
         return Ok(true);

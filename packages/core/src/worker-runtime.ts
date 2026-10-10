@@ -74,7 +74,7 @@ export function startWorkerRuntime(
 		} catch (error) {
 			try {
 				executed.undo?.();
-			} catch {}
+			} catch {} // eslint-disable-line no-empty
 			endpoint.postMessage({ type: 'error', id: request.id, error: toWireError(error) });
 		}
 	}
