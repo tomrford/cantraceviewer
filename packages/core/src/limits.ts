@@ -14,7 +14,6 @@ export const DEFAULT_PARSING_LIMITS: ParsingLimits = Object.freeze({
 	maxTraceDataBytes: 500 * 1024 * 1024
 });
 
-/** @internal */
 export function snapshotLimits(input: ParsingLimits = DEFAULT_PARSING_LIMITS): ParsingLimits {
 	if (typeof input !== 'object' || input === null) {
 		throw new Error('Parsing limits must be a complete limits record');
@@ -32,14 +31,11 @@ export function snapshotLimits(input: ParsingLimits = DEFAULT_PARSING_LIMITS): P
 	return Object.freeze(limits);
 }
 
-/** @internal */
 export function assertByteLimit(bytes: number, limit: number, label: string): void {
 	if (bytes > limit) throw new Error(`${label} exceeds the ${limit} byte limit`);
 }
 
-/** Encode string inputs once before worker messaging or WASM copying. @internal */
 export function dbcBytes(input: Uint8Array | string, limit: number): Uint8Array {
-	// UTF-16 length is a lower bound on encoded bytes; reject obviously oversized strings first.
 	if (typeof input === 'string') assertByteLimit(input.length, limit, 'DBC input');
 	const bytes = typeof input === 'string' ? new TextEncoder().encode(input) : input;
 	assertByteLimit(bytes.byteLength, limit, 'DBC input');

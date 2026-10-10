@@ -22,11 +22,9 @@
 	}: {
 		axisTargets: { id: YAxisId; label: string }[];
 		canAddAxis: boolean;
-		/** Value or delta the crosshairs read on this axis, in this axis's own scale. */
 		cursorText: string | null;
 		group: { id: YAxisId; index: number; signals: SignalView[] };
 		label: string;
-		/** Unit the axis's signals agree on, or null when they do not share one. */
 		unit: string | null;
 		onMove: (signalKey: string, axisId: YAxisId) => void;
 		onMoveToNewAxis: (signalKey: string) => void;
@@ -77,8 +75,6 @@
 				<span class="font-mono text-muted-foreground tabular-nums">{cursorText}</span>
 			{/if}
 			{#if onRemove !== null}
-				<!-- Pulled right by the icon button's own inset so the glyph lines up
-				     with the right edge of the signal rows below. -->
 				<Button
 					variant="ghost"
 					size="icon"

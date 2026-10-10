@@ -1,9 +1,5 @@
 use super::DbcError;
 
-/// Parses one quoted DBC field and returns it with the unconsumed input.
-///
-/// DBC escaping is deliberately byte-oriented: a backslash quotes the next
-/// byte, matching the existing parser's behavior for units and value labels.
 pub(crate) fn parse_quoted(cursor: &str) -> Result<(String, &str), DbcError> {
     let bytes = cursor.as_bytes();
     if bytes.first() != Some(&b'"') {

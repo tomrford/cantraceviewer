@@ -44,12 +44,10 @@ export type DbcMessage = {
 	signals: DbcSignal[];
 };
 
-/** Shape pinned by the `serializes_parsed_catalog` test in wasm/src/dbc/catalog.rs. */
 export type ParsedDbc = {
 	messages: DbcMessage[];
 };
 
-/** Source identity is independent of DBC frame-format and payload matching. */
 export type RawSource = {
 	/** One-based format channel; null when absent or unspecified (zero). */
 	channel: number | null;
@@ -101,9 +99,8 @@ declare const DbcHandleBrand: unique symbol;
 declare const TraceHandleBrand: unique symbol;
 
 /**
- * Opaque DBC handle. It has no readable fields: it only identifies one parsed DBC inside the
- * client that issued it, until that handle or its client is closed. Handles are safe to spread and
- * to store in deep-reactive stores, and every copy shares one lifetime.
+ * Opaque, client-owned DBC identity, valid until the handle or client closes.
+ * Spreads and reactive proxies share the original handle's lifetime.
  */
 export type DbcHandle = {
 	readonly [DbcHandleBrand]: true;
@@ -123,18 +120,17 @@ export type DbcDiagnostic = {
 	message: string;
 };
 
-/** Everything one `openDbc` call produces. The catalog is plain data and outlives the handle. */
+/** Catalog and warnings are plain data and outlive the handle. */
 export type OpenDbcResult = {
 	handle: DbcHandle;
 	catalog: ParsedDbc;
 	warnings: DbcDiagnostic[];
 };
 
-/** Everything one `openTrace` call produces. Every field except `handle` is plain data. */
+/** Every field except `handle` is plain data and outlives the handle. */
 export type OpenTraceResult = {
 	handle: TraceHandle;
 	metadata: TraceMetadata;
-	/** True when the trace carries raw CAN frames that a DBC can decode. */
 	hasRawFrames: boolean;
 	/** Signals the trace itself already carries decoded; MF4 only, otherwise null. */
 	mf4Catalog: Mf4SignalCatalog | null;

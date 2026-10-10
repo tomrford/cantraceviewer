@@ -42,11 +42,8 @@ pub(crate) fn parse_bytes(bytes: &[u8]) -> Result<Trace, TraceError> {
             continue;
         }
 
-        if could_be_header(line) {
-            let header = lossy_utf8_line(line, &mut line_scratch);
-            if parse_header_line(&mut state, header)? {
-                continue;
-            }
+        if parse_header_line(&mut state, line, &mut line_scratch)? {
+            continue;
         }
 
         let parsed_frame = match frame::parse_line(state.base, line, &mut payload_buffer) {
@@ -112,39 +109,34 @@ fn trim_line(line: &[u8]) -> &[u8] {
     &line[start..end]
 }
 
-// Prefilter for `parse_header_line`: must cover every form it accepts, or a
-// header line silently degrades into a skipped frame line.
-fn could_be_header(line: &[u8]) -> bool {
-    line == b"no internal events logged"
-        || line == b"internal events logged"
-        || line.starts_with(b"date ")
-        || line.starts_with(b"Begin Triggerblock ")
-        || line.starts_with(b"End TriggerBlock")
+fn parse_header_line(
+    state: &mut ParserState,
+    line: &[u8],
+    scratch: &mut String,
+) -> Result<bool, TraceError> {
+    if matches!(
+        line,
+        b"no internal events logged" | b"internal events logged"
+    ) || line.starts_with(b"End TriggerBlock")
         || line.starts_with(b"// version ")
-        || line.starts_with(b"base ")
-}
-
-// Accepted forms must stay in sync with the `could_be_header` prefilter.
-fn parse_header_line(state: &mut ParserState, line: &str) -> Result<bool, TraceError> {
-    if matches!(line, "no internal events logged" | "internal events logged") {
+    {
         return Ok(true);
     }
 
-    if let Some(date) = line.strip_prefix("date ") {
+    if let Some(date) = line.strip_prefix(b"date ") {
         if state.measurement_start_ms.is_none() {
-            state.measurement_start_ms = parse_vector_date_to_unix_ms(date).ok();
+            state.measurement_start_ms =
+                parse_vector_date_to_unix_ms(lossy_utf8_line(date, scratch)).ok();
         }
         return Ok(true);
     }
-    if let Some(triggerblock) = line.strip_prefix("Begin Triggerblock ") {
-        state.measurement_start_ms = parse_vector_date_to_unix_ms(triggerblock).ok();
+    if let Some(triggerblock) = line.strip_prefix(b"Begin Triggerblock ") {
+        state.measurement_start_ms =
+            parse_vector_date_to_unix_ms(lossy_utf8_line(triggerblock, scratch)).ok();
         return Ok(true);
     }
-    if line.starts_with("End TriggerBlock") || line.starts_with("// version ") {
-        return Ok(true);
-    }
-    if line.starts_with("base ") {
-        parse_base_line(state, line)?;
+    if line.starts_with(b"base ") {
+        parse_base_line(state, lossy_utf8_line(line, scratch))?;
         return Ok(true);
     }
 
@@ -173,7 +165,6 @@ fn parse_base_line(state: &mut ParserState, line: &str) -> Result<(), TraceError
 }
 
 fn parse_vector_date_to_unix_ms(text: &str) -> Result<i64, TraceError> {
-    // ASC dates do not carry a timezone. UTC keeps the browser result deterministic.
     let mut tokens = text.split_whitespace();
     tokens.next().ok_or(TraceError::InvalidVectorDate)?;
     let month = parse_month(tokens.next().ok_or(TraceError::InvalidVectorDate)?)
@@ -292,6 +283,24 @@ mod tests {
         assert_eq!(parsed.payloads, [0xaa, 0xbb]);
         assert_eq!(parsed.frames[0].timestamp_ns, 1_000_000);
         assert_eq!(parsed.frames[0].id, Some(CanId::standard(291).unwrap()));
+    }
+
+    #[test]
+    fn keeps_first_valid_date_after_malformed_header_bytes() {
+        let parsed = parse_bytes(
+            b"date invalid \xff\n\
+              date Tue Apr 28 09:00:00.000 2026\n\
+              date Tue Apr 28 11:00:00.000 2026\n\
+              // version \xff\n\
+              no internal events logged\n\
+              0.001 1 123 Rx d 1 aa",
+        )
+        .unwrap();
+
+        assert_eq!(parsed.measurement_start_ms, Some(1_777_366_800_000));
+        assert_eq!(parsed.frames.len(), 1);
+        assert_eq!(parsed.payloads, [0xaa]);
+        assert_eq!(parsed.skipped_line_count, 0);
     }
 
     #[test]

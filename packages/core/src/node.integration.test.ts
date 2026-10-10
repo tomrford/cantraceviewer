@@ -31,7 +31,6 @@ describe('cantraceviewer/node', () => {
 			const hybrid = Uint8Array.from(
 				await readFile(resolve(fixturesDir, 'mf4/hybrid-embedded-dbc.mf4'))
 			);
-			// A new client isolates its larger data allowance while retaining the smaller DBC cap.
 			const other = await createCanTraceClient({ ...limits, maxTraceDataBytes: 168 });
 			try {
 				const opened = await other.openTrace('mf4', hybrid.buffer);
@@ -95,11 +94,10 @@ describe('cantraceviewer/node', () => {
 
 	it('parses and decodes through a real worker thread that loads WASM from disk', async () => {
 		const { handle: dbc, catalog } = await client.openDbc(dbcText);
-		// One exact ArrayBuffer copy: Node file reads come out of a shared pool.
 		const buffer = new Uint8Array(ascBytes).buffer;
 		const trace = await client.openTrace('asc', buffer);
 		try {
-			expect(buffer.byteLength).toBe(0); // transferred into the worker thread
+			expect(buffer.byteLength).toBe(0);
 			expect(catalog.messages.find((message) => message.name === 'PowertrainStatus')).toMatchObject(
 				{
 					canId: 288,
@@ -120,7 +118,6 @@ describe('cantraceviewer/node', () => {
 			expect(Array.from(speed.timesMs).slice(0, 3)).toEqual([10, 110, 210]);
 			expect(Array.from(speed.values).slice(0, 3)).toEqual([100, 123.4, 150]);
 			expect(speed.timesMs.length).toBe(251);
-			// One buffer transferred out of the worker, two views over it.
 			expect(speed.timesMs.buffer).toBe(speed.values.buffer);
 		} finally {
 			await client.closeTrace(trace.handle);
@@ -138,8 +135,8 @@ describe('cantraceviewer/node', () => {
 		const other = await createCanTraceClient();
 		const { handle } = await other.openDbc(dbcText);
 		await other.close();
-		await other.close(); // idempotent
-		await other.closeDbc(handle); // invalidated handle closes silently
+		await other.close();
+		await other.closeDbc(handle);
 		await expect(other.openDbc(dbcText)).rejects.toThrow('client is closed');
 	}, 30_000);
 });

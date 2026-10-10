@@ -8,7 +8,6 @@ import {
 import type { WorkerRequest, WorkerResponse } from './protocol.ts';
 import type { ParsingLimits } from './limits.ts';
 
-/** @internal */
 export type NodeClientWorker = {
 	postMessage(message: WorkerRequest, transfer?: readonly ArrayBuffer[]): void;
 	on(event: 'message', listener: (data: WorkerResponse) => void): void;
@@ -18,7 +17,6 @@ export type NodeClientWorker = {
 	terminate(): Promise<number>;
 };
 
-/** @internal */
 export async function createNodeClientForWorker(
 	createWorker: () => NodeClientWorker,
 	limits?: ParsingLimits
@@ -37,7 +35,6 @@ function nodeTransport(worker: NodeClientWorker, handlers: RpcTransportHandlers)
 		handlers.fail(new Error(`worker thread message failed to deserialize: ${error.message}`));
 	});
 	worker.on('exit', (code) => {
-		// A requested terminate always ends in an exit event; only an unrequested one is a failure.
 		if (stopping) return;
 		handlers.fail(new Error(`worker thread exited unexpectedly with code ${code}`));
 	});

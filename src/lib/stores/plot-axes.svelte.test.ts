@@ -40,8 +40,6 @@ describe('plotAxes', () => {
 
 		plotAxes.release('a');
 
-		// The signal comes back to the primary axis rather than remembering where
-		// it was, and the axis it left survives for the signals still on it.
 		expect(plotAxes.assignment.has('a')).toBe(false);
 		expect(plotAxes.assignment.get('b')).toBe(second);
 		expect(plotAxes.ids).toEqual([PRIMARY_Y_AXIS_ID, second]);

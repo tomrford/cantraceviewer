@@ -1,6 +1,5 @@
 use super::{DbcError, Diagnostic, Message, quotes::parse_quoted, source::Record};
 
-// Consume the same records as the DBC parser, including multiline attributes.
 pub(super) fn resolve(
     messages: &mut [Message],
     records: &[Record],
@@ -137,8 +136,6 @@ pub(super) fn resolve(
     let labels = definition.as_deref().unwrap_or(&[]);
     for message in messages {
         let assignment = assignments.get(&message.dbc_id).copied();
-        // Message declarations are authoritative. File defaults are hints: Vector
-        // headers can describe a different frame family from some of their messages.
         for (position, keyword, value) in [
             assignment,
             default_format.filter(|(_, _, value)| *value != "\"\""),
@@ -241,7 +238,6 @@ mod tests {
 
     #[test]
     fn retains_long_j1939_catalogue_and_pdu1_pgn() {
-        // 0x18EA2180 is PDU1: destination 0x21 is excluded from PGN 0xEA00.
         let dbc = Dbc::parse("BO_ 2565489024 Long: 1785 ECU\n SG_ Late : 1544|32@1+ (1,0) [0|0] \"\" ECU\nBA_DEF_DEF_ \"ProtocolType\" \"J1939\";").unwrap();
         let message = &dbc.messages[0];
         assert_eq!(message.frame_format, "j1939");

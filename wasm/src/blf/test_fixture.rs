@@ -57,7 +57,7 @@ pub(super) fn append_outer_zlib_stored_container(bytes: &mut Vec<u8>, payload: &
     let len = payload.len() as u16;
     let mut compressed = Vec::with_capacity(payload.len() + 11);
     compressed.extend_from_slice(&[0x78, 0x01]);
-    compressed.push(0x01); // Final, uncompressed DEFLATE block.
+    compressed.push(0x01);
     compressed.extend_from_slice(&len.to_le_bytes());
     compressed.extend_from_slice(&(!len).to_le_bytes());
     compressed.extend_from_slice(payload);

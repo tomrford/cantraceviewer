@@ -1,8 +1,3 @@
-//! Dependency-free DBC parsing and signal decoding.
-//!
-//! The model owns its parsed text, so a `Dbc` can move directly behind a
-//! `wasm-bindgen` class without an arena or a separate source-buffer lifetime.
-
 mod catalog;
 mod error;
 mod format;
@@ -26,28 +21,22 @@ pub use values::{
     ValueType,
 };
 
-// CANdb++ stores unassigned signals in this zero-length pseudo-message.
 const INDEPENDENT_SIGNAL_MESSAGE_ID: u32 = 0xc000_0000;
 
-/// Parsed subset of a DBC file used by the viewer.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Dbc {
-    /// Messages in source order, each with its attached signals.
     pub messages: Vec<Message>,
 
-    /// Value tables in source order.
     pub value_tables: Vec<ValueTable>,
 
     pub warnings: Vec<Diagnostic>,
 }
 
 impl Dbc {
-    /// UTF-8 (optional BOM), otherwise Windows-1252; undefined bytes become U+FFFD.
     pub fn parse_bytes(bytes: &[u8]) -> Result<Self, DbcError> {
         Self::parse(&decode_source(bytes))
     }
 
-    /// Parses already decoded DBC text without a BOM into an owned model.
     pub fn parse(text: &str) -> Result<Self, DbcError> {
         let mut messages = Vec::new();
         let mut value_tables = Vec::new();
@@ -203,12 +192,10 @@ impl Dbc {
         })
     }
 
-    /// Projects the parsed model into the browser signal-picker catalog.
     pub fn to_catalog_json(&self) -> String {
         catalog::to_json(self)
     }
 
-    /// Finds a signal using the same identity tuple as trace-series decoding.
     pub fn find_signal(
         &self,
         can_id: u32,

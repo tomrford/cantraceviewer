@@ -27,23 +27,18 @@ export type DirectWasmInput = BufferSource | WebAssembly.Module;
 export const wasmUrl = new URL('./wasm-bindgen/cantraceviewer_bg.wasm', import.meta.url);
 
 /**
- * Fully synchronous in-process client. Every operation compiles, parses, or decodes on the calling
- * thread and returns its result directly; nothing here creates a Worker or a promise.
- *
- * Use it only where blocking is acceptable: inside a Worker or worker thread, in a dedicated
- * process, in benchmarks, or in tests. Do not call it on a browser UI thread or an Electron main
- * thread; use the asynchronous browser or Node clients there.
+ * Synchronous client that blocks the calling thread. Use the asynchronous browser or Node
+ * client on UI threads.
  */
 export type DirectClient = {
 	openDbc(input: Uint8Array | string): OpenDbcResult;
-	/** Idempotent for handles this client issued; repeat calls do nothing. */
+	/** Idempotent for this client's handles. */
 	closeDbc(handle: DbcHandle): void;
 	openTrace(traceType: TraceType, bytes: Uint8Array): OpenTraceResult;
-	/** Idempotent for handles this client issued; repeat calls do nothing. */
+	/** Idempotent for this client's handles. */
 	closeTrace(handle: TraceHandle): void;
 	/**
-	 * Decode one DBC signal over the trace's raw frames. Both returned arrays are views over one
-	 * exactly-sized ArrayBuffer, so transports can transfer the result without copying.
+	 * Decodes a DBC signal from raw frames. Arrays share one exactly-sized ArrayBuffer.
 	 */
 	getSignalValues(
 		dbcHandle: DbcHandle,
@@ -59,17 +54,14 @@ export type DirectClient = {
 };
 
 /**
- * Create a synchronous client over one WASM instance. WASM initialization happens once per
- * JavaScript realm: later clients reuse that instance and ignore their input, but each client owns
- * its own handles. Fetching or reading the bytes is the caller's job and can be asynchronous; this
- * call is not.
+ * Initializes WASM once per JavaScript realm; later clients ignore their input and reuse it.
+ * Each client owns its handles. Load the bytes before calling.
  */
 export function createDirectClient(
 	wasm: DirectWasmInput,
 	inputLimits?: ParsingLimits
 ): DirectClient {
 	const limits = snapshotLimits(inputLimits);
-	// The generated `initSync` returns the existing instance when it is already initialized.
 	initWasm(wasm);
 
 	const handles = createHandleRegistry<{ dbc: WasmDbc; trace: WasmTrace }>();

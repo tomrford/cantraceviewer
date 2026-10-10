@@ -33,7 +33,6 @@ impl Direction {
     }
 }
 
-/// One-based format channel. Zero denotes unavailable channel metadata.
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub(crate) struct RawSource {
     pub(crate) channel: Option<NonZeroU16>,
@@ -58,8 +57,6 @@ pub(crate) enum FrameKind {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-// The validity bit gives Option<CanId> a zero niche. Channel and direction then
-// fit in the existing 24-byte Frame rather than growing every occurrence to 32.
 pub(crate) struct CanId(NonZeroU32);
 
 impl CanId {

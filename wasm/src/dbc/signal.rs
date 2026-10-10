@@ -5,7 +5,6 @@ use super::{
     DbcError, ValueDescription, ValueType, find_dbc_whitespace, is_dbc_whitespace, trim_dbc,
 };
 
-/// DBC bit-numbering mode for a signal payload.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DbcEndian {
     Intel,
@@ -21,7 +20,6 @@ impl DbcEndian {
     }
 }
 
-/// Signedness of an integer DBC signal.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Signedness {
     Signed,
@@ -43,7 +41,6 @@ enum PackedEndian {
     Big,
 }
 
-/// Prepared raw-payload decoder for repeatedly decoding the same signal.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DecodePlan {
     bit_offset: usize,
@@ -61,7 +58,6 @@ impl DecodePlan {
         read_packed_bits(payload, self.bit_offset, self.bit_count, self.endian)
     }
 
-    /// Decodes one raw CAN payload into the signal's physical value.
     #[inline(always)]
     pub fn decode(self, payload: &[u8]) -> Result<f64, DbcError> {
         if payload.len() != self.required_payload_len {
@@ -85,12 +81,10 @@ impl DecodePlan {
     }
 }
 
-/// Parsed `SG_` signal definition.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Signal {
     pub name: String,
 
-    /// Start bit in DBC numbering.
     pub start_bit: u16,
 
     pub bit_length: u16,
@@ -112,7 +106,6 @@ pub struct Signal {
 }
 
 impl Signal {
-    /// Parses one `SG_` signal line.
     pub fn parse(line: &str) -> Result<Self, DbcError> {
         let cursor = trim_dbc(line);
         let Some(rest) = cursor.strip_prefix("SG_") else {
@@ -260,10 +253,6 @@ impl Signal {
         })
     }
 
-    /// Prepares fixed bit-unpack arguments for repeated payload decoding.
-    ///
-    /// Motorola signals are planned against `message_size_bytes`; callers must
-    /// pass payload slices of that exact length to [`DecodePlan::decode`].
     pub fn plan_decode(&self, message_size_bytes: u16) -> Result<DecodePlan, DbcError> {
         if message_size_bytes > 64 {
             return Err(DbcError::UnsupportedMessageLength(message_size_bytes));
@@ -325,7 +314,6 @@ impl Signal {
         Ok((bit_offset, endian))
     }
 
-    /// Returns attached `VAL_` or `VAL_TABLE_` descriptions, if any.
     pub fn value_descriptions(&self) -> Option<&[ValueDescription]> {
         self.value_descriptions.as_deref()
     }

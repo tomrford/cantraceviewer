@@ -19,8 +19,6 @@ function client(): Promise<CanTraceClient> {
 	const pending = createCanTraceClient();
 	clientPromise = pending;
 	void pending.catch(() => {
-		// A rejected factory produced no client. Let a later user operation retry startup without
-		// restarting a client that had already become fatal during normal operation.
 		if (clientPromise === pending) clientPromise = null;
 	});
 	return pending;

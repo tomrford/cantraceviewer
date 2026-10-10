@@ -13,7 +13,6 @@ mod trc;
 use dbc::Dbc;
 use trace::{FrameIndex, Trace as ParsedTrace};
 
-/// Parsed DBC model owned by WebAssembly.
 #[wasm_bindgen(js_name = Dbc)]
 pub struct WasmDbc {
     inner: Dbc,
@@ -21,7 +20,6 @@ pub struct WasmDbc {
 
 #[wasm_bindgen]
 impl WasmDbc {
-    /// Parse DBC text and retain the decoded model for subsequent signal work.
     pub fn parse(input: &[u8]) -> Result<WasmDbc, JsError> {
         Ok(Self {
             inner: Dbc::parse_bytes(input)?,
@@ -33,13 +31,11 @@ impl WasmDbc {
         self.inner.warnings_json()
     }
 
-    /// Return the browser catalog projection as JSON.
     #[wasm_bindgen(js_name = catalogJson)]
     pub fn catalog_json(&self) -> String {
         self.inner.to_catalog_json()
     }
 
-    /// Decode one selected signal as packed parallel time/value arrays.
     #[wasm_bindgen(js_name = decodeSignal)]
     #[allow(clippy::too_many_arguments)]
     pub fn decode_signal(
@@ -73,7 +69,6 @@ impl WasmDbc {
     }
 }
 
-/// Parsed trace model owned by WebAssembly.
 #[wasm_bindgen(js_name = Trace)]
 pub struct WasmTrace {
     inner: ParsedTrace,
@@ -116,7 +111,6 @@ impl WasmTrace {
         })
     }
 
-    /// Available data-frame identities, sorted by CAN ID, extended status and source.
     #[wasm_bindgen(js_name = rawMessagesJson)]
     pub fn raw_messages_json(&self) -> String {
         self.index.catalog_json()

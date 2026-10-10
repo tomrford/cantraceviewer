@@ -85,12 +85,9 @@ describe('PlotWindow', () => {
 		const [coarse] = plotWindow.viewsFor([source], null);
 		expect(coarse.sampled).toBe(true);
 
-		// Zoom deep: still covered by the full-span materialization, so the
-		// coarse slice is reused during the interaction...
 		const zoomed = viewport(49_000, 51_000);
 		expect(plotWindow.viewsFor([source], zoomed)[0]).toBe(coarse);
 
-		// ...until the debounced settle recenters the window at full detail.
 		plotWindow.settleAfter([source], zoomed);
 		vi.runAllTimers();
 		const [settled] = plotWindow.viewsFor([source], zoomed);

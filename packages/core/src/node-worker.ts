@@ -1,8 +1,5 @@
 import { readFile } from 'node:fs/promises';
 import { parentPort } from 'node:worker_threads';
-// Relative imports carry `.ts` extensions throughout this package because Node loads this worker
-// entry from source through type stripping, which resolves specifiers literally. `tsc` rewrites
-// them to `.js` when it emits the packaged build.
 import { createDirectClient } from './direct.ts';
 import { startWorkerRuntime, type WorkerRuntimeEndpoint } from './worker-runtime.ts';
 import type { WorkerRequest, WorkerResponse } from './protocol.ts';

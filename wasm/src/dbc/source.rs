@@ -2,8 +2,6 @@ use std::{borrow::Cow, fmt::Write};
 
 use super::{Dbc, DbcError, catalog::write_json_string};
 
-/// Recoverable warning at the record keyword. Positions are one-based Unicode
-/// scalar columns in decoded text, excluding an initial BOM; tabs count as one.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Diagnostic {
     pub category: &'static str,
@@ -104,7 +102,6 @@ pub(super) struct Record<'a> {
     pub position: Position,
 }
 
-// Use a fixed vocabulary so diagnostics never echo arbitrary source tokens.
 const KEYWORDS: &[&str] = &[
     "BO_",
     "SG_",
@@ -142,8 +139,6 @@ const KEYWORDS: &[&str] = &[
     "BU_BO_REL_",
 ];
 
-/// Separate line records from semicolon records without interpreting quoted
-/// comment contents as definitions. Namespace declarations are not records.
 pub(super) fn records(text: &str) -> impl Iterator<Item = Result<Record<'_>, DbcError>> {
     let mut remaining = text;
     let mut position = Position { line: 1, column: 1 };
@@ -180,7 +175,7 @@ pub(super) fn records(text: &str) -> impl Iterator<Item = Result<Record<'_>, Dbc
             }
             namespace = keyword == "NS_";
             let input = remaining;
-            remaining = ""; // A malformed record ends iteration.
+            remaining = "";
             let line_record = matches!(keyword, "BO_" | "SG_" | "VERSION" | "NS_" | "BS_" | "BU_");
             let end = if line_record {
                 line_end
@@ -247,8 +242,6 @@ fn advance(text: &str, position: &mut Position) {
     }
 }
 
-// Attribute scope continuations can begin BO_ or SG_ too, but only a
-// definition has a colon outside its quoted strings.
 fn starts_record(text: &str) -> bool {
     let line = text.split('\n').next().unwrap_or("").trim();
     if matches!(

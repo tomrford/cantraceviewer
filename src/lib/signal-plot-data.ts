@@ -40,19 +40,16 @@ export type SignalSample = {
 export type WindowedSignalView = SignalView & {
 	x: Float64Array<ArrayBufferLike>;
 	y: Float64Array<ArrayBufferLike>;
-	/** True when the slice was downsampled below the source resolution. */
 	sampled: boolean;
 };
 
 const LEGEND_MAX_SIGNIFICANT_DIGITS = 7;
 
 export function isOutsideDbcRange(value: number, minimum: number, maximum: number): boolean {
-	// DBC `[0|0]` is the conventional placeholder for unspecified limits.
 	if (minimum === 0 && maximum === 0) return false;
 	return value < minimum || value > maximum;
 }
 
-/** Decimal places of a finite number, e.g. 0.01 → 2, 0.5 → 1, 1e-13 → 13. */
 function decimalPlaces(value: number): number {
 	if (!Number.isFinite(value) || value === 0) return 0;
 	const [mantissa, exponent] = Math.abs(value).toExponential().split('e');
@@ -61,22 +58,12 @@ function decimalPlaces(value: number): number {
 	return Math.max(0, mantissaDecimals - Number(exponent));
 }
 
-/**
- * Snap a decoded value to the signal resolution so float noise from
- * `raw * factor + offset` cannot push boundary samples across DBC limits.
- */
 function roundToResolution(value: number, factor: number, offset: number): number {
 	const decimals = Math.max(decimalPlaces(factor), decimalPlaces(offset));
 	if (decimals > 100) return value;
 	return Number(value.toFixed(decimals));
 }
 
-/**
- * Legend precision policy: decimal places follow the signal resolution
- * (factor/offset), padded so a signal's values keep a stable width, capped to a
- * seven-significant-digit budget. Extreme magnitudes fall back to scientific
- * notation like the axis labels.
- */
 export function formatLegendNumericValue(value: number, factor: number, offset = 0): string {
 	if (!Number.isFinite(value)) return '-';
 	if (value === 0) return '0';
@@ -100,8 +87,6 @@ export function formatDecodedValue(value: number | null, context: DecodedValueFo
 		return { text: '-', outOfRange: false };
 	}
 
-	// Range-check the resolution-rounded value so the warning agrees with the
-	// displayed text instead of raw float noise.
 	const outOfRange = isOutsideDbcRange(
 		roundToResolution(value, context.factor, context.offset),
 		context.minimum,
@@ -146,12 +131,6 @@ function signalView(signal: PlotSignal): SignalView {
 	};
 }
 
-/**
- * Reuses SignalView objects across store rebuilds: decode-status flips rebuild
- * every PlotSignal, but views whose rendered content is unchanged keep their
- * identity so chart updates can be skipped downstream. Entries for dropped
- * signals are evicted on the next call.
- */
 export function createSignalViewCache(): (signals: PlotSignal[]) => SignalView[] {
 	let cache = new Map<string, SignalView>();
 
@@ -192,7 +171,6 @@ export function lineSeries(view: WindowedSignalView, yAxis: YAxisId): LineSeries
 		yAxis,
 		color: view.color,
 		lineStyle: { color: view.color, width: 2.5, opacity: 0.95 },
-		// PlotWindow owns the point budget and sampling policy.
 		sampling: 'none'
 	};
 }
@@ -223,7 +201,6 @@ export function plotSeriesForViews(
 	});
 }
 
-/** Keeps ChartGPU's explicitly bounded axes active before any signal is selected. */
 export function emptyAxisSeries(yAxis: YAxisId): LineSeriesConfig {
 	return {
 		type: 'line',
@@ -284,23 +261,16 @@ function combinedDomain(views: SignalView[]): ViewDomain | null {
 	return Number.isFinite(xMin) && Number.isFinite(yMin) ? { xMin, xMax, yMin, yMax } : null;
 }
 
-/** Time extent covered by these signals. Unpadded: the trace owns its own edges. */
 export function signalXRange(views: SignalView[]): PlotAxisRange | null {
 	const domain = combinedDomain(views);
 	return domain === null ? null : paddedXRange(domain.xMin, domain.xMax);
 }
 
-/** Value extent of these signals, padded so lines do not touch the plot edges. */
 export function signalYRange(views: SignalView[]): PlotAxisRange | null {
 	const domain = combinedDomain(views);
 	return domain === null ? null : paddedYRange(domain.yMin, domain.yMax);
 }
 
-/**
- * Fit domain of the plot when signals are split across axes: x spans every
- * signal so the timebase stays shared, while y covers only the primary axis's
- * own signals.
- */
 export function axisSplitDomain(
 	allViews: SignalView[],
 	primaryViews: SignalView[]
@@ -312,7 +282,6 @@ export function axisSplitDomain(
 	return { xMin: x.min, xMax: x.max, yMin: y.min, yMax: y.max };
 }
 
-/** Bounds an axis falls back to while it holds no plottable signals. */
 export const EMPTY_AXIS_RANGE: PlotAxisRange = { min: 0, max: 1 };
 
 export function formatAxisTime(
@@ -367,8 +336,6 @@ export function formatAxisValue(value: number): string | null {
 
 type ViewDomain = { xMin: number; xMax: number; yMin: number; yMax: number };
 
-// Keyed on the underlying immutable series arrays so the per-view scan survives
-// view objects being rebuilt on every derived tick.
 const viewDomainCache = new WeakMap<
 	Float64Array<ArrayBufferLike>,
 	{ y: Float64Array<ArrayBufferLike>; domain: ViewDomain | null }
@@ -450,8 +417,6 @@ function visibleIndexRange(x: Float64Array<ArrayBufferLike>, xMin: number, xMax:
 }
 
 export function renderIndexRange(x: Float64Array<ArrayBufferLike>, xMin: number, xMax: number) {
-	// Include one off-screen neighbor on each side so clipped line segments
-	// continue to the viewport edge even when no sample falls exactly there.
 	const { start, end } = visibleIndexRange(x, xMin, xMax);
 	if (start < end) {
 		return {

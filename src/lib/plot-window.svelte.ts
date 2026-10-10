@@ -2,16 +2,13 @@ import { lttbSample } from './lttb.js';
 import type { PlotViewport } from './plot-viewport.js';
 import { renderIndexRange, type SignalView, type WindowedSignalView } from './signal-plot-data.js';
 
-/** Total point budget shared by all rendered lines per materialization. */
 const TOTAL_SAMPLING_BUDGET = 50_000;
-/** Buffered slices span viewport ± span, so they hold up to 3x the on-screen window. */
 const BUFFER_SPANS = 3;
 const SETTLE_MS = 150;
 
 type MaterializedSignal = {
 	source: SignalView;
 	budget: number;
-	/** Viewports inside this x-range can reuse the slice; ±Infinity for full coverage. */
 	xMin: number;
 	xMax: number;
 	start: number;
@@ -21,22 +18,8 @@ type MaterializedSignal = {
 
 type WindowSlice = { start: number; end: number; xMin: number; xMax: number };
 
-/**
- * App-owned render window for chart series.
- *
- * Materializes a buffered slice (viewport ± one span) of each signal,
- * downsampled to the shared budget, and keeps its identity stable while the
- * viewport stays inside the buffer. Pan/zoom frames therefore push only new
- * axis bounds to ChartGPU with unchanged series references, keeping the
- * library's per-setOption work off its O(points) copy/sample paths. Slices
- * rematerialize synchronously when the viewport escapes the buffer or the
- * source data changes, and a debounced settle recenters them for full detail
- * once interaction rests.
- */
 export class PlotWindow {
 	#revision = $state(0);
-	// Deliberately non-reactive: viewsFor mutates the cache while evaluating a
-	// $derived, and #revision carries the one reactive signal (settle updates).
 	// eslint-disable-next-line svelte/prefer-svelte-reactivity
 	#cache = new Map<string, MaterializedSignal>();
 	#lastViews: WindowedSignalView[] = [];
@@ -59,7 +42,6 @@ export class PlotWindow {
 		return this.#lastViews;
 	}
 
-	/** Debounced rematerialization around the rested viewport. */
 	settleAfter(views: SignalView[], viewport: PlotViewport | null): void {
 		if (this.#settleTimer !== null) clearTimeout(this.#settleTimer);
 		this.#settleTimer = setTimeout(() => {
@@ -96,8 +78,6 @@ export class PlotWindow {
 		}
 
 		const points = slice.end - slice.start;
-		// Buffered slices carry proportionally more points so on-screen density
-		// during interaction matches the settled density.
 		const target = slice.xMin === -Infinity ? budget : budget * BUFFER_SPANS;
 		let materialized: WindowedSignalView;
 		if (points > target) {

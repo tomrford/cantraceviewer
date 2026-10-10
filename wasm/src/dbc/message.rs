@@ -1,18 +1,13 @@
 use super::{DbcError, Signal};
 
-/// DBC encodes extended CAN IDs by setting bit 31 in the message ID.
 const EXTENDED_FLAG: u32 = 0x8000_0000;
 
-/// CAN 2.0B extended identifiers use the low 29 bits.
 const EXTENDED_MASK: u32 = 0x1fff_ffff;
 
-/// Parsed `BO_` message definition.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Message {
-    /// Raw DBC message ID as written in the file.
     pub dbc_id: u32,
 
-    /// CAN arbitration ID with the DBC extended-frame flag removed.
     pub can_id: u32,
 
     pub is_extended: bool,
@@ -31,7 +26,6 @@ impl Message {
         self.size_bytes <= 64 && (self.frame_format != "j1939" || self.size_bytes <= 8)
     }
 
-    /// Parses one `BO_ <id> <name>: <size> <transmitter>` line.
     pub fn parse(line: &str) -> Result<Self, DbcError> {
         let mut tokens = line.split_ascii_whitespace();
 

@@ -10,20 +10,11 @@ export type PlotPoint = {
 	y: number;
 };
 
-/** One axis's bounds, used where only a y range is in play. */
 export type PlotAxisRange = {
 	min: number;
 	max: number;
 };
 
-/**
- * The slice of a y fit range currently in view, in ratio space, where 0 is the
- * top of the range and 1 the bottom.
- *
- * Y navigation is uniform across axes: one gesture moves every axis by the same
- * proportion of its own extent, so each axis keeps fitting its own data while
- * the lines move together on screen exactly as they do with a single axis.
- */
 export type PlotYWindow = {
 	top: number;
 	bottom: number;
@@ -59,17 +50,6 @@ export function paddedYRange(min: number, max: number): PlotAxisRange | null {
 	return paddedRange(min, max, Y_PADDING);
 }
 
-/**
- * Advances the y window by the change from one viewport to the next, measured
- * in the outgoing viewport's own ratio space.
- *
- * Composing relatively rather than recomputing against the primary axis's fit
- * range keeps the other axes still when that range moves underneath: assigning
- * a signal away changes it, and a later x-only navigation must not be read as a
- * y change. A viewport whose y bounds are unchanged composes to no change at
- * all, and starting from the full window reproduces the plain ratio of the
- * viewport within the domain.
- */
 export function advanceYWindow(
 	window: PlotYWindow,
 	from: PlotViewport,
@@ -85,7 +65,6 @@ export function advanceYWindow(
 	};
 }
 
-/** Applies a y window to another axis's fit range, giving that axis's bounds. */
 export function applyYWindow(range: PlotAxisRange, window: PlotYWindow): PlotAxisRange {
 	const span = range.max - range.min;
 	return {
@@ -94,7 +73,6 @@ export function applyYWindow(range: PlotAxisRange, window: PlotYWindow): PlotAxi
 	};
 }
 
-/** Where `value` sits in `range`, as a ratio from the top. */
 export function ratioInRange(range: PlotAxisRange, value: number): number {
 	const span = range.max - range.min;
 	return span === 0 ? 0.5 : (range.max - value) / span;

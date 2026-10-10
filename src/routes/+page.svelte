@@ -180,9 +180,6 @@
 		const action = shortcutFromEvent(event, shortcutPlatform);
 		if (action === null) return;
 
-		// Claim browser-bound chords as soon as they match. Declining later without this lets the
-		// browser run its own default — Cmd+O opens its file dialog, which downloads any trace it
-		// cannot render instead of loading it.
 		if (overridesBrowserShortcut(action)) event.preventDefault();
 
 		if (shortcutSuppressedBySurface(event.target instanceof Element ? event.target : null)) return;
@@ -192,7 +189,6 @@
 		event.preventDefault();
 	}
 
-	/** The one place an action happens, whether it came from a key or the command palette. */
 	function runShortcut(action: ShortcutAction): void {
 		switch (action) {
 			case 'openTrace':
@@ -240,16 +236,11 @@
 
 	async function focusSignalSearch(): Promise<void> {
 		settingsOpen = false;
-		// Route through the open handler rather than assigning: it is the setter half of the
-		// popover's binding, so opening by shortcut has to run it to stay indistinguishable
-		// from opening by click — the walkthrough advances from there.
 		handleSignalSelectorOpen(true);
 		await tick();
 		signalSearchFocusRequest += 1;
 	}
 
-	// Falls back to the viewport centre when the pointer is off the plot, which is where the
-	// toolbar already places crosshairs — and the only sensible anchor from the palette.
 	function placeCrosshair(id: CrosshairId): void {
 		const activeViewport = plotViewport.activeViewport;
 		if (activeViewport === null) return;
@@ -275,8 +266,6 @@
 		paletteOpen = true;
 	}
 
-	// The legend's mode select sits under the toolbar, so opening the crosshair menu on top of it
-	// would leave two overlapping menus.
 	function handleCrosshairMenuOpen(open: boolean): void {
 		crosshairMenuOpen = open;
 		if (open) legendSelectOpen = false;
@@ -513,8 +502,6 @@
 							</button>
 						{/snippet}
 					</Tooltip.Trigger>
-					<!-- Action and shortcut share one row so the chip always has a single-line partner;
-					     trace details sit underneath as secondary text. -->
 					<Tooltip.Content sideOffset={6} class="flex-col items-stretch gap-1 pr-3">
 						<span class="flex items-center gap-3">
 							{traceFile.isLoading ? 'Loading trace' : 'Open trace'}

@@ -114,8 +114,6 @@ pub(super) fn decode_native_signal(
         }
         Ok(())
     })?;
-    // Usually records are already chronological. Allocate a permutation only
-    // for out-of-order channels, keeping equal-time samples in record order.
     if !times.is_sorted() {
         let mut order: Vec<_> = (0..times.len()).collect();
         order.sort_by(|&a, &b| times[a].partial_cmp(&times[b]).unwrap());
@@ -184,8 +182,6 @@ fn walk_records(
     walk_records_dyn(data_group, data, &mut visit)
 }
 
-// Monomorphizing the record walk per visitor closure triples its code in the
-// wasm bundle; a dynamic visitor keeps one copy.
 fn walk_records_dyn(
     data_group: &DataGroup,
     data: &[u8],
@@ -530,9 +526,6 @@ mod tests {
     #[test]
     fn preserves_raw_sources_and_missing_or_invalid_metadata() {
         use crate::trace::Direction;
-        // A fixed 18-byte record: seconds f64, bus u16, ID u32, DLC u8,
-        // direction u8 (0=Rx, 1=Tx), payload u8, invalidation byte.
-        // The channel names, offsets and values are independent of append_raw_frame.
         for prefix in ["CAN_DataFrame", "CAN_RemoteFrame", "CAN_ErrorFrame"] {
             let channel = |name: &str, offset, bits, data_type| Channel {
                 address: 0,

@@ -22,25 +22,20 @@ import type {
 } from './types.ts';
 
 /**
- * Asynchronous CAN trace client backed by one dedicated worker. The browser entry and the Node
- * entry expose exactly this interface over their own transport.
- *
- * Every method is genuine worker RPC; the worker runs requests strictly serially in call order.
- * Worker startup failure, a crash, or an unexpected exit is fatal for the client: every pending and
- * future operation rejects, every handle is invalidated, and the worker is terminated without
- * restart. Create a new client to recover.
+ * Dedicated-worker client; requests run serially in call order.
+ * Startup failure or a worker crash/exit rejects pending and future operations and invalidates
+ * all handles. Create a new client to recover.
  */
 export type CanTraceClient = {
 	openDbc(input: Uint8Array | string): Promise<OpenDbcResult>;
-	/** Idempotent for handles this client issued; repeat calls resolve without effect. */
+	/** Idempotent for this client's handles. */
 	closeDbc(handle: DbcHandle): Promise<void>;
 	/**
-	 * Parse one trace. `buffer` must be the exact ArrayBuffer holding the file bytes: it is
-	 * transferred to the worker after input preflight and detached in the caller, even when
-	 * parsing fails. Typed-array views are rejected rather than silently copied.
+	 * After input preflight, transfers and detaches `buffer`, even if parsing fails.
+	 * Pass the exact file ArrayBuffer; typed-array views are rejected.
 	 */
 	openTrace(traceType: TraceType, buffer: ArrayBuffer): Promise<OpenTraceResult>;
-	/** Idempotent for handles this client issued; repeat calls resolve without effect. */
+	/** Idempotent for this client's handles. */
 	closeTrace(handle: TraceHandle): Promise<void>;
 	/** Both returned arrays are views over one ArrayBuffer transferred out of the worker. */
 	getSignalValues(
@@ -52,35 +47,23 @@ export type CanTraceClient = {
 	): Promise<DecodedSignalSeries>;
 	getMf4SignalValues(traceHandle: TraceHandle, signalId: number): Promise<DecodedSignalSeries>;
 	/**
-	 * Idempotent. Queues worker-side cleanup behind every previously posted operation, waits for
-	 * its acknowledgement, invalidates every handle, then terminates the worker.
+	 * Idempotent. Waits for queued work and cleanup, invalidates handles, and terminates the worker.
 	 */
 	close(): Promise<void>;
 };
 
-/** Events a transport reports to the shared client core. @internal */
 export type RpcTransportHandlers = {
-	/** One structured-clone payload received from the worker. */
 	message(data: WorkerResponse): void;
-	/** Unrecoverable transport failure: crash, exit, or undeliverable message. */
 	fail(error: Error): void;
 };
 
-/** Worker transport the shared client core drives. @internal */
 export type RpcTransport = {
 	postMessage(message: WorkerRequest, transfer: ArrayBuffer[]): void;
-	/** Stop the worker. Resolves once it is gone; called at most once. */
 	terminate(): Promise<void>;
 };
 
-/** @internal */
 export type RpcTransportFactory = (handlers: RpcTransportHandlers) => RpcTransport;
 
-/**
- * Shared asynchronous client core: request ids, the pending-request table, handle ownership,
- * fatal-failure handling, and close semantics. It knows nothing about Web Workers or worker
- * threads; a transport supplies those. @internal
- */
 export async function createRpcClient(
 	createTransport: RpcTransportFactory,
 	inputLimits?: ParsingLimits
@@ -91,12 +74,10 @@ export async function createRpcClient(
 		number,
 		{ resolve: (value: WorkerOkResult) => void; reject: (error: Error) => void }
 	>();
-	// Request IDs are never recycled.
 	let nextRequestId = 1;
 	let fatalError: Error | null = null;
 	let closePromise: Promise<void> | null = null;
 	let termination: Promise<void> | null = null;
-	// Assigned below, once the handlers it reports to exist.
 	let transport: RpcTransport | null = null;
 
 	let ready!: { resolve: () => void; reject: (error: Error) => void };
@@ -120,7 +101,6 @@ export async function createRpcClient(
 		else entry.reject(fromWireError(response.error));
 	}
 
-	/** Worker failure is terminal for this client: nothing ever restarts the worker. */
 	function fail(error: Error): void {
 		if (fatalError) return;
 		fatalError = error;
@@ -133,7 +113,6 @@ export async function createRpcClient(
 	}
 
 	function terminate(): Promise<void> {
-		// A transport that reports failure while it is still being created has nothing to stop yet.
 		if (!transport) return Promise.resolve();
 		termination ??= transport.terminate();
 		return termination;
@@ -177,10 +156,6 @@ export async function createRpcClient(
 		if (closePromise) throw new Error('client is closed');
 	}
 
-	/**
-	 * After a fatal failure or client close, worker-side cleanup already happened or the whole
-	 * direct client is being torn down; only the local handle mark is needed.
-	 */
 	async function sendClose(body: WorkerRequestBody): Promise<void> {
 		if (fatalError || closePromise) return;
 		await send<null>(body, []);
@@ -192,7 +167,6 @@ export async function createRpcClient(
 		async openDbc(input) {
 			assertOpen();
 			const bytes = dbcBytes(input, limits.maxDbcBytes);
-			// Structured clone copies a view's entire backing buffer, including a Node Buffer pool.
 			const payload =
 				bytes.buffer instanceof ArrayBuffer &&
 				bytes.byteOffset === 0 &&
@@ -256,10 +230,8 @@ export async function createRpcClient(
 				let cleanupError: Error | null = null;
 				if (!fatalError) {
 					try {
-						// Runs after every previously posted request via the worker's serial queue.
 						await send<null>({ op: 'closeClient' }, []);
 					} catch (error) {
-						// A fatal crash mid-close still terminates cleanly below.
 						if (error !== fatalError) {
 							cleanupError = error instanceof Error ? error : new Error(String(error));
 						}
@@ -281,10 +253,6 @@ function unpackSeries(payload: SeriesPayload): DecodedSignalSeries {
 	};
 }
 
-/**
- * Errors keep their diagnostic name and message across the wire. Neither is a stable contract:
- * treat them as diagnostics, not as values to branch on.
- */
 function fromWireError(error: WireError): Error {
 	const rebuilt = new Error(error.message);
 	rebuilt.name = error.name;

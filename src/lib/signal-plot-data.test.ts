@@ -194,7 +194,6 @@ describe('signal plot data', () => {
 	});
 
 	it('does not flag float noise at DBC range boundaries', () => {
-		// 3 * 0.1 === 0.30000000000000004; the displayed 0.3 is exactly at the limit.
 		expect(formatDecodedValue(3 * 0.1, { ...formatContext, maximum: 0.3 })).toEqual({
 			text: '0.3 km/h',
 			outOfRange: false

@@ -150,8 +150,6 @@ fn inflate_zlib(input: &[u8], expected_len: usize) -> Result<Vec<u8>, BlfError> 
         return Err(BlfError::InvalidBlfContainerSize);
     }
 
-    // A full output buffer can hide a truncated checksum. Give the decoder one
-    // byte of temporary headroom to distinguish truncation from excess output.
     output
         .try_reserve_exact(1)
         .map_err(|_| BlfError::OutOfMemory)?;
@@ -646,8 +644,6 @@ fn timestamp_to_ns(flags: u32, raw_timestamp: u64) -> Result<u64, BlfError> {
             .checked_mul(10_000)
             .ok_or(BlfError::InvalidBlfTimestamp);
     }
-    // Vector's object header defaults to nanoseconds. Keep flagless and unknown
-    // units as nanoseconds instead of silently changing their scale.
     Ok(raw_timestamp)
 }
 
@@ -726,8 +722,6 @@ mod tests {
     fn preserves_sources_in_each_raw_object_layout() {
         use crate::trace::Direction;
         let mut objects = Vec::new();
-        // Body offsets below are specified by the BLF object layouts, independently
-        // of the parser: classic/FD channel u16 at 0, flags at 2; FD64 u8 at 0, dir at 34.
         for object_type in [1, 86, 100, 101] {
             let start = objects.len();
             match object_type {

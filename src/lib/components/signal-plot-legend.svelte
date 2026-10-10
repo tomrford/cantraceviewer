@@ -71,14 +71,10 @@
 	const showValues = $derived(crosshairs.length > 0);
 	const multiAxis = $derived(axes.length > 1);
 	const axisTargets = $derived(axes.map((axis) => ({ id: axis.id, label: axis.label })));
-	// The crosshair's y is anchored to the primary axis, so every other axis
-	// reads its own value off the same screen row.
 	const primaryRange = $derived(
 		axes[0] === undefined ? null : (axisRanges.get(axes[0].id) ?? null)
 	);
 
-	// The mode select and the per-signal move menus float above the plot, so any
-	// of them being open has to suspend plot interaction underneath.
 	let selectMenuOpen = $state(false);
 	let openMoveMenus = $state(0);
 	const overlayOpen = $derived(selectMenuOpen || openMoveMenus > 0);
@@ -91,7 +87,6 @@
 		return formatAxisValue(value) ?? '-';
 	}
 
-	/** The crosshair readout for one axis, expressed in that axis's own scale. */
 	function axisCursorText(axisId: YAxisId): string | null {
 		const range = axisRanges.get(axisId);
 		if (range === undefined || primaryRange === null) return null;
@@ -114,8 +109,6 @@
 <div
 	class={[
 		'absolute top-3 right-3 z-50 max-h-[calc(100%-1.5rem)] overflow-auto rounded-lg border border-border/70 bg-popover/90 p-3 text-popover-foreground shadow-sm backdrop-blur',
-		// Axis sections add a grip column and a per-axis readout, so the signal
-		// names need the extra room to stay legible.
 		multiAxis ? 'w-[22rem]' : 'w-80'
 	]}
 >

@@ -1,9 +1,3 @@
-//! Selected signal time-series extraction.
-//!
-//! The WebAssembly boundary asks for one DBC frame identity and signal name,
-//! then receives a packed `f64` buffer containing parallel time and value
-//! arrays: `[time_0, ..., time_n, value_0, ..., value_n]`.
-
 use std::error::Error as StdError;
 use std::fmt;
 
@@ -231,7 +225,6 @@ mod tests {
             ),
             [1.0, 4660.0]
         );
-        // A uniform bucket must still honour the declared format.
         let only_classic = "base hex timestamps absolute\n0.001 1 123 Rx d 2 34 12";
         assert!(
             decode(

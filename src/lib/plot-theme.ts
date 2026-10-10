@@ -1,19 +1,5 @@
-/**
- * Chart chrome resolved from the app's theme tokens.
- *
- * ChartGPU needs literal colour strings: its GPU-side parser accepts `#hex` and
- * comma-separated `rgb()`/`rgba()` and silently falls back on anything else, so
- * the `oklch()` custom properties cannot be handed to it as they are. Reading
- * the tokens and converting here keeps one source of truth for the plot's
- * colours — the same tokens Tailwind classes resolve to — instead of a second
- * set of hex literals that drifts from the stylesheet.
- */
-
-/** Chart chrome roles mapped to the custom properties they take their value from. */
 const PLOT_THEME_TOKENS = {
 	background: '--background',
-	// Axis labels and ticks are chrome, not content, so they take the muted
-	// foreground both axes' labels are already styled with.
 	text: '--muted-foreground',
 	axisLine: '--border',
 	axisTick: '--muted-foreground',
@@ -24,7 +10,6 @@ const PLOT_THEME_TOKENS = {
 export type PlotThemeRole = keyof typeof PLOT_THEME_TOKENS;
 export type PlotTheme = { [Role in PlotThemeRole]: string };
 
-/** Fallbacks for a document that has not applied the stylesheet yet. */
 export const FALLBACK_PLOT_THEME = {
 	background: '#ffffff',
 	text: '#71717a',
@@ -49,11 +34,6 @@ export function resolvePlotTheme(styles: Pick<CSSStyleDeclaration, 'getPropertyV
 	return theme;
 }
 
-/**
- * Narrows a CSS colour to what ChartGPU can parse. Hex and legacy `rgb()` pass
- * through; `oklch()` is converted; anything else is refused so the caller keeps
- * its fallback rather than handing over a string that silently renders black.
- */
 export function toChartColor(value: string): string | null {
 	const text = value.trim();
 	if (/^#[0-9a-f]{3,8}$/i.test(text)) return text;
@@ -82,7 +62,6 @@ function parseOklch(value: string): Oklch | null {
 	return { lightness, chroma, hue, alpha };
 }
 
-/** Parses `0.5` or `50%`, where a percentage is that fraction of `fullScale`. */
 function numberOrPercent(text: string, fullScale: number): number | null {
 	const percent = text.endsWith('%');
 	const parsed = Number.parseFloat(percent ? text.slice(0, -1) : text);
@@ -90,7 +69,6 @@ function numberOrPercent(text: string, fullScale: number): number | null {
 	return percent ? (parsed / 100) * fullScale : parsed;
 }
 
-/** Oklch to sRGB, per CSS Color 4. Returns 0-255 channels. */
 function oklchToSrgb({ lightness, chroma, hue }: Oklch): [number, number, number] {
 	const radians = (hue * Math.PI) / 180;
 	const a = chroma * Math.cos(radians);
