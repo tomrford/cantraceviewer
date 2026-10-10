@@ -25,7 +25,7 @@ On opening a target and whenever identity/health looks wrong, perform one read-o
 
 Require the intended origin, `CAN Trace Viewer`, `Load trace`, `Open signal selector` and no unexplained page/Worker errors. Verify preview SHA externally: page title does not identify a revision. Locally record `git rev-parse HEAD`, dirty state and the retained server session. No account or seed service is required.
 
-**GPU scope:** browsers without GPU acceleration, particularly cloud agents, can likely test only a subset. Load/select a known signal, then inspect screenshot and logs for ChartGPU startup failure. A canvas, available tools or successful decoding does not prove rendering. If startup fails, record the actual error and mark plot shape, gutters/axes, gestures, marker rendering and image export blocked pending a GPU-capable browser. Imports, library/search, help/settings and bounded numerical tools may still work; verify each independently. Do not mock the canvas, patch ChartGPU or silently use software rendering to claim equivalent visual proof.
+**GPU scope:** browsers without GPU acceleration, particularly cloud agents, can likely test only a subset. Load/select a known signal, then inspect screenshot and logs for ChartGPU startup failure. A canvas, available tools or successful decoding does not prove rendering. If startup fails, record the actual error and mark plot shape, gutters/axes, gestures, marker rendering and image export blocked pending a GPU-capable browser. Imports, library/search, help/settings, DOM legend ordering and bounded numerical tools may still work; verify each independently. Do not mock the canvas, patch ChartGPU or silently use software rendering to claim equivalent visual proof.
 
 ## Drive
 

@@ -23,7 +23,7 @@ Preconditions: GPU doctor passed; demo vehicle_speed and engine_rpm selected/dec
 - **Zoom:** capture fit, click `Zoom in`, require narrower time range/changed image; zoom out/reset and confirm fit. Tool path: set window `startMs:10,endMs:110`, inspect session and screenshot; reset with no bounds.
 - **Gestures:** locate interior from current screenshot, scroll, pan by drag, activate box zoom and drag a rectangle. Record endpoints and before/after ranges. Y gestures move every axis by the same proportion of its own fit range. Test keys/context menu/palette separately when affected.
 - **Legend:** hide/show, confirm visibility and unchanged selection/colour.
-- **Axes:** observed `Move … to another Y axis` for engine_rpm → `New Y axis`; require Y1/Y2 grouping and separate scales/gutters. Move via `Y1`. Deselect releases assignment/colour but retains empty axis; reselect starts Y1. Add axes until five; no sixth available. Remove extra via `Remove Y…` and inspect reassignment.
+- **Axes:** click `Add Y axis` to create Y2, then open the observed `Move … to another Y axis` control for engine_rpm and choose `Y2`; require Y1/Y2 grouping and separate scales/gutters. The move control appears only once multiple axes exist; `New Y axis` creates an additional axis. Move via `Y1`. Deselect releases assignment/colour but retains empty axis; reselect starts Y1. Add axes until five; no sixth available. Remove extra via `Remove Y…` and inspect reassignment.
 - **Tools/drag:** discovered keys with `set_signal_axes` to Y2; inspect session and pixels. Independently prove legend drag with documented native/browser drag capability, otherwise report not run. Move-menu proof cannot establish drag.
 
 ## Gotchas
