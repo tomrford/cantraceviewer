@@ -99,6 +99,7 @@ class DbcFilesStore {
 	isLoading = $state(false);
 	error = $state<string | null>(null);
 	hasLoadedLibrary = $state(false);
+	private libraryOperation = Promise.resolve();
 
 	signalTargetByKey = $derived.by(() => buildSignalTargetIndex(this.files));
 
@@ -185,11 +186,13 @@ class DbcFilesStore {
 		});
 	}
 
-	async addFiles(files: Iterable<File>): Promise<void> {
-		if (this.isLoading) return;
+	addFiles(files: Iterable<File>): Promise<void> {
+		if (this.isLoading) return Promise.resolve();
+		return this.runLibraryOperation(() => this.importFiles(files));
+	}
 
+	private async importFiles(files: Iterable<File>): Promise<void> {
 		this.error = null;
-		this.isLoading = true;
 		const candidates: DbcCandidate[] = [];
 		const seenIds: Record<string, true> = {};
 		for (const file of this.files) {
@@ -213,8 +216,6 @@ class DbcFilesStore {
 		} catch (error) {
 			await closeEntries(candidates.map((candidate) => candidate.entry));
 			this.error = error instanceof Error ? error.message : 'DBC load failed';
-		} finally {
-			this.isLoading = false;
 		}
 	}
 
@@ -261,22 +262,26 @@ class DbcFilesStore {
 		await Promise.all(handles.map((handle) => closeDbc(handle)));
 	}
 
-	async resetLibrary(): Promise<void> {
-		this.error = null;
-		this.hasLoadedLibrary = true;
-		await this.clear();
-		await resetStoredDbcs();
+	resetLibrary(): Promise<void> {
+		return this.runLibraryOperation(async () => {
+			this.error = null;
+			this.hasLoadedLibrary = true;
+			await this.clear();
+			await resetStoredDbcs();
+		});
 	}
 
 	clearError(): void {
 		this.error = null;
 	}
 
-	async loadLibrary(): Promise<void> {
-		if (this.hasLoadedLibrary || this.isLoading) return;
+	loadLibrary(): Promise<void> {
+		if (this.hasLoadedLibrary || this.isLoading) return Promise.resolve();
+		return this.runLibraryOperation(() => this.readLibrary());
+	}
 
+	private async readLibrary(): Promise<void> {
 		this.error = null;
-		this.isLoading = true;
 
 		const candidates: DbcFileEntry[] = [];
 		const failedNames: string[] = [];
@@ -297,8 +302,18 @@ class DbcFilesStore {
 			this.error = 'Saved DBC library could not be read.';
 		} finally {
 			this.hasLoadedLibrary = true;
-			this.isLoading = false;
 		}
+	}
+
+	// Reset runs after an in-flight read/import, including its persistent writes.
+	// Keep the loading gate held until the last queued operation has finished.
+	private runLibraryOperation(action: () => Promise<void>): Promise<void> {
+		this.isLoading = true;
+		const operation = this.libraryOperation.then(action, action);
+		this.libraryOperation = operation;
+		return operation.finally(() => {
+			if (this.libraryOperation === operation) this.isLoading = false;
+		});
 	}
 
 	private async storedFile(file: File): Promise<StoredDbc> {
