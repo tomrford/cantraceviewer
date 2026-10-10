@@ -4,6 +4,7 @@ import {
 	closeDbc,
 	openDbc,
 	type DbcHandle,
+	type DbcDiagnostic,
 	type DbcMessage,
 	type DbcMessageIdentity,
 	type DbcSignal,
@@ -27,6 +28,7 @@ export type DbcFileEntry = {
 	name: string;
 	handle: DbcHandle;
 	catalog: ParsedDbc;
+	warnings: DbcDiagnostic[];
 	origin: 'library' | 'mf4';
 };
 
@@ -306,18 +308,18 @@ class DbcFilesStore {
 		this.error = null;
 
 		const candidates: DbcFileEntry[] = [];
-		const failedNames: string[] = [];
+		const failures: string[] = [];
 		try {
 			for (const dbc of await listStoredDbcs()) {
 				try {
 					candidates.push((await this.openStoredDbc(dbc)).entry);
-				} catch {
-					failedNames.push(dbc.name);
+				} catch (error) {
+					failures.push(error instanceof Error ? error.message : `${dbc.name}: DBC load failed`);
 				}
 			}
 
 			this.files = [...candidates, ...this.files.filter((file) => file.origin === 'mf4')];
-			this.error = failedNames.length > 0 ? failedStoredDbcMessage(failedNames) : null;
+			this.error = failures.length > 0 ? failures.join('\n') : null;
 		} catch {
 			await closeEntries(candidates);
 			this.files = this.files.filter((file) => file.origin === 'mf4');
@@ -351,7 +353,9 @@ class DbcFilesStore {
 		dbc: StoredDbc,
 		origin: DbcFileEntry['origin'] = 'library'
 	): Promise<DbcCandidate> {
-		const { handle, catalog } = await openDbc(dbc.bytes ?? dbc.text);
+		const { handle, catalog, warnings } = await openDbc(dbc.bytes ?? dbc.text).catch((error) => {
+			throw new Error(`${dbc.name}: ${error instanceof Error ? error.message : 'DBC load failed'}`);
+		});
 
 		try {
 			assertUniqueMessageIdentities(dbc.name, catalog);
@@ -361,6 +365,7 @@ class DbcFilesStore {
 					name: dbc.name,
 					handle,
 					catalog,
+					warnings,
 					origin
 				},
 				stored: dbc
@@ -370,14 +375,6 @@ class DbcFilesStore {
 			throw error;
 		}
 	}
-}
-
-function failedStoredDbcMessage(names: string[]): string {
-	if (names.length === 1) {
-		return `Saved DBC "${names[0]}" failed to load.`;
-	}
-
-	return `${names.length} saved DBC files failed to load: ${names.join(', ')}.`;
 }
 
 function assertDbcFileName(file: File): void {

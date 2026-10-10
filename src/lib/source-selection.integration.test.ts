@@ -20,6 +20,7 @@ import { traceFile } from './stores/trace-file.svelte.js';
 import { plotData } from './stores/plot-data.svelte.js';
 import { searchCatalogSignals } from './webmcp-tools.js';
 import { closeTrace } from './wasm.js';
+import * as library from './stores/dbc-library.js';
 
 const fixture = async (name: string) =>
 	new File([await readFile(`wasm/tests/fixtures/${name}`)], name);
@@ -78,6 +79,67 @@ describe('published package app integration', () => {
 		await dbcFiles.removeFile(dbcFiles.files[0].id);
 		expect(plotData.signals).toEqual([]);
 		expect(dbcFiles.selectorFiles).toEqual([]);
+	});
+	it('retains positioned diagnostics through upload, reload and embedded imports while decoding usable signals', async () => {
+		plotData.clearSelectedSignals();
+		await dbcFiles.clear();
+		expect(await traceFile.openFile(await fixture('source-selection.asc'))).toBe(true);
+		const input = await fixture('partial-load.dbc');
+		const bytes = new Uint8Array(await input.arrayBuffer());
+		const expectedWarnings = [
+			{
+				category: 'omitted-feature',
+				keyword: 'SG_',
+				line: 16,
+				column: 2,
+				message:
+					'Integer signal or multiplex selector wider than 64 bits is omitted from the viewer catalogue.'
+			},
+			{
+				category: 'dangling-reference',
+				keyword: 'VAL_',
+				line: 18,
+				column: 3,
+				message: 'Unknown message; attachment was ignored.'
+			}
+		];
+		const checkEntry = () => {
+			const entry = dbcFiles.files[0];
+			expect(entry.name).toBe('partial-load.dbc');
+			expect(entry.warnings).toEqual(expectedWarnings);
+			expect(entry.catalog.messages).toHaveLength(8);
+			expect(entry.catalog.messages.flatMap((m) => m.signals)).toHaveLength(8);
+			expect(dbcFiles.selectorFiles[0].messages).toHaveLength(14);
+			expect(dbcFiles.error).toBeNull();
+		};
+		await dbcFiles.addFiles([input]);
+		checkEntry();
+		const key = dbcFiles.selectorFiles[0].messages[0].signals[0].key;
+		await plotData.toggleSignal(key);
+		expect(plotData.signals[0].series?.values[0]).toBe(10);
+		plotData.clearSelectedSignals();
+		await dbcFiles.clear();
+		// Node has no IndexedDB: substitute only the storage read, retaining real parsing.
+		const stored = vi
+			.spyOn(library, 'listStoredDbcs')
+			.mockResolvedValueOnce([{ id: 'saved-partial', name: input.name, bytes }]);
+		dbcFiles.hasLoadedLibrary = false;
+		await dbcFiles.loadLibrary();
+		stored.mockRestore();
+		checkEntry();
+		await dbcFiles.clear();
+		expect(
+			await traceFile.openFile(new File([await compressedAttachment(bytes)], 'partial.mf4'))
+		).toBe(true);
+		await dbcFiles.addTransientDbcs(traceFile.entry!.id, traceFile.entry!.embeddedDbcs);
+		expect(dbcFiles.files[0].warnings).toEqual(expectedWarnings);
+		expect(dbcFiles.files[0].catalog.messages).toHaveLength(8);
+		expect(dbcFiles.files[0].origin).toBe('mf4');
+		await dbcFiles.clear();
+		await dbcFiles.addFiles([await fixture('malformed-source.dbc')]);
+		expect(dbcFiles.files).toEqual([]);
+		expect(dbcFiles.error).toContain('malformed-source.dbc');
+		expect(dbcFiles.error).toContain('2:3: SG_');
 	});
 	it('accepts original Windows-1252 bytes at the exact app DBC cap and rejects over-cap before reading', async () => {
 		const bytes = await readFile('wasm/tests/fixtures/encoding-windows1252.dbc');

@@ -49,7 +49,7 @@ describe('dbcFiles', () => {
 		expect(openDbcMock).toHaveBeenCalledWith(new TextEncoder().encode('BO_ 1 Broken: 8 ECU'));
 		expect(closeDbcMock).not.toHaveBeenCalled();
 		expect(dbcFiles.files).toEqual([]);
-		expect(dbcFiles.error).toBe('catalog failed');
+		expect(dbcFiles.error).toBe('broken.dbc: catalog failed');
 		expect(dbcFiles.isLoading).toBe(false);
 	});
 
@@ -120,7 +120,7 @@ describe('dbcFiles', () => {
 		openDbcMock.mockRejectedValueOnce(new Error('embedded catalog failed'));
 
 		await dbcFiles.addTransientDbcs(42, [embeddedDbc('broken.dbc', 'broken')]);
-		expect(dbcFiles.error).toBe('embedded catalog failed');
+		expect(dbcFiles.error).toBe('broken.dbc: embedded catalog failed');
 
 		await dbcFiles.addTransientDbcs(43, []);
 
@@ -583,7 +583,7 @@ describe('dbcFiles', () => {
 		expect(closeDbcMock).not.toHaveBeenCalled();
 		expect(resetStoredDbcsMock).not.toHaveBeenCalled();
 		expect(dbcFiles.hasLoadedLibrary).toBe(true);
-		expect(dbcFiles.error).toBe('Saved DBC "bad.dbc" failed to load.');
+		expect(dbcFiles.error).toBe('bad.dbc: cached DBC failed');
 	});
 
 	it('surfaces storage-level library read failures without resetting storage', async () => {
@@ -708,7 +708,8 @@ describe('dbcFiles', () => {
 				name: 'stored.dbc',
 				handle,
 				catalog: catalog(message({ name: 'Stored' })),
-				origin: 'library'
+				origin: 'library',
+				warnings: []
 			}
 		];
 		dbcFiles.error = 'previous error';
@@ -758,7 +759,8 @@ function dbcEntry({
 		name,
 		handle,
 		catalog: catalog(...messages),
-		origin: 'library'
+		origin: 'library',
+		warnings: []
 	};
 }
 

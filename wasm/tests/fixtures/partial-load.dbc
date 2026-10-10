@@ -1,0 +1,18 @@
+BO_ 256 BusOnly: 1 ECU
+ SG_ Value : 0|8@1+ (1,0) [0|255] "" ECU
+BO_ 257 DirectionOnly: 1 ECU
+ SG_ Value : 0|8@1+ (1,0) [0|255] "" ECU
+BO_ 258 Both: 1 ECU
+ SG_ Value : 0|8@1+ (1,0) [0|255] "" ECU
+BO_ 259 Observed: 1 ECU
+ SG_ Value : 0|8@1+ (1,0) [0|255] "" ECU
+BO_ 2147483904 Extended: 1 ECU
+ SG_ Value : 0|8@1+ (1,0) [0|255] "" ECU
+BO_ 260 UnknownChannel: 1 ECU
+ SG_ Value : 0|8@1+ (1,0) [0|255] "" ECU
+BO_ 261 UnknownDirection: 1 ECU
+ SG_ Value : 0|8@1+ (1,0) [0|255] "" ECU
+BO_ 291 FD: 64 ECU
+ SG_ Raw : 0|512@1+ (1,0) [0|0] "" ECU
+ SG_ Scalar : 504|8@1+ (2,-1) [0|509] "" ECU
+  VAL_ 999 Missing 0 "Ignored";
