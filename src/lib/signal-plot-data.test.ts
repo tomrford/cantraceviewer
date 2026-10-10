@@ -28,6 +28,7 @@ function view(x: number[], y: number[] = x): SignalView {
 		x: new Float64Array(x),
 		y: new Float64Array(y),
 		points: x.length,
+		valueType: 'integer' as const,
 		factor: 1,
 		offset: 0,
 		minimum: 0,
@@ -38,6 +39,7 @@ function view(x: number[], y: number[] = x): SignalView {
 
 const formatContext = {
 	unit: 'km/h',
+	valueType: 'integer' as const,
 	factor: 0.1,
 	offset: 0,
 	minimum: 0,
@@ -168,6 +170,74 @@ describe('signal plot data', () => {
 		expect(isOutsideDbcRange(999, 0, 0)).toBe(false);
 	});
 
+	it('preserves fractional floating-point values, deltas and range checks', () => {
+		const floating = {
+			...view([0, 10], [12.34, 12.49]),
+			valueType: 'float64' as const,
+			unit: 'V',
+			maximum: 12.4
+		};
+		expect(crosshairValue(floating, 0)).toEqual({
+			key: 'signal',
+			text: '12.34 V',
+			outOfRange: false
+		});
+		expect(crosshairValue(floating, 10)).toEqual({
+			key: 'signal',
+			text: '12.49 V',
+			outOfRange: true
+		});
+		expect(crosshairDeltaValue(floating, 0, 10)).toEqual({
+			key: 'signal',
+			text: '0.15 V',
+			outOfRange: false
+		});
+		expect(formatDecodedValue(12.34, { ...floating, valueType: 'float32' }).text).toBe('12.34 V');
+		expect(formatLegendNumericValue(0.00001234567, null)).toBe('0.00001234567');
+
+		const floatBoundary = {
+			...floating,
+			valueType: 'float32' as const,
+			minimum: -0.1,
+			maximum: 0.1
+		};
+		expect(formatDecodedValue(Math.fround(0.1), floatBoundary)).toEqual({
+			text: '0.1 V',
+			outOfRange: false
+		});
+		expect(formatDecodedValue(Math.fround(-0.1), floatBoundary)).toEqual({
+			text: '-0.1 V',
+			outOfRange: false
+		});
+		expect(formatDecodedValue(Math.fround(0.100001), floatBoundary).outOfRange).toBe(true);
+		expect(formatDecodedValue(Math.fround(-0.100001), floatBoundary).outOfRange).toBe(true);
+
+		const preciseBounds = {
+			...floating,
+			minimum: 0.12345674,
+			maximum: 0.12345676
+		};
+		expect(formatDecodedValue(0.12345674, preciseBounds).outOfRange).toBe(false);
+		expect(formatDecodedValue(0.12345676, preciseBounds).outOfRange).toBe(false);
+		expect(formatDecodedValue(0.12345665, preciseBounds)).toEqual({
+			text: '0.1234567 V',
+			outOfRange: false
+		});
+		expect(formatDecodedValue(0.1234566, preciseBounds).outOfRange).toBe(true);
+		expect(formatDecodedValue(0.1234569, preciseBounds).outOfRange).toBe(true);
+	});
+
+	it('treats absent bounds as unspecified for positive and negative native values', () => {
+		const context = {
+			...formatContext,
+			valueType: 'float64' as const,
+			minimum: null,
+			maximum: null
+		};
+		expect(formatDecodedValue(-12.34, context)).toEqual({ text: '-12.34 km/h', outOfRange: false });
+		expect(formatDecodedValue(12.34, context)).toEqual({ text: '12.34 km/h', outOfRange: false });
+	});
+
 	it('pads legend decimals to the chosen resolution', () => {
 		expect(formatLegendNumericValue(12, 0.01)).toBe('12.00');
 		expect(formatLegendNumericValue(300, 0.1)).toBe('300.0');
@@ -178,6 +248,7 @@ describe('signal plot data', () => {
 		expect(
 			formatDecodedValue(12.5, {
 				...formatContext,
+				valueType: 'integer' as const,
 				factor: 1,
 				offset: 0.5
 			})

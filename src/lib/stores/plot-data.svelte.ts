@@ -8,11 +8,13 @@ import {
 	getMf4SignalValues,
 	getSignalValues,
 	type DecodedSignalSeries,
+	type DbcValueType,
 	type DbcValueDescription
 } from '$lib/wasm.js';
 import { SvelteMap } from 'svelte/reactivity';
 
 type PlotSignalKey = string;
+const NO_VALUE_DESCRIPTIONS: DbcValueDescription[] = [];
 
 type SelectedSignalState = {
 	status: 'idle' | 'decoding' | 'ready' | 'error';
@@ -26,10 +28,11 @@ export type PlotSignal = {
 	label: string;
 	messageName: string;
 	signalName: string;
+	valueType: DbcValueType;
 	factor: number;
 	offset: number;
-	minimum: number;
-	maximum: number;
+	minimum: number | null;
+	maximum: number | null;
 	unit: string;
 	valueDescriptions: DbcValueDescription[];
 	series: DecodedSignalSeries | null;
@@ -58,6 +61,7 @@ class PlotDataStore {
 					messageName: target.value.message.name,
 					signalName: target.value.signal.name,
 					unit: target.value.signal.unit,
+					valueType: target.value.signal.valueType,
 					factor: target.value.signal.factor,
 					offset: target.value.signal.offset,
 					minimum: target.value.signal.minimum,
@@ -73,11 +77,12 @@ class PlotDataStore {
 					messageName: target.value.group.name,
 					signalName: target.value.signal.name,
 					unit: target.value.signal.unit,
+					valueType: 'float64',
 					factor: 1,
 					offset: 0,
-					minimum: Number.NaN,
-					maximum: Number.NaN,
-					valueDescriptions: [],
+					minimum: null,
+					maximum: null,
+					valueDescriptions: NO_VALUE_DESCRIPTIONS,
 					series: state.series
 				});
 			}
