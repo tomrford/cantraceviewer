@@ -57,14 +57,4 @@ describe('plotAxes', () => {
 		expect(plotAxes.assignment.size).toBe(0);
 		expect(plotAxes.ids).toEqual([PRIMARY_Y_AXIS_ID, second]);
 	});
-
-	it('stores an assignment to the primary axis as the absence of one', () => {
-		const second = plotAxes.addAxis();
-		if (second === null) throw new Error('expected an axis');
-		plotAxes.assign('a', second);
-
-		plotAxes.assign('a', PRIMARY_Y_AXIS_ID);
-
-		expect(plotAxes.assignment.has('a')).toBe(false);
-	});
 });

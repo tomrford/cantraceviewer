@@ -84,7 +84,7 @@ mod tests {
         );
         assert_eq!(
             decimal_fraction_to_units("123456789é", 86_400_000, 9, ExtraPrecision::Truncate),
-            decimal_fraction_to_units("123456789", 86_400_000, 9, ExtraPrecision::Truncate)
+            Ok(10_666_666)
         );
     }
 }

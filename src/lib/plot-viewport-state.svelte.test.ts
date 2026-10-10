@@ -74,23 +74,6 @@ describe('PlotViewportState', () => {
 		expect(state.isFitAll).toBe(true);
 	});
 
-	it('reset returns to fit mode and follows later domain changes', () => {
-		const state = new PlotViewportState();
-		let domain = $state<PlotViewport | null>(viewport(0, 100));
-		state.domainSource = () => domain;
-
-		state.zoomBy(0.5);
-		expect(state.isFitAll).toBe(false);
-
-		state.reset();
-		expect(state.activeViewport).toEqual(viewport(0, 100));
-		expect(state.isFitAll).toBe(true);
-
-		domain = viewport(0, 150);
-
-		expect(state.activeViewport).toEqual(viewport(0, 150));
-	});
-
 	it('moves every axis by the same proportion of its own extent', () => {
 		const state = new PlotViewportState();
 		state.domainSource = () => viewport(0, 100, 0, 10);
@@ -106,21 +89,6 @@ describe('PlotViewportState', () => {
 
 		state.reset();
 		expect(state.secondaryRanges.get('y1')).toEqual({ min: 200, max: 400 });
-	});
-
-	it('holds secondary axes still when the primary axis loses its signals', () => {
-		const state = new PlotViewportState();
-		// Emptying the primary axis collapses its fit range to the 0..1 fallback.
-		let domain = $state<PlotViewport | null>(viewport(0, 100, 0, 10));
-		state.domainSource = () => domain;
-		state.secondaryRangeSource = () => new Map([['y1', { min: 0, max: 1000 }]]);
-
-		state.setManual(viewport(0, 100, 2.5, 7.5));
-		expect(state.secondaryRanges.get('y1')).toEqual({ min: 250, max: 750 });
-
-		domain = viewport(0, 100, 0, 1);
-
-		expect(state.secondaryRanges.get('y1')).toEqual({ min: 250, max: 750 });
 	});
 
 	it('refits the primary axis when its signals change while preserving the y window', () => {

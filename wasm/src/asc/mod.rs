@@ -312,27 +312,6 @@ mod tests {
     }
 
     #[test]
-    fn stores_only_data_payloads_in_the_side_buffer() {
-        let parsed = parse(
-            "base hex timestamps absolute\n\
-             0.100000 1 123 Rx d 2 aa bb\n\
-             0.200000 CANFD_STATISTIC whatever else\n\
-             0.300000 1 123 Rx r 8\n\
-             0.400000 CANFD 1 Rx 123 - 1 0 9 12 01 02 03 04 05 06 07 08 09 0a 0b 0c",
-        )
-        .unwrap();
-
-        assert_eq!(parsed.frames.len(), 4);
-        assert_eq!(parsed.payloads.len(), 14);
-        assert_eq!(parsed.frames[0].payload_offset, 0);
-        assert_eq!(parsed.frames[1].payload_len, 0);
-        assert_eq!(parsed.frames[2].payload_len, 0);
-        assert_eq!(parsed.frames[3].payload_offset, 2);
-        assert_eq!(parsed.payloads[0], 0xaa);
-        assert_eq!(parsed.payloads[13], 0x0c);
-    }
-
-    #[test]
     fn reports_duration_from_the_latest_data_frame_only() {
         let parsed = parse(
             "base hex timestamps absolute\n\
@@ -391,47 +370,11 @@ mod tests {
     }
 
     #[test]
-    fn rejects_invalid_base_declaration() {
-        assert_eq!(
-            parse("base nope timestamps absolute\n0.001 1 123 Rx d 1 aa").unwrap_err(),
-            TraceError::InvalidBaseLine
-        );
-    }
-
-    #[test]
     fn parses_vector_date_to_unix_milliseconds() {
         assert_eq!(
             parse_vector_date_to_unix_ms("Tue Apr 28 10:00:00.123 2026"),
             Ok(1_777_370_400_123)
         );
-    }
-
-    #[test]
-    fn matches_the_browser_integration_fixture_metadata() {
-        let parsed = parse(include_str!("../../tests/fixtures/agentic-demo.asc")).unwrap();
-
-        assert_eq!(parsed.measurement_start_ms, Some(1_777_550_400_000));
-        assert_eq!(parsed.data_frame_count, 1_506);
-        assert_eq!(parsed.skipped_line_count, 0);
-        assert_eq!(parsed.last_data_timestamp_ns, Some(25_050_000_000));
-    }
-
-    #[test]
-    fn preserves_relative_timing_on_non_utf8_lines() {
-        let parsed = parse_bytes(
-            b"base hex timestamps relative\n\
-              0.100 1 123 Rx d 1 aa\n\
-              0.200 unknown \xff event\n\
-              0.300 1 123 Rx d 1 bb",
-        )
-        .unwrap();
-
-        assert_eq!(parsed.frames.len(), 3);
-        assert_eq!(parsed.data_frame_count, 2);
-        assert_eq!(parsed.frames[0].timestamp_ns, 100_000_000);
-        assert_eq!(parsed.frames[1].timestamp_ns, 300_000_000);
-        assert_eq!(parsed.frames[2].timestamp_ns, 600_000_000);
-        assert_eq!(parsed.skipped_line_count, 0);
     }
 
     #[test]

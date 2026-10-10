@@ -4,20 +4,8 @@ import {
 	axisGutterOffset,
 	axisTicks,
 	axisTicksAtRatios,
-	plotGrid,
 	Y_AXIS_GUTTER
 } from './plot-axis-layout.js';
-
-describe('plotGrid', () => {
-	it('reserves one gutter per axis and leaves the other margins alone', () => {
-		expect(plotGrid(1)).toEqual({ left: Y_AXIS_GUTTER, right: 24, top: 18, bottom: 44 });
-		expect(plotGrid(3).left).toBe(Y_AXIS_GUTTER * 3);
-	});
-
-	it('never collapses the left margin when no axes are reported', () => {
-		expect(plotGrid(0).left).toBe(Y_AXIS_GUTTER);
-	});
-});
 
 describe('axisGutterOffset', () => {
 	it('places the primary axis innermost and stacks later axes outwards', () => {

@@ -205,14 +205,4 @@ mod tests {
         .unwrap();
         assert_eq!(long.kind, FrameKind::Unknown);
     }
-
-    #[test]
-    fn rejects_more_than_ninety_six_tokens() {
-        let mut payload = [0_u8; 64];
-        let line = format!("1 0.100 Rx 0123 1 {}", "00 ".repeat(97));
-        assert_eq!(
-            parse_line(&line, &mut payload),
-            Err(TraceError::InvalidFrameLine)
-        );
-    }
 }

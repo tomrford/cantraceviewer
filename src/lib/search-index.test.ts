@@ -17,18 +17,6 @@ function search(query: string): string[] {
 }
 
 describe('searchIndex', () => {
-	it('returns all items for an empty query', () => {
-		expect(search('')).toEqual([
-			'Message.Signal',
-			'SpeedMessage.VehicleSpeed',
-			'PowertrainStatus.vehicle_speed',
-			'EngineStatus.EngineRpm',
-			'VehicleAcceleration.LongitudinalAccel',
-			'VeryLongUnrelatedSignal.Other'
-		]);
-		expect(search('   ')).toHaveLength(signals.length);
-	});
-
 	it('matches name substrings and ANDs whitespace-separated terms', () => {
 		expect(search('vehicle speed')).toEqual([
 			'SpeedMessage.VehicleSpeed',

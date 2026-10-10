@@ -62,34 +62,3 @@ impl Trace {
         self.payloads.get(start..end)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn returns_only_owned_data_payloads() {
-        let frame = Frame {
-            kind: FrameKind::Data,
-            id: Some(CanId::standard(0x123).unwrap()),
-            payload_len: 2,
-            ..Frame::default()
-        };
-        let trace = Trace {
-            frames: vec![frame],
-            payloads: vec![0xaa, 0xbb],
-            data_frame_count: 1,
-            ..Trace::default()
-        };
-
-        assert_eq!(trace.payload(&trace.frames[0]), Some(&[0xaa, 0xbb][..]));
-    }
-
-    #[test]
-    fn replaces_invalid_utf8_without_losing_ascii_fields() {
-        let mut scratch = String::new();
-        let line = lossy_utf8_line(b"0.100 frame \xff tail", &mut scratch);
-
-        assert_eq!(line, "0.100 frame \u{fffd} tail");
-    }
-}

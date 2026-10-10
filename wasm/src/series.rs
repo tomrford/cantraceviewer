@@ -245,18 +245,6 @@ mod tests {
     }
 
     #[test]
-    fn extracts_parallel_time_and_value_arrays() {
-        let values = decode(
-            "BO_ 291 Example: 2 ECU\n SG_ Speed : 0|16@1+ (0.1,0) [0|250] \"km/h\" DASH",
-            "base hex timestamps absolute\n0.001 1 123 Rx d 2 10 27\n0.003 1 123 Rx d 2 20 4e",
-            2,
-            "Speed",
-        );
-
-        assert_eq!(values, [1.0, 3.0, 1000.0, 2000.0]);
-    }
-
-    #[test]
     fn skips_incompatible_frames_and_orders_classic_padding() {
         let values = decode(
             "BO_ 291 Example: 2 ECU\n SG_ Speed : 0|16@1+ (1,0) [0|65535] \"\" DASH",

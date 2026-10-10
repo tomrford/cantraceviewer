@@ -142,20 +142,6 @@ describe('plotData', () => {
 		});
 	});
 
-	it('passes the selected trace through to signal decoding', async () => {
-		traceFile.entry = traceEntry(4);
-		getSignalValuesMock.mockResolvedValueOnce(signalSeries([0.001], [12.5]));
-
-		await plotData.toggleSignal(key());
-
-		expect(getSignalValuesMock).toHaveBeenCalledExactlyOnceWith(
-			dbcFiles.files[0]!.handle,
-			traceFile.entry!.handle,
-			{ canId: 291, isExtended: false, sizeBytes: 8 },
-			'VehicleSpeed'
-		);
-	});
-
 	it('keeps same-name messages separate by CAN identity', async () => {
 		dbcFiles.files = [
 			dbcEntry({

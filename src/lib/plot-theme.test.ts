@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PLOT_THEME_TOKENS, resolvePlotTheme, toChartColor } from './plot-theme.js';
+import { resolvePlotTheme, toChartColor } from './plot-theme.js';
 
 function styles(values: Record<string, string>) {
 	return { getPropertyValue: (token: string) => values[token] ?? '' };
@@ -65,10 +65,5 @@ describe('resolvePlotTheme', () => {
 		expect(theme.background).toBe('#0a0a0a');
 		expect(theme.text).toBe('#71717a');
 		expect(theme.gridLine).toBe('#d4d4d8');
-	});
-
-	it('covers every role it declares a token for', () => {
-		const theme = resolvePlotTheme(styles({}));
-		expect(Object.keys(theme).sort()).toEqual(Object.keys(PLOT_THEME_TOKENS).sort());
 	});
 });

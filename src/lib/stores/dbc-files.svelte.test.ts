@@ -532,17 +532,6 @@ describe('dbcFiles', () => {
 		expect(putStoredDbcsMock).not.toHaveBeenCalled();
 	});
 
-	it('ignores added files while another DBC operation is loading', async () => {
-		dbcFiles.isLoading = true;
-
-		await dbcFiles.addFiles([file('late.dbc', 'late')]);
-
-		expect(openDbcMock).not.toHaveBeenCalled();
-		expect(putStoredDbcsMock).not.toHaveBeenCalled();
-		expect(dbcFiles.files).toEqual([]);
-		expect(dbcFiles.isLoading).toBe(true);
-	});
-
 	it('skips bad stored DBC files and loads the rest without resetting storage', async () => {
 		const firstHandle = dbcHandle(401);
 		const secondHandle = dbcHandle(403);

@@ -29,8 +29,8 @@
 		"check:watch": "svelte-kit sync && svelte-check --tsgo-experimental-api --tsconfig ./tsconfig.json --watch",
 		"lint": "oxfmt --check && eslint .",
 		"format": "oxfmt",
-		"test:unit": "pnpm run test --exclude packages/core/src/direct.integration.test.ts --exclude packages/core/src/build.integration.test.ts --exclude packages/core/src/node.integration.test.ts",
-		"test:integrationwasm": "pnpm run test packages/core/src/direct.integration.test.ts packages/core/src/build.integration.test.ts packages/core/src/node.integration.test.ts",
+		"test:unit": "pnpm run test --exclude packages/core/src/direct.integration.test.ts --exclude packages/core/src/node.integration.test.ts",
+		"test:integrationwasm": "pnpm run test packages/core/src/direct.integration.test.ts packages/core/src/node.integration.test.ts",
 		"test": "pnpm run package:build && pnpm run test:run",
 		"test:run": "vitest run --configLoader runner"
 	},

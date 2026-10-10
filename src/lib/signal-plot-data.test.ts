@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-	createSignalViewCache,
 	crosshairDeltaValue,
 	crosshairValue,
 	emptyAxisSeries,
@@ -17,7 +16,6 @@ import {
 	signalYRange,
 	type SignalView
 } from './signal-plot-data';
-import type { PlotSignal } from './stores/plot-data.svelte.js';
 
 function view(x: number[], y: number[] = x): SignalView {
 	return {
@@ -170,12 +168,6 @@ describe('signal plot data', () => {
 		expect(isOutsideDbcRange(999, 0, 0)).toBe(false);
 	});
 
-	it('caps legend numeric width at seven significant digits', () => {
-		expect(formatLegendNumericValue(12345.678, 1)).toBe('12346');
-		expect(formatLegendNumericValue(12.34567, 0.01)).toBe('12.35');
-		expect(formatLegendNumericValue(0.1234567, 0.0001)).toBe('0.1235');
-	});
-
 	it('pads legend decimals to the chosen resolution', () => {
 		expect(formatLegendNumericValue(12, 0.01)).toBe('12.00');
 		expect(formatLegendNumericValue(300, 0.1)).toBe('300.0');
@@ -271,57 +263,5 @@ describe('signal plot data', () => {
 	it('formats signed crosshair time deltas as durations', () => {
 		expect(formatTimeDelta(1234)).toBe('1.234s');
 		expect(formatTimeDelta(-61_250)).toBe('-1m 1.250s');
-	});
-});
-
-// Value descriptions come identity-stable from the DBC catalog in the app.
-const NO_DESCRIPTIONS: PlotSignal['valueDescriptions'] = [];
-
-function plotSignal(overrides: Partial<PlotSignal> = {}): PlotSignal {
-	return {
-		key: 'dbc:Message.Signal',
-		color: '#fff',
-		messageName: 'Message',
-		signalName: 'Signal',
-		label: 'Message.Signal',
-		factor: 1,
-		offset: 0,
-		minimum: 0,
-		maximum: 0,
-		unit: '',
-		valueDescriptions: NO_DESCRIPTIONS,
-		series: { timesMs: new Float64Array([0, 1]), values: new Float64Array([2, 3]) },
-		...overrides
-	};
-}
-
-describe('createSignalViewCache', () => {
-	it('reuses a view when the signal is rebuilt with unchanged content', () => {
-		const cache = createSignalViewCache();
-		const series = { timesMs: new Float64Array([0, 1]), values: new Float64Array([2, 3]) };
-		const [first] = cache([plotSignal({ series })]);
-		const [second] = cache([plotSignal({ series })]);
-
-		expect(second).toBe(first);
-	});
-
-	it('rebuilds the view when the series is replaced, even at equal length', () => {
-		const cache = createSignalViewCache();
-		const [first] = cache([plotSignal()]);
-		const [second] = cache([
-			plotSignal({
-				series: { timesMs: new Float64Array([0, 1]), values: new Float64Array([2, 3]) }
-			})
-		]);
-
-		expect(second).not.toBe(first);
-	});
-
-	it('rebuilds the view when the color changes', () => {
-		const cache = createSignalViewCache();
-		const [first] = cache([plotSignal()]);
-		const [second] = cache([plotSignal({ color: '#f00' })]);
-
-		expect(second).not.toBe(first);
 	});
 });

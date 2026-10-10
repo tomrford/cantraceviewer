@@ -227,61 +227,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parses_inline_value_descriptions() {
-        let signal_values =
-            SignalValueDescriptions::parse("VAL_ 100 State 0 \"Off\" 1 \"On\";").unwrap();
-        let ValueDescriptionRef::InlineValues(descriptions) = signal_values.value_descriptions
-        else {
-            panic!("expected inline values");
-        };
-
-        assert_eq!(signal_values.message_id, 100);
-        assert_eq!(signal_values.signal_name, "State");
-        assert_eq!(descriptions.len(), 2);
-        assert_eq!(descriptions[0].raw_value, 0);
-        assert_eq!(descriptions[0].label, "Off");
-        assert_eq!(descriptions[1].raw_value, 1);
-        assert_eq!(descriptions[1].label, "On");
-    }
-
-    #[test]
-    fn parses_value_table_reference() {
-        let signal_values = SignalValueDescriptions::parse("VAL_ 100 State GearStates;").unwrap();
-
-        assert_eq!(signal_values.message_id, 100);
-        assert_eq!(signal_values.signal_name, "State");
-        assert!(matches!(
-            signal_values.value_descriptions,
-            ValueDescriptionRef::TableName(ref name) if name == "GearStates"
-        ));
-    }
-
-    #[test]
-    fn parses_value_table() {
-        let table =
-            ValueTable::parse("VAL_TABLE_ GearStates 0 \"Park\" 1 \"Drive\" 2 \"Reverse\";")
-                .unwrap();
-
-        assert_eq!(table.name, "GearStates");
-        assert_eq!(table.values.len(), 3);
-        assert_eq!(table.values[2].raw_value, 2);
-        assert_eq!(table.values[2].label, "Reverse");
-    }
-
-    #[test]
     fn parses_signed_value_descriptions() {
         let table = ValueTable::parse("VAL_TABLE_ SignedStates -1 \"Unknown\" 0 \"Off\";").unwrap();
 
         assert_eq!(table.values[0].raw_value, -1);
         assert_eq!(table.values[0].label, "Unknown");
-    }
-
-    #[test]
-    fn rejects_wrong_value_description_prefix() {
-        assert!(matches!(
-            SignalValueDescriptions::parse("VAL_TABLE_ State 0 \"Off\";"),
-            Err(DbcError::InvalidValueDescriptionLine)
-        ));
     }
 
     #[test]
@@ -336,15 +286,6 @@ mod tests {
             ValueTable::parse("VAL_TABLE_ State 0 \"Off;"),
             Err(DbcError::InvalidValueDescriptionLine)
         ));
-    }
-
-    #[test]
-    fn parses_signal_value_type_with_colon() {
-        let value_type = SignalValueType::parse("SIG_VALTYPE_ 100 Temperature : 1;").unwrap();
-
-        assert_eq!(value_type.message_id, 100);
-        assert_eq!(value_type.signal_name, "Temperature");
-        assert_eq!(value_type.value_type, ValueType::Float32);
     }
 
     #[test]

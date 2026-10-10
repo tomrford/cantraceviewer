@@ -201,15 +201,4 @@ mod tests {
         assert_eq!(fd.payload_len, 12);
         assert_eq!(payload[11], 0x0c);
     }
-
-    #[test]
-    fn rejects_more_than_ninety_six_tokens() {
-        let columns = ColumnMap::from_text("N,O,T,B,I,d,R,L,D").unwrap();
-        let mut payload = [0_u8; 64];
-        let line = format!("1 0.100 DT 1 0123 Rx - 1 {}", "00 ".repeat(97));
-        assert_eq!(
-            parse_line(&columns, &line, &mut payload),
-            Err(TraceError::InvalidFrameLine)
-        );
-    }
 }

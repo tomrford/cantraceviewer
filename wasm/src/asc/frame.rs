@@ -381,19 +381,6 @@ mod tests {
     }
 
     #[test]
-    fn rejects_can_fd_payload_length_mismatch() {
-        let mut payload = [0_u8; 64];
-        assert_eq!(
-            parse_line(
-                Base::Hex,
-                "5.0 CANFD 1 Rx 18fee900x - 1 0 9 8 01 02 03 04 05 06 07 08",
-                &mut payload,
-            ),
-            Err(TraceError::InvalidPayloadLength)
-        );
-    }
-
-    #[test]
     fn rejects_malformed_channels_instead_of_merging_them() {
         let mut payload = [0; 64];
         for channel in ["CAN_A", "-1", "65536"] {

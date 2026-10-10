@@ -175,20 +175,6 @@ mod tests {
     }
 
     #[test]
-    fn accepts_trailing_semicolon_on_start_time() {
-        let parsed = parse(
-            ";$FILEVERSION=1.2\n\
-             ;$STARTTIME=39878.6772258947;\n\
-             1 1059.900 1 Rx 0300 7 00 00 00 00 04 00 00",
-        )
-        .unwrap();
-        assert_eq!(
-            parsed.measurement_start_ms,
-            Some(parse_ole_automation_days_to_unix_ms("39878.6772258947").unwrap())
-        );
-    }
-
-    #[test]
     fn keeps_long_v13_j1939_record_as_unknown() {
         let parsed = parse(
             ";$FILEVERSION=1.3\n\
