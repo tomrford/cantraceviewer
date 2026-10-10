@@ -618,6 +618,32 @@ describe('dbcFiles', () => {
 		expect(dbcFiles.isLoading).toBe(false);
 	});
 
+	it('retains a new trace embedded DBC opened after a queued library reset', async () => {
+		const oldHandle = dbcHandle(504);
+		const embeddedHandle = dbcHandle(505);
+		let finishRead!: (stored: Awaited<ReturnType<typeof listStoredDbcs>>) => void;
+		listStoredDbcsMock.mockReturnValueOnce(
+			new Promise((resolve) => {
+				finishRead = resolve;
+			})
+		);
+		openDbcMock.mockImplementation(async (text) =>
+			openDbcResult(text === 'new embedded' ? embeddedHandle : oldHandle, catalog(message()))
+		);
+		const loading = dbcFiles.loadLibrary();
+		const resetting = dbcFiles.resetLibrary();
+		const openingTrace = dbcFiles.addTransientDbcs(9, [embeddedDbc('new.dbc', 'new embedded')]);
+		await vi.waitFor(() => expect(listStoredDbcsMock).toHaveBeenCalledOnce());
+		finishRead([{ id: 'old', name: 'old.dbc', text: 'old' }]);
+		await Promise.all([loading, resetting, openingTrace]);
+		expect(dbcFiles.files).toMatchObject([
+			{ id: 'mf4:9:0', handle: embeddedHandle, origin: 'mf4' }
+		]);
+		expect(closeDbcMock).toHaveBeenCalledExactlyOnceWith(oldHandle);
+		expect(resetStoredDbcsMock).toHaveBeenCalledOnce();
+		expect(dbcFiles.isLoading).toBe(false);
+	});
+
 	it('finishes an in-flight import write before deleting the library', async () => {
 		const handle = dbcHandle(503);
 		let finishWrite!: () => void;

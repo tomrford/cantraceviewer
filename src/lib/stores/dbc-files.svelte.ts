@@ -228,7 +228,11 @@ class DbcFilesStore {
 		if (entry.origin === 'library') await deleteStoredDbc(entry.id);
 	}
 
-	async addTransientDbcs(ownerTraceId: number, dbcs: EmbeddedDbc[]): Promise<void> {
+	addTransientDbcs(ownerTraceId: number, dbcs: EmbeddedDbc[]): Promise<void> {
+		return this.runLibraryOperation(() => this.importTransientDbcs(ownerTraceId, dbcs));
+	}
+
+	private async importTransientDbcs(ownerTraceId: number, dbcs: EmbeddedDbc[]): Promise<void> {
 		this.error = null;
 		await this.clearTransientDbcs();
 		const entries: DbcFileEntry[] = [];
@@ -305,7 +309,7 @@ class DbcFilesStore {
 		}
 	}
 
-	// Reset runs after an in-flight read/import, including its persistent writes.
+	// Order reads, imports and resets, including persistent writes and newer trace DBCs.
 	// Keep the loading gate held until the last queued operation has finished.
 	private runLibraryOperation(action: () => Promise<void>): Promise<void> {
 		this.isLoading = true;
