@@ -17,6 +17,7 @@ export type SelectorListMessage = {
 };
 
 export type SelectorListSignal = {
+	unavailableReason?: string;
 	key: string;
 	label: string;
 	signalName: string;

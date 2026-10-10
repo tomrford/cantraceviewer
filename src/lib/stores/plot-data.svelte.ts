@@ -119,6 +119,9 @@ class PlotDataStore {
 			return;
 		}
 
+		const target = findSignalTarget(key);
+		if (!target || (target.kind === 'dbc' && target.value.unavailableReason)) return;
+
 		this.signalColors.colorFor(key);
 		this.setSignalState(key, { status: 'idle', series: null, error: null });
 		await this.decodeSignal(key);

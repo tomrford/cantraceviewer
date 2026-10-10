@@ -21,6 +21,7 @@
 	import SearchForm from './search-form.svelte';
 	import DbcInformation from './dbc-information.svelte';
 	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
+	import FilterIcon from '@lucide/svelte/icons/list-filter';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
@@ -47,6 +48,7 @@
 	let signalSearch = $state('');
 	let dbcDropActive = $state(false);
 	let showActiveOnly = $state(false);
+	let hideUnavailable = $state(false);
 	let signalListOverflows = $state(false);
 	let expandedDbcIds = new SvelteSet<string>();
 	let expandedMessageKeys = new SvelteSet<string>();
@@ -56,6 +58,7 @@
 	let selectorFilter = $derived({
 		query: signalSearch,
 		activeOnly: showActiveOnly,
+		hideUnavailable,
 		isSignalSelected: (key: string) => plotData.isSignalSelected(key),
 		expandedDbcIds,
 		expandedMessageKeys
@@ -352,6 +355,26 @@
 				{showActiveOnly ? 'Show all DBC signals' : 'Show selected DBC signals only'}
 			</Tooltip.Content>
 		</Tooltip.Root>
+		<Tooltip.Root>
+			<Tooltip.Trigger>
+				{#snippet child({ props })}
+					<button
+						{...props}
+						type="button"
+						class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border/70 text-muted-foreground transition-[background-color,border-color,color,box-shadow,scale] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96] data-[active=true]:border-sidebar-primary/60 data-[active=true]:bg-sidebar-primary/15 data-[active=true]:text-sidebar-primary"
+						data-active={hideUnavailable}
+						aria-pressed={hideUnavailable}
+						aria-label={hideUnavailable ? 'Show unavailable signals' : 'Hide unavailable signals'}
+						onclick={() => (hideUnavailable = !hideUnavailable)}
+					>
+						<FilterIcon class="size-4" />
+					</button>
+				{/snippet}
+			</Tooltip.Trigger>
+			<Tooltip.Content sideOffset={6}>
+				{hideUnavailable ? 'Show unavailable signals' : 'Hide unavailable signals'}
+			</Tooltip.Content>
+		</Tooltip.Root>
 	</div>
 
 	<div class="relative min-h-0">
@@ -444,37 +467,61 @@
 									{@const decodeStatus = isSelected
 										? plotData.signalDecodeStatus(row.signal.key)
 										: null}
+									{@const unavailableReason = row.signal.unavailableReason}
 									{@const signalToggleId = `signal-toggle-${row.signal.key}`}
-									<Label
-										for={signalToggleId}
-										class="flex h-7 w-full min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 text-left text-xs font-normal text-popover-foreground transition-[background-color,color,box-shadow] hover:bg-accent hover:text-accent-foreground"
-									>
-										<Checkbox
-											id={signalToggleId}
-											checked={isSelected}
-											aria-label={`Plot ${row.signal.label}`}
-											title={decodeStatus?.decodeError ?? undefined}
-											class="data-[error=true]:border-destructive/50 data-[error=true]:bg-destructive/10 data-[error=true]:text-destructive data-checked:border-sidebar-primary data-checked:bg-sidebar-primary data-checked:text-sidebar-primary-foreground"
-											data-error={decodeStatus?.decodeError != null}
-											onCheckedChange={() => toggleSignal(row.signal.key)}
-										/>
-										<span class="flex min-w-0 flex-1 items-center gap-2">
-											<span class="truncate font-mono" title={row.signal.label}>
-												{row.signal.signalName}
-											</span>
-											{#if decodeStatus?.decodeError}
-												<CircleAlertIcon
-													class="size-3 shrink-0 text-destructive"
-													aria-label={decodeStatus.decodeError}
-												/>
-											{:else if decodeStatus?.isDecoding}
-												<LoaderCircleIcon
-													class="size-3 shrink-0 animate-spin text-muted-foreground"
-													aria-label="Decoding signal"
-												/>
-											{/if}
-										</span>
-									</Label>
+									<Tooltip.Root>
+										<Tooltip.Trigger>
+											{#snippet child({ props })}
+												<Label
+													{...props}
+													tabindex={unavailableReason ? 0 : undefined}
+													aria-label={unavailableReason
+														? `${row.signal.label}: ${unavailableReason}`
+														: undefined}
+													for={signalToggleId}
+													class="flex h-7 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs font-normal text-popover-foreground transition-[background-color,color,box-shadow] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden {unavailableReason
+														? 'cursor-default opacity-50'
+														: 'cursor-pointer'}"
+												>
+													<Checkbox
+														id={signalToggleId}
+														checked={isSelected}
+														disabled={!!unavailableReason && !isSelected}
+														aria-describedby={unavailableReason
+															? `${signalToggleId}-reason`
+															: undefined}
+														aria-label={`Plot ${row.signal.label}`}
+														title={decodeStatus?.decodeError ?? undefined}
+														class="data-[error=true]:border-destructive/50 data-[error=true]:bg-destructive/10 data-[error=true]:text-destructive data-checked:border-sidebar-primary data-checked:bg-sidebar-primary data-checked:text-sidebar-primary-foreground"
+														data-error={decodeStatus?.decodeError != null}
+														onCheckedChange={() => toggleSignal(row.signal.key)}
+													/>
+													<span class="flex min-w-0 flex-1 items-center gap-2">
+														<span class="truncate font-mono" title={row.signal.label}>
+															{row.signal.signalName}
+														</span>
+														{#if decodeStatus?.decodeError}
+															<CircleAlertIcon
+																class="size-3 shrink-0 text-destructive"
+																aria-label={decodeStatus.decodeError}
+															/>
+														{:else if decodeStatus?.isDecoding}
+															<LoaderCircleIcon
+																class="size-3 shrink-0 animate-spin text-muted-foreground"
+																aria-label="Decoding signal"
+															/>
+														{/if}
+													</span>
+												</Label>
+											{/snippet}
+										</Tooltip.Trigger>
+										{#if unavailableReason}
+											<Tooltip.Content sideOffset={6}>{unavailableReason}</Tooltip.Content>
+											<span id={`${signalToggleId}-reason`} class="sr-only"
+												>{unavailableReason}</span
+											>
+										{/if}
+									</Tooltip.Root>
 								{/if}
 							</li>
 						{/if}

@@ -144,6 +144,8 @@ export function searchCatalogSignals(
 		signalName: string;
 		arbitrationId: string | null;
 		selected: boolean;
+		available: boolean;
+		unavailableReason: string | null;
 		source: string;
 	}> = [];
 
@@ -156,6 +158,8 @@ export function searchCatalogSignals(
 				signalName: signal.signalName,
 				arbitrationId: signal.arbitrationId ?? null,
 				selected: isSignalSelected(signal.key),
+				available: !signal.unavailableReason,
+				unavailableReason: signal.unavailableReason ?? null,
 				source: index.dbc.name
 			});
 			if (hits.length > cappedLimit) {
@@ -289,19 +293,44 @@ export function createWebMcpTools(host: WebMcpHost): WebMcpTool[] {
 				const { resolved, missing, ambiguous } = resolveSignalRefs(host.signalCatalog(), signals);
 				const changed: Array<{ key: string; label: string; selected: boolean }> = [];
 				const unchanged: Array<{ key: string; label: string; selected: boolean }> = [];
+				const unavailable: Array<{ key: string; label: string; reason: string }> = [];
 
 				for (const signal of resolved) {
 					throwIfAborted(options?.signal);
+					if (selected && !host.isSignalSelected(signal.key) && signal.unavailableReason) {
+						unavailable.push({
+							key: signal.key,
+							label: signal.label,
+							reason: signal.unavailableReason
+						});
+						continue;
+					}
 					if (host.isSignalSelected(signal.key) === selected) {
 						unchanged.push({ key: signal.key, label: signal.label, selected });
 						continue;
 					}
 					await host.toggleSignal(signal.key);
-					changed.push({ key: signal.key, label: signal.label, selected });
+					if (host.isSignalSelected(signal.key) === selected) {
+						changed.push({ key: signal.key, label: signal.label, selected });
+					} else {
+						const current = resolveSignalRefs(host.signalCatalog(), [signal.key]).resolved[0];
+						if (current?.unavailableReason)
+							unavailable.push({
+								key: signal.key,
+								label: signal.label,
+								reason: current.unavailableReason
+							});
+						else
+							unchanged.push({
+								key: signal.key,
+								label: signal.label,
+								selected: host.isSignalSelected(signal.key)
+							});
+					}
 				}
 
 				throwIfAborted(options?.signal);
-				return { selected, changed, unchanged, missing, ambiguous };
+				return { selected, changed, unchanged, unavailable, missing, ambiguous };
 			}
 		},
 		{
