@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Badge from '$lib/components/ui/badge/badge.svelte';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
@@ -415,8 +416,8 @@
 										class="flex h-7 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs text-popover-foreground transition-[background-color,color,box-shadow] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
 										aria-expanded={row.message.expanded}
 										aria-label={row.message.expanded
-											? `Collapse ${row.message.name}`
-											: `Expand ${row.message.name}`}
+											? `Collapse ${row.message.name}${row.message.sourceLabel ?? ''}`
+											: `Expand ${row.message.name}${row.message.sourceLabel ?? ''}`}
 										onclick={() => setMessageExpanded(row.message.key, !row.message.expanded)}
 									>
 										<span
@@ -429,6 +430,9 @@
 											{/if}
 										</span>
 										<span class="truncate">{row.message.name}</span>
+										{#each row.message.sourceBadges ?? [] as badge (badge)}
+											<Badge>{badge}</Badge>
+										{/each}
 									</button>
 								{:else}
 									{@const isSelected = plotData.isSignalSelected(row.signal.key)}

@@ -1,10 +1,12 @@
 import { createCanTraceClient, type CanTraceClient } from 'cantraceviewer';
+import { APP_PARSING_LIMITS } from './file-limits.js';
 import type {
 	DbcHandle,
 	DbcMessageIdentity,
+	RawSource,
 	DecodedSignalSeries,
 	OpenTraceResult,
-	ParsedDbc,
+	OpenDbcResult,
 	TraceHandle,
 	TraceType
 } from 'cantraceviewer';
@@ -16,16 +18,18 @@ let clientPromise: Promise<CanTraceClient> | null = null;
 function client(): Promise<CanTraceClient> {
 	if (clientPromise) return clientPromise;
 
-	const pending = createCanTraceClient();
+	const pending = createCanTraceClient(APP_PARSING_LIMITS);
 	clientPromise = pending;
 	void pending.catch(() => {
+		// A rejected factory produced no client. Let a later user operation retry startup without
+		// restarting a client that had already become fatal during normal operation.
 		if (clientPromise === pending) clientPromise = null;
 	});
 	return pending;
 }
 
-export async function openDbc(text: string): Promise<{ handle: DbcHandle; catalog: ParsedDbc }> {
-	return (await client()).openDbc(text);
+export async function openDbc(input: Uint8Array | string): Promise<OpenDbcResult> {
+	return (await client()).openDbc(input);
 }
 
 export async function closeDbc(handle: DbcHandle): Promise<void> {
@@ -55,9 +59,16 @@ export async function getSignalValues(
 	dbcHandle: DbcHandle,
 	traceHandle: TraceHandle,
 	messageIdentity: DbcMessageIdentity,
-	signalName: string
+	signalName: string,
+	source?: RawSource
 ): Promise<DecodedSignalSeries> {
-	return (await client()).getSignalValues(dbcHandle, traceHandle, messageIdentity, signalName);
+	return (await client()).getSignalValues(
+		dbcHandle,
+		traceHandle,
+		messageIdentity,
+		signalName,
+		source
+	);
 }
 
 export async function getMf4SignalValues(

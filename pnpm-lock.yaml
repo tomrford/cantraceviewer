@@ -15,8 +15,8 @@ importers:
         specifier: 3.13.31
         version: 3.13.31(svelte@5.56.4(@typescript-eslint/types@8.62.1))
       cantraceviewer:
-        specifier: 0.1.0
-        version: 0.1.0
+        specifier: 0.2.0
+        version: 0.2.0
       chartgpu:
         specifier: 0.4.0
         version: 0.4.0
@@ -1316,8 +1316,8 @@ packages:
     resolution: {integrity: sha512-7oFy703dxfY3/NLxC1fh2SUCQ0H9rmAY+5EpDVfXjUTTs+HEwR2nYaqLv+GWcTsumwxPfiz6CzCNkwXwBUwqCA==}
     engines: {node: 18 || 20 || >=22}
 
-  cantraceviewer@0.1.0:
-    resolution: {integrity: sha512-pQt1ncwuomEtN2QmKeVYh90Yph18Uh6oiEijFRnnkNP5+Pkx2Zv6MWWdtxncMEnyfMLiWpjLCpIqTMedNzgaFQ==}
+  cantraceviewer@0.2.0:
+    resolution: {integrity: sha512-/clzffWvgfRl5xDjVHD6lvoLs9l/UC2ymQDc7s4MknlKNdEv/Jg2GbGAM9bxATelx6bqbb91W/wmX0/HV7rDXA==}
     engines: {node: '>=22.12'}
 
   chai@6.2.2:
@@ -3171,7 +3171,7 @@ snapshots:
     dependencies:
       balanced-match: 4.0.4
 
-  cantraceviewer@0.1.0: {}
+  cantraceviewer@0.2.0: {}
 
   chai@6.2.2: {}
 

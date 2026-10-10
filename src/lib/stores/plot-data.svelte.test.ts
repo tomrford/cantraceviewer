@@ -49,7 +49,8 @@ describe('plotData', () => {
 			dbcFiles.files[0]!.handle,
 			traceFile.entry!.handle,
 			{ canId: 291, isExtended: false, sizeBytes: 8 },
-			'VehicleSpeed'
+			'VehicleSpeed',
+			undefined
 		);
 		expect(plotData.signals).toMatchObject([
 			{
@@ -201,7 +202,8 @@ describe('plotData', () => {
 			dbcFiles.files[0]!.handle,
 			traceFile.entry!.handle,
 			{ canId: 0x200, isExtended: false, sizeBytes: 1 },
-			'Value'
+			'Value',
+			undefined
 		);
 		expect(plotData.signals[0]).toMatchObject({
 			messageName: 'SpeedMessage',
