@@ -24,7 +24,7 @@ Preconditions: preserve initial preferences; disposable profile for reset; GPU/p
 - **Other preferences:** use observed labelled select/combobox, choose Absolute/Relative and require timestamp labels to change for dated trace. Choose Selection order/Alphabetical/Grouped with multiple series, inspect rows; reload/reopen, then restore.
 - **Help/tour:** `Open help` shows CAN Trace Viewer dialog/shortcut groups; Close, reopen and `Show quick tour`. Inspect first step, advance through observed Next control and finish/close. Empty-screen tour is a distinct path.
 - **Palette:** Cmd/Ctrl+K outside editable fields, fill search with nonsense and require `No matching command.`; choose a real command and verify destination. Plot commands disabled in empty session.
-- **Save:** screenshot-grounded plot right-click, start download wait before `Save image`. Record download path; inspect dimensions/content, retain with evidence. Require series/axes/legend in image, not just a toast.
+- **Save:** screenshot-grounded plot right-click, listen for the download before activating `Save image`. Record download path; inspect dimensions/content, retain with evidence. Require series/axes/legend in image, not just a toast.
 - **Copy:** preserve clipboard if supported, choose `Copy image`, inspect image entry and restore prior content. Record permission limitations.
 - **Reset:** only disposable profile: seed through UI, use observed `Reset persistent data`, reload; require empty saved library/default preferences. Never reset shared state.
 

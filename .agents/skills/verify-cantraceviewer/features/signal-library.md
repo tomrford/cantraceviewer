@@ -20,7 +20,7 @@ Save DBC files in this browser, find signals in their message trees and select d
 
 Preconditions: demo trace loaded; no pre-existing same-name demo DBC.
 
-- **Import:** click `Open signal selector`; wait for chooser before `Add DBC`; load demo DBC and observe group. Inspect `chooser.isMultiple()` before multiple files. Reload/reopen to prove saved library, then reload trace for selection.
+- **Import:** click `Open signal selector`; wait for chooser before `Add DBC`; load demo DBC and observe group. Check whether the file input/chooser supports multiple files before selecting them. Reload/reopen to prove saved library, then reload trace for selection.
 - **Search:** fill `Filter signals...` with `vehicle_speed`; capture PowertrainStatus and checkbox's exact full label. Repeat with message name, CAN-ID `120`, nonsense term and cleared query; record actual search convention.
 - **Expand:** click observed `Collapse agentic-demo`/`Expand agentic-demo` and `Collapse PowertrainStatus`/`Expand PowertrainStatus`. For search-time changes compare against live baseline; assert branch's intended contract, then clear/restart search separately.
 - **Select:** click observed `Plot …vehicle_speed…` checkbox. Wait for `Decoding signal` to disappear or record error. Close with `Close signal selector`; require legend entry and GPU-rendered series. Reopen, toggle `Show selected DBC signals only`/`Show all DBC signals`, check contents. Deselect and require removal from legend/tool selection.
