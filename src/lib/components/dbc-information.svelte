@@ -3,7 +3,6 @@
 	import { Dialog as DialogPrimitive } from 'bits-ui';
 	import InfoIcon from '@lucide/svelte/icons/info';
 	import type { DbcFileEntry } from '$lib/stores/dbc-files.svelte.js';
-	import type { DbcDiagnostic } from '$lib/wasm.js';
 
 	let { file }: { file: DbcFileEntry } = $props();
 	let signalCount = $derived(
@@ -13,34 +12,6 @@
 		file.warnings.filter((warning) => warning.category !== 'unsupported-record')
 	);
 	let hasOmissions = $derived(warnings.some((warning) => warning.category === 'omitted-feature'));
-
-	function warningMessage(warning: DbcDiagnostic): string {
-		const subject =
-			warning.keyword === 'VAL_'
-				? 'Value labels'
-				: warning.keyword === 'SIG_VALTYPE_'
-					? 'Numeric-type declarations'
-					: 'Frame-format declarations';
-		switch (warning.message) {
-			case 'Unknown message; attachment was ignored.':
-			case 'Unknown message; frame-format attachment was ignored.':
-				return `${subject} reference a message that is not defined.`;
-			case 'Unknown signal; attachment was ignored.':
-				return `${subject} reference a signal that is not defined.`;
-			case 'Unknown value table; attachment was ignored.':
-				return 'Value labels reference a table that is not defined.';
-			case 'Independent signal container is omitted from the viewer catalogue.':
-				return 'Standalone signals are not available for plotting.';
-			case 'Integer signal or multiplex selector wider than 64 bits is omitted from the viewer catalogue.':
-				return 'Signal cannot be plotted: it or its multiplex selector is wider than 64 bits.';
-			case 'Signal requires transport reassembly or a payload longer than 64 bytes.':
-				return 'Signal cannot be decoded from raw CAN frames: it needs transport reassembly or more than 64 bytes.';
-			case 'Incompatible inherited frame format was ignored.':
-				return 'Default frame format conflicts with this message and could not be applied.';
-			default:
-				return warning.message;
-		}
-	}
 </script>
 
 <Dialog.Root>
@@ -80,7 +51,7 @@
 					{#each warnings as warning (warning)}
 						<li class="flex gap-3">
 							<span class="shrink-0 text-muted-foreground tabular-nums">Line {warning.line}</span>
-							<span>{warningMessage(warning)}</span>
+							<span>{warning.message}</span>
 						</li>
 					{/each}
 				</ul>
