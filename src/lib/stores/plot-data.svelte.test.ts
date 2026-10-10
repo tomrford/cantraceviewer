@@ -4,6 +4,11 @@ import { dbcFiles, signalIdentityKey, type DbcFileEntry } from './dbc-files.svel
 import { plotData } from './plot-data.svelte';
 import { traceFile, type TraceFileEntry } from './trace-file.svelte';
 import { getMf4SignalValues, getSignalValues } from '$lib/wasm.js';
+import {
+	createSignalViewCache,
+	crosshairValue,
+	crosshairDeltaValue
+} from '$lib/signal-plot-data.js';
 import { mf4SignalIdentityKey } from '$lib/mf4-signals.js';
 import type {
 	DbcHandle,
@@ -102,6 +107,33 @@ describe('plotData', () => {
 			isDecoding: false,
 			decodeError: 'This trace has no raw CAN frames for DBC decoding.'
 		});
+	});
+
+	it('retains native views and fractional readouts across selection rebuilds', async () => {
+		traceFile.entry = traceEntry(9, {
+			mf4Catalog: {
+				groups: [{ name: 'Native', signals: [{ id: 7, name: 'Speed', unit: 'km/h' }] }]
+			}
+		});
+		getMf4SignalValuesMock.mockResolvedValueOnce(signalSeries([0, 10], [12.34, 12.49]));
+		await plotData.toggleSignal(mf4SignalIdentityKey(9, 7));
+		const cache = createSignalViewCache();
+		const first = cache(plotData.signals)[0];
+		getSignalValuesMock.mockResolvedValueOnce(signalSeries([0], [5]));
+		await plotData.toggleSignal(key());
+		expect(cache(plotData.signals)[0]).toBe(first);
+		expect(crosshairValue(first, 0).text).toBe('12.34 km/h');
+		expect(crosshairDeltaValue(first, 0, 10).text).toBe('0.15 km/h');
+	});
+
+	it('carries the DBC floating-point type into its readout', async () => {
+		dbcFiles.files = [
+			dbcEntry({ messages: [message({ signals: [signal({ valueType: 'float32', factor: 1 })] })] })
+		];
+		getSignalValuesMock.mockResolvedValueOnce(signalSeries([0], [12.5]));
+		await plotData.toggleSignal(key());
+		const view = createSignalViewCache()(plotData.signals)[0];
+		expect(crosshairValue(view, 0).text).toBe('12.5 km/h');
 	});
 
 	it('keeps a stale decode result out of state after the trace changes', async () => {

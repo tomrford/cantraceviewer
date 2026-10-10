@@ -6,7 +6,7 @@ import type { TimestampMode } from './stores/preferences.svelte.js';
 
 export type DecodedValueFormatContext = Pick<
 	PlotSignal,
-	'unit' | 'factor' | 'offset' | 'minimum' | 'maximum' | 'valueDescriptions'
+	'unit' | 'valueType' | 'factor' | 'offset' | 'minimum' | 'maximum' | 'valueDescriptions'
 >;
 
 export type SignalView = {
@@ -19,10 +19,11 @@ export type SignalView = {
 	x: Float64Array;
 	y: Float64Array;
 	points: number;
+	valueType: PlotSignal['valueType'];
 	factor: number;
 	offset: number;
-	minimum: number;
-	maximum: number;
+	minimum: number | null;
+	maximum: number | null;
 	valueDescriptions: PlotSignal['valueDescriptions'];
 };
 
@@ -45,9 +46,13 @@ export type WindowedSignalView = SignalView & {
 
 const LEGEND_MAX_SIGNIFICANT_DIGITS = 7;
 
-export function isOutsideDbcRange(value: number, minimum: number, maximum: number): boolean {
+export function isOutsideDbcRange(
+	value: number,
+	minimum: number | null,
+	maximum: number | null
+): boolean {
 	if (minimum === 0 && maximum === 0) return false;
-	return value < minimum || value > maximum;
+	return (minimum !== null && value < minimum) || (maximum !== null && value > maximum);
 }
 
 function decimalPlaces(value: number): number {
@@ -64,7 +69,7 @@ function roundToResolution(value: number, factor: number, offset: number): numbe
 	return Number(value.toFixed(decimals));
 }
 
-export function formatLegendNumericValue(value: number, factor: number, offset = 0): string {
+export function formatLegendNumericValue(value: number, factor: number | null, offset = 0): string {
 	if (!Number.isFinite(value)) return '-';
 	if (value === 0) return '0';
 
@@ -72,6 +77,8 @@ export function formatLegendNumericValue(value: number, factor: number, offset =
 	if (magnitude >= 1_000_000 || magnitude < 1e-6) {
 		return value.toExponential(LEGEND_MAX_SIGNIFICANT_DIGITS - 1);
 	}
+
+	if (factor === null) return Number(value.toPrecision(LEGEND_MAX_SIGNIFICANT_DIGITS)).toString();
 
 	const resolutionDecimals = Math.max(decimalPlaces(factor), decimalPlaces(offset));
 	const integerDigits = magnitude >= 1 ? Math.floor(Math.log10(magnitude)) + 1 : 1;
@@ -88,11 +95,17 @@ export function formatDecodedValue(value: number | null, context: DecodedValueFo
 	}
 
 	const outOfRange = isOutsideDbcRange(
-		roundToResolution(value, context.factor, context.offset),
+		context.valueType === 'integer'
+			? roundToResolution(value, context.factor, context.offset)
+			: value,
 		context.minimum,
 		context.maximum
 	);
-	const formatted = formatLegendNumericValue(value, context.factor, context.offset);
+	const formatted = formatLegendNumericValue(
+		value,
+		context.valueType === 'integer' ? context.factor : null,
+		context.offset
+	);
 	const rawValue = physicalToRaw(value, context.factor, context.offset);
 	const description =
 		rawValue === null
@@ -123,6 +136,7 @@ function signalView(signal: PlotSignal): SignalView {
 		x: sourceTimes,
 		y: sourceValues,
 		points: sourceTimes.length,
+		valueType: signal.valueType,
 		factor: signal.factor,
 		offset: signal.offset,
 		minimum: signal.minimum,
@@ -155,6 +169,7 @@ function viewMatchesSignal(view: SignalView, signal: PlotSignal): boolean {
 		view.color === signal.color &&
 		view.label === signal.label &&
 		view.unit === signal.unit &&
+		view.valueType === signal.valueType &&
 		view.factor === signal.factor &&
 		view.offset === signal.offset &&
 		view.minimum === signal.minimum &&
@@ -235,7 +250,10 @@ export function crosshairDeltaValue(
 		return { key: view.key, text: '-', outOfRange: false };
 	}
 
-	const formatted = formatLegendNumericValue(to - from, view.factor);
+	const formatted = formatLegendNumericValue(
+		to - from,
+		view.valueType === 'integer' ? view.factor : null
+	);
 	return {
 		key: view.key,
 		text: view.unit ? `${formatted} ${view.unit}` : formatted,
