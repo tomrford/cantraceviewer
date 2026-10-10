@@ -23,7 +23,17 @@ pub struct Message {
 
 impl Message {
     pub(crate) fn raw_frame_decodable(&self) -> bool {
-        self.size_bytes <= 64 && (self.frame_format != "j1939" || self.size_bytes <= 8)
+        self.raw_frame_decode_error().is_none()
+    }
+
+    pub(crate) fn raw_frame_decode_error(&self) -> Option<&'static str> {
+        if self.frame_format == "j1939" && self.size_bytes > 8 {
+            Some("J1939 transport decoding is not supported.")
+        } else if self.size_bytes > 64 {
+            Some("Message exceeds 64 bytes.")
+        } else {
+            None
+        }
     }
 
     pub fn parse(line: &str) -> Result<Self, DbcError> {

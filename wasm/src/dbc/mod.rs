@@ -69,7 +69,7 @@ impl Dbc {
                             warnings.push(record.position.warning(
                                 "omitted-feature",
                                 "BO_",
-                                "Independent signal container is omitted from the viewer catalogue.",
+                                "Standalone signals cannot be plotted.",
                             ));
                         }
                         if messages.iter().any(|other: &Message| {
@@ -172,14 +172,10 @@ impl Dbc {
                     warnings.push(signal.position.warning(
                         "omitted-feature",
                         "SG_",
-                        "Integer signal or multiplex selector wider than 64 bits is omitted from the viewer catalogue.",
+                        "Signal or multiplex selector exceeds 64 bits.",
                     ));
-                } else if !message.raw_frame_decodable() {
-                    warnings.push(signal.position.warning(
-                        "omitted-feature",
-                        "SG_",
-                        "Signal requires transport reassembly or a payload longer than 64 bytes.",
-                    ));
+                } else if let Some(reason) = message.raw_frame_decode_error() {
+                    warnings.push(signal.position.warning("omitted-feature", "SG_", reason));
                 }
             }
         }
@@ -235,14 +231,22 @@ fn attach_value_descriptions(
     value_tables: &[ValueTable],
     pending: SignalValueDescriptions,
 ) -> Result<(), &'static str> {
-    let signal = attachment_signal(messages, pending.message_id, &pending.signal_name)?;
+    let signal = attachment_signal(
+        messages,
+        pending.message_id,
+        &pending.signal_name,
+        (
+            "Value labels reference an unknown message.",
+            "Value labels reference an unknown signal.",
+        ),
+    )?;
     signal.value_descriptions = Some(match pending.value_descriptions {
         ValueDescriptionRef::InlineValues(descriptions) => descriptions,
         ValueDescriptionRef::TableName(name) => {
             let table = value_tables
                 .iter()
                 .find(|table| table.name == name)
-                .ok_or("Unknown value table; attachment was ignored.")?;
+                .ok_or("Value labels unavailable: table not found.")?;
             Rc::clone(&table.values)
         }
     });
@@ -253,8 +257,16 @@ fn attach_value_type(
     messages: &mut [Message],
     pending: SignalValueType,
 ) -> Result<(), &'static str> {
-    attachment_signal(messages, pending.message_id, &pending.signal_name)?.value_type =
-        pending.value_type;
+    attachment_signal(
+        messages,
+        pending.message_id,
+        &pending.signal_name,
+        (
+            "Numeric type references an unknown message.",
+            "Numeric type references an unknown signal.",
+        ),
+    )?
+    .value_type = pending.value_type;
     Ok(())
 }
 
@@ -262,16 +274,17 @@ fn attachment_signal<'a>(
     messages: &'a mut [Message],
     id: u32,
     name: &str,
+    errors: (&'static str, &'static str),
 ) -> Result<&'a mut Signal, &'static str> {
     let message = messages
         .iter_mut()
         .find(|message| message.dbc_id == id)
-        .ok_or("Unknown message; attachment was ignored.")?;
+        .ok_or(errors.0)?;
     message
         .signals
         .iter_mut()
         .find(|signal| signal.name == name)
-        .ok_or("Unknown signal; attachment was ignored.")
+        .ok_or(errors.1)
 }
 
 pub(crate) fn trim_dbc(text: &str) -> &str {
@@ -391,12 +404,43 @@ mod tests {
                 .map(|w| w.message)
                 .collect::<Vec<_>>(),
             vec![
-                "Unknown message; attachment was ignored.",
-                "Unknown signal; attachment was ignored.",
-                "Unknown value table; attachment was ignored.",
+                "Value labels reference an unknown message.",
+                "Value labels reference an unknown signal.",
+                "Value labels unavailable: table not found.",
             ]
         );
         assert!(!dbc.warnings_json().contains("private"));
+        assert_eq!(
+            dbc.warnings[3].message,
+            "Numeric type references an unknown message."
+        );
+    }
+
+    #[test]
+    fn long_message_warnings_explain_the_decoding_limit() {
+        for (size, protocol, expected) in [
+            (65, "", "Message exceeds 64 bytes."),
+            (
+                9,
+                "BA_ \"ProtocolType\" \"J1939\";",
+                "J1939 transport decoding is not supported.",
+            ),
+        ] {
+            let dbc = Dbc::parse(&format!(
+                "BO_ 2566834942 Long: {size} ECU\n SG_ Value : 0|8@1+ (1,0) [0|255] \"\" ECU\n{protocol}"
+            )).unwrap();
+            assert_eq!(dbc.warnings.len(), 1);
+            let warning = &dbc.warnings[0];
+            assert_eq!(
+                (warning.line, warning.column, warning.keyword),
+                (2, 2, "SG_")
+            );
+            assert_eq!(warning.message, expected);
+            assert!(dbc.warnings_json().contains(expected));
+            let catalog = dbc.to_catalog_json();
+            assert!(catalog.contains("\"rawFrameDecodable\":false"));
+            assert!(catalog.contains("\"Value\""));
+        }
     }
 
     #[test]
@@ -433,6 +477,7 @@ mod tests {
         assert_eq!(dbc.warnings.len(), 1);
         let warning = &dbc.warnings[0];
         assert_eq!(warning.category, "omitted-feature");
+        assert_eq!(warning.message, "Standalone signals cannot be plotted.");
         assert_eq!(
             (warning.keyword, warning.line, warning.column),
             ("BO_", 1, 1)
