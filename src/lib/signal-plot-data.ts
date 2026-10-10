@@ -78,7 +78,7 @@ export function formatLegendNumericValue(value: number, factor: number | null, o
 		return value.toExponential(LEGEND_MAX_SIGNIFICANT_DIGITS - 1);
 	}
 
-	if (factor === null) return Number(value.toPrecision(LEGEND_MAX_SIGNIFICANT_DIGITS)).toString();
+	if (factor === null) return roundToLegendPrecision(value).toString();
 
 	const resolutionDecimals = Math.max(decimalPlaces(factor), decimalPlaces(offset));
 	const integerDigits = magnitude >= 1 ? Math.floor(Math.log10(magnitude)) + 1 : 1;
@@ -89,17 +89,24 @@ export function formatLegendNumericValue(value: number, factor: number | null, o
 	return value.toFixed(fractionDigits);
 }
 
+function roundToLegendPrecision(value: number): number {
+	return Number(value.toPrecision(LEGEND_MAX_SIGNIFICANT_DIGITS));
+}
+
 export function formatDecodedValue(value: number | null, context: DecodedValueFormatContext) {
 	if (value === null || !Number.isFinite(value)) {
 		return { text: '-', outOfRange: false };
 	}
 
+	const floating = context.valueType !== 'integer';
 	const outOfRange = isOutsideDbcRange(
-		context.valueType === 'integer'
-			? roundToResolution(value, context.factor, context.offset)
-			: Number(value.toPrecision(LEGEND_MAX_SIGNIFICANT_DIGITS)),
-		context.minimum,
-		context.maximum
+		floating
+			? roundToLegendPrecision(value)
+			: roundToResolution(value, context.factor, context.offset),
+		floating && context.minimum !== null
+			? roundToLegendPrecision(context.minimum)
+			: context.minimum,
+		floating && context.maximum !== null ? roundToLegendPrecision(context.maximum) : context.maximum
 	);
 	const formatted = formatLegendNumericValue(
 		value,

@@ -211,6 +211,16 @@ describe('signal plot data', () => {
 		});
 		expect(formatDecodedValue(Math.fround(0.100001), floatBoundary).outOfRange).toBe(true);
 		expect(formatDecodedValue(Math.fround(-0.100001), floatBoundary).outOfRange).toBe(true);
+
+		const preciseBounds = {
+			...floating,
+			minimum: 0.12345674,
+			maximum: 0.12345676
+		};
+		expect(formatDecodedValue(0.12345674, preciseBounds).outOfRange).toBe(false);
+		expect(formatDecodedValue(0.12345676, preciseBounds).outOfRange).toBe(false);
+		expect(formatDecodedValue(0.12345665, preciseBounds).outOfRange).toBe(true);
+		expect(formatDecodedValue(0.1234569, preciseBounds).outOfRange).toBe(true);
 	});
 
 	it('treats absent bounds as unspecified for positive and negative native values', () => {
