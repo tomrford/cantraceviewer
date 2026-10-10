@@ -110,7 +110,7 @@ it('keeps absent and transported definitions searchable, rejects additions, and 
 		{
 			signalName: 'TransportValue',
 			available: false,
-			unavailableReason: 'Requires transport reassembly'
+			unavailableReason: 'Plotting not yet supported'
 		}
 	]);
 	const rejected = await tools

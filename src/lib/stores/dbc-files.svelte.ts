@@ -522,7 +522,7 @@ function messageUnavailableReason(
 	rawMessages: Map<string, RawMessage[]>,
 	traceLoaded: boolean
 ): string | undefined {
-	if (message.rawFrameDecodable === false) return 'Requires transport reassembly';
+	if (message.rawFrameDecodable === false) return 'Plotting not yet supported';
 	if (traceLoaded && !rawMessages.has(rawMessageIdentityKey(message)))
 		return 'Not present in this trace';
 	return undefined;
