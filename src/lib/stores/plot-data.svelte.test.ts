@@ -50,12 +50,12 @@ describe('plotData', () => {
 			traceFile.entry!.handle,
 			{ canId: 291, isExtended: false, sizeBytes: 8 },
 			'VehicleSpeed',
-			undefined
+			{ channel: null, direction: 'unknown' }
 		);
 		expect(plotData.signals).toMatchObject([
 			{
 				key: key(),
-				label: 'SpeedMessage.VehicleSpeed',
+				label: 'SpeedMessage.VehicleSpeed [Unknown channel · unknown direction]',
 				series
 			}
 		]);
@@ -97,17 +97,15 @@ describe('plotData', () => {
 		]);
 	});
 
-	it('reports that DBC signals need raw frames in a decoded-only MF4', async () => {
+	it('prevents selecting DBC signals in a decoded-only MF4', async () => {
 		const trace = traceEntry(10, { hasRawFrames: false });
 		traceFile.entry = trace;
 
 		await plotData.toggleSignal(key());
 
 		expect(getSignalValuesMock).not.toHaveBeenCalled();
-		expect(plotData.signalDecodeStatus(key())).toEqual({
-			isDecoding: false,
-			decodeError: 'This trace has no raw CAN frames for DBC decoding.'
-		});
+		expect(plotData.isSignalSelected(key())).toBe(false);
+		expect(dbcFiles.signalTargetByKey[key()]?.unavailableReason).toBe('Not present in this trace');
 	});
 
 	it('retains native views and fractional readouts across selection rebuilds', async () => {
@@ -195,7 +193,10 @@ describe('plotData', () => {
 		getSignalValuesMock.mockResolvedValueOnce(signalSeries([0.001], [12.5]));
 
 		await plotData.toggleSignal(
-			signalIdentityKey('dbc-1', { canId: 0x200, isExtended: false, sizeBytes: 1 }, 'Value')
+			signalIdentityKey('dbc-1', { canId: 0x200, isExtended: false, sizeBytes: 1 }, 'Value', {
+				channel: null,
+				direction: 'unknown'
+			})
 		);
 
 		expect(getSignalValuesMock).toHaveBeenCalledExactlyOnceWith(
@@ -203,7 +204,9 @@ describe('plotData', () => {
 			traceFile.entry!.handle,
 			{ canId: 0x200, isExtended: false, sizeBytes: 1 },
 			'Value',
-			undefined
+			traceFile.entry?.metadata.rawMessages.length
+				? { channel: null, direction: 'unknown' }
+				: undefined
 		);
 		expect(plotData.signals[0]).toMatchObject({
 			messageName: 'SpeedMessage',
@@ -230,7 +233,8 @@ describe('plotData', () => {
 		const secondKey = signalIdentityKey(
 			'dbc-1',
 			message({ canId: 0x200, signals: [signal({ name: 'Rpm' })] }),
-			'Rpm'
+			'Rpm',
+			{ channel: null, direction: 'unknown' }
 		);
 		dbcFiles.files = [
 			dbcEntry({
@@ -293,7 +297,14 @@ describe('plotData', () => {
 });
 
 function key(): string {
-	return signalIdentityKey('dbc-1', message(), 'VehicleSpeed');
+	return signalIdentityKey(
+		'dbc-1',
+		message(),
+		'VehicleSpeed',
+		traceFile.entry?.metadata.rawMessages.length
+			? { channel: null, direction: 'unknown' }
+			: undefined
+	);
 }
 
 function dbcEntry(overrides: { messages?: DbcMessage[] } = {}): DbcFileEntry {
@@ -314,7 +325,14 @@ function traceEntry(
 	overrides: Partial<Pick<TraceFileEntry, 'hasRawFrames' | 'mf4Catalog'>> = {}
 ): TraceFileEntry {
 	const metadata = {
-		rawMessages: [],
+		rawMessages:
+			overrides.hasRawFrames === false
+				? []
+				: [291, 0x100, 0x200].map((canId) => ({
+						canId,
+						isExtended: false,
+						source: { channel: null, direction: 'unknown' as const }
+					})),
 		measurementStartMs: null,
 		validMessageCount: 1,
 		skippedLineCount: 0,

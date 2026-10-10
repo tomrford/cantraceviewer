@@ -49,6 +49,7 @@ type SelectorDbcMessage = {
 };
 
 type SelectorDbcSignal = {
+	unavailableReason?: string;
 	key: string;
 	label: string;
 	messageName: string;
@@ -57,6 +58,7 @@ type SelectorDbcSignal = {
 };
 
 type SelectorFilterOptions = {
+	hideUnavailable?: boolean;
 	query: string;
 	activeOnly: boolean;
 	isSignalSelected: (key: string) => boolean;
@@ -83,6 +85,7 @@ type SelectorTreeMessage = {
 };
 
 export type DbcSignalTarget = {
+	unavailableReason?: string;
 	source?: RawSource;
 	sourceBadges?: string[];
 	file: DbcFileEntry;
@@ -115,7 +118,9 @@ class DbcFilesStore {
 		Map.groupBy(traceFile.entry?.metadata.rawMessages ?? [], rawMessageIdentityKey)
 	);
 
-	signalTargetByKey = $derived.by(() => buildSignalTargetIndex(this.files, this.rawMessagesById));
+	signalTargetByKey = $derived.by(() =>
+		buildSignalTargetIndex(this.files, this.rawMessagesById, traceFile.entry !== null)
+	);
 
 	selectorFiles = $derived.by<SelectorDbcFile[]>(() =>
 		this.files.map((entry) => ({
@@ -129,9 +134,14 @@ class DbcFilesStore {
 					name: message.name,
 					sourceLabel: sourceLabel(source),
 					sourceBadges: sourceBadges(source, sourceOptions(message, this.rawMessagesById)),
-					signals: message.signals.map((signal) =>
-						selectorSignal(entry.id, message, signal, source)
-					)
+					signals: message.signals.map((signal) => ({
+						...selectorSignal(entry.id, message, signal, source),
+						unavailableReason: messageUnavailableReason(
+							message,
+							this.rawMessagesById,
+							traceFile.entry !== null
+						)
+					}))
 				}))
 			)
 		}))
@@ -142,7 +152,11 @@ class DbcFilesStore {
 	);
 
 	private isSelectorFilterActive(filter: SelectorFilterOptions): boolean {
-		return normalizeSelectorQuery(filter.query).length > 0 || filter.activeOnly;
+		return (
+			normalizeSelectorQuery(filter.query).length > 0 ||
+			filter.activeOnly ||
+			!!filter.hideUnavailable
+		);
 	}
 
 	visibleSelectorTree(
@@ -173,7 +187,9 @@ class DbcFilesStore {
 		return indexes.flatMap((index) => {
 			const signalsByMessage: Record<string, SelectorDbcSignal[]> = {};
 			const visibleSignals = searchIndex(index.signals, query).filter(
-				({ signal }) => !filter.activeOnly || filter.isSignalSelected(signal.key)
+				({ signal }) =>
+					(!filter.activeOnly || filter.isSignalSelected(signal.key)) &&
+					(!filter.hideUnavailable || !signal.unavailableReason)
 			);
 
 			for (const { messageKey, signal } of visibleSignals) {
@@ -408,7 +424,8 @@ function displayDbcName(fileName: string): string {
 
 function buildSignalTargetIndex(
 	files: DbcFileEntry[],
-	rawMessages: Map<string, RawMessage[]>
+	rawMessages: Map<string, RawMessage[]>,
+	traceLoaded: boolean
 ): SignalTargetIndex {
 	const index: SignalTargetIndex = {};
 
@@ -417,6 +434,7 @@ function buildSignalTargetIndex(
 			for (const source of sourceOptions(message, rawMessages)) {
 				for (const signal of message.signals) {
 					index[signalIdentityKey(file.id, message, signal.name, source)] = {
+						unavailableReason: messageUnavailableReason(message, rawMessages, traceLoaded),
 						file,
 						message,
 						signal,
@@ -495,9 +513,19 @@ function sourceOptions(
 	message: DbcMessage,
 	rawMessages: Map<string, RawMessage[]>
 ): (RawSource | undefined)[] {
-	if (message.rawFrameDecodable === false) return [];
 	const matches = rawMessages.get(rawMessageIdentityKey(message)) ?? [];
 	return matches.length ? matches.map((raw) => raw.source) : [undefined];
+}
+
+function messageUnavailableReason(
+	message: DbcMessage,
+	rawMessages: Map<string, RawMessage[]>,
+	traceLoaded: boolean
+): string | undefined {
+	if (message.rawFrameDecodable === false) return 'Plotting not yet supported';
+	if (traceLoaded && !rawMessages.has(rawMessageIdentityKey(message)))
+		return 'Not present in this trace';
+	return undefined;
 }
 
 function rawMessageIdentityKey(message: Pick<DbcMessageIdentity, 'canId' | 'isExtended'>): string {

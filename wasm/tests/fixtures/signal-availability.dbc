@@ -1,0 +1,9 @@
+BO_ 291 Present: 8 ECU
+ SG_ Value : 0|8@1+ (1,0) [0|255] "" ECU
+BO_ 2147483939 Extended: 8 ECU
+ SG_ ExtendedValue : 0|8@1+ (1,0) [0|255] "" ECU
+BO_ 292 Absent: 8 ECU
+ SG_ MissingValue : 0|8@1+ (1,0) [0|255] "" ECU
+BO_ 2566844672 Transport: 1785 ECU
+ SG_ TransportValue : 0|8@1+ (1,0) [0|255] "" ECU
+BA_ "VFrameFormat" BO_ 2566844672 3;
