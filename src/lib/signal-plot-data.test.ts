@@ -194,6 +194,23 @@ describe('signal plot data', () => {
 		});
 		expect(formatDecodedValue(12.34, { ...floating, valueType: 'float32' }).text).toBe('12.34 V');
 		expect(formatLegendNumericValue(0.00001234567, null)).toBe('0.00001234567');
+
+		const floatBoundary = {
+			...floating,
+			valueType: 'float32' as const,
+			minimum: -0.1,
+			maximum: 0.1
+		};
+		expect(formatDecodedValue(Math.fround(0.1), floatBoundary)).toEqual({
+			text: '0.1 V',
+			outOfRange: false
+		});
+		expect(formatDecodedValue(Math.fround(-0.1), floatBoundary)).toEqual({
+			text: '-0.1 V',
+			outOfRange: false
+		});
+		expect(formatDecodedValue(Math.fround(0.100001), floatBoundary).outOfRange).toBe(true);
+		expect(formatDecodedValue(Math.fround(-0.100001), floatBoundary).outOfRange).toBe(true);
 	});
 
 	it('treats absent bounds as unspecified for positive and negative native values', () => {

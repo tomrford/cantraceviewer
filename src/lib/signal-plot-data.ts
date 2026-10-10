@@ -97,7 +97,7 @@ export function formatDecodedValue(value: number | null, context: DecodedValueFo
 	const outOfRange = isOutsideDbcRange(
 		context.valueType === 'integer'
 			? roundToResolution(value, context.factor, context.offset)
-			: value,
+			: Number(value.toPrecision(LEGEND_MAX_SIGNIFICANT_DIGITS)),
 		context.minimum,
 		context.maximum
 	);
