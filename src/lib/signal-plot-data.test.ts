@@ -219,7 +219,11 @@ describe('signal plot data', () => {
 		};
 		expect(formatDecodedValue(0.12345674, preciseBounds).outOfRange).toBe(false);
 		expect(formatDecodedValue(0.12345676, preciseBounds).outOfRange).toBe(false);
-		expect(formatDecodedValue(0.12345665, preciseBounds).outOfRange).toBe(true);
+		expect(formatDecodedValue(0.12345665, preciseBounds)).toEqual({
+			text: '0.1234567 V',
+			outOfRange: false
+		});
+		expect(formatDecodedValue(0.1234566, preciseBounds).outOfRange).toBe(true);
 		expect(formatDecodedValue(0.1234569, preciseBounds).outOfRange).toBe(true);
 	});
 
