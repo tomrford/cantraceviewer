@@ -1,3 +1,5 @@
+import { traceFile } from './trace-file.svelte.js';
+import type { RawMessage, RawSource } from '$lib/wasm.js';
 import {
 	closeDbc,
 	openDbc,
@@ -39,6 +41,8 @@ export type SelectorDbcFile = {
 type SelectorDbcMessage = {
 	key: string;
 	name: string;
+	sourceLabel?: string;
+	sourceBadges?: string[];
 	signals: SelectorDbcSignal[];
 };
 
@@ -70,11 +74,15 @@ type SelectorTreeDbc = {
 type SelectorTreeMessage = {
 	key: string;
 	name: string;
+	sourceLabel?: string;
+	sourceBadges?: string[];
 	expanded: boolean;
 	signals: SelectorDbcSignal[];
 };
 
 export type DbcSignalTarget = {
+	source?: RawSource;
+	sourceBadges?: string[];
 	file: DbcFileEntry;
 	message: DbcMessage;
 	signal: DbcSignal;
@@ -101,7 +109,11 @@ class DbcFilesStore {
 	hasLoadedLibrary = $state(false);
 	private libraryOperation = Promise.resolve();
 
-	signalTargetByKey = $derived.by(() => buildSignalTargetIndex(this.files));
+	private rawMessagesById = $derived(
+		Map.groupBy(traceFile.entry?.metadata.rawMessages ?? [], rawMessageIdentityKey)
+	);
+
+	signalTargetByKey = $derived.by(() => buildSignalTargetIndex(this.files, this.rawMessagesById));
 
 	selectorFiles = $derived.by<SelectorDbcFile[]>(() =>
 		this.files.map((entry) => ({
@@ -109,11 +121,17 @@ class DbcFilesStore {
 			name: displayDbcName(entry.name),
 			kind: 'dbc',
 			transient: entry.origin === 'mf4',
-			messages: entry.catalog.messages.map((message) => ({
-				key: selectorMessageKey(entry.id, message),
-				name: message.name,
-				signals: message.signals.map((signal) => selectorSignal(entry.id, message, signal))
-			}))
+			messages: entry.catalog.messages.flatMap((message) =>
+				sourceOptions(message, this.rawMessagesById).map((source) => ({
+					key: selectorMessageKey(entry.id, message, source),
+					name: message.name,
+					sourceLabel: sourceLabel(source),
+					sourceBadges: sourceBadges(source, sourceOptions(message, this.rawMessagesById)),
+					signals: message.signals.map((signal) =>
+						selectorSignal(entry.id, message, signal, source)
+					)
+				}))
+			)
 		}))
 	);
 
@@ -241,7 +259,7 @@ class DbcFilesStore {
 				const stored = {
 					id: `mf4:${ownerTraceId}:${index}`,
 					name: dbc.name,
-					text: dbc.text
+					bytes: dbc.bytes
 				};
 				entries.push((await this.openStoredDbc(stored, 'mf4')).entry);
 			}
@@ -326,15 +344,14 @@ class DbcFilesStore {
 
 		const bytes = new Uint8Array(await file.arrayBuffer());
 		assertTextFileContent(bytes, 'DBC');
-		const text = new TextDecoder().decode(bytes);
-		return { id: await storedDbcId(text), name: file.name, text };
+		return { id: await storedDbcId(bytes), name: file.name, bytes };
 	}
 
 	private async openStoredDbc(
 		dbc: StoredDbc,
 		origin: DbcFileEntry['origin'] = 'library'
 	): Promise<DbcCandidate> {
-		const { handle, catalog } = await openDbc(dbc.text);
+		const { handle, catalog } = await openDbc(dbc.bytes ?? dbc.text);
 
 		try {
 			assertUniqueMessageIdentities(dbc.name, catalog);
@@ -392,17 +409,24 @@ function displayDbcName(fileName: string): string {
 	return fileName.replace(/\.dbc$/i, '');
 }
 
-function buildSignalTargetIndex(files: DbcFileEntry[]): SignalTargetIndex {
+function buildSignalTargetIndex(
+	files: DbcFileEntry[],
+	rawMessages: Map<string, RawMessage[]>
+): SignalTargetIndex {
 	const index: SignalTargetIndex = {};
 
 	for (const file of files) {
 		for (const message of file.catalog.messages) {
-			for (const signal of message.signals) {
-				index[signalIdentityKey(file.id, message, signal.name)] = {
-					file,
-					message,
-					signal
-				};
+			for (const source of sourceOptions(message, rawMessages)) {
+				for (const signal of message.signals) {
+					index[signalIdentityKey(file.id, message, signal.name, source)] = {
+						file,
+						message,
+						signal,
+						source,
+						sourceBadges: sourceBadges(source, sourceOptions(message, rawMessages))
+					};
+				}
 			}
 		}
 	}
@@ -434,29 +458,72 @@ function normalizeSelectorQuery(query: string): string {
 export function signalIdentityKey(
 	dbcFileId: string,
 	message: DbcMessageIdentity,
-	signalName: string
+	signalName: string,
+	source?: RawSource
 ): string {
-	return JSON.stringify([dbcFileId, messageIdentityKey(message), signalName]);
+	return JSON.stringify([
+		dbcFileId,
+		messageIdentityKey(message),
+		signalName,
+		...(source ? [source.channel, source.direction] : [])
+	]);
 }
 
-function selectorMessageKey(dbcFileId: string, message: DbcMessage): string {
-	return JSON.stringify([dbcFileId, messageIdentityKey(message)]);
+function selectorMessageKey(dbcFileId: string, message: DbcMessage, source?: RawSource): string {
+	return JSON.stringify([
+		dbcFileId,
+		messageIdentityKey(message),
+		...(source ? [source.channel, source.direction] : [])
+	]);
 }
 
 function selectorSignal(
 	dbcFileId: string,
 	message: DbcMessage,
-	signal: DbcSignal
+	signal: DbcSignal,
+	source?: RawSource
 ): SelectorDbcSignal {
-	const label = `${message.name}.${signal.name}`;
+	const label = `${message.name}.${signal.name}${sourceLabel(source)}`;
 
 	return {
-		key: signalIdentityKey(dbcFileId, message, signal.name),
+		key: signalIdentityKey(dbcFileId, message, signal.name, source),
 		label,
 		messageName: message.name,
 		signalName: signal.name,
 		arbitrationId: message.canId.toString(16)
 	};
+}
+
+function sourceOptions(
+	message: DbcMessage,
+	rawMessages: Map<string, RawMessage[]>
+): (RawSource | undefined)[] {
+	if (message.rawFrameDecodable === false) return [];
+	const matches = rawMessages.get(rawMessageIdentityKey(message)) ?? [];
+	return matches.length ? matches.map((raw) => raw.source) : [undefined];
+}
+
+function rawMessageIdentityKey(message: Pick<DbcMessageIdentity, 'canId' | 'isExtended'>): string {
+	return `${message.canId}:${message.isExtended}`;
+}
+
+function sourceBadges(source: RawSource | undefined, sources: (RawSource | undefined)[]): string[] {
+	if (!source || sources.length < 2) return [];
+	const badges: string[] = [];
+	if (new Set(sources.map((item) => item?.channel)).size > 1) {
+		badges.push(source.channel === null ? 'Unknown channel' : String(source.channel));
+	}
+	if (new Set(sources.map((item) => item?.direction)).size > 1) {
+		badges.push({ unknown: 'Unknown direction', rx: 'Rx', tx: 'Tx' }[source.direction]);
+	}
+	return badges;
+}
+
+export function sourceLabel(source?: RawSource): string {
+	if (!source) return '';
+	const channel = source.channel === null ? 'Unknown channel' : `Channel ${source.channel}`;
+	const direction = { unknown: 'unknown direction', rx: 'Rx', tx: 'Tx' }[source.direction];
+	return ` [${channel} · ${direction}]`;
 }
 
 async function closeEntries(entries: DbcFileEntry[]): Promise<void> {

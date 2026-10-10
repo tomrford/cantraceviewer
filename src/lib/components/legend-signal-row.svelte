@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Badge from '$lib/components/ui/badge/badge.svelte';
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import { buttonVariants } from '$lib/components/ui/button/index.js';
 	import { cn } from '$lib/utils.js';
@@ -107,13 +108,14 @@
 	{/if}
 
 	<span class="size-2 rounded-full" style:background-color={view.color}></span>
-	<span class="flex min-w-0" title={view.label}>
+	<span class="flex min-w-0 items-center gap-1" title={view.label} aria-label={view.label}>
 		<span class="min-w-0 flex-[0_1_max-content] truncate">{view.signalName}</span>
 		<span class="text-muted-foreground">&nbsp;(</span>
 		<span class="min-w-0 flex-[0_9999_auto] truncate text-muted-foreground">
 			{view.messageName}
 		</span>
 		<span class="text-muted-foreground">)</span>
+		{#each view.sourceBadges ?? [] as badge (badge)}<Badge>{badge}</Badge>{/each}
 	</span>
 	{#if showValue}
 		<span

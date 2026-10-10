@@ -1,7 +1,7 @@
 import { createSignalColorAssigner } from '$lib/plot-colors.js';
 import { orderPlotSignals } from '$lib/plot-signal-order.js';
 import { plotAxes } from '$lib/stores/plot-axes.svelte.js';
-import { dbcFiles, signalIdentityKey, type DbcSignalTarget } from '$lib/stores/dbc-files.svelte.js';
+import { dbcFiles, sourceLabel, type DbcSignalTarget } from '$lib/stores/dbc-files.svelte.js';
 import { legendOrderMode } from '$lib/stores/preferences.svelte.js';
 import { traceFile } from '$lib/stores/trace-file.svelte.js';
 import {
@@ -27,6 +27,7 @@ export type PlotSignal = {
 	color: string;
 	label: string;
 	messageName: string;
+	sourceBadges?: string[];
 	signalName: string;
 	valueType: DbcValueType;
 	factor: number;
@@ -57,8 +58,9 @@ class PlotDataStore {
 				signals.push({
 					key,
 					color: this.signalColors.colorFor(key),
-					label: `${target.value.message.name}.${target.value.signal.name}`,
+					label: `${target.value.message.name}.${target.value.signal.name}${sourceLabel(target.value.source)}`,
 					messageName: target.value.message.name,
+					sourceBadges: target.value.sourceBadges,
 					signalName: target.value.signal.name,
 					unit: target.value.signal.unit,
 					valueType: target.value.signal.valueType,
@@ -123,14 +125,8 @@ class PlotDataStore {
 	}
 
 	deselectDbcFile(dbcFileId: string): void {
-		const entry = dbcFiles.files.find((file) => file.id === dbcFileId);
-		const dbcSignalKeys = new Set(
-			entry?.catalog.messages.flatMap((message) =>
-				message.signals.map((signal) => signalIdentityKey(dbcFileId, message, signal.name))
-			) ?? []
-		);
-
-		for (const key of dbcSignalKeys) {
+		for (const [key, target] of Object.entries(dbcFiles.signalTargetByKey)) {
+			if (target.file.id !== dbcFileId) continue;
 			this.selectedSignals.delete(key);
 			this.signalColors.release(key);
 			plotAxes.release(key);
@@ -196,7 +192,8 @@ class PlotDataStore {
 				isExtended: target.message.isExtended,
 				sizeBytes: target.message.sizeBytes
 			},
-			target.signal.name
+			target.signal.name,
+			target.source ? { ...target.source } : undefined
 		);
 	}
 

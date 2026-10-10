@@ -8,6 +8,8 @@ export type SelectorListDbc = {
 };
 
 export type SelectorListMessage = {
+	sourceLabel?: string;
+	sourceBadges?: string[];
 	key: string;
 	name: string;
 	expanded: boolean;

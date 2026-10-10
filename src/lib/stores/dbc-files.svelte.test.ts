@@ -21,7 +21,9 @@ vi.mock('./dbc-library.js', () => ({
 	listStoredDbcs: vi.fn(() => Promise.resolve([])),
 	putStoredDbcs: vi.fn(() => Promise.resolve()),
 	resetStoredDbcs: vi.fn(() => Promise.resolve()),
-	storedDbcId: vi.fn((text: string) => Promise.resolve(text))
+	storedDbcId: vi.fn((input: string | Uint8Array) =>
+		Promise.resolve(typeof input === 'string' ? input : new TextDecoder().decode(input))
+	)
 }));
 
 const openDbcMock = openDbc as Mock<typeof openDbc>;
@@ -44,7 +46,7 @@ describe('dbcFiles', () => {
 
 		await dbcFiles.addFiles([file('broken.dbc', 'BO_ 1 Broken: 8 ECU')]);
 
-		expect(openDbcMock).toHaveBeenCalledWith('BO_ 1 Broken: 8 ECU');
+		expect(openDbcMock).toHaveBeenCalledWith(new TextEncoder().encode('BO_ 1 Broken: 8 ECU'));
 		expect(closeDbcMock).not.toHaveBeenCalled();
 		expect(dbcFiles.files).toEqual([]);
 		expect(dbcFiles.error).toBe('catalog failed');
@@ -136,10 +138,10 @@ describe('dbcFiles', () => {
 		]);
 		await dbcFiles.addFiles([file('vehicle-again.dbc', 'same-content')]);
 
-		expect(openDbcMock).toHaveBeenCalledExactlyOnceWith('same-content');
+		expect(openDbcMock).toHaveBeenCalledExactlyOnceWith(new TextEncoder().encode('same-content'));
 		expect(closeDbcMock).not.toHaveBeenCalled();
 		expect(putStoredDbcsMock).toHaveBeenCalledExactlyOnceWith([
-			{ id: 'same-content', name: 'vehicle.dbc', text: 'same-content' }
+			{ id: 'same-content', name: 'vehicle.dbc', bytes: new TextEncoder().encode('same-content') }
 		]);
 		expect(dbcFiles.files).toHaveLength(1);
 		expect(dbcFiles.files[0]?.id).toBe('same-content');
@@ -628,7 +630,12 @@ describe('dbcFiles', () => {
 			})
 		);
 		openDbcMock.mockImplementation(async (text) =>
-			openDbcResult(text === 'new embedded' ? embeddedHandle : oldHandle, catalog(message()))
+			openDbcResult(
+				(typeof text === 'string' ? text : new TextDecoder().decode(text)) === 'new embedded'
+					? embeddedHandle
+					: oldHandle,
+				catalog(message())
+			)
 		);
 		const loading = dbcFiles.loadLibrary();
 		const resetting = dbcFiles.resetLibrary();

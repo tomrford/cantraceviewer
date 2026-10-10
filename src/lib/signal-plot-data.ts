@@ -13,6 +13,7 @@ export type SignalView = {
 	key: string;
 	label: string;
 	messageName: string;
+	sourceBadges?: string[];
 	signalName: string;
 	unit: string;
 	color: string;
@@ -137,6 +138,7 @@ function signalView(signal: PlotSignal): SignalView {
 		key: signal.key,
 		label: signal.label,
 		messageName: signal.messageName,
+		sourceBadges: signal.sourceBadges,
 		signalName: signal.signalName,
 		unit: signal.unit,
 		color: signal.color,
@@ -175,6 +177,7 @@ function viewMatchesSignal(view: SignalView, signal: PlotSignal): boolean {
 		view.y === (signal.series?.values ?? EMPTY_SERIES) &&
 		view.color === signal.color &&
 		view.label === signal.label &&
+		view.sourceBadges === signal.sourceBadges &&
 		view.unit === signal.unit &&
 		view.valueType === signal.valueType &&
 		view.factor === signal.factor &&

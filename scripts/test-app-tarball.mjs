@@ -17,6 +17,7 @@ const root = await mkdtemp(join(await realpath(tmpdir()), 'cantraceviewer-app-pa
 try {
 	for (const path of [
 		'src',
+		'wasm/tests/fixtures',
 		'static',
 		'patches',
 		'components.json',
