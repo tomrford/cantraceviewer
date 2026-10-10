@@ -20,54 +20,40 @@
 	>
 		<InfoIcon class="size-4" />
 	</DialogPrimitive.Trigger>
-	<Dialog.Content class="sm:max-w-xl">
+	<Dialog.Content class="max-h-[85vh] overflow-y-auto sm:max-w-lg">
 		<Dialog.Header>
 			<Dialog.Title class="pr-8 break-words">{file.name}</Dialog.Title>
-			<Dialog.Description>
+			<Dialog.Description class={file.warnings.length ? '' : 'sr-only'}>
 				{#if hasOmissions}Partially loaded: some DBC features were omitted.
 				{:else if file.warnings.length}Loaded with warnings.
-				{:else}Loaded successfully.{/if}
+				{:else}DBC file information.{/if}
 			</Dialog.Description>
 		</Dialog.Header>
-		<dl class="grid grid-cols-3 gap-4">
-			<div>
+		<dl class="space-y-1 text-muted-foreground">
+			<div class="flex justify-between gap-4">
 				<dt class="text-muted-foreground">Loaded messages</dt>
-				<dd class="text-base font-medium">{file.catalog.messages.length}</dd>
+				<dd class="tabular-nums">{file.catalog.messages.length}</dd>
 			</div>
-			<div>
+			<div class="flex justify-between gap-4">
 				<dt class="text-muted-foreground">Loaded signals</dt>
-				<dd class="text-base font-medium">{signalCount}</dd>
-			</div>
-			<div>
-				<dt class="text-muted-foreground">Warnings</dt>
-				<dd class="text-base font-medium">{file.warnings.length}</dd>
+				<dd class="tabular-nums">{signalCount}</dd>
 			</div>
 		</dl>
 		{#if file.warnings.length}
+			<h3 class="font-medium">
+				{file.warnings.length}
+				{file.warnings.length === 1 ? 'warning' : 'warnings'}
+			</h3>
 			<!-- svelte-ignore a11y_no_noninteractive_tabindex (keyboard users must be able to scroll the warnings) -->
-			<div
-				class="max-h-[50vh] overflow-auto rounded-md border border-border"
-				tabindex="0"
-				role="region"
-				aria-label="DBC warnings"
-			>
-				<table class="w-full text-left">
-					<thead class="sticky top-0 bg-popover"
-						><tr
-							><th class="p-2 font-medium">Line:column</th><th class="p-2 font-medium">Record</th
-							><th class="p-2 font-medium">Warning</th></tr
-						></thead
-					>
-					<tbody>
-						{#each file.warnings as warning (warning)}
-							<tr class="border-t border-border"
-								><td class="p-2 align-top tabular-nums">{warning.line}:{warning.column}</td><td
-									class="p-2 align-top font-mono">{warning.keyword}</td
-								><td class="p-2 align-top">{warning.message}</td></tr
-							>
-						{/each}
-					</tbody>
-				</table>
+			<div class="max-h-[50vh] overflow-auto" tabindex="0" role="region" aria-label="DBC warnings">
+				<ul class="space-y-2">
+					{#each file.warnings as warning (warning)}
+						<li class="flex gap-3">
+							<span class="shrink-0 text-muted-foreground tabular-nums">Line {warning.line}</span>
+							<span>{warning.message}</span>
+						</li>
+					{/each}
+				</ul>
 			</div>
 		{/if}
 	</Dialog.Content>
