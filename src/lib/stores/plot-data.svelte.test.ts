@@ -304,7 +304,8 @@ function dbcEntry(overrides: { messages?: DbcMessage[] } = {}): DbcFileEntry {
 		catalog: {
 			messages: overrides.messages ?? [message()]
 		},
-		origin: 'library'
+		origin: 'library',
+		warnings: []
 	};
 }
 

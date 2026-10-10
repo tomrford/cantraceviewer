@@ -19,6 +19,7 @@
 	import { traceFile } from '$lib/stores/trace-file.svelte.js';
 	import { onDbcRemoved } from '$lib/stores/session.js';
 	import SearchForm from './search-form.svelte';
+	import DbcInformation from './dbc-information.svelte';
 	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
@@ -400,6 +401,10 @@
 											>
 										{/if}
 									</button>
+									{#if row.dbc.kind === 'dbc'}
+										{@const file = dbcFiles.files.find((file) => file.id === row.dbc.id)}
+										{#if file}<DbcInformation {file} />{/if}
+									{/if}
 									{#if !row.dbc.transient && row.dbc.kind === 'dbc'}
 										<button
 											type="button"
