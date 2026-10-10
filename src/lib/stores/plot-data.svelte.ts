@@ -143,7 +143,12 @@ class PlotDataStore {
 		const target = findSignalTarget(key);
 		if (!trace || !target) return;
 
-		this.setSignalState(key, { status: 'decoding', series: null, error: null });
+		const decoding: SelectedSignalState = { status: 'decoding', series: null, error: null };
+		this.setSignalState(key, decoding);
+		const isCurrent = () =>
+			this.selectedSignals.get(key) === decoding &&
+			traceFile.entry === trace &&
+			findSignalTarget(key) !== null;
 
 		try {
 			const series =
@@ -151,13 +156,13 @@ class PlotDataStore {
 					? await getMf4SignalValues(trace.handle, target.value.signal.id)
 					: await this.decodeDbcSignal(trace, target.value);
 
-			if (!this.isSignalSelected(key) || traceFile.entry !== trace || !findSignalTarget(key)) {
+			if (!isCurrent()) {
 				return;
 			}
 
 			this.setSignalState(key, { status: 'ready', series, error: null });
 		} catch (error) {
-			if (this.isSignalSelected(key) && traceFile.entry === trace && findSignalTarget(key)) {
+			if (isCurrent()) {
 				this.setSignalState(key, {
 					status: 'error',
 					series: null,
@@ -165,9 +170,8 @@ class PlotDataStore {
 				});
 			}
 		} finally {
-			const state = this.selectedSignals.get(key);
-			if (state?.status === 'decoding') {
-				this.setSignalState(key, { ...state, status: 'idle' });
+			if (this.selectedSignals.get(key) === decoding) {
+				this.setSignalState(key, { ...decoding, status: 'idle' });
 			}
 		}
 	}

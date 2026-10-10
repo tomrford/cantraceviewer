@@ -596,6 +596,103 @@ describe('dbcFiles', () => {
 		expect(openDbcMock).not.toHaveBeenCalled();
 	});
 
+	it('waits for an earlier load before resetting its handles and storage', async () => {
+		const handle = dbcHandle(502);
+		let finishRead!: (stored: Awaited<ReturnType<typeof listStoredDbcs>>) => void;
+		listStoredDbcsMock.mockReturnValueOnce(
+			new Promise((resolve) => {
+				finishRead = resolve;
+			})
+		);
+		openDbcMock.mockResolvedValueOnce(openDbcResult(handle, catalog(message())));
+		const loading = dbcFiles.loadLibrary();
+		const resetting = dbcFiles.resetLibrary();
+		await vi.waitFor(() => expect(listStoredDbcsMock).toHaveBeenCalledOnce());
+		expect(dbcFiles.isLoading).toBe(true);
+		expect(resetStoredDbcsMock).not.toHaveBeenCalled();
+		finishRead([{ id: 'old', name: 'old.dbc', text: 'old' }]);
+		await Promise.all([loading, resetting]);
+		expect(dbcFiles.files).toEqual([]);
+		expect(closeDbcMock).toHaveBeenCalledExactlyOnceWith(handle);
+		expect(resetStoredDbcsMock).toHaveBeenCalledOnce();
+		expect(dbcFiles.isLoading).toBe(false);
+	});
+
+	it('retains a new trace embedded DBC opened after a queued library reset', async () => {
+		const oldHandle = dbcHandle(504);
+		const embeddedHandle = dbcHandle(505);
+		let finishRead!: (stored: Awaited<ReturnType<typeof listStoredDbcs>>) => void;
+		listStoredDbcsMock.mockReturnValueOnce(
+			new Promise((resolve) => {
+				finishRead = resolve;
+			})
+		);
+		openDbcMock.mockImplementation(async (text) =>
+			openDbcResult(text === 'new embedded' ? embeddedHandle : oldHandle, catalog(message()))
+		);
+		const loading = dbcFiles.loadLibrary();
+		const resetting = dbcFiles.resetLibrary();
+		const openingTrace = dbcFiles.addTransientDbcs(9, [embeddedDbc('new.dbc', 'new embedded')]);
+		await vi.waitFor(() => expect(listStoredDbcsMock).toHaveBeenCalledOnce());
+		finishRead([{ id: 'old', name: 'old.dbc', text: 'old' }]);
+		await Promise.all([loading, resetting, openingTrace]);
+		expect(dbcFiles.files).toMatchObject([
+			{ id: 'mf4:9:0', handle: embeddedHandle, origin: 'mf4' }
+		]);
+		expect(closeDbcMock).toHaveBeenCalledExactlyOnceWith(oldHandle);
+		expect(resetStoredDbcsMock).toHaveBeenCalledOnce();
+		expect(dbcFiles.isLoading).toBe(false);
+	});
+
+	it('finishes an in-flight import write before deleting the library', async () => {
+		const handle = dbcHandle(503);
+		let finishWrite!: () => void;
+		openDbcMock.mockResolvedValueOnce(openDbcResult(handle, catalog(message())));
+		putStoredDbcsMock.mockReturnValueOnce(
+			new Promise<void>((resolve) => {
+				finishWrite = resolve;
+			})
+		);
+		const importing = dbcFiles.addFiles([file('new.dbc', 'new')]);
+		await vi.waitFor(() => expect(putStoredDbcsMock).toHaveBeenCalledOnce());
+		const resetting = dbcFiles.resetLibrary();
+		expect(resetStoredDbcsMock).not.toHaveBeenCalled();
+		finishWrite();
+		await Promise.all([importing, resetting]);
+		expect(dbcFiles.files).toEqual([]);
+		expect(closeDbcMock).toHaveBeenCalledExactlyOnceWith(handle);
+		expect(resetStoredDbcsMock).toHaveBeenCalledOnce();
+		expect(dbcFiles.isLoading).toBe(false);
+	});
+
+	it('keeps imports blocked through a queued reset after the first reset fails', async () => {
+		let failReset!: (error: Error) => void;
+		let finishReset!: () => void;
+		resetStoredDbcsMock
+			.mockReturnValueOnce(
+				new Promise((_, reject) => {
+					failReset = reject;
+				})
+			)
+			.mockReturnValueOnce(
+				new Promise((resolve) => {
+					finishReset = resolve;
+				})
+			);
+		const first = dbcFiles.resetLibrary();
+		const second = dbcFiles.resetLibrary();
+		await vi.waitFor(() => expect(resetStoredDbcsMock).toHaveBeenCalledOnce());
+		failReset(new Error('storage unavailable'));
+		await expect(first).rejects.toThrow('storage unavailable');
+		await vi.waitFor(() => expect(resetStoredDbcsMock).toHaveBeenCalledTimes(2));
+		expect(dbcFiles.isLoading).toBe(true);
+		await dbcFiles.addFiles([file('ignored.dbc', 'ignored')]);
+		expect(openDbcMock).not.toHaveBeenCalled();
+		finishReset();
+		await second;
+		expect(dbcFiles.isLoading).toBe(false);
+	});
+
 	it('resets loaded DBC handles and the stored DBC library', async () => {
 		const handle = dbcHandle(501);
 		dbcFiles.files = [

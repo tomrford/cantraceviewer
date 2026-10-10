@@ -221,6 +221,26 @@ describe('plotData', () => {
 		expect(plotData.signals.find((signal) => signal.key === firstKey)?.color).toBe(firstColor);
 	});
 
+	it.each(['success', 'error'] as const)(
+		'ignores an old selection completion (%s) after reselecting',
+		async (outcome) => {
+			const first = createDeferred<DecodedSignalSeries>();
+			const second = createDeferred<DecodedSignalSeries>();
+			getSignalValuesMock.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+			const oldSelection = plotData.toggleSignal(key());
+			await plotData.toggleSignal(key());
+			const newSelection = plotData.toggleSignal(key());
+			if (outcome === 'success') first.resolve(signalSeries([1], [12]));
+			else first.reject(new Error('old decode failed'));
+			await oldSelection;
+			expect(plotData.signalDecodeStatus(key())).toEqual({ isDecoding: true, decodeError: null });
+			expect(plotData.signals[0].series).toBeNull();
+			second.resolve(signalSeries([2], [34]));
+			await newSelection;
+			expect(plotData.signals[0].series?.values).toEqual(new Float64Array([34]));
+		}
+	);
+
 	it('clears selected signals and releases colors', async () => {
 		getSignalValuesMock.mockResolvedValueOnce(signalSeries([0.001], [12.5]));
 
