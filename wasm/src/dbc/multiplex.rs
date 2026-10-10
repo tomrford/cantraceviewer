@@ -79,7 +79,6 @@ pub(super) fn resolve(messages: &mut [Message], records: &[Record]) -> Result<()
             .map(|s| s.name.clone())
             .collect();
         for signal in &mut message.signals {
-            // Extended records name the selector and its complete active ranges.
             if signal.multiplex.is_some() {
                 continue;
             }
@@ -106,7 +105,6 @@ pub(super) fn resolve(messages: &mut [Message], records: &[Record]) -> Result<()
 }
 
 fn resolve_graph(message: &mut Message) -> Result<(), DbcError> {
-    // Duplicate names and signal layouts have already been checked by the parser.
     let indices: HashMap<_, _> = message
         .signals
         .iter()
@@ -143,7 +141,6 @@ fn resolve_graph(message: &mut Message) -> Result<(), DbcError> {
             .unwrap()
             .selector_index = selector_index;
     }
-    // Each edge is visited once, with no recursive stack growth on deep graphs.
     let mut states = vec![0; message.signals.len()];
     for start in 0..states.len() {
         let mut current = Some(start);
@@ -175,7 +172,6 @@ fn resolve_graph(message: &mut Message) -> Result<(), DbcError> {
     Ok(())
 }
 
-/// Wide integers stay in the model so their references can still be resolved.
 pub(super) fn has_supported_width<'a>(message: &'a Message, mut signal: &'a Signal) -> bool {
     loop {
         if signal.bit_length > 64 {

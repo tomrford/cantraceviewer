@@ -48,13 +48,7 @@
 	let signalListOverflows = $state(false);
 	let expandedDbcIds = new SvelteSet<string>();
 	let expandedMessageKeys = new SvelteSet<string>();
-	// The popover content unmounts while closed; this component instance does not,
-	// so filter/expansion state carries across reopens. Scroll position is DOM
-	// state and needs saving explicitly.
 	let savedScrollTop = 0;
-	// The browser clamps scrollTop writes while the list is below its final
-	// height; restoring must not let that clamped value echo back into
-	// savedScrollTop, so the restore stays pending until it sticks.
 	let pendingScrollRestore: number | null = null;
 	let clampedScrollRestore = 0;
 	let selectorFilter = $derived({
@@ -114,7 +108,6 @@
 	$effect(() => {
 		const rows = selectorRows;
 		const scroller = signalListScroller;
-		// Read the scroller here so getScrollElement is not a stale closure.
 		get(rowVirtualizer).setOptions({
 			count: rows.length,
 			getScrollElement: () => scroller ?? null,
@@ -248,8 +241,6 @@
 	function persistScrollPosition(): void {
 		if (!signalListScroller) return;
 		if (pendingScrollRestore !== null) {
-			// Scroll events at the clamped offset are echoes of our own restore
-			// writes; anything else is the user scrolling, and they win.
 			if (signalListScroller.scrollTop === clampedScrollRestore) return;
 			pendingScrollRestore = null;
 		}

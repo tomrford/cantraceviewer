@@ -124,9 +124,6 @@ class DbcFilesStore {
 		return normalizeSelectorQuery(filter.query).length > 0 || filter.activeOnly;
 	}
 
-	// The returned tree is the single source of what the selector renders:
-	// collapsed nodes carry empty children so collapsed content never mounts,
-	// and expansion flips arrive as part of the same tree swap as the data.
 	visibleSelectorTree(
 		filter: SelectorFilterOptions,
 		additionalIndexes: SelectorSearchIndex[] = []

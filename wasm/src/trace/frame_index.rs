@@ -19,8 +19,6 @@ struct Bucket {
 
 impl Bucket {
     fn push(&mut self, frame: &Frame, frame_index: u32) {
-        // Every parser caps classic frames at 8 payload bytes; the uniform-bucket
-        // fast path in series.rs needs this to agree with frame_can_carry_message.
         debug_assert!(frame.is_fd || frame.payload_len <= 8);
         if self.frame_indices.is_empty() {
             self.payload_len = frame.payload_len;
@@ -81,8 +79,6 @@ impl FrameIndex {
             }
         }
 
-        // Order each CAN source once, when the index is built. The frame
-        // index breaks timestamp ties without discarding or swapping equal-time frames.
         for bucket in buckets.values_mut() {
             if !bucket
                 .frame_indices
@@ -161,7 +157,6 @@ impl FrameIndex {
 }
 
 fn key(id: u32, extended: bool, source: RawSource) -> u64 {
-    // CAN ID: bits 0–28; extended: 29; channel: 30–45; direction: 46–47.
     u64::from(id)
         | (u64::from(extended) << 29)
         | (u64::from(source.channel.map_or(0, |channel| channel.get())) << 30)

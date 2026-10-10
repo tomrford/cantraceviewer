@@ -2,7 +2,6 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::num::{ParseFloatError, ParseIntError};
 
-/// Errors produced while parsing DBC data or decoding a DBC signal.
 #[derive(Debug)]
 pub enum DbcError {
     AtRecord {

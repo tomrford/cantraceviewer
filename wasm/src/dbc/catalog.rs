@@ -2,11 +2,6 @@ use std::fmt::Write;
 
 use super::{Dbc, Message, Signal};
 
-/// Serializes the parsed DBC catalog consumed by the signal picker.
-///
-/// This is intentionally a UI catalog rather than a full DBC interchange
-/// format. Unsupported signals remain in the parsed model but are omitted here.
-/// Selector bounds are decimal strings to preserve all 64 wire bits.
 pub fn to_json(parsed: &Dbc) -> String {
     let mut output = String::new();
     output.push_str("{\"messages\":[");

@@ -22,7 +22,6 @@ type ShortcutDefinition = {
 	displayKey: string;
 	label: string;
 	group: ShortcutGroup;
-	/** Chords the browser also binds, so we must claim them even when we decline to act. */
 	primary?: boolean;
 };
 
@@ -74,7 +73,6 @@ export const SHORTCUTS = {
 
 const GROUP_ORDER: ShortcutGroup[] = ['Trace', 'View', 'Crosshairs', 'App'];
 
-/** The registry as the help dialog renders it: groups in a fixed order, each with its actions. */
 export function groupedShortcuts(): { group: ShortcutGroup; actions: ShortcutAction[] }[] {
 	const actions = Object.keys(SHORTCUTS) as ShortcutAction[];
 	return GROUP_ORDER.map((group) => ({
@@ -89,7 +87,6 @@ export function detectShortcutPlatform(platform: string): ShortcutPlatform {
 
 const PRIMARY_KEY_LABEL = { mac: '⌘', other: 'Ctrl' } satisfies Record<ShortcutPlatform, string>;
 
-/** Keys of a shortcut as separate chips, in press order, using the platform's modifier glyph. */
 export function shortcutKeys(action: ShortcutAction, platform: ShortcutPlatform): string[] {
 	const shortcut: ShortcutDefinition = SHORTCUTS[action];
 	return shortcut.primary
@@ -101,10 +98,6 @@ export function shortcutLabel(action: ShortcutAction): string {
 	return SHORTCUTS[action].label;
 }
 
-/**
- * Whether the browser binds this chord too. Cmd+O opens the browser's own file dialog, which
- * downloads any file it cannot render, so we claim the key even when we decline to act on it.
- */
 export function overridesBrowserShortcut(action: ShortcutAction): boolean {
 	const shortcut: ShortcutDefinition = SHORTCUTS[action];
 	return shortcut.primary === true;
@@ -127,10 +120,6 @@ export function shortcutFromEvent(
 				platform === 'mac' ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
 			if (!primaryPressed || event.altKey) continue;
 
-			// Shift is only disqualifying for letters, where Cmd+Shift+K is a different chord to
-			// Cmd+K. Symbols may need Shift to exist at all — / is Shift+7 on QWERTZ — and
-			// event.key already reports the character the layout produced, so matching on it
-			// keeps Cmd+/ working everywhere without caring which physical keys got us there.
 			if (event.shiftKey && LETTER_KEY.test(shortcut.key)) continue;
 			if (event.key.toLowerCase() === shortcut.key) return action;
 			continue;
@@ -143,7 +132,6 @@ export function shortcutFromEvent(
 	return null;
 }
 
-/** The element fields shortcut suppression actually reads. */
 export type ShortcutTarget = {
 	readonly tagName?: string;
 	readonly isContentEditable?: boolean;
@@ -151,7 +139,6 @@ export type ShortcutTarget = {
 	getAttribute?: (name: string) => string | null;
 };
 
-/** Text fields and transient surfaces own their own keys, so we stay out of their way. */
 export function shortcutSuppressedBySurface(target: ShortcutTarget | null): boolean {
 	return isEditableShortcutTarget(target) || isTransientSurfaceTarget(target);
 }
@@ -198,8 +185,5 @@ function isTransientSurfaceTarget(target: ShortcutTarget | null): boolean {
 	const surface = target?.closest?.(TRANSIENT_SURFACE_SELECTOR);
 	if (!surface) return false;
 
-	// The walkthrough is a coach mark: it takes focus to be announced, but declares
-	// aria-modal="false" because it does not own the keyboard. Shortcuts must keep working
-	// while it is open — it spends its first step asking you to open a trace.
 	return surface.getAttribute?.('aria-modal') !== 'false';
 }

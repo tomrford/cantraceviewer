@@ -25,7 +25,6 @@ function packedSeries(times: number[], values: number[]): DecodedSignalSeries {
 	return { timesMs: packed.subarray(0, times.length), values: packed.subarray(times.length) };
 }
 
-/** Model stores such as Svelte `$state`, which recursively proxy only plain objects. */
 function proxyPlainObjects<T>(value: T): T {
 	const proxies = new WeakMap<object, object>();
 	function wrap<T>(nested: T): T {
@@ -49,7 +48,6 @@ function proxyPlainObjects<T>(value: T): T {
 	return wrap(value);
 }
 
-/** Synchronous stand-in for the WASM-backed direct client. */
 function createFakeDirect() {
 	const log: string[] = [];
 	const client: DirectClient = {
@@ -104,8 +102,6 @@ type Harness = {
 	breakNextOkResponse(): void;
 };
 
-/** In-process loopback between the real client and the real worker runtime. structuredClone
- *  reproduces postMessage semantics, including transfer-list buffer detachment. */
 function createHarness(loadClient: (limits: ParsingLimits) => Promise<DirectClient>): Harness {
 	const clientListeners = new Map<string, ((event: ClientWorkerEvent) => void)[]>();
 	const runtimeListeners: ((event: { data: WorkerRequest }) => void)[] = [];
@@ -241,7 +237,7 @@ describe('createCanTraceClient worker transport', () => {
 		await expect(client.openTrace('asc', view as unknown as ArrayBuffer)).rejects.toThrow(
 			'exact ArrayBuffer'
 		);
-		expect(view.byteLength).toBe(3); // never copied, never detached
+		expect(view.byteLength).toBe(3);
 		expect(harness.requests).toHaveLength(0);
 		await client.close();
 	});
@@ -255,7 +251,7 @@ describe('createCanTraceClient worker transport', () => {
 		});
 		const clientPromise = createCanTraceClientForWorker(() => harness.worker);
 		await settle();
-		expect(fake.log).toEqual([]); // nothing runs before the WASM client exists
+		expect(fake.log).toEqual([]);
 
 		boot.resolve();
 		const client = await clientPromise;
@@ -312,7 +308,7 @@ describe('createCanTraceClient worker transport', () => {
 			values: new Float64Array([10, 20])
 		});
 		await first.client.closeTrace(spreadTrace);
-		await first.client.closeTrace(trace); // idempotent through the shared state
+		await first.client.closeTrace(trace);
 		expect(first.fake.log.filter((entry) => entry === 'closeTrace')).toHaveLength(1);
 		await expect(first.client.getSignalValues(dbc, trace, identity, 's')).rejects.toThrow(
 			'trace handle is closed'
@@ -320,7 +316,7 @@ describe('createCanTraceClient worker transport', () => {
 		await first.client.closeDbc(reactiveDbc);
 		await first.client.closeDbc(dbc);
 		expect(first.fake.log.filter((entry) => entry === 'closeDbc')).toHaveLength(1);
-		expect(second.fake.log).toEqual([]); // cross-client attempts never reach the other worker
+		expect(second.fake.log).toEqual([]);
 		await Promise.all([first.client.close(), second.client.close()]);
 	});
 
@@ -329,16 +325,15 @@ describe('createCanTraceClient worker transport', () => {
 		const { handle: dbc } = await client.openDbc('d');
 		const { handle: trace } = await client.openTrace('asc', new Uint8Array([1]).buffer);
 
-		// In flight: posted, but the worker dies before its response arrives.
 		const decodePromise = client.getSignalValues(dbc, trace, identity, 's');
 		harness.emit('error', { message: 'boom' });
 		await expect(decodePromise).rejects.toThrow('worker crashed: boom');
 		await expect(client.openDbc('x')).rejects.toThrow('worker crashed: boom');
-		await client.closeTrace(trace); // handles were invalidated; close resolves silently
+		await client.closeTrace(trace);
 		expect(harness.terminated()).toBeGreaterThan(0);
 
-		await client.close(); // fatal client still closes cleanly
-		expect(factoryCalls()).toBe(1); // no transparent worker restart
+		await client.close();
+		expect(factoryCalls()).toBe(1);
 	});
 
 	it('treats messageerror as fatal', async () => {
@@ -365,7 +360,7 @@ describe('createCanTraceClient worker transport', () => {
 		);
 		await until(() => fake.log.includes('closeTrace'));
 
-		const opened = await client.openTrace('asc', new Uint8Array([9]).buffer); // queue survives
+		const opened = await client.openTrace('asc', new Uint8Array([9]).buffer);
 		expect(opened.metadata.validMessageCount).toBe(1);
 		await client.close();
 	});

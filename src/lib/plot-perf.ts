@@ -1,8 +1,3 @@
-/**
- * Dev-only metrics for chart option pushes, exposed as `window.__plotPerf` so
- * benchmark scripts can read setOption frequency and cost from the console.
- * Returns null (and records nothing) in production builds.
- */
 export type PlotPerfStats = {
 	count: number;
 	totalMs: number;

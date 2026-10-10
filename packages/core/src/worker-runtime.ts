@@ -11,10 +11,6 @@ import type {
 } from './protocol.ts';
 import type { DbcHandle, DecodedSignalSeries, TraceHandle } from './types.ts';
 
-/**
- * Message endpoint a worker host provides: `self` in a browser Worker, the parent port in a Node
- * worker thread. @internal
- */
 export type WorkerRuntimeEndpoint = {
 	postMessage(message: WorkerResponse, transfer?: ArrayBuffer[]): void;
 	addEventListener(type: 'message', listener: (event: { data: WorkerRequest }) => void): void;
@@ -23,20 +19,9 @@ export type WorkerRuntimeEndpoint = {
 type Executed = {
 	result: WorkerOkResult;
 	transfer?: ArrayBuffer[];
-	/** Reverses resource creation when the success response cannot be posted. */
 	undo?: () => void;
 };
 
-/**
- * Drive one synchronous DirectClient behind a message endpoint. Shared by the browser Worker entry
- * and the Node worker-thread entry. @internal
- *
- * The worker owns every direct handle because wasm-bindgen objects carry hidden state that cannot
- * cross threads; only plain data crosses the wire. Each request runs to completion before the next
- * one starts, in post order, so a later close never interrupts an active decode. A per-request
- * error is replied as an error envelope and never poisons the queue. Boot failure is reported once
- * and never retried here; the owning client treats it as fatal and terminates this worker.
- */
 export function startWorkerRuntime(
 	endpoint: WorkerRuntimeEndpoint,
 	loadClient: (limits: ParsingLimits) => Promise<DirectClient>
@@ -44,11 +29,8 @@ export function startWorkerRuntime(
 	const dbcs = new Map<number, DbcHandle>();
 	const traces = new Map<number, TraceHandle>();
 	let direct: DirectClient | null = null;
-	// Wire IDs are never recycled.
 	let nextWireId = 1;
 
-	// Loading WASM is the only asynchronous step: bytes arrive over fetch or from disk, and may be
-	// compiled, before the synchronous direct client exists.
 	let initialize: ((limits: ParsingLimits) => void) | null = null;
 	const boot = new Promise<ParsingLimits>((resolve) => {
 		initialize = resolve;
@@ -65,8 +47,6 @@ export function startWorkerRuntime(
 		)
 		.catch(() => undefined);
 
-	// Requests posted before boot finishes wait behind it; afterwards each one is handled
-	// synchronously in the order the endpoint delivered it.
 	let queue: Promise<void> = boot;
 	endpoint.addEventListener('message', (event) => {
 		if (event.data.op === 'init' && initialize) {
@@ -92,12 +72,9 @@ export function startWorkerRuntime(
 				executed.transfer ?? []
 			);
 		} catch (error) {
-			// Response shaping failed after the operation succeeded: release what it created.
 			try {
 				executed.undo?.();
-			} catch {
-				// Cleanup failure must not replace the reported response error.
-			}
+			} catch {}
 			endpoint.postMessage({ type: 'error', id: request.id, error: toWireError(error) });
 		}
 	}
@@ -191,8 +168,6 @@ function requireHandle<T>(handles: Map<number, T>, id: number, kind: string): T 
 
 function packSeries(series: DecodedSignalSeries): Executed {
 	const buffer = series.timesMs.buffer;
-	// Regression guard: direct decode output must be both views over one exactly-sized plain
-	// ArrayBuffer, not into WebAssembly.Memory (whose buffer is far larger and non-transferable).
 	if (
 		!(buffer instanceof ArrayBuffer) ||
 		series.values.buffer !== buffer ||
@@ -207,7 +182,6 @@ function packSeries(series: DecodedSignalSeries): Executed {
 		valuesByteOffset: series.values.byteOffset,
 		valuesLength: series.values.length
 	};
-	// Transfer the unique buffer once; the client reconstructs both views over it.
 	return { result, transfer: [buffer] };
 }
 

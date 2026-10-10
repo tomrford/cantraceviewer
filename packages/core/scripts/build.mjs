@@ -11,8 +11,6 @@ execFileSync(
 	}
 );
 
-// `rewriteRelativeImportExtensions` handles import declarations, but not the literal Worker URL
-// that browser bundlers require. The source checkout points at TypeScript; the package ships JS.
 const browserClient = new URL('../dist/client.js', import.meta.url);
 const browserSource = await readFile(browserClient, 'utf8');
 const packagedSource = browserSource.replace(
@@ -22,8 +20,6 @@ const packagedSource = browserSource.replace(
 if (packagedSource === browserSource) throw new Error('browser Worker URL was not rewritten');
 await writeFile(browserClient, packagedSource);
 
-// TypeScript rewrites runtime imports but currently retains `.ts` in emitted declarations.
-// Published declarations must refer to the emitted `.js` modules rather than absent source files.
 const dist = new URL('../dist/', import.meta.url);
 for (const relative of await readdir(dist, { recursive: true })) {
 	if (!relative.endsWith('.d.ts')) continue;

@@ -33,7 +33,6 @@ export function documentModelContext(): ModelContext | null {
 	return context;
 }
 
-/** Feature-detect `document.modelContext` and register the bounded analysis tools. */
 export function mountWebMcp(
 	page: WebMcpPlotHost,
 	context: ModelContext | null = documentModelContext()

@@ -14,11 +14,6 @@ type FakeWorker = {
 	blockTermination(): () => void;
 };
 
-/**
- * worker_threads-shaped stub. It covers the Node transport contract only: event adaptation,
- * awaited termination, and fatal failures. The real worker thread is exercised in
- * node.integration.test.ts.
- */
 function createFakeWorker(): FakeWorker {
 	const listeners = new Map<WorkerEvent, ((payload: WorkerResponse | Error | number) => void)[]>();
 	const requests: WorkerRequest[] = [];
@@ -31,7 +26,6 @@ function createFakeWorker(): FakeWorker {
 
 	const worker: NodeClientWorker = {
 		postMessage(message, transfer) {
-			// worker_threads detaches transferred buffers exactly like postMessage does.
 			if (message.op !== 'init')
 				requests.push(structuredClone(message, { transfer: [...(transfer ?? [])] }));
 		},
@@ -66,7 +60,6 @@ function createFakeWorker(): FakeWorker {
 	};
 }
 
-/** Boot one client over the stub: the worker reports ready as the real worker runtime does. */
 async function createBootedClient(fake = createFakeWorker()) {
 	const pending = createNodeClientForWorker(() => fake.worker);
 	fake.reply({ type: 'ready' });
@@ -95,14 +88,14 @@ describe('cantraceviewer node transport', () => {
 		const release = fake.blockTermination();
 
 		const closePromise = client.close();
-		fake.reply({ type: 'ok', id: 1, result: null }); // acknowledges closeClient
+		fake.reply({ type: 'ok', id: 1, result: null });
 		await settle();
 		let closed = false;
 		void closePromise.then(() => {
 			closed = true;
 		});
 		await settle();
-		expect(closed).toBe(false); // termination is still in progress
+		expect(closed).toBe(false);
 		expect(fake.terminateCalls()).toBe(1);
 
 		release();
@@ -119,7 +112,7 @@ describe('cantraceviewer node transport', () => {
 		await expect(client.openDbc('x')).rejects.toThrow(
 			'worker thread exited unexpectedly with code 3'
 		);
-		expect(fake.terminateCalls()).toBe(1); // terminated once, never restarted
+		expect(fake.terminateCalls()).toBe(1);
 		await client.close();
 	});
 

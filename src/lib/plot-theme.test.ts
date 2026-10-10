@@ -7,7 +7,6 @@ function styles(values: Record<string, string>) {
 
 describe('toChartColor', () => {
 	it('converts the greyscale tokens the stylesheet actually uses', () => {
-		// Chroma 0 collapses to r = g = b = gamma(L³), so these are checkable by hand.
 		expect(toChartColor('oklch(1 0 0)')).toBe('#ffffff');
 		expect(toChartColor('oklch(0 0 0)')).toBe('#000000');
 		expect(toChartColor('oklch(0.145 0 0)')).toBe('#0a0a0a');
@@ -22,7 +21,6 @@ describe('toChartColor', () => {
 		const color = toChartColor('oklch(0.696 0.17 162.48)');
 		expect(color).toMatch(/^#[0-9a-f]{6}$/);
 		const [, red, green, blue] = /^#(..)(..)(..)$/.exec(color!)!;
-		// A green primary: the green channel dominates and red is the weakest.
 		expect(Number.parseInt(green, 16)).toBeGreaterThan(Number.parseInt(blue, 16));
 		expect(Number.parseInt(blue, 16)).toBeGreaterThan(Number.parseInt(red, 16));
 	});
@@ -33,8 +31,6 @@ describe('toChartColor', () => {
 	});
 
 	it('refuses colours it cannot convert rather than guessing', () => {
-		// ChartGPU renders an unparseable colour as its own default, so returning
-		// null lets the caller keep a fallback it chose.
 		expect(toChartColor('color-mix(in oklab, red, blue)')).toBeNull();
 		expect(toChartColor('rgb(255 0 0)')).toBeNull();
 		expect(toChartColor('rebeccapurple')).toBeNull();

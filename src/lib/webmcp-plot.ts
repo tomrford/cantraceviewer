@@ -9,7 +9,6 @@ export type WebMcpPlotHost = Pick<
 	'view' | 'setTimeWindow' | 'setCrosshairs' | 'setSignalAxes'
 >;
 
-/** Share the page's existing plot state with tools without synthesising gestures. */
 export function createWebMcpPlotHost(
 	viewport: PlotViewportState,
 	state: { crosshairs: PlotCrosshair[]; readout: LegendCrosshairMode }
@@ -65,7 +64,6 @@ export function createWebMcpPlotHost(
 				while (plotAxes.ids.length < axis) plotAxes.addAxis();
 				plotAxes.assign(key, plotAxes.ids[axis - 1]);
 			}
-			// Let the plot recompute its fit domains before reporting applied ranges.
 			await tick();
 		}
 	};

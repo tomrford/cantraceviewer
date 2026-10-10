@@ -23,7 +23,6 @@
 		onRun: (action: ShortcutAction) => void;
 	} = $props();
 
-	// The palette lists what you can do now, so it omits the command that opened it.
 	const groups = groupedShortcuts().map(({ group, actions }) => ({
 		group,
 		actions: actions.filter((action) => action !== 'showPalette')

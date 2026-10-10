@@ -9,8 +9,6 @@
 	}: HTMLAttributes<HTMLElement> & { keys: string[] } = $props();
 </script>
 
-<!-- Chips derive their colours from currentColor so they read correctly on both normal and
-     inverted surfaces (tooltips) without needing a per-surface variant. -->
 <span
 	data-slot="kbd-group"
 	class={cn('relative inline-flex shrink-0 items-center gap-0.5', className)}

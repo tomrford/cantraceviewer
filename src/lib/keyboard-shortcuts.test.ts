@@ -65,14 +65,11 @@ describe('keyboard shortcuts', () => {
 		expect(shortcutFromEvent(keyEvent('?', { defaultPrevented: true }), 'other')).toBeNull();
 	});
 
-	// ? is Shift+/ on most layouts, so it shares a keycap with the signal selector.
 	it('separates ? from the signal selector on the same keycap', () => {
 		expect(shortcutFromEvent(keyEvent('?', { shiftKey: true }), 'mac')).toBe('showHelp');
 		expect(shortcutFromEvent(keyEvent('/', { metaKey: true }), 'mac')).toBe('selectSignals');
 	});
 
-	// QWERTZ and AZERTY reach / through Shift, so Cmd+/ arrives as Cmd+Shift+<key> with
-	// event.key already resolved to '/'. Rejecting Shift outright made Cmd+/ unpressable there.
 	it('accepts symbol chords that a layout can only produce with Shift', () => {
 		expect(shortcutFromEvent(keyEvent('/', { metaKey: true, shiftKey: true }), 'mac')).toBe(
 			'selectSignals'
@@ -82,7 +79,6 @@ describe('keyboard shortcuts', () => {
 		);
 	});
 
-	// Letters are the other way round: Shift makes it a genuinely different chord.
 	it('keeps Shift disqualifying for letter chords', () => {
 		expect(shortcutFromEvent(keyEvent('k', { metaKey: true, shiftKey: true }), 'mac')).toBeNull();
 		expect(shortcutFromEvent(keyEvent('o', { metaKey: true, shiftKey: true }), 'mac')).toBeNull();
@@ -103,9 +99,6 @@ describe('keyboard shortcuts', () => {
 		expect(shortcutSuppressedBySurface(checkbox)).toBe(false);
 	});
 
-	// Whatever surface is focused, a chord the browser also binds has to stay recognisable so
-	// the page can claim it — Cmd+O otherwise opens the browser's file dialog, which downloads
-	// any trace it cannot render.
 	it('marks browser-bound chords so they can be claimed when declined', () => {
 		expect(shortcutFromEvent(keyEvent('o', { metaKey: true }), 'mac')).toBe('openTrace');
 		expect(overridesBrowserShortcut('openTrace')).toBe(true);

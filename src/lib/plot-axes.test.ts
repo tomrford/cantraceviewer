@@ -14,7 +14,6 @@ function signal(key: string, unit = '') {
 describe('nextYAxisId', () => {
 	it('never reuses a live id after axes are removed out of order', () => {
 		expect(nextYAxisId(['y'])).toBe('y1');
-		// 'y1' was removed, so the length-derived candidate collides with 'y2'.
 		expect(nextYAxisId(['y', 'y2'])).toBe('y3');
 	});
 });

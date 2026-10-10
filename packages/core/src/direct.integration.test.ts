@@ -19,7 +19,6 @@ let dbcText: string;
 let ascBytes: Uint8Array;
 
 beforeAll(async () => {
-	// Reading the bytes is the caller's asynchronous work; creating the client is not.
 	wasmBytes = new Uint8Array(
 		await readFile(resolve('packages/core/dist/wasm-bindgen/cantraceviewer_bg.wasm'))
 	);
@@ -115,7 +114,7 @@ describe('cantraceviewer/direct', () => {
 				new Uint8Array([0xef, 0xbb, 0xbf, ...new TextEncoder().encode(text)])
 			]) {
 				const compressed = deflateSync(bytes);
-				view.setUint16(data, 3, true); // Embedded and compressed; discard the original MD5.
+				view.setUint16(data, 3, true);
 				view.setBigUint64(attachment + 8, BigInt(data + 40 + compressed.length - attachment), true);
 				view.setBigUint64(data + 24, BigInt(bytes.length), true);
 				view.setBigUint64(data + 32, BigInt(compressed.length), true);
@@ -237,7 +236,6 @@ describe('cantraceviewer/direct', () => {
 		const openedDbc: OpenDbcResult = client.openDbc(dbcText);
 		const openedTrace: OpenTraceResult = client.openTrace('asc', ascBytes);
 		try {
-			// No promise anywhere: values are already here, in this tick.
 			expect(openedDbc.catalog.messages.length).toBeGreaterThan(0);
 			expect(openedTrace.metadata.validMessageCount).toBe(1506);
 			expect(
@@ -279,7 +277,6 @@ describe('cantraceviewer/direct', () => {
 			expect(speed.timesMs.length).toBe(251);
 			expect(speed.timesMs.buffer).toBe(speed.values.buffer);
 
-			// The worker transports depend on one exactly-sized transferable decode buffer.
 			const seriesBuffer = speed.timesMs.buffer as ArrayBuffer;
 			expect(seriesBuffer.byteLength).toBe(speed.timesMs.byteLength + speed.values.byteLength);
 			structuredClone(seriesBuffer, { transfer: [seriesBuffer] });
@@ -360,7 +357,6 @@ describe('cantraceviewer/direct', () => {
 
 	it('opens decoded MF4 channels and reads a native series', async () => {
 		const bytes = new Uint8Array(await readFile(resolve(fixturesDir, 'mf4/decoded-channels.mf4')));
-		// Three 24-byte DT records begin with f64 seconds.
 		const records = new DataView(bytes.buffer, bytes.byteOffset + 272, 72);
 		records.setFloat64(0, 0.3, true);
 		records.setFloat64(24, 0, true);
@@ -486,8 +482,6 @@ describe('cantraceviewer/direct', () => {
 	});
 
 	it('accepts a precompiled module and keeps client handle ownership separate', async () => {
-		// WASM initialization is per realm, so this client shares the instance already created from
-		// bytes; it still owns its own handles.
 		const otherClient = createDirectClient(await WebAssembly.compile(wasmBytes));
 		const { handle: dbc } = openFixtureDbc();
 		const { handle: trace } = openFixtureTrace();
@@ -499,7 +493,7 @@ describe('cantraceviewer/direct', () => {
 
 			const spreadTrace = { ...trace };
 			client.closeTrace(spreadTrace);
-			client.closeTrace(trace); // idempotent through the shared state
+			client.closeTrace(trace);
 			expect(() => client.getSignalValues(dbc, trace, identity, 'vehicle_speed')).toThrow(
 				'trace handle is closed'
 			);
@@ -522,7 +516,7 @@ describe('cantraceviewer/direct', () => {
 	it('rejects every operation after close', () => {
 		const closed = createDirectClient(wasmBytes);
 		closed.close();
-		closed.close(); // idempotent
+		closed.close();
 		expect(() => closed.openDbc(dbcText)).toThrow('client is closed');
 		expect(() => closed.openTrace('asc', ascBytes)).toThrow('client is closed');
 	});

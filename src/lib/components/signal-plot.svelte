@@ -92,9 +92,6 @@
 	let resizeObserver: ResizeObserver | null = null;
 
 	const AXIS_FONT_SIZE = 12;
-	// Both axes' labels come from these tokens: ChartGPU draws the x axis from the
-	// theme it is handed, and SignalPlotAxes draws the y gutters from the Tailwind
-	// classes that resolve to the same custom properties.
 	let plotTheme = $state<PlotTheme>(FALLBACK_PLOT_THEME);
 	const viewsForSignals = createSignalViewCache();
 	const plottableSignals = $derived(plotData.signals.filter(isPlottableSignal));
@@ -114,12 +111,9 @@
 	const axisIdByKey = $derived(
 		new Map(axisGroups.flatMap((group) => group.signals.map((view) => [view.key, group.id])))
 	);
-	// An axis with nothing on it has no range worth drawing, so it earns no
-	// gutter and no plot width until a signal lands on it.
 	const gutterAxes = $derived(axisViews.filter((axis) => axis.signals.length > 0));
 	const grid = $derived(plotGrid(gutterAxes.length));
 	const secondaryFitRanges = $derived.by(() => {
-		// Rebuilt on every evaluation, never mutated after: a derived lookup, not state.
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		const ranges = new Map<YAxisId, PlotAxisRange>();
 		for (const group of axisGroups.slice(1)) {
@@ -132,8 +126,6 @@
 	const fullDomain = $derived.by(() => {
 		const next =
 			axisSplitDomain(signalViews, axisGroups[0].signals) ?? traceDurationDomain(traceDurationNs);
-		// Keep the object identity stable while the values are unchanged so
-		// derived consumers are not invalidated by view-list churn.
 		if (
 			next === null ||
 			lastDomainValue === null ||
@@ -158,8 +150,6 @@
 		);
 		return series.length > 0 ? series : [emptyAxisSeries(primaryAxisId)];
 	});
-	// Visible bounds of every axis: the primary one is the viewport itself, the
-	// rest follow the same proportional y window over their own fit range.
 	const axisRanges = $derived.by(() => {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- derived lookup
 		const ranges = new Map<YAxisId, PlotAxisRange>(viewport.secondaryRanges);
@@ -175,10 +165,6 @@
 		plotWindow.settleAfter(signalViews, activeViewport);
 	});
 
-	// The custom properties change value under the same names, so only a fresh
-	// computed style sees a theme flip. Watch the class the layout toggles rather
-	// than `isDark()` directly: reacting to the preference races the effect that
-	// applies it, and reads the outgoing theme's tokens.
 	onMount(() => {
 		if (plotRoot === null) return;
 		const root = plotRoot;
@@ -258,8 +244,6 @@
 	let pendingOptions: ChartGPUOptions | null = null;
 	let pushFrame: number | null = null;
 
-	// Coalesce option pushes to one setOption per animation frame: pointer and
-	// wheel events can fire faster than the display refreshes.
 	$effect(() => {
 		pendingOptions = chartOptions();
 		pushFrame ??= requestAnimationFrame(() => {
@@ -297,8 +281,6 @@
 		const axisTimestampMode = timestampMode.current;
 
 		return {
-			// PlotWindow owns the 50,000-point budget, so preserve configured line
-			// widths and sample-marker sizes instead of applying renderer-side LOD.
 			performance: { lod: 'strict' },
 			theme: {
 				backgroundColor: theme.background,
@@ -311,7 +293,6 @@
 				fontSize: AXIS_FONT_SIZE
 			},
 			grid,
-			// The token carries its own alpha, so the grid lines need no second one.
 			gridLines: { color: theme.gridLine, opacity: 1 },
 			xAxis: {
 				type: 'time',
@@ -323,10 +304,6 @@
 						mode: axisTimestampMode
 					})
 			},
-			// ChartGPU scales each series against its own axis, but anchors every
-			// left axis at the same edge and never draws the y axis line, so its
-			// labels are suppressed and SignalPlotAxes renders the gutters instead.
-			// Index 0 is the primary axis, which also drives the horizontal grid.
 			axes: {
 				y: axisViews.map((axis) => ({
 					id: axis.id,

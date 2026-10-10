@@ -1,4 +1,3 @@
-// Executed verbatim by the packed direct, Node and browser transport smoke tests.
 export async function checkParsingLimits(createClient, transfer = true) {
 	const dbc = 'CM_ "é € 😀 \ud800 \udc00";';
 	const trace = new TextEncoder().encode('base hex timestamps absolute\n0.001 1 120 Rx d 1 01\n');
@@ -48,7 +47,6 @@ export async function checkDbc(client, transfer = true) {
 		'BO_ 42 Status: 1 ECU\n SG_ State : 0|8@1+ (1,0) [0|255] "°C € – ™" DASH\nVAL_ 42 State 0 "Arrêt";\n';
 	const utf8 = new TextEncoder().encode(text);
 	const bom = new Uint8Array([0xef, 0xbb, 0xbf, ...utf8]);
-	// Independently specified Windows-1252 bytes, including C1 punctuation.
 	const legacy = Uint8Array.from(
 		[...text].map((char) => ({ '€': 0x80, '–': 0x96, '™': 0x99 })[char] ?? char.charCodeAt(0))
 	);

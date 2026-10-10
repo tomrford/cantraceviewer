@@ -9,9 +9,7 @@
 				let theme = 'system';
 				try {
 					theme = JSON.parse(localStorage.getItem('cantraceviewer:theme') ?? '"system"');
-				} catch {
-					// Keep the system preference when storage is unavailable or invalid.
-				}
+				} catch {}
 				document.documentElement.classList.toggle(
 					'dark',
 					theme === 'dark' ||

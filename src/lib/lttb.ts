@@ -1,8 +1,3 @@
-/**
- * Largest-triangle-three-buckets downsampling over columnar series data.
- * Samples the index range [start, end) of the source columns without copying
- * the input; always keeps the range's first and last points.
- */
 export function lttbSample(
 	x: Float64Array<ArrayBufferLike>,
 	y: Float64Array<ArrayBufferLike>,
@@ -28,7 +23,6 @@ export function lttbSample(
 		const bucketStart = start + 1 + Math.floor(bucket * bucketSize);
 		const bucketEnd = Math.min(start + 1 + Math.floor((bucket + 1) * bucketSize), end - 1);
 
-		// Average of the following bucket forms the third triangle vertex.
 		const nextStart = bucketEnd;
 		const nextEnd = Math.min(start + 1 + Math.floor((bucket + 2) * bucketSize), end - 1);
 		const nextLength = Math.max(1, nextEnd - nextStart);

@@ -3,10 +3,8 @@ use std::rc::Rc;
 use super::quotes::parse_quoted;
 use super::{DbcError, find_dbc_whitespace, is_dbc_whitespace, trim_dbc};
 
-/// Largest exact integer representable by JavaScript `number`.
 const JS_SAFE_INTEGER_MAX: i64 = 9_007_199_254_740_991;
 
-/// Numeric representation requested by `SIG_VALTYPE_`.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum ValueType {
     #[default]
@@ -25,14 +23,12 @@ impl ValueType {
     }
 }
 
-/// One raw numeric value and its display label.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ValueDescription {
     pub raw_value: i64,
     pub label: String,
 }
 
-/// Named set of value descriptions from a `VAL_TABLE_` record.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ValueTable {
     pub name: String,
@@ -40,7 +36,6 @@ pub struct ValueTable {
 }
 
 impl ValueTable {
-    /// Parses a named table and its raw-value/label pairs.
     pub fn parse(line: &str) -> Result<Self, DbcError> {
         let mut cursor = trim_dbc(line);
         let Some(("VAL_TABLE_", rest)) = cursor.split_once([' ', '\t', '\r', '\n']) else {
@@ -61,14 +56,12 @@ impl ValueTable {
     }
 }
 
-/// A `VAL_` record's value source before it is attached to a signal.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ValueDescriptionRef {
     TableName(String),
     InlineValues(Rc<[ValueDescription]>),
 }
 
-/// Signal-specific value descriptions from a `VAL_` record.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SignalValueDescriptions {
     pub message_id: u32,
@@ -77,7 +70,6 @@ pub struct SignalValueDescriptions {
 }
 
 impl SignalValueDescriptions {
-    /// Parses either inline descriptions or a named value-table reference.
     pub fn parse(line: &str) -> Result<Self, DbcError> {
         let mut cursor = trim_dbc(line);
         let Some(("VAL_", rest)) = cursor.split_once([' ', '\t', '\r', '\n']) else {
@@ -124,7 +116,6 @@ impl SignalValueDescriptions {
     }
 }
 
-/// Signal numeric type metadata from a `SIG_VALTYPE_` record.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SignalValueType {
     pub message_id: u32,
@@ -133,7 +124,6 @@ pub struct SignalValueType {
 }
 
 impl SignalValueType {
-    /// Parses the integer type code used by DBC value-type metadata.
     pub fn parse(line: &str) -> Result<Self, DbcError> {
         let mut cursor = trim_dbc(line);
         let Some(("SIG_VALTYPE_", rest)) = cursor.split_once([' ', '\t', '\r', '\n']) else {
@@ -188,7 +178,6 @@ fn strip_record_semicolon(cursor: &str) -> &str {
         .map_or(cursor, |without_semicolon| trim_dbc(without_semicolon))
 }
 
-/// Parses repeated `<raw> "<label>"` pairs.
 fn parse_value_description_pairs(text: &str) -> Result<Vec<ValueDescription>, DbcError> {
     let mut cursor = strip_record_semicolon(trim_dbc(text));
     let mut descriptions = Vec::new();

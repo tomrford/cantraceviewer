@@ -321,7 +321,6 @@ describe('WebMCP shared plot', () => {
 		await tools.set_signal_axes.execute({ assignments: [{ signal: 'EEC1.EngineSpeed', axis: 1 }] });
 		expect(plotAxes.assignment.has(engineKey)).toBe(false);
 		expect(plotAxes.ids).toHaveLength(2);
-		// Removing an intermediate axis via the UI changes ordinal Y numbers, not tool identity.
 		plotAxes.addAxis();
 		plotAxes.removeAxis(plotAxes.ids[1]);
 		await tools.set_signal_axes.execute(input);

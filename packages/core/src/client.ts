@@ -9,10 +9,8 @@ import type { ParsingLimits } from './limits.ts';
 
 export type { CanTraceClient } from './rpc-client.ts';
 
-/** @internal */
 export type ClientWorkerEvent = { data?: WorkerResponse; message?: string };
 
-/** @internal */
 export type ClientWorker = {
 	postMessage(message: WorkerRequest, transfer: Transferable[]): void;
 	addEventListener(
@@ -23,23 +21,18 @@ export type ClientWorker = {
 };
 
 /**
- * Create a client backed by a new dedicated module Worker. Call in the browser only; nothing is
- * instantiated at module import time, so importing this package is SSR/prerender safe. This module
- * never touches Node built-ins, so it stays bundleable for the browser.
+ * Creates a dedicated browser Worker. Call in the browser; importing is SSR-safe.
  */
 export async function createCanTraceClient(limits?: ParsingLimits): Promise<CanTraceClient> {
 	if (typeof Worker === 'undefined') {
 		throw new Error('createCanTraceClient requires Web Worker support; call it in the browser');
 	}
-	// Keep this constructor call in literal `new Worker(new URL(...), ...)` form so bundlers
-	// detect it and emit the worker entry chunk.
 	return createCanTraceClientForWorker(
 		() => new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' }),
 		limits
 	);
 }
 
-/** Internal seam for deterministic tests; not exported from the package root. @internal */
 export async function createCanTraceClientForWorker(
 	createWorker: () => ClientWorker,
 	limits?: ParsingLimits
