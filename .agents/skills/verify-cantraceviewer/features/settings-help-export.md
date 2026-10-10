@@ -21,7 +21,8 @@ Adjust browser preferences, discover controls and copy/save an image of the curr
 Preconditions: preserve initial preferences; disposable profile for reset; GPU/plotted demo for export.
 
 - **Theme:** open settings, Light then Dark; require `aria-pressed` and changed appearance. Reload/reopen to prove persistence; restore original including System.
-- **Other preferences:** use observed labelled select/combobox, choose Absolute/Relative and require timestamp labels to change for dated trace. Choose Selection order/Alphabetical/Grouped with multiple series, inspect rows; reload/reopen, then restore.
+- **Timestamps:** use the observed labelled select/combobox to choose Absolute/Relative. Preference selection and persistence can be checked without GPU; verifying plot timestamp labels requires a rendered chart and a dated trace. Reload/reopen, then restore.
+- **Legend order:** choose Selection order/Alphabetical/Grouped with multiple decoded signals and inspect DOM legend rows. This remains testable when ChartGPU initialisation fails, provided decoded signals and the legend are available. Reload/reopen to verify preference persistence, then restore.
 - **Help/tour:** `Open help` shows CAN Trace Viewer dialog/shortcut groups; Close, reopen and `Show quick tour`. Inspect first step, advance through observed Next control and finish/close. Empty-screen tour is a distinct path.
 - **Palette:** Cmd/Ctrl+K outside editable fields, fill search with nonsense and require `No matching command.`; choose a real command and verify destination. Plot commands disabled in empty session.
 - **Save:** screenshot-grounded plot right-click, listen for the download before activating `Save image`. Record download path; inspect dimensions/content, retain with evidence. Require series/axes/legend in image, not just a toast.
@@ -33,4 +34,4 @@ Preconditions: preserve initial preferences; disposable profile for reset; GPU/p
 - Settings/help have separate close controls; use current exact accessible names.
 - Editable fields/popovers suppress shortcuts; focus intended surface.
 - Theme can synchronise across same-origin tabs; restore promptly.
-- Export and visible timestamps/order need GPU; help/preference selection can work without it.
+- Image export and plot timestamp labels require a rendered chart. Help, preference selection/persistence and DOM legend ordering can be checked without GPU output; report unavailable decoding or legend state separately.
