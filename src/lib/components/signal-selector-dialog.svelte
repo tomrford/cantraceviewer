@@ -69,20 +69,32 @@
 	);
 	let wasSearching = false;
 	let wasActiveOnly = false;
+	let seenDbcIds = new Set<string>();
+	let seenMessageKeys = new Set<string>();
 	$effect(() => {
 		const searching = signalSearch.trim().length > 0;
 		const activeOnly = showActiveOnly;
-		if ((searching && !wasSearching) || (activeOnly && !wasActiveOnly)) {
-			untrack(() => {
-				for (const dbc of [
-					...dbcFiles.selectorFiles,
-					...traceFile.mf4SelectorIndexes.map((index) => index.dbc)
-				]) {
+		const expandAll = (searching && !wasSearching) || (activeOnly && !wasActiveOnly);
+		const catalogues = [
+			...dbcFiles.selectorFiles,
+			...traceFile.mf4SelectorIndexes.map((index) => index.dbc)
+		];
+		untrack(() => {
+			for (const dbc of catalogues) {
+				if (expandAll || ((searching || activeOnly) && !seenDbcIds.has(dbc.id))) {
 					expandedDbcIds.add(dbc.id);
-					for (const message of dbc.messages) expandedMessageKeys.add(message.key);
 				}
-			});
-		}
+				for (const message of dbc.messages) {
+					if (expandAll || ((searching || activeOnly) && !seenMessageKeys.has(message.key))) {
+						expandedMessageKeys.add(message.key);
+					}
+				}
+			}
+		});
+		seenDbcIds = new Set(catalogues.map((dbc) => dbc.id));
+		seenMessageKeys = new Set(
+			catalogues.flatMap((dbc) => dbc.messages.map((message) => message.key))
+		);
 		wasSearching = searching;
 		wasActiveOnly = activeOnly;
 	});
