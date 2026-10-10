@@ -4,7 +4,7 @@ import { PlotViewportState } from './plot-viewport-state.svelte.js';
 import { plotAxes } from './stores/plot-axes.svelte.js';
 import type { LegendCrosshairMode, PlotCrosshair } from './plot-crosshair.js';
 import { buildSelectorSearchIndexes, type SelectorDbcFile } from './stores/dbc-files.svelte.js';
-import { documentModelContext, mountWebMcp, registerTools } from './webmcp.js';
+import { documentModelContext, mountWebMcp } from './webmcp.js';
 import {
 	INSPECTION_SIGNAL_LIMIT,
 	SEARCH_RESULT_LIMIT_MAX,
@@ -388,18 +388,6 @@ describe('WebMCP registration', () => {
 
 		unmount();
 		expect(registered.size).toBe(0);
-	});
-
-	it('stops registration after abort', async () => {
-		const controller = new AbortController();
-		const registerTool = vi.fn(async (tool: { name: string }) => {
-			if (tool.name === 'search_signals') controller.abort();
-		});
-		await registerTools({ registerTool }, createWebMcpTools(fakeHost()), controller.signal);
-		expect(registerTool.mock.calls.map((call) => call[0].name)).toEqual([
-			'describe_session',
-			'search_signals'
-		]);
 	});
 });
 

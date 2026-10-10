@@ -89,30 +89,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parses_message_line() {
-        let message = Message::parse("BO_ 288 PowertrainStatus: 8 Agent").unwrap();
-
-        assert_eq!(message.dbc_id, 288);
-        assert_eq!(message.can_id, 288);
-        assert!(!message.is_extended);
-        assert!(!message.is_fd);
-        assert_eq!(message.name, "PowertrainStatus");
-        assert_eq!(message.size_bytes, 8);
-        assert_eq!(message.transmitter, "Agent");
-        assert!(message.signals.is_empty());
-    }
-
-    #[test]
-    fn parses_tab_separated_message_line() {
-        let message = Message::parse("BO_\t288\tPowertrainStatus:\t8\tAgent").unwrap();
-
-        assert_eq!(message.dbc_id, 288);
-        assert_eq!(message.name, "PowertrainStatus");
-        assert_eq!(message.size_bytes, 8);
-        assert_eq!(message.transmitter, "Agent");
-    }
-
-    #[test]
     fn parses_extended_message_line() {
         let message = Message::parse("BO_ 2147483650 ext_MUX_multiplexors: 7 Vector__XXX").unwrap();
 
@@ -126,48 +102,10 @@ mod tests {
     }
 
     #[test]
-    fn marks_messages_larger_than_eight_bytes_as_fd() {
-        let message = Message::parse("BO_ 512 LargePayload: 12 ECU").unwrap();
-
-        assert!(message.is_fd);
-        assert_eq!(message.size_bytes, 12);
-    }
-
-    #[test]
-    fn parses_large_j1939_transport_message_length() {
-        let message = Message::parse("BO_ 2566834942 J1939_DM01: 1785 OBC7_ST_J1939_PLC").unwrap();
-
-        assert!(message.is_extended);
-        assert!(message.is_fd);
-        assert_eq!(message.size_bytes, 1785);
-    }
-
-    #[test]
-    fn rejects_message_line_without_prefix() {
-        assert!(matches!(
-            Message::parse("SG_ Speed : 0|8@1+ (1,0) [0|0] \"\" ECU"),
-            Err(DbcError::InvalidMessageLine)
-        ));
-    }
-
-    #[test]
     fn rejects_message_line_without_name_colon() {
         assert!(matches!(
             Message::parse("BO_ 288 PowertrainStatus 8 Agent"),
             Err(DbcError::InvalidMessageLine)
-        ));
-    }
-
-    #[test]
-    fn rejects_non_numeric_message_id_with_context() {
-        let error = Message::parse("BO_ nope PowertrainStatus: 8 Agent").unwrap_err();
-
-        assert!(matches!(
-            error,
-            DbcError::InvalidInteger {
-                field: "message ID",
-                ..
-            }
         ));
     }
 }

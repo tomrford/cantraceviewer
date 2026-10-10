@@ -10,7 +10,7 @@
  */
 
 /** Chart chrome roles mapped to the custom properties they take their value from. */
-export const PLOT_THEME_TOKENS = {
+const PLOT_THEME_TOKENS = {
 	background: '--background',
 	// Axis labels and ticks are chrome, not content, so they take the muted
 	// foreground both axes' labels are already styled with.

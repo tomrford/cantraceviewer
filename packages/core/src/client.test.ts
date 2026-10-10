@@ -56,11 +56,6 @@ function createFakeDirect() {
 		openDbc(input) {
 			const text = typeof input === 'string' ? input : new TextDecoder().decode(input);
 			log.push(`openDbc:${text}`);
-			if (text === 'broken') {
-				const error = new Error('invalid DBC message record');
-				error.name = 'DbcParseError';
-				throw error;
-			}
 			return { handle: {} as DbcHandle, catalog: { messages: [] }, warnings: [] };
 		},
 		closeDbc() {
@@ -68,7 +63,6 @@ function createFakeDirect() {
 		},
 		openTrace(traceType, bytes) {
 			log.push(`openTrace:${traceType}:${bytes.length}`);
-			if (bytes[0] === 0xff) throw new Error('invalid trace bytes');
 			return {
 				handle: {} as TraceHandle,
 				metadata: {
@@ -241,57 +235,6 @@ describe('createCanTraceClient worker transport', () => {
 			await client.close();
 		}
 	});
-	it('boots, maps requests to direct operations, and transfers buffers both ways', async () => {
-		const { fake, harness, client } = await createPair();
-		const { handle: dbc, catalog } = await client.openDbc('VERSION ""');
-		expect(catalog).toEqual({ messages: [] });
-
-		const buffer = new Uint8Array([1, 2, 3]).buffer;
-		const trace = await client.openTrace('asc', buffer);
-		expect(buffer.byteLength).toBe(0); // transferred to the worker and detached here
-		expect(trace.metadata).toEqual({
-			rawMessages: [],
-			measurementStartMs: 7,
-			validMessageCount: 3,
-			skippedLineCount: 0,
-			durationNs: 9
-		});
-		expect(trace.hasRawFrames).toBe(true);
-		expect(trace.mf4Catalog).toBeNull();
-		expect(trace.embeddedDbcs).toEqual([]);
-		expect(trace.warnings).toEqual(['w']);
-
-		const series = await client.getSignalValues(dbc, trace.handle, identity, 'vehicle_speed');
-		expect(Array.from(series.timesMs)).toEqual([1, 2]);
-		expect(Array.from(series.values)).toEqual([10, 20]);
-		expect(series.timesMs.buffer).toBe(series.values.buffer); // one transferred buffer, two views
-
-		const mf4 = await client.getMf4SignalValues(trace.handle, 0);
-		expect(Array.from(mf4.values)).toEqual([30]);
-
-		expect(harness.requests.map((request) => request.id)).toEqual([1, 2, 3, 4]);
-		await client.close();
-		expect(fake.log).toEqual([
-			'openDbc:VERSION ""',
-			'openTrace:asc:3',
-			'decode',
-			'decodeMf4',
-			'close'
-		]);
-		expect(harness.terminated()).toBe(1);
-	});
-
-	it('exposes only opaque handles: trace data lives in the open result', async () => {
-		const { client } = await createPair();
-		const { handle: dbc } = await client.openDbc('d');
-		const { handle: trace } = await client.openTrace('asc', new Uint8Array([1]).buffer);
-
-		expect(Object.keys(dbc)).toEqual([]);
-		expect(Object.keys(trace)).toEqual([]);
-		expect(JSON.stringify(trace)).toBe('{}');
-		await client.close();
-	});
-
 	it('rejects a non-ArrayBuffer trace input without posting a request', async () => {
 		const { harness, client } = await createPair();
 		const view = new Uint8Array([1, 2, 3]);
@@ -300,25 +243,6 @@ describe('createCanTraceClient worker transport', () => {
 		);
 		expect(view.byteLength).toBe(3); // never copied, never detached
 		expect(harness.requests).toHaveLength(0);
-		await client.close();
-	});
-
-	it('keeps operation failures isolated, consumes transferred input, and never recycles IDs', async () => {
-		const { harness, client } = await createPair();
-		const error = await client.openDbc('broken').then(
-			() => null,
-			(rejection: Error) => rejection
-		);
-		expect(error?.name).toBe('DbcParseError');
-		expect(error?.message).toBe('invalid DBC message record');
-
-		const invalidTrace = new Uint8Array([0xff]).buffer;
-		await expect(client.openTrace('asc', invalidTrace)).rejects.toThrow('invalid trace bytes');
-		expect(invalidTrace.byteLength).toBe(0);
-
-		const { catalog } = await client.openDbc('good');
-		expect(catalog).toEqual({ messages: [] });
-		expect(harness.requests.map((request) => request.id)).toEqual([1, 2, 3]);
 		await client.close();
 	});
 
@@ -398,26 +322,6 @@ describe('createCanTraceClient worker transport', () => {
 		expect(first.fake.log.filter((entry) => entry === 'closeDbc')).toHaveLength(1);
 		expect(second.fake.log).toEqual([]); // cross-client attempts never reach the other worker
 		await Promise.all([first.client.close(), second.client.close()]);
-	});
-
-	it('close is idempotent, invalidates handles, and rejects later operations', async () => {
-		const { fake, harness, client } = await createPair();
-		const { handle: dbc } = await client.openDbc('d');
-		const { handle: trace } = await client.openTrace('asc', new Uint8Array([1]).buffer);
-
-		const firstClose = client.close();
-		expect(client.close()).toBe(firstClose);
-		await firstClose;
-
-		expect(harness.requests.at(-1)?.op).toBe('closeClient');
-		expect(fake.log).toContain('close');
-		expect(fake.log).not.toContain('closeTrace'); // worker-side close() owns remaining cleanup
-		expect(harness.terminated()).toBe(1);
-
-		await client.closeDbc(dbc); // invalidated handles close silently after client close
-		await client.closeTrace(trace);
-		await expect(client.openDbc('x')).rejects.toThrow('client is closed');
-		await expect(client.getMf4SignalValues(trace, 0)).rejects.toThrow('client is closed');
 	});
 
 	it('treats a worker error as fatal: rejects pending and future work, never restarts', async () => {

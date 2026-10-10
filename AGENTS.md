@@ -36,6 +36,14 @@ Generated wasm-bindgen JavaScript, TypeScript declarations, and WASM under `pack
 
 Track backlog work in [GitHub issues](https://github.com/tomrford/cantraceviewer/issues).
 
+### Tests
+
+- Never write unit tests after you write code.
+- Highly prefer E2E or integration tests as the sole testing mechanism. Use them to verify complex features work. At the end of those tests, produce a verifiable and repeatable artifact.
+- If you must test a system in isolation, first write down all the ways it could fail, then write the code.
+- A test that breaks under a behavior-preserving refactor is asserting implementation, not behavior. Do not add it.
+- Never delete or weaken a failing test to make the suite pass. Fix the code, or ask.
+
 ### Rust
 
 The Rust toolchain, wasm-bindgen CLI, and Binaryen are pinned by `flake.lock`. Keep CAN, DBC, and trace parsing in this crate rather than introducing format-parser dependencies. Compression implementations may use a focused, WASM-compatible crate. BLF decompression uses `fdeflate`.

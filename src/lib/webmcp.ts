@@ -46,7 +46,7 @@ export function mountWebMcp(
 	return () => controller.abort();
 }
 
-export async function registerTools(
+async function registerTools(
 	context: ModelContext,
 	tools: WebMcpTool[],
 	signal: AbortSignal

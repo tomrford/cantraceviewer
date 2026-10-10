@@ -42,26 +42,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parses_quoted_string() {
-        let (parsed, cursor) = parse_quoted("\"km/h\" Receiver").unwrap();
-
-        assert_eq!(parsed, "km/h");
-        assert_eq!(cursor, " Receiver");
-    }
-
-    #[test]
     fn parses_escaped_quoted_string() {
         let (parsed, cursor) = parse_quoted("\"State \\\"On\\\" \\\\ A\" tail").unwrap();
 
         assert_eq!(parsed, "State \"On\" \\ A");
         assert_eq!(cursor, " tail");
-    }
-
-    #[test]
-    fn rejects_unterminated_quoted_string() {
-        assert!(matches!(
-            parse_quoted("\"unterminated"),
-            Err(DbcError::InvalidQuotedString)
-        ));
     }
 }

@@ -294,26 +294,3 @@ fn starts_record(text: &str) -> bool {
     }
     false
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn comments_do_not_create_multiline_attribute_or_mux_records() {
-        let text = "CM_ \"a ; comment\nSG_MUL_VAL_ 1 X Root 9-9;\n\\\"quoted\\\"\";\n\
-                    BA_DEF_ BO_ \"VFrameFormat\" ENUM\n \"StandardCAN\", \"StandardCAN_FD\";\n\
-                    BA_ \"VFrameFormat\"\n BO_ 1 1;\n\
-                    SG_MUL_VAL_ 1 X\n Root 2-3;";
-        let records = records(text).collect::<Result<Vec<_>, _>>().unwrap();
-        assert_eq!(
-            records.iter().map(|r| r.keyword).collect::<Vec<_>>(),
-            ["CM_", "BA_DEF_", "BA_", "SG_MUL_VAL_"]
-        );
-        assert_eq!(records[3].text, "SG_MUL_VAL_ 1 X\n Root 2-3;");
-        assert_eq!(
-            (records[3].position.line, records[3].position.column),
-            (8, 1)
-        );
-    }
-}

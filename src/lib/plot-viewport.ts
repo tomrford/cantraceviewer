@@ -104,7 +104,7 @@ export function valueAtRatio(range: PlotAxisRange, ratio: number): number {
 	return range.max - ratio * (range.max - range.min);
 }
 
-export function viewportCenterX(viewport: Pick<PlotViewport, 'xMin' | 'xMax'>): number {
+function viewportCenterX(viewport: Pick<PlotViewport, 'xMin' | 'xMax'>): number {
 	return viewport.xMin + (viewport.xMax - viewport.xMin) / 2;
 }
 

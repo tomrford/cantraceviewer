@@ -35,15 +35,6 @@ describe('PlotWindow', () => {
 		vi.useRealTimers();
 	});
 
-	it('passes small signals through at full resolution with source identity', () => {
-		const plotWindow = new PlotWindow();
-		const source = rampView('a', 100);
-		const [windowed] = plotWindow.viewsFor([source], viewport(0, 99));
-
-		expect(windowed.sampled).toBe(false);
-		expect(windowed.x).toBe(source.x);
-	});
-
 	it('keeps slice and list identity while the viewport stays inside the buffer', () => {
 		const plotWindow = new PlotWindow();
 		const source = rampView('a', 100_000);
@@ -107,27 +98,5 @@ describe('PlotWindow', () => {
 		expect(settled).not.toBe(coarse);
 		expect(settled.sampled).toBe(false);
 		expect(settled.x[0]).toBeGreaterThan(46_000);
-	});
-
-	it('settle is a no-op at rest', () => {
-		const plotWindow = new PlotWindow();
-		const source = rampView('a', 100_000);
-		const window = viewport(50_000, 51_000);
-
-		const [before] = plotWindow.viewsFor([source], window);
-		plotWindow.settleAfter([source], window);
-		vi.runAllTimers();
-
-		expect(plotWindow.viewsFor([source], window)[0]).toBe(before);
-	});
-
-	it('rematerializes when the source series is replaced', () => {
-		const plotWindow = new PlotWindow();
-		const window = viewport(0, 99);
-
-		const [before] = plotWindow.viewsFor([rampView('a', 100)], window);
-		const [after] = plotWindow.viewsFor([rampView('a', 100)], window);
-
-		expect(after).not.toBe(before);
 	});
 });

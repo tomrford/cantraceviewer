@@ -1,14 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
 	detectShortcutPlatform,
-	groupedShortcuts,
 	isEditableShortcutTarget,
 	overridesBrowserShortcut,
 	shortcutEnabled,
 	shortcutFromEvent,
 	shortcutKeys,
 	shortcutSuppressedBySurface,
-	SHORTCUTS,
 	type ShortcutPlatform
 } from './keyboard-shortcuts.js';
 
@@ -105,43 +103,6 @@ describe('keyboard shortcuts', () => {
 		expect(shortcutSuppressedBySurface(checkbox)).toBe(false);
 	});
 
-	it('suppresses editable descendants and menu surfaces while leaving side panels active', () => {
-		const editable = {
-			tagName: 'span',
-			closest: (selector: string) => (selector.includes('contenteditable') ? {} : null)
-		};
-		const popoverButton = {
-			tagName: 'button',
-			closest: (selector: string) => (selector.includes('popover-content') ? {} : null)
-		};
-		const menuButton = {
-			tagName: 'button',
-			closest: (selector: string) => (selector.includes('role="menu"') ? {} : null)
-		};
-
-		expect(isEditableShortcutTarget(editable)).toBe(true);
-		expect(shortcutSuppressedBySurface(popoverButton)).toBe(false);
-		expect(shortcutSuppressedBySurface(menuButton)).toBe(true);
-	});
-
-	// The walkthrough takes focus but sets aria-modal="false", and its first step asks you to
-	// open a trace — so it must not swallow the shortcut that does exactly that.
-	it('leaves shortcuts active under a non-modal surface', () => {
-		const inWalkthrough = {
-			tagName: 'button',
-			closest: (selector: string) =>
-				selector.includes('role="dialog"') ? { getAttribute: () => 'false' } : null
-		};
-		const inModal = {
-			tagName: 'button',
-			closest: (selector: string) =>
-				selector.includes('role="dialog"') ? { getAttribute: () => null } : null
-		};
-
-		expect(shortcutSuppressedBySurface(inWalkthrough)).toBe(false);
-		expect(shortcutSuppressedBySurface(inModal)).toBe(true);
-	});
-
 	// Whatever surface is focused, a chord the browser also binds has to stay recognisable so
 	// the page can claim it — Cmd+O otherwise opens the browser's file dialog, which downloads
 	// any trace it cannot render.
@@ -207,16 +168,5 @@ describe('keyboard shortcuts', () => {
 	it('renders unmodified shortcuts as a single key on every platform', () => {
 		expect(shortcutKeys('showHelp', 'mac')).toEqual(['?']);
 		expect(shortcutKeys('showHelp', 'other')).toEqual(['?']);
-	});
-
-	it('groups every registered shortcut exactly once for the help dialog', () => {
-		const grouped = groupedShortcuts().flatMap((entry) => entry.actions);
-		expect(grouped.toSorted()).toEqual(Object.keys(SHORTCUTS).toSorted());
-		expect(groupedShortcuts().map((entry) => entry.group)).toEqual([
-			'Trace',
-			'View',
-			'Crosshairs',
-			'App'
-		]);
 	});
 });

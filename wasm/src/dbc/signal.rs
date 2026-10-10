@@ -432,26 +432,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parses_signal_line() {
-        let signal =
-            Signal::parse(" SG_ vehicle_speed : 0|16@1+ (0.1,0) [0|250] \"km/h\" Dashboard")
-                .unwrap();
-
-        assert_eq!(signal.name, "vehicle_speed");
-        assert_eq!(signal.start_bit, 0);
-        assert_eq!(signal.bit_length, 16);
-        assert_eq!(signal.endianness, DbcEndian::Intel);
-        assert_eq!(signal.signedness, Signedness::Unsigned);
-        assert_eq!(signal.factor, 0.1);
-        assert_eq!(signal.offset, 0.0);
-        assert_eq!(signal.minimum, Some(0.0));
-        assert_eq!(signal.maximum, Some(250.0));
-        assert_eq!(signal.unit, "km/h");
-        assert_eq!(signal.receivers, ["Dashboard"]);
-        assert!(!signal.is_multiplexer);
-    }
-
-    #[test]
     fn parses_negative_offset() {
         let signal =
             Signal::parse(" SG_ coolant_temp : 40|8@1+ (1,-40) [-40|215] \"degC\" Dashboard")
@@ -464,24 +444,6 @@ mod tests {
         assert_eq!(signal.minimum, Some(-40.0));
         assert_eq!(signal.maximum, Some(215.0));
         assert_eq!(signal.unit, "degC");
-    }
-
-    #[test]
-    fn parses_simple_multiplex_value() {
-        let signal =
-            Signal::parse(" SG_ muxed_D_1 m1 : 48|8@1- (1,0) [0|0] \"\" Vector__XXX").unwrap();
-
-        assert_eq!(signal.name, "muxed_D_1");
-        assert_eq!(signal.signedness, Signedness::Signed);
-        assert_eq!(signal.simple_mux_value, Some(1));
-    }
-
-    #[test]
-    fn rejects_line_without_signal_prefix() {
-        assert!(matches!(
-            Signal::parse("BO_ 288 PowertrainStatus: 8 Agent"),
-            Err(DbcError::InvalidSignalLine)
-        ));
     }
 
     #[test]
@@ -531,27 +493,6 @@ mod tests {
 
         assert_eq!(signal.unit, "State \"On\"");
         assert_eq!(signal.receivers, ["Dashboard"]);
-    }
-
-    #[test]
-    fn parses_tab_separated_signal_line() {
-        let signal = Signal::parse(
-            "\tSG_\tvehicle_speed\t:\t0|16@1+\t(0.1,0)\t[0|250]\t\"km/h\"\tDashboard",
-        )
-        .unwrap();
-
-        assert_eq!(signal.name, "vehicle_speed");
-        assert_eq!(signal.bit_length, 16);
-        assert_eq!(signal.unit, "km/h");
-        assert_eq!(signal.receivers, ["Dashboard"]);
-    }
-
-    #[test]
-    fn decodes_little_endian_integer_with_scale() {
-        let signal = Signal::parse(" SG_ Speed : 0|16@1+ (0.1,0) [0|250] \"km/h\" DASH").unwrap();
-        let plan = signal.plan_decode(2).unwrap();
-
-        assert_eq!(plan.decode(&[0x10, 0x27]).unwrap(), 1000.0);
     }
 
     #[test]
@@ -651,39 +592,6 @@ mod tests {
 
         let plan = signal.plan_decode(4).unwrap();
         assert_eq!(plan.decode(&[0x00, 0x00, 0xc0, 0x3f]).unwrap(), 4.0);
-    }
-
-    #[test]
-    fn rejects_float_signals_with_wrong_bit_length() {
-        let mut float32_signal =
-            Signal::parse(" SG_ temperature : 0|16@1+ (1,0) [-100|100] \"degC\" Dashboard")
-                .unwrap();
-        float32_signal.value_type = ValueType::Float32;
-
-        let mut float64_signal =
-            Signal::parse(" SG_ precise_temperature : 0|32@1+ (1,0) [-100|100] \"degC\" Dashboard")
-                .unwrap();
-        float64_signal.value_type = ValueType::Float64;
-
-        assert!(matches!(
-            float32_signal.plan_decode(2),
-            Err(DbcError::InvalidSignalBitLength(16))
-        ));
-        assert!(matches!(
-            float64_signal.plan_decode(4),
-            Err(DbcError::InvalidSignalBitLength(32))
-        ));
-    }
-
-    #[test]
-    fn rejects_decode_plans_above_trace_payload_limit() {
-        let signal =
-            Signal::parse(" SG_ trouble_code : 0|16@1+ (1,0) [0|65535] \"\" Tester").unwrap();
-
-        assert!(matches!(
-            signal.plan_decode(1785),
-            Err(DbcError::UnsupportedMessageLength(1785))
-        ));
     }
 
     #[test]

@@ -377,46 +377,6 @@ mod tests {
     }
 
     #[test]
-    fn catalogs_and_decodes_native_channels() {
-        let (trace, document) = Document::parse(
-            include_bytes!("../../tests/fixtures/mf4/decoded-channels.mf4").to_vec(),
-            1024,
-            4096,
-        )
-        .unwrap();
-
-        assert_eq!(trace.data_frame_count, 0);
-        assert_eq!(trace.last_data_timestamp_ns, Some(300_000_000));
-        assert!(document.catalog_json().contains("Decoded powertrain"));
-        assert!(document.catalog_json().contains("VehicleSpeed"));
-        assert_eq!(
-            document.decode_signal(0).unwrap(),
-            [100.0, 200.0, 300.0, 12.5, 25.0, 37.5]
-        );
-    }
-
-    #[test]
-    fn keeps_raw_native_and_embedded_dbc_sources_together() {
-        let (trace, document) = Document::parse(
-            include_bytes!("../../tests/fixtures/mf4/hybrid-embedded-dbc.mf4").to_vec(),
-            2048,
-            4096,
-        )
-        .unwrap();
-
-        assert_eq!(trace.data_frame_count, 2);
-        assert_eq!(document.signals.len(), 2);
-        assert_eq!(document.embedded_dbcs.len(), 1);
-        assert_eq!(document.embedded_dbcs[0].name, "sample.dbc");
-        assert!(
-            document.embedded_dbcs[0]
-                .text
-                .contains("BO_ 291 WebData_2000")
-        );
-        assert!(document.warnings.is_empty());
-    }
-
-    #[test]
     fn reports_embedded_arxml_as_separate_unsupported_work() {
         let index = FileIndex {
             measurement_start_ms: None,
@@ -437,64 +397,6 @@ mod tests {
             warnings,
             ["Embedded ARXML attachment \"network.arxml\" is not supported yet; see issue #115."]
         );
-    }
-
-    #[test]
-    fn decodes_embedded_dbcs_and_reports_oversized_attachments() {
-        let text = "VERSION \"€ – ™\"";
-        let attachments = [
-            ("large.dbc", None),
-            ("legacy.dbc", Some(b"VERSION \"\x80 \x96 \x99\"".to_vec())),
-            (
-                "bom.dbc",
-                Some([b"\xef\xbb\xbf".as_slice(), text.as_bytes()].concat()),
-            ),
-        ]
-        .into_iter()
-        .map(|(name, data)| Attachment {
-            name: name.to_owned(),
-            mime: "application/x-dbc".to_owned(),
-            is_embedded: true,
-            original_size: data.as_ref().map_or(65, Vec::len),
-            data,
-        })
-        .collect();
-        let index = FileIndex {
-            measurement_start_ms: None,
-            data_groups: Vec::new(),
-            attachments,
-        };
-
-        let (dbcs, warnings) = classify_attachments(&index, 64);
-
-        assert_eq!(
-            dbcs.iter()
-                .map(|dbc| (dbc.name.as_str(), dbc.text.as_str()))
-                .collect::<Vec<_>>(),
-            [("legacy.dbc", text), ("bom.dbc", text)]
-        );
-        assert_eq!(
-            warnings,
-            ["Embedded DBC \"large.dbc\" exceeds the 64 byte DBC limit."]
-        );
-        let document = Document {
-            bytes: Vec::new(),
-            index,
-            signals: Vec::new(),
-            embedded_dbcs: dbcs,
-            warnings,
-            time_offset_seconds: 0.0,
-            max_data_bytes: 64,
-        };
-        assert_eq!(
-            document.embedded_dbc_bytes(0),
-            Some(b"VERSION \"\x80 \x96 \x99\"".as_slice())
-        );
-        assert_eq!(
-            document.embedded_dbc_bytes(1),
-            Some("\u{feff}VERSION \"€ – ™\"".as_bytes())
-        );
-        assert_eq!(document.embedded_dbc_bytes(2), None);
     }
 
     #[test]

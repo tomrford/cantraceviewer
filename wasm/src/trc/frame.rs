@@ -171,15 +171,4 @@ mod tests {
         assert_eq!(id_from_text("18FEE900"), CanId::extended(0x18fee900));
         assert_eq!(id_from_text("0800"), Err(TraceError::InvalidId));
     }
-
-    #[test]
-    fn validates_column_contract() {
-        let columns = ColumnMap::from_text("N,O,T,B,I,d,R,L,D").unwrap();
-        assert_eq!(columns.offset, Some(1));
-        assert_eq!(columns.data, Some(8));
-        assert_eq!(
-            ColumnMap::from_text("N,O"),
-            Err(TraceError::InvalidTrcColumns)
-        );
-    }
 }

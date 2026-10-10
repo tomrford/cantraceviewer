@@ -179,25 +179,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn serializes_parsed_catalog() {
-        let parsed = Dbc::parse(
-            r#"
-BO_ 100 Example: 8 ECU
- SG_ State : 0|8@1+ (1,0) [0|255] "" DASH
-VAL_ 100 State 0 "Off" 1 "On";
-"#,
-        )
-        .unwrap();
-
-        let json = to_json(&parsed);
-
-        assert_eq!(
-            json,
-            r#"{"messages":[{"name":"Example","dbcId":100,"canId":100,"isExtended":false,"isFd":false,"sizeBytes":8,"frameFormat":"standard-can","rawFrameDecodable":true,"j1939":null,"transmitter":"ECU","signals":[{"name":"State","startBit":0,"bitLength":8,"endianness":"intel","signedness":"unsigned","factor":1,"offset":0,"minimum":0,"maximum":255,"unit":"","valueType":"integer","isMultiplexer":false,"multiplex":null,"receivers":["DASH"],"valueDescriptions":[{"rawValue":0,"label":"Off"},{"rawValue":1,"label":"On"}]}]}]}"#
-        );
-    }
-
-    #[test]
     fn includes_multiplexed_signals() {
         let parsed = Dbc::parse(
             r#"

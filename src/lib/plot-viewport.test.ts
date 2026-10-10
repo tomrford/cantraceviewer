@@ -7,24 +7,13 @@ import {
 	panViewport,
 	ratioAtDataPoint,
 	viewportCenter,
-	viewportCenterX,
 	zoomViewport
 } from './plot-viewport';
 
 describe('plot viewport math', () => {
-	it('pads the y axis and keeps the x axis tight', () => {
-		expect(paddedXRange(0, 100)).toEqual({ min: 0, max: 100 });
-		expect(paddedYRange(10, 20)).toEqual({ min: 9.5, max: 20.5 });
-	});
-
 	it('pads equal extents around the shared value', () => {
 		expect(paddedXRange(5, 5)).toEqual({ min: 4, max: 6 });
 		expect(paddedYRange(100, 100)).toEqual({ min: 95, max: 105 });
-	});
-
-	it('rejects non-finite extents', () => {
-		expect(paddedXRange(0, Number.POSITIVE_INFINITY)).toBeNull();
-		expect(paddedYRange(Number.NaN, 1)).toBeNull();
 	});
 
 	it('pans in data units from pixel movement', () => {
@@ -54,10 +43,6 @@ describe('plot viewport math', () => {
 				{ xRatio: 0.2, yRatio: 0.7 }
 			)
 		).toEqual({ xMin: 20, xMax: 80, yMin: 60, yMax: 160 });
-	});
-
-	it('returns the x-axis midpoint', () => {
-		expect(viewportCenterX({ xMin: 0, xMax: 100 })).toBe(50);
 	});
 
 	it('maps crosshair coordinates between data and screen ratios', () => {

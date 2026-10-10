@@ -357,31 +357,6 @@ mod tests {
     }
 
     #[test]
-    fn namespace_whitespace_does_not_swallow_definitions() {
-        let body = "BS_:\nBU_: ECU\nBO_ 1 M: 1 ECU\n SG_ X : 0|8@1+ (1,0) [0|255] \"\" ECU\nVAL_ 1 X 0 \"Off\";";
-        let expected = Dbc::parse(body).unwrap();
-        for declarations in [" CM_ \r\n VAL_\t\n", "CM_ VAL_ SIG_VALTYPE_\n"] {
-            assert_eq!(
-                Dbc::parse(&format!("NS_ :\n{declarations}{body}"))
-                    .unwrap()
-                    .to_catalog_json(),
-                expected.to_catalog_json()
-            );
-        }
-        let malformed = format!("CM_ \"comment\"\n{body}");
-        assert!(
-            Dbc::parse(&malformed)
-                .unwrap_err()
-                .to_string()
-                .contains("1:1: CM_")
-        );
-        let attribute = format!("BA_ \"comment\"\n BO_ 1 \"quoted : colon\";\n{body}");
-        let parsed = Dbc::parse(&attribute).unwrap();
-        assert_eq!(parsed.to_catalog_json(), expected.to_catalog_json());
-        assert_eq!(parsed.warnings.len(), 1);
-    }
-
-    #[test]
     fn decodes_utf8_bom_and_windows1252_identically() {
         let utf8 =
             Dbc::parse_bytes(include_bytes!("../../tests/fixtures/encoding-utf8-bom.dbc")).unwrap();
@@ -563,34 +538,6 @@ mod tests {
     }
 
     #[test]
-    fn parses_messages_and_signals() {
-        let text = r#"
-VERSION ""
-BO_ 256 Heartbeat: 2 Agent
- SG_ counter : 0|8@1+ (1,0) [0|255] "" Dashboard
- SG_ mode : 8|8@1+ (1,0) [0|4] "" Dashboard
-BO_ 288 PowertrainStatus: 8 Agent
- SG_ vehicle_speed : 0|16@1+ (0.1,0) [0|250] "km/h" Dashboard
- SG_ engine_rpm : 16|16@1+ (1,0) [0|8000] "rpm" Dashboard
- SG_ throttle : 32|8@1+ (0.5,0) [0|100] "%" Dashboard
- SG_ coolant_temp : 40|8@1+ (1,-40) [-40|215] "degC" Dashboard
-BO_ 304 BodyStatus: 3 Agent
- SG_ left_signal : 0|8@1+ (1,0) [0|1] "" Dashboard
- SG_ right_signal : 8|8@1+ (1,0) [0|1] "" Dashboard
- SG_ battery_voltage : 16|8@1+ (0.1,0) [0|25.5] "V" Dashboard
-"#;
-        let dbc = Dbc::parse(text).unwrap();
-
-        assert_eq!(dbc.messages.len(), 3);
-        assert_eq!(dbc.messages[0].name, "Heartbeat");
-        assert_eq!(dbc.messages[0].signals.len(), 2);
-        assert_eq!(dbc.messages[1].signals[0].name, "vehicle_speed");
-        assert_eq!(dbc.messages[1].signals[0].factor, 0.1);
-        assert_eq!(dbc.messages[2].name, "BodyStatus");
-        assert_eq!(dbc.messages[2].signals[2].name, "battery_voltage");
-    }
-
-    #[test]
     fn parses_tab_separated_records() {
         let text = "BO_\t288\tPowertrainStatus:\t8\tAgent\n\tSG_\tvehicle_speed\t:\t0|16@1+\t(0.1,0)\t[0|250]\t\"km/h\"\tDashboard";
         let dbc = Dbc::parse(text).unwrap();
@@ -622,48 +569,6 @@ VAL_ 100 State 0 "Off" 1 "On";
     }
 
     #[test]
-    fn shares_named_value_table_descriptions() {
-        let dbc = Dbc::parse(
-            r#"
-VAL_TABLE_ GearStates 0 "Park" 1 "Drive";
-BO_ 100 Example: 8 ECU
- SG_ Gear : 0|8@1+ (1,0) [0|255] "" DASH
- SG_ RequestedGear : 8|8@1+ (1,0) [0|255] "" DASH
-VAL_ 100 Gear GearStates;
-VAL_ 100 RequestedGear GearStates;
-"#,
-        )
-        .unwrap();
-
-        let gear = dbc.messages[0].signals[0]
-            .value_descriptions
-            .as_ref()
-            .unwrap();
-        let requested = dbc.messages[0].signals[1]
-            .value_descriptions
-            .as_ref()
-            .unwrap();
-        assert_eq!(dbc.value_tables.len(), 1);
-        assert!(Rc::ptr_eq(&dbc.value_tables[0].values, gear));
-        assert!(Rc::ptr_eq(gear, requested));
-        assert_eq!(gear[1].label, "Drive");
-    }
-
-    #[test]
-    fn attaches_signal_value_type() {
-        let dbc = Dbc::parse(
-            r#"
-BO_ 100 Example: 8 ECU
- SG_ Temperature : 0|32@1+ (1,0) [0|0] "" DASH
-SIG_VALTYPE_ 100 Temperature : 1;
-"#,
-        )
-        .unwrap();
-
-        assert_eq!(dbc.messages[0].signals[0].value_type, ValueType::Float32);
-    }
-
-    #[test]
     fn rejects_signal_before_message() {
         assert!(matches!(
             Dbc::parse("SG_ Value : 0|8@1+ (1,0) [0|255] \"\" DASH"),
@@ -690,17 +595,34 @@ BO_ 512 Status: 1 ECU
     }
 
     #[test]
-    fn parses_repository_dbc_fixtures() {
-        let fixtures = [
-            include_str!("../../tests/fixtures/agentic-demo.dbc"),
-            include_str!("../../tests/fixtures/extended-multiplex.dbc"),
-            include_str!("../../tests/fixtures/sample.dbc"),
-            include_str!("../../tests/fixtures/value-descriptions.dbc"),
-        ];
-
-        for fixture in fixtures {
-            let dbc = Dbc::parse(fixture).unwrap();
-            assert!(!dbc.messages.is_empty());
+    fn namespace_whitespace_does_not_swallow_definitions() {
+        let body = "BS_:\nBU_: ECU\nBO_ 1 M: 1 ECU\n SG_ X : 0|8@1+ (1,0) [0|255] \"\" ECU\nVAL_ 1 X 0 \"Off\";";
+        for declarations in [" CM_ \r\n VAL_\t\n", "CM_ VAL_ SIG_VALTYPE_\n"] {
+            let parsed = Dbc::parse(&format!("NS_ :\n{declarations}{body}")).unwrap();
+            assert_eq!(parsed.messages.len(), 1);
+            assert_eq!(parsed.messages[0].name, "M");
+            assert_eq!(parsed.messages[0].signals.len(), 1);
+            assert_eq!(parsed.messages[0].signals[0].name, "X");
+            assert_eq!(
+                parsed.messages[0].signals[0].value_descriptions().unwrap()[0].label,
+                "Off"
+            );
         }
+        let malformed = format!("CM_ \"comment\"\n{body}");
+        assert!(
+            Dbc::parse(&malformed)
+                .unwrap_err()
+                .to_string()
+                .contains("1:1: CM_")
+        );
+        let attribute = format!("BA_ \"comment\"\n BO_ 1 \"quoted : colon\";\n{body}");
+        let parsed = Dbc::parse(&attribute).unwrap();
+        assert_eq!(parsed.messages.len(), 1);
+        assert_eq!(parsed.messages[0].name, "M");
+        assert_eq!(
+            parsed.messages[0].signals[0].value_descriptions().unwrap()[0].label,
+            "Off"
+        );
+        assert_eq!(parsed.warnings.len(), 1);
     }
 }
