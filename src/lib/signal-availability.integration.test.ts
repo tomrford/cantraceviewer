@@ -6,9 +6,21 @@ import { plotData } from './stores/plot-data.svelte.js';
 import { onTraceOpened } from './stores/session.js';
 import { mountWebMcp } from './webmcp.js';
 import type { WebMcpTool } from './webmcp-tools.js';
+import type { CanTraceClient } from 'cantraceviewer';
+import { closeTrace } from './wasm.js';
 
 // Replace only the browser Worker transport; exercise the published package and app stores.
-vi.mock('cantraceviewer', () => import('cantraceviewer/node'));
+const transport = vi.hoisted(() => ({ client: null as CanTraceClient | null }));
+vi.mock('cantraceviewer', async () => {
+	const pkg = await import('cantraceviewer/node');
+	return {
+		...pkg,
+		createCanTraceClient: async (limits: Parameters<typeof pkg.createCanTraceClient>[0]) => {
+			transport.client = await pkg.createCanTraceClient(limits);
+			return transport.client;
+		}
+	};
+});
 vi.mock('./stores/dbc-library.js', async (importOriginal) => ({
 	...(await importOriginal<typeof import('./stores/dbc-library.js')>()),
 	putStoredDbcs: vi.fn(async () => {}),
@@ -38,7 +50,12 @@ const unmount = mountWebMcp(
 		}
 	}
 );
-afterAll(unmount);
+afterAll(async () => {
+	unmount();
+	if (traceFile.entry) await closeTrace(traceFile.entry.handle);
+	traceFile.entry = null;
+	await transport.client?.close();
+});
 afterEach(async () => {
 	plotData.clearSelectedSignals();
 	await dbcFiles.resetLibrary();
