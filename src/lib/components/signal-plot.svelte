@@ -21,15 +21,14 @@
 		type LegendCrosshairMode,
 		type PlotCrosshair
 	} from '$lib/plot-crosshair.js';
+	import { emptyAxisSeries, plotSeriesForViews } from '$lib/plot-series.js';
 	import {
 		axisSplitDomain,
 		createSignalViewCache,
 		crosshairDeltaValue,
 		crosshairValue,
-		emptyAxisSeries,
 		EMPTY_AXIS_RANGE,
 		formatAxisTime,
-		plotSeriesForViews,
 		signalYRange
 	} from '$lib/signal-plot-data.js';
 	import { PlotWindow } from '$lib/plot-window.svelte.js';
