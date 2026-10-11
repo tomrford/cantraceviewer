@@ -371,23 +371,17 @@ class DbcFilesStore {
 			throw new Error(`${dbc.name}: ${error instanceof Error ? error.message : 'DBC load failed'}`);
 		});
 
-		try {
-			assertUniqueMessageIdentities(dbc.name, catalog);
-			return {
-				entry: {
-					id: dbc.id,
-					name: dbc.name,
-					handle,
-					catalog,
-					warnings,
-					origin
-				},
-				stored: dbc
-			};
-		} catch (error) {
-			await closeDbc(handle);
-			throw error;
-		}
+		return {
+			entry: {
+				id: dbc.id,
+				name: dbc.name,
+				handle,
+				catalog,
+				warnings,
+				origin
+			},
+			stored: dbc
+		};
 	}
 }
 
@@ -395,21 +389,6 @@ function assertDbcFileName(file: File): void {
 	if (/\.dbc$/i.test(file.name)) return;
 
 	throw new Error('Unsupported DBC file type. Open .dbc.');
-}
-
-function assertUniqueMessageIdentities(fileName: string, catalog: ParsedDbc): void {
-	const seen: Record<string, true> = {};
-
-	for (const message of catalog.messages) {
-		const key = messageIdentityKey(message);
-		if (seen[key]) {
-			throw new Error(
-				`${displayDbcName(fileName)} contains multiple messages with the same CAN ID, frame format, and payload length.`
-			);
-		}
-
-		seen[key] = true;
-	}
 }
 
 function messageIdentityKey(message: DbcMessageIdentity): string {
