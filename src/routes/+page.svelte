@@ -411,7 +411,7 @@
 	<meta name="twitter:image" content="https://cantraceviewer.com/og-image.png" />
 	<meta name="twitter:image:alt" content="CAN Trace Viewer plotting decoded CAN bus signals" />
 
-	<svelte:element this={'script'} type="application/ld+json">
+	<svelte:element this={"script"} type="application/ld+json">
 		{JSON.stringify(structuredData)}
 	</svelte:element>
 </svelte:head>
