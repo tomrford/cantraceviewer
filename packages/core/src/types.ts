@@ -36,7 +36,7 @@ export type DbcMessage = {
 	isExtended: boolean;
 	isFd: boolean;
 	frameFormat: 'standard-can' | 'extended-can' | 'standard-can-fd' | 'extended-can-fd' | 'j1939';
-	/** Whether the message payload fits raw-frame decoding; no J1939 transport reassembly. */
+	/** False for J1939 payloads over 8 bytes, because those need transport reassembly, and for any payload over 64 bytes. */
 	rawFrameDecodable: boolean;
 	j1939: { pgn: number; sourceAddress: number; priority: number } | null;
 	sizeBytes: number;
@@ -106,7 +106,7 @@ export type DbcHandle = {
 	readonly [DbcHandleBrand]: true;
 };
 
-/** Opaque trace handle, with the same identity and lifetime rules as {@link DbcHandle}. */
+/** Same identity and lifetime rules as {@link DbcHandle}. */
 export type TraceHandle = {
 	readonly [TraceHandleBrand]: true;
 };
@@ -134,7 +134,7 @@ export type OpenTraceResult = {
 	hasRawFrames: boolean;
 	/** Signals the trace itself already carries decoded; MF4 only, otherwise null. */
 	mf4Catalog: Mf4SignalCatalog | null;
-	/** DBC sources embedded in the trace file; MF4 only, otherwise empty. */
+	/** MF4 only, otherwise empty. */
 	embeddedDbcs: EmbeddedDbc[];
 	/** Non-fatal parse diagnostics; MF4 only, otherwise empty. */
 	warnings: string[];
