@@ -139,8 +139,9 @@ describe('published package app integration', () => {
 		await dbcFiles.clear();
 		await dbcFiles.addFiles([await fixture('malformed-source.dbc')]);
 		expect(dbcFiles.files).toEqual([]);
-		expect(dbcFiles.error).toContain('malformed-source.dbc');
-		expect(dbcFiles.error).toContain('2:3: SG_');
+		expect(dbcFiles.error).toBe(
+			'malformed-source.dbc: SG_ at line 2, column 3. signal bit range falls outside its message'
+		);
 	});
 	it('accepts original Windows-1252 bytes at the exact app DBC cap and rejects over-cap before reading', async () => {
 		const bytes = await readFile('wasm/tests/fixtures/encoding-windows1252.dbc');
