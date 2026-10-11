@@ -8,7 +8,8 @@ import {
 	type DbcHandle,
 	type DirectClient,
 	type OpenDbcResult,
-	type OpenTraceResult
+	type OpenTraceResult,
+	type RawSource
 } from '../dist/direct.js';
 
 const fixturesDir = resolve('wasm/tests/fixtures');
@@ -150,7 +151,33 @@ describe('cantraceviewer/direct', () => {
 			)
 		);
 		const message = { canId: 291, isExtended: false, sizeBytes: 1 };
+		const single = client.openTrace(
+			'asc',
+			new TextEncoder().encode('base hex timestamps absolute\n0.002 2 123 Rx d 1 22')
+		);
 		try {
+			for (const source of [{ channel: 1 }, { channel: 1, direction: null }]) {
+				expect(() =>
+					client.getSignalValues(
+						dbc.handle,
+						single.handle,
+						message,
+						'Value',
+						source as unknown as RawSource
+					)
+				).toThrow('direction must be unknown, rx, or tx');
+			}
+			for (const [source, expected] of [
+				[undefined, [34]],
+				[{ channel: 1, direction: 'rx' }, []],
+				[{ channel: 2, direction: 'rx' }, [34]]
+			] as const) {
+				expect(
+					Array.from(
+						client.getSignalValues(dbc.handle, single.handle, message, 'Value', source).values
+					)
+				).toEqual(expected);
+			}
 			expect(trace.metadata.rawMessages).toEqual([
 				{ canId: 291, isExtended: false, source: { channel: null, direction: 'unknown' } },
 				{ canId: 291, isExtended: false, source: { channel: 1, direction: 'rx' } },
@@ -189,6 +216,7 @@ describe('cantraceviewer/direct', () => {
 				})
 			).toThrow('direction must be unknown, rx, or tx');
 		} finally {
+			client.closeTrace(single.handle);
 			client.closeTrace(trace.handle);
 			client.closeDbc(dbc.handle);
 		}

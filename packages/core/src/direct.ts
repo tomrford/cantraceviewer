@@ -133,6 +133,9 @@ export function createDirectClient(
 			) {
 				throw new Error('Invalid raw source: channel must be null or 1–65535');
 			}
+			if (source && !['unknown', 'rx', 'tx'].includes(source.direction)) {
+				throw new Error('Invalid raw source: direction must be unknown, rx, or tx');
+			}
 			return unpackSeries(
 				dbc.decodeSignal(
 					trace,
