@@ -78,7 +78,7 @@
 	},
 	"dependencies": {
 		"@tanstack/svelte-virtual": "3.13.31",
-		"cantraceviewer": "0.2.1",
+		"cantraceviewer": "0.3.0",
 		"chartgpu": "0.4.0",
 		"idb": "8.0.3",
 		"modern-screenshot": "4.7.0",
