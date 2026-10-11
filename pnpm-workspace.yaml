@@ -12,5 +12,12 @@ packages:
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
   - cantraceviewer
+# wrangler 4.147.0 (newest release inside the age gate) pins miniflare
+# 5.20261001.0-alpha, which pins sharp 0.35.4. sharp 0.35.5 fixes
+# GHSA-wq5f-xc86-pv6w and was published 2026-09-27, inside the age gate.
+# The first miniflare that depends on it (5.20261006.1-alpha) is newer
+# than minimumReleaseAge, so no direct wrangler bump can reach it.
+overrides:
+  miniflare>sharp: 0.35.5
 patchedDependencies:
   svelte-check@4.7.1: patches/svelte-check@4.7.1.patch
