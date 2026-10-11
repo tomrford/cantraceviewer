@@ -73,9 +73,11 @@ impl Dbc {
                             ));
                         }
                         if messages.iter().any(|other: &Message| {
-                            other.dbc_id == message.dbc_id && other.size_bytes == message.size_bytes
+                            other.can_id == message.can_id
+                                && other.is_extended == message.is_extended
+                                && other.size_bytes == message.size_bytes
                         }) {
-                            return Err(DbcError::InvalidMessageLine);
+                            return Err(DbcError::DuplicateMessageIdentity);
                         }
                         current_message = Some(message);
                     }
@@ -441,6 +443,53 @@ mod tests {
             assert!(catalog.contains("\"rawFrameDecodable\":false"));
             assert!(catalog.contains("\"Value\""));
         }
+    }
+
+    #[test]
+    fn rejects_a_second_message_with_the_same_can_id_extension_and_length() {
+        const EXTENDED_FLAG: u32 = 0x8000_0000;
+        let extended_can = EXTENDED_FLAG | 2;
+        let j1939 = EXTENDED_FLAG | (1 << 29) | 2;
+        for id in [extended_can, j1939] {
+            let message = Message::parse(&format!("BO_ {id} Name: 8 ECU")).unwrap();
+            assert_eq!(
+                (message.can_id, message.is_extended, message.size_bytes),
+                (2, true, 8)
+            );
+        }
+
+        let error = Dbc::parse(&format!(
+            "BO_ {extended_can} ExtendedCan: 8 ECU\n\
+             BO_ {j1939} J1939: 8 ECU\n\
+             BA_ \"VFrameFormat\" BO_ {extended_can} 1;\n\
+             BA_ \"VFrameFormat\" BO_ {j1939} 3;"
+        ))
+        .unwrap_err()
+        .to_string();
+        assert_eq!(
+            error,
+            "DBC input:2:1: BO_: multiple messages with the same CAN ID, extended flag, and payload length"
+        );
+
+        let dbc = Dbc::parse(
+            "BO_ 2 Standard: 8 ECU\n\
+             BO_ 2147483650 Extended: 8 ECU\n\
+             BO_ 291 Classic: 8 ECU\n\
+             BO_ 291 Fd: 12 ECU",
+        )
+        .unwrap();
+        assert_eq!(
+            dbc.messages
+                .iter()
+                .map(|message| (message.can_id, message.is_extended, message.size_bytes))
+                .collect::<Vec<_>>(),
+            vec![
+                (2, false, 8),
+                (2, true, 8),
+                (291, false, 8),
+                (291, false, 12)
+            ]
+        );
     }
 
     #[test]

@@ -11,6 +11,7 @@ pub enum DbcError {
         source: Box<DbcError>,
     },
     InvalidMessageLine,
+    DuplicateMessageIdentity,
     UnterminatedRecord,
     InvalidSignalLine,
     SignalWithoutMessage,
@@ -64,6 +65,9 @@ impl fmt::Display for DbcError {
                 formatter.write_str("DBC record is missing its terminating semicolon")
             }
             Self::InvalidMessageLine => formatter.write_str("invalid DBC message record"),
+            Self::DuplicateMessageIdentity => formatter.write_str(
+                "multiple messages with the same CAN ID, extended flag, and payload length",
+            ),
             Self::InvalidSignalLine => formatter.write_str("invalid DBC signal record"),
             Self::SignalWithoutMessage => {
                 formatter.write_str("DBC signal appears before a message record")
