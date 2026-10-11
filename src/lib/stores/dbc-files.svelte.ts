@@ -404,7 +404,7 @@ function assertUniqueMessageIdentities(fileName: string, catalog: ParsedDbc): vo
 		const key = messageIdentityKey(message);
 		if (seen[key]) {
 			throw new Error(
-				`${displayDbcName(fileName)} contains multiple messages with the same CAN ID, extended flag, and payload length.`
+				`${displayDbcName(fileName)} contains multiple messages with the same CAN ID, frame format, and payload length.`
 			);
 		}
 

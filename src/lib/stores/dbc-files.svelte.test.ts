@@ -548,7 +548,7 @@ describe('dbcFiles', () => {
 
 		expect(dbcFiles.files).toHaveLength(0);
 		expect(dbcFiles.error).toBe(
-			'ambiguous contains multiple messages with the same CAN ID, extended flag, and payload length.'
+			'ambiguous contains multiple messages with the same CAN ID, frame format, and payload length.'
 		);
 		expect(closeDbcMock).toHaveBeenCalledExactlyOnceWith(handle);
 		expect(putStoredDbcsMock).not.toHaveBeenCalled();
