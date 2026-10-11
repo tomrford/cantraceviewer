@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Checkbox as CheckboxPrimitive } from 'bits-ui';
-	import { cn, type WithoutChildrenOrChild } from '$lib/utils.js';
+	import { cn, type WithoutChildrenOrChild } from '#lib/utils.js';
 	import RiCheckLine from 'remixicon-svelte/icons/check-line';
 	import RiSubtractLine from 'remixicon-svelte/icons/subtract-line';
 

@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
-import { closeTrace, openTrace } from '$lib/wasm.js';
-import type { OpenTraceResult, TraceHandle, TraceMetadata } from '$lib/wasm.js';
+import { closeTrace, openTrace } from '#lib/wasm.js';
+import type { OpenTraceResult, TraceHandle, TraceMetadata } from '#lib/wasm.js';
 import { traceFile } from './trace-file.svelte';
 
-vi.mock('$lib/wasm.js', () => ({
+vi.mock('#lib/wasm.js', () => ({
 	closeTrace: vi.fn(() => Promise.resolve()),
 	openTrace: vi.fn()
 }));

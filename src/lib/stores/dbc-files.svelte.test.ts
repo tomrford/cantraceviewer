@@ -7,11 +7,11 @@ import {
 	type DbcFileEntry
 } from './dbc-files.svelte';
 import { listStoredDbcs, putStoredDbcs, resetStoredDbcs } from './dbc-library.js';
-import { closeDbc, openDbc } from '$lib/wasm.js';
-import { DBC_MAX_FILE_BYTES } from '$lib/file-limits.js';
-import type { DbcHandle, DbcMessage, DbcSignal, OpenDbcResult, ParsedDbc } from '$lib/wasm.js';
+import { closeDbc, openDbc } from '#lib/wasm.js';
+import { DBC_MAX_FILE_BYTES } from '#lib/file-limits.js';
+import type { DbcHandle, DbcMessage, DbcSignal, OpenDbcResult, ParsedDbc } from '#lib/wasm.js';
 
-vi.mock('$lib/wasm.js', () => ({
+vi.mock('#lib/wasm.js', () => ({
 	closeDbc: vi.fn(() => Promise.resolve()),
 	openDbc: vi.fn()
 }));

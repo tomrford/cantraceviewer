@@ -1,8 +1,8 @@
 <script lang="ts">
 	import LegendSignalRow from './legend-signal-row.svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import type { YAxisId } from '$lib/plot-axes.js';
-	import type { LegendSignalValue, SignalView } from '$lib/signal-plot-data.js';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import type { YAxisId } from '#lib/plot-axes.js';
+	import type { LegendSignalValue, SignalView } from '#lib/signal-plot-data.js';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 
 	let {

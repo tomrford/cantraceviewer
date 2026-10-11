@@ -1,7 +1,7 @@
 import { PersistedState } from 'runed';
 import { MediaQuery } from 'svelte/reactivity';
 
-import type { LegendOrderMode } from '$lib/plot-signal-order.js';
+import type { LegendOrderMode } from '#lib/plot-signal-order.js';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 export type TimestampMode = 'relative' | 'absolute';

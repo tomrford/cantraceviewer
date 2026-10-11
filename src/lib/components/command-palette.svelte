@@ -1,5 +1,5 @@
 <script lang="ts">
-	import * as Command from '$lib/components/ui/command/index.js';
+	import * as Command from '#lib/components/ui/command/index.js';
 	import ShortcutKey from './shortcut-key.svelte';
 	import {
 		groupedShortcuts,
@@ -9,7 +9,7 @@
 		type ShortcutAction,
 		type ShortcutPlatform,
 		type ShortcutState
-	} from '$lib/keyboard-shortcuts.js';
+	} from '#lib/keyboard-shortcuts.js';
 
 	let {
 		open = $bindable(false),

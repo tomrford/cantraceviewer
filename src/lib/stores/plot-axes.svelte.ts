@@ -1,4 +1,4 @@
-import { MAX_Y_AXES, nextYAxisId, PRIMARY_Y_AXIS_ID, type YAxisId } from '$lib/plot-axes.js';
+import { MAX_Y_AXES, nextYAxisId, PRIMARY_Y_AXIS_ID, type YAxisId } from '#lib/plot-axes.js';
 import { SvelteMap } from 'svelte/reactivity';
 
 class PlotAxesStore {

@@ -1,10 +1,10 @@
-import { formatDecodedValue, nearestSignalSample } from '$lib/signal-plot-data.js';
-import { searchIndex } from '$lib/search-index.js';
-import type { SelectorSearchIndex } from '$lib/stores/dbc-files.svelte.js';
-import type { PlotSignal } from '$lib/stores/plot-data.svelte.js';
-import { MAX_Y_AXES } from '$lib/plot-axes.js';
-import type { CrosshairId, LegendCrosshairMode } from '$lib/plot-crosshair.js';
-import type { PlotAxisRange } from '$lib/plot-viewport.js';
+import { formatDecodedValue, nearestSignalSample } from '#lib/signal-plot-data.js';
+import { searchIndex } from '#lib/search-index.js';
+import type { SelectorSearchIndex } from '#lib/stores/dbc-files.svelte.js';
+import type { PlotSignal } from '#lib/stores/plot-data.svelte.js';
+import { MAX_Y_AXES } from '#lib/plot-axes.js';
+import type { CrosshairId, LegendCrosshairMode } from '#lib/plot-crosshair.js';
+import type { PlotAxisRange } from '#lib/plot-viewport.js';
 
 export const SEARCH_RESULT_LIMIT_MAX = 50;
 export const SEARCH_RESULT_LIMIT_DEFAULT = 25;

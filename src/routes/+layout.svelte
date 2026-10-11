@@ -1,9 +1,9 @@
 <script lang="ts">
 	import './layout.css';
-	import { browser } from '$app/environment';
-	import { Toaster } from '$lib/components/ui/sonner/index.js';
-	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
-	import { isDark } from '$lib/stores/preferences.svelte.js';
+	import { browser } from '$app/env';
+	import { Toaster } from '#lib/components/ui/sonner/index.js';
+	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
+	import { isDark } from '#lib/stores/preferences.svelte.js';
 
 	let { children } = $props();
 

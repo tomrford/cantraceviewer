@@ -1,5 +1,5 @@
 import { traceFile } from './trace-file.svelte.js';
-import type { RawMessage, RawSource } from '$lib/wasm.js';
+import type { RawMessage, RawSource } from '#lib/wasm.js';
 import {
 	closeDbc,
 	openDbc,
@@ -10,7 +10,7 @@ import {
 	type DbcSignal,
 	type EmbeddedDbc,
 	type ParsedDbc
-} from '$lib/wasm.js';
+} from '#lib/wasm.js';
 import {
 	deleteStoredDbc,
 	listStoredDbcs,
@@ -19,9 +19,9 @@ import {
 	storedDbcId,
 	type StoredDbc
 } from './dbc-library.js';
-import { DBC_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '$lib/file-limits.js';
-import { assertTextFileContent } from '$lib/file-preflight.js';
-import { createSearchIndex, searchIndex, type SearchIndex } from '$lib/search-index.js';
+import { DBC_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '#lib/file-limits.js';
+import { assertTextFileContent } from '#lib/file-preflight.js';
+import { createSearchIndex, searchIndex, type SearchIndex } from '#lib/search-index.js';
 
 export type DbcFileEntry = {
 	id: string;

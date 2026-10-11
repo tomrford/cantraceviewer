@@ -3,13 +3,13 @@
 		moveCrosshair,
 		type CrosshairDragAxis,
 		type PlotCrosshair
-	} from '$lib/plot-crosshair.js';
+	} from '#lib/plot-crosshair.js';
 	import {
 		dataPointAtRatio,
 		ratioAtDataPoint,
 		type PlotPoint,
 		type PlotViewport
-	} from '$lib/plot-viewport.js';
+	} from '#lib/plot-viewport.js';
 	import { onDestroy } from 'svelte';
 
 	let {

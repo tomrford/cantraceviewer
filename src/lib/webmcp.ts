@@ -1,10 +1,10 @@
-import { buildSelectorSearchIndexes, dbcFiles } from '$lib/stores/dbc-files.svelte.js';
-import { plotData } from '$lib/stores/plot-data.svelte.js';
-import { traceFile } from '$lib/stores/trace-file.svelte.js';
-import { plotAxes } from '$lib/stores/plot-axes.svelte.js';
-import { PRIMARY_Y_AXIS_ID } from '$lib/plot-axes.js';
-import type { WebMcpPlotHost } from '$lib/webmcp-plot.js';
-import { createWebMcpTools, type WebMcpHost, type WebMcpTool } from '$lib/webmcp-tools.js';
+import { buildSelectorSearchIndexes, dbcFiles } from '#lib/stores/dbc-files.svelte.js';
+import { plotData } from '#lib/stores/plot-data.svelte.js';
+import { traceFile } from '#lib/stores/trace-file.svelte.js';
+import { plotAxes } from '#lib/stores/plot-axes.svelte.js';
+import { PRIMARY_Y_AXIS_ID } from '#lib/plot-axes.js';
+import type { WebMcpPlotHost } from '#lib/webmcp-plot.js';
+import { createWebMcpTools, type WebMcpHost, type WebMcpTool } from '#lib/webmcp-tools.js';
 
 type ModelContext = {
 	registerTool: (

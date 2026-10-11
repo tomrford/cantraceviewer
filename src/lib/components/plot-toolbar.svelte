@@ -1,19 +1,19 @@
 <script lang="ts">
-	import * as ButtonGroup from '$lib/components/ui/button-group/index.js';
-	import { Button, buttonVariants } from '$lib/components/ui/button/index.js';
-	import * as Popover from '$lib/components/ui/popover/index.js';
-	import { Toggle } from '$lib/components/ui/toggle/index.js';
+	import * as ButtonGroup from '#lib/components/ui/button-group/index.js';
+	import { Button, buttonVariants } from '#lib/components/ui/button/index.js';
+	import * as Popover from '#lib/components/ui/popover/index.js';
+	import { Toggle } from '#lib/components/ui/toggle/index.js';
 	import ShortcutKey from './shortcut-key.svelte';
-	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
+	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
 	import {
 		crosshairById,
 		setCrosshair,
 		type CrosshairId,
 		type PlotCrosshair
-	} from '$lib/plot-crosshair.js';
-	import { viewportCenter, type PlotViewport } from '$lib/plot-viewport.js';
-	import { shortcutKeys, type ShortcutPlatform } from '$lib/keyboard-shortcuts.js';
-	import { cn } from '$lib/utils.js';
+	} from '#lib/plot-crosshair.js';
+	import { viewportCenter, type PlotViewport } from '#lib/plot-viewport.js';
+	import { shortcutKeys, type ShortcutPlatform } from '#lib/keyboard-shortcuts.js';
+	import { cn } from '#lib/utils.js';
 	import BoxSelectIcon from '@lucide/svelte/icons/box-select';
 	import CrosshairIcon from '@lucide/svelte/icons/crosshair';
 	import ExpandIcon from '@lucide/svelte/icons/expand';

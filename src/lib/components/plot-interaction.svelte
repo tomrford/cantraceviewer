@@ -1,14 +1,14 @@
 <script lang="ts">
-	import { normalizedWheelDelta, type PlotRatioPoint } from '$lib/plot-geometry.js';
+	import { normalizedWheelDelta, type PlotRatioPoint } from '#lib/plot-geometry.js';
 	import {
 		boxViewport,
 		dataPointAtRatio,
 		panViewport,
 		type PlotPoint,
 		type PlotViewport
-	} from '$lib/plot-viewport.js';
-	import { PlotViewportState } from '$lib/plot-viewport-state.svelte.js';
-	import { plotDragMode, plotWheelAction } from '$lib/plot-interaction-policy.js';
+	} from '#lib/plot-viewport.js';
+	import { PlotViewportState } from '#lib/plot-viewport-state.svelte.js';
+	import { plotDragMode, plotWheelAction } from '#lib/plot-interaction-policy.js';
 
 	let {
 		viewport,

@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { Input } from '$lib/components/ui/input/index.js';
-	import { Label } from '$lib/components/ui/label/index.js';
-	import type { WithElementRef } from '$lib/utils.js';
+	import { Input } from '#lib/components/ui/input/index.js';
+	import { Label } from '#lib/components/ui/label/index.js';
+	import type { WithElementRef } from '#lib/utils.js';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import type { HTMLFormAttributes } from 'svelte/elements';
 

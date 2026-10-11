@@ -1,16 +1,16 @@
-import { createSignalColorAssigner } from '$lib/plot-colors.js';
-import { orderPlotSignals } from '$lib/plot-signal-order.js';
-import { plotAxes } from '$lib/stores/plot-axes.svelte.js';
-import { dbcFiles, sourceLabel, type DbcSignalTarget } from '$lib/stores/dbc-files.svelte.js';
-import { legendOrderMode } from '$lib/stores/preferences.svelte.js';
-import { traceFile } from '$lib/stores/trace-file.svelte.js';
+import { createSignalColorAssigner } from '#lib/plot-colors.js';
+import { orderPlotSignals } from '#lib/plot-signal-order.js';
+import { plotAxes } from '#lib/stores/plot-axes.svelte.js';
+import { dbcFiles, sourceLabel, type DbcSignalTarget } from '#lib/stores/dbc-files.svelte.js';
+import { legendOrderMode } from '#lib/stores/preferences.svelte.js';
+import { traceFile } from '#lib/stores/trace-file.svelte.js';
 import {
 	getMf4SignalValues,
 	getSignalValues,
 	type DecodedSignalSeries,
 	type DbcValueType,
 	type DbcValueDescription
-} from '$lib/wasm.js';
+} from '#lib/wasm.js';
 import { SvelteMap } from 'svelte/reactivity';
 
 type PlotSignalKey = string;
