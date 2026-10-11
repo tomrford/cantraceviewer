@@ -20,10 +20,9 @@ import type {
 export type * from './types.ts';
 export { DEFAULT_PARSING_LIMITS, type ParsingLimits } from './limits.ts';
 
-/** WASM bytes or an already compiled module. Compilation of bytes is synchronous. */
+/** Compilation of bytes is synchronous. */
 export type DirectWasmInput = BufferSource | WebAssembly.Module;
 
-/** Package-local WASM asset URL. Read, fetch, or compile it before synchronous initialization. */
 export const wasmUrl = new URL('./wasm-bindgen/cantraceviewer_bg.wasm', import.meta.url);
 
 /**
@@ -37,9 +36,7 @@ export type DirectClient = {
 	openTrace(traceType: TraceType, bytes: Uint8Array): OpenTraceResult;
 	/** Idempotent for this client's handles. */
 	closeTrace(handle: TraceHandle): void;
-	/**
-	 * Decodes a DBC signal from raw frames. Arrays share one exactly-sized ArrayBuffer.
-	 */
+	/** Returned arrays share one exactly-sized ArrayBuffer. */
 	getSignalValues(
 		dbcHandle: DbcHandle,
 		traceHandle: TraceHandle,
