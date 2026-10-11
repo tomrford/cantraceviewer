@@ -72,11 +72,14 @@ impl Dbc {
                                 "Standalone signals cannot be plotted.",
                             ));
                         }
-                        if messages.iter().any(|other: &Message| {
-                            other.can_id == message.can_id
-                                && other.is_extended == message.is_extended
-                                && other.size_bytes == message.size_bytes
-                        }) {
+                        if message.dbc_id != INDEPENDENT_SIGNAL_MESSAGE_ID
+                            && messages.iter().any(|other: &Message| {
+                                other.dbc_id != INDEPENDENT_SIGNAL_MESSAGE_ID
+                                    && other.can_id == message.can_id
+                                    && other.is_extended == message.is_extended
+                                    && other.size_bytes == message.size_bytes
+                            })
+                        {
                             return Err(DbcError::DuplicateMessageIdentity);
                         }
                         current_message = Some(message);
@@ -489,6 +492,37 @@ mod tests {
                 (291, false, 8),
                 (291, false, 12)
             ]
+        );
+    }
+
+    #[test]
+    fn independent_signal_container_does_not_share_extended_id_zero() {
+        for text in [
+            "BO_ 3221225472 VECTOR__INDEPENDENT_SIG_MSG: 0 Vector__XXX\n\
+             BO_ 2147483648 Zero: 0 ECU",
+            "BO_ 2147483648 Zero: 0 ECU\n\
+             BO_ 3221225472 VECTOR__INDEPENDENT_SIG_MSG: 0 Vector__XXX",
+        ] {
+            let dbc = Dbc::parse(text).unwrap();
+            assert_eq!(dbc.messages.len(), 1);
+            assert_eq!(dbc.messages[0].name, "Zero");
+            assert_eq!(
+                (
+                    dbc.messages[0].dbc_id,
+                    dbc.messages[0].can_id,
+                    dbc.messages[0].is_extended,
+                    dbc.messages[0].size_bytes
+                ),
+                (0x8000_0000, 0, true, 0)
+            );
+        }
+
+        let error = Dbc::parse("BO_ 2147483648 First: 0 ECU\nBO_ 2147483648 Second: 0 ECU")
+            .unwrap_err()
+            .to_string();
+        assert_eq!(
+            error,
+            "DBC input:2:1: BO_: multiple messages with the same CAN ID, extended flag, and payload length"
         );
     }
 
