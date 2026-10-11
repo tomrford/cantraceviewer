@@ -121,6 +121,7 @@ describe('plotData', () => {
 		getSignalValuesMock.mockResolvedValueOnce(signalSeries([0], [5]));
 		await plotData.toggleSignal(key());
 		const retained = cache(plotData.signals)[0];
+		expect(retained).toBe(before);
 		expect(crosshairValue(before, 0).text).toBe('12.34 km/h');
 		expect(crosshairValue(retained, 0).text).toBe('12.34 km/h');
 		expect(crosshairDeltaValue(retained, 0, 10).text).toBe('0.15 km/h');
