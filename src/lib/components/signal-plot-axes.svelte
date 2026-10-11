@@ -6,10 +6,10 @@
 		Y_AXIS_GUTTER,
 		type AxisTickGenerator,
 		type PlotGrid
-	} from '$lib/plot-axis-layout.js';
-	import type { YAxisId } from '$lib/plot-axes.js';
-	import { formatAxisValue } from '$lib/signal-plot-data.js';
-	import type { PlotAxisRange } from '$lib/plot-viewport.js';
+	} from '#lib/plot-axis-layout.js';
+	import type { YAxisId } from '#lib/plot-axes.js';
+	import { formatAxisValue } from '#lib/signal-plot-data.js';
+	import type { PlotAxisRange } from '#lib/plot-viewport.js';
 
 	let {
 		axes,

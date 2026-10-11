@@ -1,13 +1,13 @@
 <script lang="ts">
-	import * as Dialog from '$lib/components/ui/dialog/index.js';
+	import * as Dialog from '#lib/components/ui/dialog/index.js';
 	import ShortcutKey from './shortcut-key.svelte';
 	import {
 		groupedShortcuts,
 		shortcutKeys,
 		shortcutLabel,
 		type ShortcutPlatform
-	} from '$lib/keyboard-shortcuts.js';
-	import { TRACE_FILE_FORMAT_NAMES } from '$lib/trace-file-types.js';
+	} from '#lib/keyboard-shortcuts.js';
+	import { TRACE_FILE_FORMAT_NAMES } from '#lib/trace-file-types.js';
 
 	let {
 		open = $bindable(false),

@@ -3,18 +3,18 @@
 		crosshairById,
 		type LegendCrosshairMode,
 		type PlotCrosshair
-	} from '$lib/plot-crosshair.js';
-	import type { YAxisId } from '$lib/plot-axes.js';
-	import { ratioInRange, valueAtRatio, type PlotAxisRange } from '$lib/plot-viewport.js';
+	} from '#lib/plot-crosshair.js';
+	import type { YAxisId } from '#lib/plot-axes.js';
+	import { ratioInRange, valueAtRatio, type PlotAxisRange } from '#lib/plot-viewport.js';
 	import {
 		formatAxisTime,
 		formatAxisValue,
 		formatTimeDelta,
 		type LegendSignalValue,
 		type SignalView
-	} from '$lib/signal-plot-data.js';
-	import type { TimestampMode } from '$lib/stores/preferences.svelte.js';
-	import * as Select from '$lib/components/ui/select/index.js';
+	} from '#lib/signal-plot-data.js';
+	import type { TimestampMode } from '#lib/stores/preferences.svelte.js';
+	import * as Select from '#lib/components/ui/select/index.js';
 	import LegendAxisGroup from './legend-axis-group.svelte';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 

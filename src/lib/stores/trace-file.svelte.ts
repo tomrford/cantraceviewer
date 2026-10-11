@@ -1,12 +1,12 @@
-import { closeTrace, openTrace, type OpenTraceResult, type TraceType } from '$lib/wasm.js';
-import { TRACE_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '$lib/file-limits.js';
-import { assertTraceFileContent } from '$lib/file-preflight.js';
-import { buildMf4SignalTargetIndex, mf4SelectorSearchIndexes } from '$lib/mf4-signals.js';
+import { closeTrace, openTrace, type OpenTraceResult, type TraceType } from '#lib/wasm.js';
+import { TRACE_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '#lib/file-limits.js';
+import { assertTraceFileContent } from '#lib/file-preflight.js';
+import { buildMf4SignalTargetIndex, mf4SelectorSearchIndexes } from '#lib/mf4-signals.js';
 import {
 	TRACE_FILE_DESCRIPTION,
 	displayTraceName,
 	traceTypeForFileName
-} from '$lib/trace-file-types.js';
+} from '#lib/trace-file-types.js';
 
 export type TraceFileEntry = OpenTraceResult & { id: number; file: File };
 

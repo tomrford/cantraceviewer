@@ -1,18 +1,18 @@
 <script lang="ts">
-	import { SIGNAL_COLORS } from '$lib/plot-colors.js';
-	import type { PlotRatioPoint } from '$lib/plot-geometry.js';
+	import { SIGNAL_COLORS } from '#lib/plot-colors.js';
+	import type { PlotRatioPoint } from '#lib/plot-geometry.js';
 	import {
 		capturePlotImage,
 		copyPlotImage,
 		plotImageFilename,
 		savePlotImage
-	} from '$lib/plot-image-export.js';
-	import type { PlotAxisRange, PlotPoint, PlotViewport } from '$lib/plot-viewport.js';
-	import { plotGrid, Y_TICK_COUNT, type AxisTickGenerator } from '$lib/plot-axis-layout.js';
-	import { FALLBACK_PLOT_THEME, resolvePlotTheme, type PlotTheme } from '$lib/plot-theme.js';
-	import { groupSignalsByYAxis, yAxisLabel, yAxisUnit, type YAxisId } from '$lib/plot-axes.js';
-	import { plotAxes } from '$lib/stores/plot-axes.svelte.js';
-	import { shortcutKeys, type ShortcutPlatform } from '$lib/keyboard-shortcuts.js';
+	} from '#lib/plot-image-export.js';
+	import type { PlotAxisRange, PlotPoint, PlotViewport } from '#lib/plot-viewport.js';
+	import { plotGrid, Y_TICK_COUNT, type AxisTickGenerator } from '#lib/plot-axis-layout.js';
+	import { FALLBACK_PLOT_THEME, resolvePlotTheme, type PlotTheme } from '#lib/plot-theme.js';
+	import { groupSignalsByYAxis, yAxisLabel, yAxisUnit, type YAxisId } from '#lib/plot-axes.js';
+	import { plotAxes } from '#lib/stores/plot-axes.svelte.js';
+	import { shortcutKeys, type ShortcutPlatform } from '#lib/keyboard-shortcuts.js';
 	import {
 		crosshairById,
 		removeCrosshair,
@@ -20,8 +20,8 @@
 		type CrosshairId,
 		type LegendCrosshairMode,
 		type PlotCrosshair
-	} from '$lib/plot-crosshair.js';
-	import { emptyAxisSeries, plotSeriesForViews } from '$lib/plot-series.js';
+	} from '#lib/plot-crosshair.js';
+	import { emptyAxisSeries, plotSeriesForViews } from '#lib/plot-series.js';
 	import {
 		axisSplitDomain,
 		createSignalViewCache,
@@ -30,19 +30,19 @@
 		EMPTY_AXIS_RANGE,
 		formatAxisTime,
 		signalYRange
-	} from '$lib/signal-plot-data.js';
-	import { PlotWindow } from '$lib/plot-window.svelte.js';
-	import { PlotViewportState } from '$lib/plot-viewport-state.svelte.js';
+	} from '#lib/signal-plot-data.js';
+	import { PlotWindow } from '#lib/plot-window.svelte.js';
+	import { PlotViewportState } from '#lib/plot-viewport-state.svelte.js';
 	import PlotInteraction from './plot-interaction.svelte';
 	import PlotCrosshairOverlay from './plot-crosshair.svelte';
-	import * as ContextMenu from '$lib/components/ui/context-menu/index.js';
+	import * as ContextMenu from '#lib/components/ui/context-menu/index.js';
 	import SignalPlotAxes from './signal-plot-axes.svelte';
 	import SignalPlotLegend from './signal-plot-legend.svelte';
 	import ShortcutKey from './shortcut-key.svelte';
-	import { createPlotPerfStats } from '$lib/plot-perf.js';
-	import { isPlottableSignal, plotData } from '$lib/stores/plot-data.svelte.js';
-	import { timestampMode } from '$lib/stores/preferences.svelte.js';
-	import { traceFile } from '$lib/stores/trace-file.svelte.js';
+	import { createPlotPerfStats } from '#lib/plot-perf.js';
+	import { isPlottableSignal, plotData } from '#lib/stores/plot-data.svelte.js';
+	import { timestampMode } from '#lib/stores/preferences.svelte.js';
+	import { traceFile } from '#lib/stores/trace-file.svelte.js';
 	import { onDestroy, onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import type { HTMLAttributes } from 'svelte/elements';

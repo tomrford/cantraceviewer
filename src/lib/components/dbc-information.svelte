@@ -1,8 +1,8 @@
 <script lang="ts">
-	import * as Dialog from '$lib/components/ui/dialog/index.js';
+	import * as Dialog from '#lib/components/ui/dialog/index.js';
 	import { Dialog as DialogPrimitive } from 'bits-ui';
 	import InfoIcon from '@lucide/svelte/icons/info';
-	import type { DbcFileEntry } from '$lib/stores/dbc-files.svelte.js';
+	import type { DbcFileEntry } from '#lib/stores/dbc-files.svelte.js';
 
 	let { file }: { file: DbcFileEntry } = $props();
 	let signalCount = $derived(

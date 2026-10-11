@@ -1,8 +1,8 @@
 <script lang="ts">
-	import * as Popover from '$lib/components/ui/popover/index.js';
-	import * as Select from '$lib/components/ui/select/index.js';
+	import * as Popover from '#lib/components/ui/popover/index.js';
+	import * as Select from '#lib/components/ui/select/index.js';
 	import ShortcutKey from './shortcut-key.svelte';
-	import { shortcutKeys, type ShortcutPlatform } from '$lib/keyboard-shortcuts.js';
+	import { shortcutKeys, type ShortcutPlatform } from '#lib/keyboard-shortcuts.js';
 	import {
 		legendOrderMode,
 		themePreference,
@@ -10,8 +10,8 @@
 		type LegendOrderMode,
 		type ThemePreference,
 		type TimestampMode
-	} from '$lib/stores/preferences.svelte.js';
-	import { onResetPersistentData } from '$lib/stores/session.js';
+	} from '#lib/stores/preferences.svelte.js';
+	import { onResetPersistentData } from '#lib/stores/session.js';
 	import CircleHelpIcon from '@lucide/svelte/icons/circle-help';
 	import GithubIcon from '@lucide/svelte/icons/github';
 	import LaptopIcon from '@lucide/svelte/icons/laptop';
@@ -20,7 +20,7 @@
 	import SunIcon from '@lucide/svelte/icons/sun';
 	import XIcon from '@lucide/svelte/icons/x';
 	import type { Component } from 'svelte';
-	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
+	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
 
 	let {
 		shortcutPlatform,

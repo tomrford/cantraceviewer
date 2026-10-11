@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { MAX_Y_AXES, PRIMARY_Y_AXIS_ID } from '$lib/plot-axes.js';
+import { MAX_Y_AXES, PRIMARY_Y_AXIS_ID } from '#lib/plot-axes.js';
 import { plotAxes } from './plot-axes.svelte.js';
 
 describe('plotAxes', () => {

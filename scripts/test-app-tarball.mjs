@@ -21,7 +21,6 @@ try {
 		'static',
 		'patches',
 		'components.json',
-		'svelte.config.js',
 		'tsconfig.json',
 		'vite.config.ts'
 	]) {

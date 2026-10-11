@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Command as CommandPrimitive } from 'bits-ui';
-	import { cn } from '$lib/utils.js';
+	import { cn } from '#lib/utils.js';
 	import RiCheckLine from 'remixicon-svelte/icons/check-line';
 
 	let {

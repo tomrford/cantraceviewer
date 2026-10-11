@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Select as SelectPrimitive } from 'bits-ui';
-	import { cn, type WithoutChild } from '$lib/utils.js';
+	import { cn, type WithoutChild } from '#lib/utils.js';
 	import RiCheckLine from 'remixicon-svelte/icons/check-line';
 
 	let {

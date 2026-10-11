@@ -1,10 +1,10 @@
 <script lang="ts">
-	import Badge from '$lib/components/ui/badge/badge.svelte';
-	import * as Popover from '$lib/components/ui/popover/index.js';
-	import { buttonVariants } from '$lib/components/ui/button/index.js';
-	import { cn } from '$lib/utils.js';
-	import type { YAxisId } from '$lib/plot-axes.js';
-	import type { LegendSignalValue, SignalView } from '$lib/signal-plot-data.js';
+	import Badge from '#lib/components/ui/badge/badge.svelte';
+	import * as Popover from '#lib/components/ui/popover/index.js';
+	import { buttonVariants } from '#lib/components/ui/button/index.js';
+	import { cn } from '#lib/utils.js';
+	import type { YAxisId } from '#lib/plot-axes.js';
+	import type { LegendSignalValue, SignalView } from '#lib/signal-plot-data.js';
 	import GripVerticalIcon from '@lucide/svelte/icons/grip-vertical';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 

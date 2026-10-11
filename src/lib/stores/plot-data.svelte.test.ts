@@ -3,22 +3,22 @@ import type { Mock } from 'vitest';
 import { dbcFiles, signalIdentityKey, type DbcFileEntry } from './dbc-files.svelte';
 import { plotData } from './plot-data.svelte';
 import { traceFile, type TraceFileEntry } from './trace-file.svelte';
-import { getMf4SignalValues, getSignalValues } from '$lib/wasm.js';
+import { getMf4SignalValues, getSignalValues } from '#lib/wasm.js';
 import {
 	createSignalViewCache,
 	crosshairValue,
 	crosshairDeltaValue
-} from '$lib/signal-plot-data.js';
-import { mf4SignalIdentityKey } from '$lib/mf4-signals.js';
+} from '#lib/signal-plot-data.js';
+import { mf4SignalIdentityKey } from '#lib/mf4-signals.js';
 import type {
 	DbcHandle,
 	DbcMessage,
 	DbcSignal,
 	DecodedSignalSeries,
 	TraceHandle
-} from '$lib/wasm.js';
+} from '#lib/wasm.js';
 
-vi.mock('$lib/wasm.js', () => ({
+vi.mock('#lib/wasm.js', () => ({
 	closeDbc: vi.fn(() => Promise.resolve()),
 	closeTrace: vi.fn(() => Promise.resolve()),
 	getMf4SignalValues: vi.fn(),

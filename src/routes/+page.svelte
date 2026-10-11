@@ -1,32 +1,32 @@
 <script lang="ts">
-	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
-	import PlotToolbar from '$lib/components/plot-toolbar.svelte';
-	import CommandPalette from '$lib/components/command-palette.svelte';
-	import HelpDialog from '$lib/components/help-dialog.svelte';
-	import SettingsDialog from '$lib/components/settings-dialog.svelte';
-	import SignalPlot from '$lib/components/signal-plot.svelte';
-	import SignalSelectorDialog from '$lib/components/signal-selector-dialog.svelte';
-	import ShortcutKey from '$lib/components/shortcut-key.svelte';
-	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
-	import Walkthrough from '$lib/components/walkthrough.svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import * as Empty from '$lib/components/ui/empty/index.js';
+	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
+	import PlotToolbar from '#lib/components/plot-toolbar.svelte';
+	import CommandPalette from '#lib/components/command-palette.svelte';
+	import HelpDialog from '#lib/components/help-dialog.svelte';
+	import SettingsDialog from '#lib/components/settings-dialog.svelte';
+	import SignalPlot from '#lib/components/signal-plot.svelte';
+	import SignalSelectorDialog from '#lib/components/signal-selector-dialog.svelte';
+	import ShortcutKey from '#lib/components/shortcut-key.svelte';
+	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
+	import Walkthrough from '#lib/components/walkthrough.svelte';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import * as Empty from '#lib/components/ui/empty/index.js';
 	import {
 		dragLeftCurrentTarget,
 		filesFromDrop,
 		hasDraggedFiles,
 		traceFileFromDrop
-	} from '$lib/file-drop.js';
-	import * as Popover from '$lib/components/ui/popover/index.js';
-	import { PlotViewportState } from '$lib/plot-viewport-state.svelte.js';
+	} from '#lib/file-drop.js';
+	import * as Popover from '#lib/components/ui/popover/index.js';
+	import { PlotViewportState } from '#lib/plot-viewport-state.svelte.js';
 	import {
 		setCrosshair,
 		type CrosshairId,
 		type LegendCrosshairMode,
 		type PlotCrosshair
-	} from '$lib/plot-crosshair.js';
-	import { dataPointAtRatio, viewportCenter } from '$lib/plot-viewport.js';
-	import type { PlotRatioPoint } from '$lib/plot-geometry.js';
+	} from '#lib/plot-crosshair.js';
+	import { dataPointAtRatio, viewportCenter } from '#lib/plot-viewport.js';
+	import type { PlotRatioPoint } from '#lib/plot-geometry.js';
 	import {
 		detectShortcutPlatform,
 		overridesBrowserShortcut,
@@ -37,27 +37,27 @@
 		type ShortcutAction,
 		type ShortcutPlatform,
 		type ShortcutState
-	} from '$lib/keyboard-shortcuts.js';
-	import { dbcFiles } from '$lib/stores/dbc-files.svelte.js';
-	import { plotData } from '$lib/stores/plot-data.svelte.js';
-	import { onTraceOpened } from '$lib/stores/session.js';
-	import { traceFile, type TraceFileEntry } from '$lib/stores/trace-file.svelte.js';
-	import { mountWebMcp } from '$lib/webmcp.js';
-	import { createWebMcpPlotHost } from '$lib/webmcp-plot.js';
-	import { TRACE_FILE_ACCEPT, TRACE_FILE_FORMAT_NAMES } from '$lib/trace-file-types.js';
+	} from '#lib/keyboard-shortcuts.js';
+	import { dbcFiles } from '#lib/stores/dbc-files.svelte.js';
+	import { plotData } from '#lib/stores/plot-data.svelte.js';
+	import { onTraceOpened } from '#lib/stores/session.js';
+	import { traceFile, type TraceFileEntry } from '#lib/stores/trace-file.svelte.js';
+	import { mountWebMcp } from '#lib/webmcp.js';
+	import { createWebMcpPlotHost } from '#lib/webmcp-plot.js';
+	import { TRACE_FILE_ACCEPT, TRACE_FILE_FORMAT_NAMES } from '#lib/trace-file-types.js';
 	import AudioWaveformIcon from '@lucide/svelte/icons/audio-waveform';
 	import CogIcon from '@lucide/svelte/icons/cog';
 	import CircleHelpIcon from '@lucide/svelte/icons/circle-help';
 	import DatabaseIcon from '@lucide/svelte/icons/database';
 	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
-	import { walkthroughVersion } from '$lib/stores/preferences.svelte.js';
+	import { walkthroughVersion } from '#lib/stores/preferences.svelte.js';
 	import {
 		adjacentWalkthroughStep,
 		shouldShowWalkthrough,
 		WALKTHROUGH_STEPS,
 		WALKTHROUGH_VERSION,
 		type WalkthroughStep
-	} from '$lib/walkthrough.js';
+	} from '#lib/walkthrough.js';
 	import { onMount, tick } from 'svelte';
 	import { toast } from 'svelte-sonner';
 

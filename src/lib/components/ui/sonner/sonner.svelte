@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { isDark } from '$lib/stores/preferences.svelte.js';
+	import { isDark } from '#lib/stores/preferences.svelte.js';
 	import { Toaster as Sonner, type ToasterProps as SonnerProps } from 'svelte-sonner';
 	import RiLoaderLine from 'remixicon-svelte/icons/loader-line';
 	import RiCheckboxCircleLine from 'remixicon-svelte/icons/checkbox-circle-line';

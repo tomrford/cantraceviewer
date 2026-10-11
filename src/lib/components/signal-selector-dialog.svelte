@@ -1,26 +1,26 @@
 <script lang="ts">
-	import Badge from '$lib/components/ui/badge/badge.svelte';
-	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
-	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
-	import { Label } from '$lib/components/ui/label/index.js';
-	import * as Popover from '$lib/components/ui/popover/index.js';
+	import Badge from '#lib/components/ui/badge/badge.svelte';
+	import * as AlertDialog from '#lib/components/ui/alert-dialog/index.js';
+	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
+	import { Label } from '#lib/components/ui/label/index.js';
+	import * as Popover from '#lib/components/ui/popover/index.js';
 	import { createVirtualizer } from '@tanstack/svelte-virtual';
 	import { get } from 'svelte/store';
 	import { untrack } from 'svelte';
-	import { flattenSelectorTree, type SelectorListRow } from '$lib/selector-list.js';
+	import { flattenSelectorTree, type SelectorListRow } from '#lib/selector-list.js';
 	import {
 		dbcFilesFromDrop,
 		dragLeftCurrentTarget,
 		filesFromDrop,
 		hasDraggedFiles
-	} from '$lib/file-drop.js';
-	import { dbcFiles } from '$lib/stores/dbc-files.svelte.js';
-	import { plotData } from '$lib/stores/plot-data.svelte.js';
-	import { traceFile } from '$lib/stores/trace-file.svelte.js';
-	import { onDbcRemoved } from '$lib/stores/session.js';
+	} from '#lib/file-drop.js';
+	import { dbcFiles } from '#lib/stores/dbc-files.svelte.js';
+	import { plotData } from '#lib/stores/plot-data.svelte.js';
+	import { traceFile } from '#lib/stores/trace-file.svelte.js';
+	import { onDbcRemoved } from '#lib/stores/session.js';
 	import SearchForm from './search-form.svelte';
 	import DbcInformation from './dbc-information.svelte';
-	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
+	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
 	import FilterIcon from '@lucide/svelte/icons/list-filter';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
