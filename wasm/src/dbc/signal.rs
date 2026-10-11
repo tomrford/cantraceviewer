@@ -79,8 +79,8 @@ pub struct Signal {
     pub signedness: Signedness,
     pub factor: f64,
     pub offset: f64,
-    pub minimum: Option<f64>,
-    pub maximum: Option<f64>,
+    pub minimum: f64,
+    pub maximum: f64,
     pub unit: String,
     pub receivers: Vec<String>,
     #[serde(serialize_with = "serialize_value_descriptions")]
@@ -242,8 +242,8 @@ impl Signal {
             signedness,
             factor,
             offset,
-            minimum: Some(minimum),
-            maximum: Some(maximum),
+            minimum,
+            maximum,
             unit,
             receivers,
             value_descriptions: None,
@@ -428,8 +428,8 @@ mod tests {
         assert_eq!(signal.start_bit, 40);
         assert_eq!(signal.bit_length, 8);
         assert_eq!(signal.offset, -40.0);
-        assert_eq!(signal.minimum, Some(-40.0));
-        assert_eq!(signal.maximum, Some(215.0));
+        assert_eq!(signal.minimum, -40.0);
+        assert_eq!(signal.maximum, 215.0);
         assert_eq!(signal.unit, "degC");
     }
 
