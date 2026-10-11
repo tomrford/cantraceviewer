@@ -36,6 +36,7 @@ export type DbcMessage = {
 	isExtended: boolean;
 	isFd: boolean;
 	frameFormat: 'standard-can' | 'extended-can' | 'standard-can-fd' | 'extended-can-fd' | 'j1939';
+	/** False for J1939 payloads over 8 bytes, because those need transport reassembly, and for any payload over 64 bytes. */
 	rawFrameDecodable: boolean;
 	j1939: { pgn: number; sourceAddress: number; priority: number } | null;
 	sizeBytes: number;
