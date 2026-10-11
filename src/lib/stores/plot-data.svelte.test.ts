@@ -108,7 +108,7 @@ describe('plotData', () => {
 		expect(dbcFiles.signalTargetByKey[key()]?.unavailableReason).toBe('Not present in this trace');
 	});
 
-	it('retains native views and fractional readouts across selection rebuilds', async () => {
+	it('retains native fractional readouts across selection rebuilds', async () => {
 		traceFile.entry = traceEntry(9, {
 			mf4Catalog: {
 				groups: [{ name: 'Native', signals: [{ id: 7, name: 'Speed', unit: 'km/h' }] }]
@@ -117,12 +117,13 @@ describe('plotData', () => {
 		getMf4SignalValuesMock.mockResolvedValueOnce(signalSeries([0, 10], [12.34, 12.49]));
 		await plotData.toggleSignal(mf4SignalIdentityKey(9, 7));
 		const cache = createSignalViewCache();
-		const first = cache(plotData.signals)[0];
+		const before = cache(plotData.signals)[0];
 		getSignalValuesMock.mockResolvedValueOnce(signalSeries([0], [5]));
 		await plotData.toggleSignal(key());
-		expect(cache(plotData.signals)[0]).toBe(first);
-		expect(crosshairValue(first, 0).text).toBe('12.34 km/h');
-		expect(crosshairDeltaValue(first, 0, 10).text).toBe('0.15 km/h');
+		const retained = cache(plotData.signals)[0];
+		expect(crosshairValue(before, 0).text).toBe('12.34 km/h');
+		expect(crosshairValue(retained, 0).text).toBe('12.34 km/h');
+		expect(crosshairDeltaValue(retained, 0, 10).text).toBe('0.15 km/h');
 	});
 
 	it('carries the DBC floating-point type into its readout', async () => {

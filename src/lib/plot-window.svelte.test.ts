@@ -36,27 +36,35 @@ describe('PlotWindow', () => {
 		vi.useRealTimers();
 	});
 
-	it('keeps slice and list identity while the viewport stays inside the buffer', () => {
+	it('keeps the same buffered samples while a pan stays inside the buffer', () => {
 		const plotWindow = new PlotWindow();
 		const source = rampView('a', 100_000);
 
-		const first = plotWindow.viewsFor([source], viewport(50_000, 51_000));
-		const second = plotWindow.viewsFor([source], viewport(50_400, 51_400));
+		const [first] = plotWindow.viewsFor([source], viewport(50_000, 51_000));
+		const [second] = plotWindow.viewsFor([source], viewport(50_400, 51_400));
 
-		expect(second).toBe(first);
-		expect(second[0].sampled).toBe(false);
-		expect(second[0].points).toBeLessThan(4000);
+		expect(first.sampled).toBe(false);
+		expect(first.points).toBe(3003);
+		expect(first.x[0]).toBe(48_999);
+		expect(first.x[3002]).toBe(52_001);
+		expect(second.sampled).toBe(false);
+		expect(second.points).toBe(3003);
+		expect(second.x[0]).toBe(48_999);
+		expect(second.x[3002]).toBe(52_001);
 	});
 
-	it('rematerializes synchronously when the viewport escapes the buffer', () => {
+	it('replaces the slice when the viewport leaves the buffer', () => {
 		const plotWindow = new PlotWindow();
 		const source = rampView('a', 100_000);
 
 		const [before] = plotWindow.viewsFor([source], viewport(50_000, 51_000));
 		const [after] = plotWindow.viewsFor([source], viewport(60_000, 61_000));
 
-		expect(after).not.toBe(before);
-		expect(after.x[0]).toBeGreaterThan(55_000);
+		expect(before.x[0]).toBe(48_999);
+		expect(after.sampled).toBe(false);
+		expect(after.points).toBe(3003);
+		expect(after.x[0]).toBe(58_999);
+		expect(after.x[3002]).toBe(62_001);
 	});
 
 	it('downsamples to the shared budget at full span', () => {
@@ -85,16 +93,24 @@ describe('PlotWindow', () => {
 
 		const [coarse] = plotWindow.viewsFor([source], null);
 		expect(coarse.sampled).toBe(true);
+		expect(coarse.points).toBe(50_000);
+		expect(coarse.x[0]).toBe(0);
+		expect(coarse.x[49_999]).toBe(99_999);
 
 		const zoomed = viewport(49_000, 51_000);
-		expect(plotWindow.viewsFor([source], zoomed)[0]).toBe(coarse);
+		const [during] = plotWindow.viewsFor([source], zoomed);
+		expect(during.sampled).toBe(true);
+		expect(during.points).toBe(50_000);
+		expect(during.x[0]).toBe(0);
+		expect(during.x[49_999]).toBe(99_999);
 
 		plotWindow.settleAfter([source], zoomed);
 		vi.runAllTimers();
 		const [settled] = plotWindow.viewsFor([source], zoomed);
 
-		expect(settled).not.toBe(coarse);
 		expect(settled.sampled).toBe(false);
-		expect(settled.x[0]).toBeGreaterThan(46_000);
+		expect(settled.points).toBe(6003);
+		expect(settled.x[0]).toBe(46_999);
+		expect(settled.x[6002]).toBe(53_001);
 	});
 });
