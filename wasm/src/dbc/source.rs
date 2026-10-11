@@ -1,6 +1,8 @@
 use std::{borrow::Cow, fmt::Write};
 
-use super::{Dbc, DbcError, catalog::write_json_string};
+use crate::json::write_json_string;
+
+use super::{Dbc, DbcError};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Diagnostic {
