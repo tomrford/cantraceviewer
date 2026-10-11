@@ -262,6 +262,12 @@ export function axisSplitDomain(
 
 export const EMPTY_AXIS_RANGE: PlotAxisRange = { min: 0, max: 1 };
 
+function formatRelativeSeconds(seconds: number): string {
+	if (seconds < 60) return `${seconds.toFixed(3)}s`;
+	const minutes = Math.floor(seconds / 60);
+	return `${minutes}m ${(seconds - minutes * 60).toFixed(3)}s`;
+}
+
 export function formatAxisTime(
 	value: number,
 	options: { measurementStartMs?: number | null; mode: TimestampMode }
@@ -281,19 +287,13 @@ export function formatAxisTime(
 		});
 	}
 
-	const seconds = value / 1000;
-	if (seconds < 60) return `${seconds.toFixed(3)}s`;
-	const minutes = Math.floor(seconds / 60);
-	return `${minutes}m ${(seconds - minutes * 60).toFixed(3)}s`;
+	return formatRelativeSeconds(value / 1000);
 }
 
 export function formatTimeDelta(valueMs: number): string {
 	if (!Number.isFinite(valueMs)) return '';
 	const sign = valueMs < 0 ? '-' : '';
-	const seconds = Math.abs(valueMs) / 1000;
-	if (seconds < 60) return `${sign}${seconds.toFixed(3)}s`;
-	const minutes = Math.floor(seconds / 60);
-	return `${sign}${minutes}m ${(seconds - minutes * 60).toFixed(3)}s`;
+	return `${sign}${formatRelativeSeconds(Math.abs(valueMs) / 1000)}`;
 }
 
 export function formatAxisValue(value: number): string | null {

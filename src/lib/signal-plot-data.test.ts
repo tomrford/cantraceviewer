@@ -3,6 +3,7 @@ import { emptyAxisSeries, lineSeries, plotSeriesForViews } from './plot-series';
 import {
 	crosshairDeltaValue,
 	crosshairValue,
+	formatAxisTime,
 	formatAxisValue,
 	formatDecodedValue,
 	formatLegendNumericValue,
@@ -330,6 +331,48 @@ describe('signal plot data', () => {
 
 	it('formats signed crosshair time deltas as durations', () => {
 		expect(formatTimeDelta(1234)).toBe('1.234s');
+		expect(formatTimeDelta(-1_234)).toBe('-1.234s');
+		expect(formatTimeDelta(0)).toBe('0.000s');
+		expect(formatTimeDelta(-0)).toBe('0.000s');
+		expect(formatTimeDelta(59_999)).toBe('59.999s');
+		expect(formatTimeDelta(60_000)).toBe('1m 0.000s');
+		expect(formatTimeDelta(-60_000)).toBe('-1m 0.000s');
 		expect(formatTimeDelta(-61_250)).toBe('-1m 1.250s');
+		expect(formatTimeDelta(3_661_000)).toBe('61m 1.000s');
+		expect(formatTimeDelta(Number.NaN)).toBe('');
+		expect(formatTimeDelta(Number.POSITIVE_INFINITY)).toBe('');
+		expect(formatTimeDelta(Number.NEGATIVE_INFINITY)).toBe('');
+	});
+
+	it('formats axis time as a relative duration unless an absolute start is known', () => {
+		expect(formatAxisTime(1_234, { mode: 'relative' })).toBe('1.234s');
+		expect(formatAxisTime(-1_234, { mode: 'relative' })).toBe('-1.234s');
+		expect(formatAxisTime(0, { mode: 'relative' })).toBe('0.000s');
+		expect(formatAxisTime(-0, { mode: 'relative' })).toBe('0.000s');
+		expect(formatAxisTime(59_999, { mode: 'relative' })).toBe('59.999s');
+		expect(formatAxisTime(60_000, { mode: 'relative' })).toBe('1m 0.000s');
+		expect(formatAxisTime(-60_000, { mode: 'relative' })).toBe('-60.000s');
+		expect(formatAxisTime(-3_661_000, { mode: 'relative' })).toBe('-3661.000s');
+		expect(formatAxisTime(3_661_000, { mode: 'relative' })).toBe('61m 1.000s');
+		expect(formatAxisTime(Number.NaN, { mode: 'relative' })).toBe('');
+		expect(formatAxisTime(Number.POSITIVE_INFINITY, { mode: 'relative' })).toBe('');
+		expect(formatAxisTime(Number.NEGATIVE_INFINITY, { mode: 'relative' })).toBe('');
+
+		const start = 1_700_000_000_000;
+		expect(formatAxisTime(61_250, { mode: 'relative', measurementStartMs: start })).toBe(
+			'1m 1.250s'
+		);
+		expect(formatAxisTime(61_250, { mode: 'absolute', measurementStartMs: null })).toBe(
+			'1m 1.250s'
+		);
+		expect(formatAxisTime(61_250, { mode: 'absolute' })).toBe('1m 1.250s');
+		expect(formatAxisTime(61_250, { mode: 'absolute', measurementStartMs: start })).toBe(
+			new Date(start + 61_250).toLocaleTimeString([], {
+				hour: '2-digit',
+				minute: '2-digit',
+				second: '2-digit',
+				fractionalSecondDigits: 3
+			})
+		);
 	});
 });
