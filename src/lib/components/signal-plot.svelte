@@ -9,7 +9,12 @@
 	} from '$lib/plot-image-export.js';
 	import type { PlotAxisRange, PlotPoint, PlotViewport } from '$lib/plot-viewport.js';
 	import { plotGrid, Y_TICK_COUNT, type AxisTickGenerator } from '$lib/plot-axis-layout.js';
-	import { FALLBACK_PLOT_THEME, resolvePlotTheme, type PlotTheme } from '$lib/plot-theme.js';
+	import {
+		createChartThemeCache,
+		FALLBACK_PLOT_THEME,
+		resolvePlotTheme,
+		type PlotTheme
+	} from '$lib/plot-theme.js';
 	import { groupSignalsByYAxis, yAxisLabel, yAxisUnit, type YAxisId } from '$lib/plot-axes.js';
 	import { plotAxes } from '$lib/stores/plot-axes.svelte.js';
 	import { shortcutKeys, type ShortcutPlatform } from '$lib/keyboard-shortcuts.js';
@@ -23,13 +28,13 @@
 	} from '$lib/plot-crosshair.js';
 	import {
 		axisSplitDomain,
+		createPlotSeriesCache,
 		createSignalViewCache,
 		crosshairDeltaValue,
 		crosshairValue,
 		emptyAxisSeries,
 		EMPTY_AXIS_RANGE,
 		formatAxisTime,
-		plotSeriesForViews,
 		signalYRange
 	} from '$lib/signal-plot-data.js';
 	import { PlotWindow } from '$lib/plot-window.svelte.js';
@@ -94,6 +99,8 @@
 	const AXIS_FONT_SIZE = 12;
 	let plotTheme = $state<PlotTheme>(FALLBACK_PLOT_THEME);
 	const viewsForSignals = createSignalViewCache();
+	const seriesForViews = createPlotSeriesCache();
+	const themeForChart = createChartThemeCache();
 	const plottableSignals = $derived(plotData.signals.filter(isPlottableSignal));
 	const hasPlottableSignals = $derived(plottableSignals.length > 0);
 	const signalViews = $derived(viewsForSignals(plottableSignals));
@@ -144,7 +151,7 @@
 	const plotWindow = new PlotWindow();
 	const windowedViews = $derived(plotWindow.viewsFor(signalViews, activeViewport));
 	const chartSeries = $derived.by(() => {
-		const series = plotSeriesForViews(
+		const series = seriesForViews(
 			windowedViews,
 			(view) => axisIdByKey.get(view.key) ?? primaryAxisId
 		);
@@ -282,16 +289,7 @@
 
 		return {
 			performance: { lod: 'strict' },
-			theme: {
-				backgroundColor: theme.background,
-				textColor: theme.text,
-				axisLineColor: theme.axisLine,
-				axisTickColor: theme.axisTick,
-				gridLineColor: theme.gridLine,
-				colorPalette: SIGNAL_COLORS,
-				fontFamily: theme.fontFamily,
-				fontSize: AXIS_FONT_SIZE
-			},
+			theme: themeForChart(theme, SIGNAL_COLORS, AXIS_FONT_SIZE),
 			grid,
 			gridLines: { color: theme.gridLine, opacity: 1 },
 			xAxis: {

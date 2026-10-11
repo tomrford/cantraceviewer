@@ -19,6 +19,53 @@ export const FALLBACK_PLOT_THEME = {
 	fontFamily: 'monospace'
 } satisfies PlotTheme;
 
+export type ChartThemeOptions = {
+	backgroundColor: string;
+	textColor: string;
+	axisLineColor: string;
+	axisTickColor: string;
+	gridLineColor: string;
+	colorPalette: string[];
+	fontFamily: string;
+	fontSize: number;
+};
+
+export function createChartThemeCache(): (
+	theme: PlotTheme,
+	palette: string[],
+	fontSize: number
+) => ChartThemeOptions {
+	let cached: ChartThemeOptions | null = null;
+
+	return (theme, palette, fontSize) => {
+		if (
+			cached !== null &&
+			cached.backgroundColor === theme.background &&
+			cached.textColor === theme.text &&
+			cached.axisLineColor === theme.axisLine &&
+			cached.axisTickColor === theme.axisTick &&
+			cached.gridLineColor === theme.gridLine &&
+			cached.fontFamily === theme.fontFamily &&
+			cached.fontSize === fontSize &&
+			cached.colorPalette === palette
+		) {
+			return cached;
+		}
+
+		cached = {
+			backgroundColor: theme.background,
+			textColor: theme.text,
+			axisLineColor: theme.axisLine,
+			axisTickColor: theme.axisTick,
+			gridLineColor: theme.gridLine,
+			colorPalette: palette,
+			fontFamily: theme.fontFamily,
+			fontSize
+		};
+		return cached;
+	};
+}
+
 export function resolvePlotTheme(styles: Pick<CSSStyleDeclaration, 'getPropertyValue'>): PlotTheme {
 	const theme = { ...FALLBACK_PLOT_THEME };
 	for (const [role, token] of Object.entries(PLOT_THEME_TOKENS) as [PlotThemeRole, string][]) {

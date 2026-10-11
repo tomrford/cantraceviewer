@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { resolvePlotTheme, toChartColor } from './plot-theme.js';
+import {
+	createChartThemeCache,
+	FALLBACK_PLOT_THEME,
+	resolvePlotTheme,
+	toChartColor
+} from './plot-theme.js';
 
 function styles(values: Record<string, string>) {
 	return { getPropertyValue: (token: string) => values[token] ?? '' };
@@ -35,6 +40,29 @@ describe('toChartColor', () => {
 		expect(toChartColor('rgb(255 0 0)')).toBeNull();
 		expect(toChartColor('rebeccapurple')).toBeNull();
 		expect(toChartColor('oklch(0.5 0)')).toBeNull();
+	});
+});
+
+describe('createChartThemeCache', () => {
+	it('returns the same theme object while the plotted colours do not change', () => {
+		const themeForChart = createChartThemeCache();
+		const palette = ['#38bdf8'];
+		const first = themeForChart(FALLBACK_PLOT_THEME, palette, 12);
+		const second = themeForChart({ ...FALLBACK_PLOT_THEME }, palette, 12);
+
+		expect(second).toBe(first);
+	});
+
+	it('builds a new theme object when a colour, font, or palette changes', () => {
+		const themeForChart = createChartThemeCache();
+		const palette = ['#38bdf8'];
+		const first = themeForChart(FALLBACK_PLOT_THEME, palette, 12);
+
+		expect(themeForChart({ ...FALLBACK_PLOT_THEME, background: '#111111' }, palette, 12)).not.toBe(
+			first
+		);
+		expect(themeForChart(FALLBACK_PLOT_THEME, ['#000000'], 12).colorPalette).toEqual(['#000000']);
+		expect(themeForChart(FALLBACK_PLOT_THEME, palette, 13).fontSize).toBe(13);
 	});
 });
 

@@ -218,12 +218,32 @@ export function plotSeriesForViews(
 	views: WindowedSignalView[],
 	yAxisFor: (view: WindowedSignalView) => YAxisId
 ): PlotSeriesConfig[] {
-	return views.flatMap((view) => {
-		if (view.points === 0) return [];
-		const yAxis = yAxisFor(view);
-		const line = lineSeries(view, yAxis);
-		return view.sampled ? [line] : [line, sampleMarkerSeries(view, yAxis)];
-	});
+	return views.flatMap((view) => seriesForView(view, yAxisFor(view)));
+}
+
+export function createPlotSeriesCache(): (
+	views: WindowedSignalView[],
+	yAxisFor: (view: WindowedSignalView) => YAxisId
+) => PlotSeriesConfig[] {
+	const cache = new WeakMap<WindowedSignalView, { yAxis: YAxisId; series: PlotSeriesConfig[] }>();
+
+	return (views, yAxisFor) =>
+		views.flatMap((view) => {
+			if (view.points === 0) return [];
+			const yAxis = yAxisFor(view);
+			const cached = cache.get(view);
+			if (cached !== undefined && cached.yAxis === yAxis) return cached.series;
+
+			const series = seriesForView(view, yAxis);
+			cache.set(view, { yAxis, series });
+			return series;
+		});
+}
+
+function seriesForView(view: WindowedSignalView, yAxis: YAxisId): PlotSeriesConfig[] {
+	if (view.points === 0) return [];
+	const line = lineSeries(view, yAxis);
+	return view.sampled ? [line] : [line, sampleMarkerSeries(view, yAxis)];
 }
 
 export function emptyAxisSeries(yAxis: YAxisId): LineSeriesConfig {

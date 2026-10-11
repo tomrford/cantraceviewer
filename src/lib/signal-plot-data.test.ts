@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	createPlotSeriesCache,
 	crosshairDeltaValue,
 	crosshairValue,
 	emptyAxisSeries,
@@ -87,6 +88,28 @@ describe('signal plot data', () => {
 			symbolSize: 1.5,
 			sampling: 'none'
 		});
+	});
+
+	it('reuses line and marker series while the windowed columns stay cached', () => {
+		const seriesForViews = createPlotSeriesCache();
+		const fullView = { ...view([0, 1, 2]), sampled: false };
+		const first = seriesForViews([fullView], () => 'y');
+		const second = seriesForViews([fullView], () => 'y');
+
+		expect(second[0]).toBe(first[0]);
+		expect(second[1]).toBe(first[1]);
+		expect(second[1]).toMatchObject({ type: 'scatter', symbolSize: 1.5 });
+		expect(second[0].data).toBe(first[0].data);
+		expect(second[1].data).toBe(first[1].data);
+
+		const moved = seriesForViews([fullView], () => 'y2');
+		expect(moved[0]).not.toBe(first[0]);
+		expect(moved[0].yAxis).toBe('y2');
+
+		const replaced = { ...fullView };
+		const next = seriesForViews([replaced], () => 'y2');
+		expect(next[0]).not.toBe(moved[0]);
+		expect(next[1]).toMatchObject({ symbolSize: 1.5 });
 	});
 
 	it('excludes empty views from the chart series', () => {
