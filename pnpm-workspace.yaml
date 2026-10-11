@@ -9,8 +9,15 @@ packages:
   - .
   - packages/*
 
-minimumReleaseAge: 10080
+minimumReleaseAge: 4320
 minimumReleaseAgeExclude:
   - cantraceviewer
+# wrangler 4.148.0 (2026-10-06) is the newest release inside this gate.
+# Its miniflare 5.20261006.0-alpha pins sharp 0.35.4. sharp 0.35.5 fixes
+# GHSA-wq5f-xc86-pv6w. The first miniflare that depends on it,
+# 5.20261006.1-alpha (2026-10-08T18:17Z), and wrangler 4.149.0
+# (2026-10-08T18:24Z) are newer than 4320 minutes.
+overrides:
+  miniflare>sharp: 0.35.5
 patchedDependencies:
   svelte-check@4.7.1: patches/svelte-check@4.7.1.patch
