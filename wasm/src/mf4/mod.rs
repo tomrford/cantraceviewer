@@ -7,6 +7,7 @@ use std::fmt::Write;
 
 use fdeflate::{DecompressionError, Decompressor};
 
+use crate::json::{write_json_string, write_string_field};
 use crate::trace::Trace;
 
 use block::{FileIndex, is_arxml_attachment, is_dbc_attachment, parse_index};
@@ -293,34 +294,6 @@ pub(super) fn inflate_zlib(input: &[u8], expected_len: usize) -> Result<Vec<u8>,
 
 fn map_decompression_error(_error: DecompressionError) -> Mf4Error {
     Mf4Error::InvalidCompressedData
-}
-
-fn write_string_field(output: &mut String, field: &str, value: &str) {
-    output.push('"');
-    output.push_str(field);
-    output.push_str("\":");
-    write_json_string(output, value);
-}
-
-fn write_json_string(output: &mut String, value: &str) {
-    output.push('"');
-    for character in value.chars() {
-        match character {
-            '"' => output.push_str("\\\""),
-            '\\' => output.push_str("\\\\"),
-            '\u{08}' => output.push_str("\\b"),
-            '\u{0c}' => output.push_str("\\f"),
-            '\n' => output.push_str("\\n"),
-            '\r' => output.push_str("\\r"),
-            '\t' => output.push_str("\\t"),
-            control if control <= '\u{1f}' => {
-                write!(output, "\\u{:04x}", u32::from(control))
-                    .expect("writing to String cannot fail");
-            }
-            character => output.push(character),
-        }
-    }
-    output.push('"');
 }
 
 #[cfg(test)]

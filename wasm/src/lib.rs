@@ -5,6 +5,7 @@ use wasm_bindgen::prelude::*;
 mod asc;
 mod blf;
 mod dbc;
+mod json;
 mod mf4;
 mod series;
 mod trace;
