@@ -100,9 +100,10 @@ export function createDirectClient(
 				const hasRawFrames = trace.hasRawFrames;
 				const mf4Catalog = isMf4 ? (JSON.parse(trace.mf4CatalogJson()) as Mf4SignalCatalog) : null;
 				const embeddedDbcs = isMf4
-					? (JSON.parse(trace.mf4EmbeddedDbcsJson()) as { name: string; text: string }[]).map(
-							(dbc, index) => ({ ...dbc, bytes: trace.mf4EmbeddedDbcBytes(index) })
-						)
+					? (JSON.parse(trace.mf4EmbeddedDbcsJson()) as { name: string }[]).map((dbc, index) => ({
+							...dbc,
+							bytes: trace.mf4EmbeddedDbcBytes(index)
+						}))
 					: [];
 				const warnings = isMf4 ? (JSON.parse(trace.mf4WarningsJson()) as string[]) : [];
 				return {

@@ -125,7 +125,7 @@ describe('cantraceviewer/direct', () => {
 				});
 				try {
 					const opened = bounded.openTrace('mf4', hybrid);
-					expect(opened.embeddedDbcs).toEqual([{ name: 'sample.dbc', text, bytes }]);
+					expect(opened.embeddedDbcs).toEqual([{ name: 'sample.dbc', bytes }]);
 					expect(opened.warnings).toEqual([]);
 					const dbc = bounded.openDbc(opened.embeddedDbcs[0].bytes);
 					expect(dbc.catalog.messages[0].signals[0].unit).toBe('€ – ™');
@@ -394,7 +394,7 @@ describe('cantraceviewer/direct', () => {
 			expect(trace.embeddedDbcs[0]).toMatchObject({ name: 'sample.dbc' });
 			expect(trace.warnings).toEqual([]);
 
-			const openedDbc = client.openDbc(trace.embeddedDbcs[0]!.text);
+			const openedDbc = client.openDbc(trace.embeddedDbcs[0]!.bytes);
 			dbc = openedDbc.handle;
 			const rawMessage = openedDbc.catalog.messages.find(
 				(message) => message.name === 'WebData_2000'

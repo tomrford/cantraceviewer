@@ -35,7 +35,6 @@ pub(crate) struct Document {
 struct EmbeddedDbc {
     attachment_index: usize,
     name: String,
-    text: String,
 }
 
 impl Document {
@@ -121,8 +120,6 @@ impl Document {
             }
             output.push('{');
             write_string_field(&mut output, "name", &dbc.name);
-            output.push(',');
-            write_string_field(&mut output, "text", &dbc.text);
             output.push('}');
         }
         output.push(']');
@@ -189,13 +186,12 @@ fn classify_attachments(
             ));
             continue;
         }
-        let Some(data) = attachment.data.as_deref() else {
+        if attachment.data.is_none() {
             continue;
-        };
+        }
         dbcs.push(EmbeddedDbc {
             attachment_index,
             name: display_attachment_name(&attachment.name, "embedded.dbc").to_owned(),
-            text: crate::dbc::decode_source(data).into_owned(),
         });
     }
     (dbcs, warnings)

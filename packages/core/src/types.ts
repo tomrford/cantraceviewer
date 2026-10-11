@@ -88,7 +88,6 @@ export type Mf4SignalCatalog = {
 
 export type EmbeddedDbc = {
 	name: string;
-	text: string;
 	/** Original decompressed input; use for parsing to preserve byte-limit semantics. */
 	bytes: Uint8Array;
 };
