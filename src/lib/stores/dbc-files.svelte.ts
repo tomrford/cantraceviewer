@@ -20,7 +20,6 @@ import {
 	type StoredDbc
 } from './dbc-library.js';
 import { DBC_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '#lib/file-limits.js';
-import { assertTextFileContent } from '#lib/file-preflight.js';
 import { createSearchIndex, searchIndex, type SearchIndex } from '#lib/search-index.js';
 
 export type DbcFileEntry = {
@@ -361,7 +360,6 @@ class DbcFilesStore {
 		assertFileSizeWithinLimit(file, DBC_MAX_FILE_BYTES, 'DBC');
 
 		const bytes = new Uint8Array(await file.arrayBuffer());
-		assertTextFileContent(bytes, 'DBC');
 		return { id: await storedDbcId(bytes), name: file.name, bytes };
 	}
 

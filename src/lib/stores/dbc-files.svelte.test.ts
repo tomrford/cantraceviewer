@@ -60,13 +60,6 @@ describe('dbcFiles', () => {
 		expect(dbcFiles.error).toBe('Unsupported DBC file type. Open .dbc.');
 	});
 
-	it('rejects binary DBC content before WASM parse', async () => {
-		await dbcFiles.addFiles([new File([new Uint8Array([0x42, 0x4f, 0, 0x5f])], 'binary.dbc')]);
-
-		expect(openDbcMock).not.toHaveBeenCalled();
-		expect(dbcFiles.error).toBe('DBC file appears to be binary. Open a text DBC file.');
-	});
-
 	it('allows overlapping CAN IDs across DBC files', async () => {
 		const existingHandle = dbcHandle(201);
 		const duplicateHandle = dbcHandle(202);
