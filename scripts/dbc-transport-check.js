@@ -98,8 +98,15 @@ export async function checkDbc(client, transfer = true) {
 		await client.openDbc('BO_ 42 Status: 1 ECU\n  SG_ private : 8|8@1+ (1,0) [0|255] "" DASH');
 	} catch (error) {
 		failed = true;
-		equal(error.message.includes('2:3: SG_'), true);
-		equal(error.message.includes('private'), false);
+		equal(
+			{ line: error.line, column: error.column, keyword: error.keyword, message: error.message },
+			{
+				line: 2,
+				column: 3,
+				keyword: 'SG_',
+				message: 'signal bit range falls outside its message'
+			}
+		);
 	}
 	equal(failed, true);
 

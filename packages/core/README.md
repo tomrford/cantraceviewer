@@ -179,7 +179,7 @@ DBC and trace handles are opaque and belong to the client that created them. A h
 
 Worker failure is fatal for that client. Pending and future operations reject, all handles become invalid, and callers must create a new client to recover.
 
-Errors are standard `Error` objects. Their names and messages are diagnostics, not stable values for application branching.
+Errors are standard `Error` objects. A fatal DBC parse error also has `line`, `column`, and `keyword`, the same fields as a `DbcDiagnostic`. `message` is the explanation. Other errors are name and message only. Do not branch on message text.
 
 ## Transfer semantics
 
@@ -205,7 +205,7 @@ MF4 embedded DBCs use the same decoder. Their results include original decompres
 
 `OpenDbcResult.warnings` is an array of plain `DbcDiagnostic` objects, independent of the handle lifetime. Each contains `category`, `keyword`, `line`, `column`, and `message`. Categories are `unsupported-record`, `dangling-reference`, and `omitted-feature`. Positions identify the start of the record keyword in decoded text: one-based lines and Unicode scalar columns, with tabs counting as one column and the initial BOM excluded. Warnings are ordered by source position and contain no raw source or record contents. Unknown keywords are reported as `unknown`.
 
-Unsupported records (including comments and attributes the viewer does not use), unresolved value attachments, omitted Vector independent-signal containers, and signal definitions requiring transport reassembly produce warnings while retaining the usable catalogue. Namespace keyword declarations and the VERSION, BS*, and BU* headers do not warn. Semicolon records may span lines; quoted contents are never interpreted as definitions. Invalid supported records, unterminated semicolon records, duplicate message identities or signal names, ambiguous value attachments, named signal-type records that could change decoding, and invalid supported signal layouts reject the load. Errors include the record position and keyword; their text is for display, not application branching.
+Unsupported records (including comments and attributes the viewer does not use), unresolved value attachments, omitted Vector independent-signal containers, and signal definitions requiring transport reassembly produce warnings while retaining the usable catalogue. Namespace keyword declarations and the VERSION, BS*, and BU* headers do not warn. Semicolon records may span lines; quoted contents are never interpreted as definitions. Invalid supported records, unterminated semicolon records, duplicate message identities or signal names, ambiguous value attachments, named signal-type records that could change decoding, and invalid supported signal layouts reject the load. The thrown error's `line`, `column`, and `keyword` identify that record. Positions match warnings: one-based lines and Unicode scalar columns. `message` states why the load was rejected and contains no source text.
 
 The catalogue includes simple and extended multiplexed signals. Decoding returns only frames matching unsigned raw selector values, including nested selector ranges. `SG_MUL_VAL_` defines the selector and active ranges when present; `mN` supplies the value for simple multiplexing otherwise. Explicit frame formats distinguish classical CAN and CAN FD even when their payload lengths match.
 

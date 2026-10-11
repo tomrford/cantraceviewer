@@ -126,7 +126,12 @@ describe('cantraceviewer/node', () => {
 	}, 30_000);
 
 	it('reports parse failures without poisoning the worker thread', async () => {
-		await expect(client.openDbc('BO_ broken')).rejects.toThrow('invalid DBC message record');
+		await expect(client.openDbc('BO_ broken')).rejects.toMatchObject({
+			line: 1,
+			column: 1,
+			keyword: 'BO_',
+			message: 'invalid DBC message record'
+		});
 		const { handle } = await client.openDbc(dbcText);
 		await client.closeDbc(handle);
 	});

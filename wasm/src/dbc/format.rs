@@ -265,8 +265,8 @@ mod tests {
         ] {
             let source =
                 format!("BO_ {id} Message: {size} ECU\nBA_ \"VFrameFormat\" BO_ {id} {value};");
-            let error = Dbc::parse(&source).unwrap_err().to_string();
-            assert!(error.contains("DBC input:2:1:"));
+            let error = Dbc::parse(&source).unwrap_err();
+            assert_eq!(error.location(), Some((2, 1, "BA_")));
         }
     }
 }

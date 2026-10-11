@@ -49,17 +49,24 @@ impl DbcError {
     pub(crate) fn invalid_float(field: &'static str, source: ParseFloatError) -> Self {
         Self::InvalidFloat { field, source }
     }
-}
 
-impl fmt::Display for DbcError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    pub(crate) fn location(&self) -> Option<(usize, usize, &'static str)> {
         match self {
             Self::AtRecord {
                 line,
                 column,
                 keyword,
-                source,
-            } => write!(formatter, "DBC input:{line}:{column}: {keyword}: {source}"),
+                ..
+            } => Some((*line, *column, keyword)),
+            _ => None,
+        }
+    }
+}
+
+impl fmt::Display for DbcError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::AtRecord { source, .. } => write!(formatter, "{source}"),
             Self::UnterminatedRecord => {
                 formatter.write_str("DBC record is missing its terminating semicolon")
             }

@@ -319,11 +319,9 @@ mod tests {
         }
         let typed = Dbc::parse(&format!("{body}SIG_VALTYPE_ 1 X : 1;")).unwrap();
         assert_eq!(typed.messages[0].signals[0].value_type, ValueType::Float32);
-        let error = Dbc::parse(&format!("{body}SIG_TYPE_REF_ 1 X : Custom;"))
-            .unwrap_err()
-            .to_string();
-        assert!(error.contains("3:1: SIG_TYPE_REF_"));
-        assert!(error.contains("named signal types"));
+        let error = Dbc::parse(&format!("{body}SIG_TYPE_REF_ 1 X : Custom;")).unwrap_err();
+        assert_eq!(error.location(), Some((3, 1, "SIG_TYPE_REF_")));
+        assert!(error.to_string().contains("named signal types"));
     }
 
     #[test]
@@ -446,17 +444,17 @@ mod tests {
     #[test]
     fn rejects_unsafe_records_with_context_without_echoing_source() {
         for (text, location) in [
-            ("BO_ private Bad: 8 ECU", "1:1: BO_"),
+            ("BO_ private Bad: 8 ECU", (1, 1, "BO_")),
             (
                 "BO_ 1 Good: 1 ECU\n  SG_ X : 8|8@1+ (1,0) [0|255] \"\" ECU",
-                "2:3: SG_",
+                (2, 3, "SG_"),
             ),
-            ("BO_ 1 Good: 1 ECU\nVAL_ 1 X 0 \"private", "2:1: VAL_"),
-            ("BO_ 1 A: 1 ECU\nBO_ 1 B: 1 ECU", "2:1: BO_"),
+            ("BO_ 1 Good: 1 ECU\nVAL_ 1 X 0 \"private", (2, 1, "VAL_")),
+            ("BO_ 1 A: 1 ECU\nBO_ 1 B: 1 ECU", (2, 1, "BO_")),
         ] {
-            let error = Dbc::parse(text).unwrap_err().to_string();
-            assert!(error.contains(location), "{error}");
-            assert!(!error.contains("private"));
+            let error = Dbc::parse(text).unwrap_err();
+            assert_eq!(error.location(), Some(location));
+            assert!(!error.to_string().contains("private"));
         }
     }
 
@@ -535,9 +533,9 @@ mod tests {
                  SG_ Invalid : {definition} (1,0) [0|0] \"\" DASH\n\
                  SIG_VALTYPE_ 291 Invalid : {value_type};"
             );
-            let error = Dbc::parse(&text).unwrap_err().to_string();
-            assert!(error.contains("3:1: SG_"), "{error}");
-            assert!(error.contains(expected), "{error}");
+            let error = Dbc::parse(&text).unwrap_err();
+            assert_eq!(error.location(), Some((3, 1, "SG_")));
+            assert!(error.to_string().contains(expected), "{error}");
         }
     }
 
@@ -641,11 +639,9 @@ BO_ 512 Status: 1 ECU
             );
         }
         let malformed = format!("CM_ \"comment\"\n{body}");
-        assert!(
-            Dbc::parse(&malformed)
-                .unwrap_err()
-                .to_string()
-                .contains("1:1: CM_")
+        assert_eq!(
+            Dbc::parse(&malformed).unwrap_err().location(),
+            Some((1, 1, "CM_"))
         );
         let attribute = format!("BA_ \"comment\"\n BO_ 1 \"quoted : colon\";\n{body}");
         let parsed = Dbc::parse(&attribute).unwrap();

@@ -256,5 +256,10 @@ function unpackSeries(payload: SeriesPayload): DecodedSignalSeries {
 function fromWireError(error: WireError): Error {
 	const rebuilt = new Error(error.message);
 	rebuilt.name = error.name;
+	if (error.record) {
+		Reflect.set(rebuilt, 'line', error.record.line);
+		Reflect.set(rebuilt, 'column', error.record.column);
+		Reflect.set(rebuilt, 'keyword', error.record.keyword);
+	}
 	return rebuilt;
 }

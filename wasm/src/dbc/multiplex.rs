@@ -253,9 +253,9 @@ mod tests {
     #[test]
     fn validates_selector_placement_without_capping_catalogue_payloads() {
         let invalid = "BO_ 1 Mux: 2 ECU\n SG_ Root M : 24|8@1+ (1,0) [0|0] \"\" ECU\n SG_ Value m1 : 0|16@1+ (1,0) [0|0] \"\" ECU";
-        let error = Dbc::parse(invalid).unwrap_err().to_string();
-        assert!(error.contains("DBC input:2:2: SG_"), "{error}");
-        assert!(error.contains("outside its message"));
+        let error = Dbc::parse(invalid).unwrap_err();
+        assert_eq!(error.location(), Some((2, 2, "SG_")));
+        assert!(error.to_string().contains("outside its message"), "{error}");
         let long = "BO_ 2566834942 Long: 1785 ECU\n SG_ Root M : 800|8@1+ (1,0) [0|0] \"\" ECU\n SG_ Value m1 : 808|16@1+ (1,0) [0|0] \"\" ECU\nBA_ \"ProtocolType\" \"J1939\";";
         let dbc = Dbc::parse(long).unwrap();
         assert_eq!(
@@ -283,11 +283,9 @@ mod tests {
             ("SG_MUL_VAL_ 1 Data Root 4-2;", "invalid multiplex range"),
             ("SIG_VALTYPE_ 1 Root : 1;", "invalid signal bit length"),
         ] {
-            let error = Dbc::parse(&format!("{base}{tail}"))
-                .unwrap_err()
-                .to_string();
-            assert!(error.contains(expected), "{error}");
-            assert!(error.contains("DBC input:"));
+            let error = Dbc::parse(&format!("{base}{tail}")).unwrap_err();
+            assert!(error.location().is_some(), "{error}");
+            assert!(error.to_string().contains(expected), "{error}");
         }
         let error = Dbc::parse("BO_ 1 Missing: 1 ECU\n SG_ Data m1 : 0|8@1+ (1,0) [0|0] \"\" ECU")
             .unwrap_err()
