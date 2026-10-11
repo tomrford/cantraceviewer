@@ -5,7 +5,7 @@ use std::fmt;
 
 use fdeflate::{DecompressionError, Decompressor};
 
-use crate::trace::{CanId, Frame, FrameKind, Trace, days_from_civil};
+use crate::trace::{CanId, Frame, FrameKind, Trace, days_from_civil, unix_ms_from_day_seconds};
 
 const FILE_HEADER_PARSED_SIZE: usize = 72;
 const OBJECT_HEADER_BASE_SIZE: usize = 16;
@@ -700,17 +700,12 @@ fn parse_system_time_to_unix_ms(bytes: &[u8]) -> Result<i64, BlfError> {
         return Err(BlfError::InvalidBlfSystemTime);
     }
 
-    let days = days_from_civil(i32::from(year), month as u8, day as u8);
-    let seconds = days
-        .checked_mul(86_400)
-        .and_then(|value| {
-            value.checked_add(i64::from(hour) * 3_600 + i64::from(minute) * 60 + i64::from(second))
-        })
-        .ok_or(BlfError::InvalidBlfSystemTime)?;
-    seconds
-        .checked_mul(1_000)
-        .and_then(|value| value.checked_add(i64::from(millisecond)))
-        .ok_or(BlfError::InvalidBlfSystemTime)
+    unix_ms_from_day_seconds(
+        days_from_civil(i32::from(year), month as u8, day as u8),
+        i64::from(hour) * 3_600 + i64::from(minute) * 60 + i64::from(second),
+        i64::from(millisecond),
+    )
+    .ok_or(BlfError::InvalidBlfSystemTime)
 }
 
 #[cfg(test)]

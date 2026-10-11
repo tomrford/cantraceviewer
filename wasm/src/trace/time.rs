@@ -6,6 +6,17 @@ pub(crate) enum ExtraPrecision {
     Truncate,
 }
 
+pub(crate) fn unix_ms_from_day_seconds(
+    days: i64,
+    seconds_of_day: i64,
+    milliseconds: i64,
+) -> Option<i64> {
+    days.checked_mul(86_400)
+        .and_then(|value| value.checked_add(seconds_of_day))
+        .and_then(|seconds| seconds.checked_mul(1_000))
+        .and_then(|value| value.checked_add(milliseconds))
+}
+
 pub(crate) fn days_from_civil(year: i32, month: u8, day: u8) -> i64 {
     let mut year = i64::from(year);
     let month = i64::from(month);

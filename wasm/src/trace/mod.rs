@@ -8,7 +8,9 @@ pub(crate) use dlc::fd_payload_length_from_dlc;
 pub(crate) use error::TraceError;
 pub(crate) use frame::{CanId, Direction, Frame, FrameKind, RawSource, parse_channel};
 pub(crate) use frame_index::FrameIndex;
-pub(crate) use time::{ExtraPrecision, days_from_civil, decimal_fraction_to_units};
+pub(crate) use time::{
+    ExtraPrecision, days_from_civil, decimal_fraction_to_units, unix_ms_from_day_seconds,
+};
 
 pub(crate) fn lossy_utf8_line<'a>(bytes: &'a [u8], scratch: &'a mut String) -> &'a str {
     if let Ok(line) = std::str::from_utf8(bytes) {

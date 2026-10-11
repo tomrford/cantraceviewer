@@ -1,6 +1,8 @@
 mod frame;
 
-use crate::trace::{FrameKind, Trace, TraceError, days_from_civil, lossy_utf8_line};
+use crate::trace::{
+    FrameKind, Trace, TraceError, days_from_civil, lossy_utf8_line, unix_ms_from_day_seconds,
+};
 
 pub(crate) use frame::Base;
 #[cfg(test)]
@@ -181,14 +183,12 @@ fn parse_vector_date_to_unix_ms(text: &str) -> Result<i64, TraceError> {
         .parse::<i32>()
         .map_err(|_| TraceError::InvalidVectorDate)?;
 
-    let seconds = days_from_civil(year, month, day)
-        .checked_mul(86_400)
-        .and_then(|value| value.checked_add(time.seconds))
-        .ok_or(TraceError::InvalidVectorDate)?;
-    seconds
-        .checked_mul(1_000)
-        .and_then(|value| value.checked_add(time.milliseconds))
-        .ok_or(TraceError::InvalidVectorDate)
+    unix_ms_from_day_seconds(
+        days_from_civil(year, month, day),
+        time.seconds,
+        time.milliseconds,
+    )
+    .ok_or(TraceError::InvalidVectorDate)
 }
 
 fn parse_month(text: &str) -> Option<u8> {
