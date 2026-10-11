@@ -128,13 +128,13 @@ export function createDirectClient(
 			const trace = handles.payload('trace', traceHandle);
 			if (
 				source &&
-				((source.channel !== null &&
-					(!Number.isInteger(source.channel) || source.channel < 1 || source.channel > 65535)) ||
-					!['unknown', 'rx', 'tx'].includes(source.direction))
+				source.channel !== null &&
+				(!Number.isInteger(source.channel) || source.channel < 1 || source.channel > 65535)
 			) {
-				throw new Error(
-					'Invalid raw source: channel must be null or 1–65535 and direction unknown, rx or tx'
-				);
+				throw new Error('Invalid raw source: channel must be null or 1–65535');
+			}
+			if (source && !['unknown', 'rx', 'tx'].includes(source.direction)) {
+				throw new Error('Invalid raw source: direction must be unknown, rx, or tx');
 			}
 			return unpackSeries(
 				dbc.decodeSignal(
@@ -144,7 +144,7 @@ export function createDirectClient(
 					messageIdentity.sizeBytes,
 					signalName,
 					source?.channel ?? undefined,
-					source ? { unknown: 0, rx: 1, tx: 2 }[source.direction] : undefined
+					source?.direction
 				)
 			);
 		},

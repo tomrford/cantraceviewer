@@ -47,8 +47,15 @@ impl WasmDbc {
         size_bytes: u16,
         signal_name: &str,
         channel: Option<u16>,
-        direction: Option<u8>,
+        direction: Option<String>,
     ) -> Result<Box<[f64]>, JsError> {
+        let source = match direction.as_deref() {
+            None => None,
+            Some(name) => Some(trace::RawSource {
+                channel: channel.and_then(std::num::NonZeroU16::new),
+                direction: trace::Direction::from_name(name).map_err(JsError::new)?,
+            }),
+        };
         Ok(series::selected_signal_values(
             &self.inner,
             &trace.inner,
@@ -57,14 +64,7 @@ impl WasmDbc {
             is_extended,
             size_bytes,
             signal_name,
-            direction.map(|direction| trace::RawSource {
-                channel: channel.and_then(std::num::NonZeroU16::new),
-                direction: match direction {
-                    1 => trace::Direction::Rx,
-                    2 => trace::Direction::Tx,
-                    _ => trace::Direction::Unknown,
-                },
-            }),
+            source,
         )?
         .into_boxed_slice())
     }
