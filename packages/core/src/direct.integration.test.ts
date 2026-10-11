@@ -182,6 +182,12 @@ describe('cantraceviewer/direct', () => {
 					})
 				).toThrow('Invalid raw source');
 			}
+			expect(() =>
+				client.getSignalValues(dbc.handle, trace.handle, message, 'Value', {
+					channel: 1,
+					direction: 'sideways' as 'rx'
+				})
+			).toThrow('direction must be unknown, rx, or tx');
 		} finally {
 			client.closeTrace(trace.handle);
 			client.closeDbc(dbc.handle);

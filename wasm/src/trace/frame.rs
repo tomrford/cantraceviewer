@@ -31,6 +31,15 @@ impl Direction {
             Self::Tx => "tx",
         }
     }
+
+    pub(crate) fn from_name(name: &str) -> Result<Self, &'static str> {
+        match name {
+            "unknown" => Ok(Self::Unknown),
+            "rx" => Ok(Self::Rx),
+            "tx" => Ok(Self::Tx),
+            _ => Err("direction must be unknown, rx, or tx"),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
