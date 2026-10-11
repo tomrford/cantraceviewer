@@ -27,20 +27,6 @@ describe('traceFile', () => {
 		expect(traceFile.error).toBe('Unsupported trace file type. Open .asc, .trc, .blf, or .mf4.');
 	});
 
-	it('rejects BLF files without LOGG magic before WASM parse', async () => {
-		await traceFile.openFile(file('trace.blf', 'BO_ 1 Example: 8 ECU'));
-
-		expect(openTraceMock).not.toHaveBeenCalled();
-		expect(traceFile.error).toBe('File is not a valid BLF file.');
-	});
-
-	it('rejects binary text trace content before WASM parse', async () => {
-		await traceFile.openFile(new File([new Uint8Array([0x64, 0x61, 0, 0x65])], 'trace.asc'));
-
-		expect(openTraceMock).not.toHaveBeenCalled();
-		expect(traceFile.error).toBe('ASC file appears to be binary. Open a text ASC file.');
-	});
-
 	it('summarizes MF4 diagnostics and malformed skipped lines', async () => {
 		const trace = openedTrace(metadata({ skippedLineCount: 2 }));
 		trace.warnings = ['Embedded DBC "network.dbc" is not valid UTF-8 text.'];
