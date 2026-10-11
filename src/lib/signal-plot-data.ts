@@ -296,6 +296,12 @@ export function formatTimeDelta(valueMs: number): string {
 	return `${sign}${formatRelativeSeconds(Math.abs(valueMs) / 1000)}`;
 }
 
+const axisValueFormatters: Record<0 | 1 | 3, Intl.NumberFormat> = {
+	0: new Intl.NumberFormat('en-US', { maximumFractionDigits: 0, useGrouping: false }),
+	1: new Intl.NumberFormat('en-US', { maximumFractionDigits: 1, useGrouping: false }),
+	3: new Intl.NumberFormat('en-US', { maximumFractionDigits: 3, useGrouping: false })
+};
+
 export function formatAxisValue(value: number): string | null {
 	if (!Number.isFinite(value)) return null;
 	if (Object.is(value, -0) || Math.abs(value) < 1e-12) return '0';
@@ -306,10 +312,7 @@ export function formatAxisValue(value: number): string | null {
 	}
 
 	const maximumFractionDigits = magnitude >= 100 ? 0 : magnitude >= 10 ? 1 : 3;
-	return new Intl.NumberFormat('en-US', {
-		maximumFractionDigits,
-		useGrouping: false
-	}).format(value);
+	return axisValueFormatters[maximumFractionDigits].format(value);
 }
 
 type ViewDomain = { xMin: number; xMax: number; yMin: number; yMax: number };

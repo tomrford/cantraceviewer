@@ -158,7 +158,9 @@ describe('signal plot data', () => {
 
 	it('keeps y-axis tick labels compact', () => {
 		expect(formatAxisValue(123.456789)).toBe('123');
+		expect(formatAxisValue(123_456.4)).toBe('123456');
 		expect(formatAxisValue(12.3456789)).toBe('12.3');
+		expect(formatAxisValue(-12.3456789)).toBe('-12.3');
 		expect(formatAxisValue(1.23456789)).toBe('1.235');
 		expect(formatAxisValue(0.000012345)).toBe('1.23e-5');
 	});
