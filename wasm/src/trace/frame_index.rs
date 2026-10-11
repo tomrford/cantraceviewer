@@ -1,7 +1,16 @@
 use std::collections::HashMap;
-use std::fmt::Write;
+
+use serde::Serialize;
 
 use super::{Frame, FrameKind, RawSource};
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CatalogRawMessage {
+    can_id: u32,
+    is_extended: bool,
+    source: RawSource,
+}
 
 #[derive(Debug, Default)]
 pub(crate) struct FrameIndex {
@@ -126,7 +135,7 @@ impl FrameIndex {
         })
     }
 
-    pub(crate) fn catalog_json(&self) -> String {
+    pub(crate) fn raw_messages(&self) -> Vec<CatalogRawMessage> {
         let mut entries: Vec<_> = self
             .sources
             .iter()
@@ -135,24 +144,14 @@ impl FrameIndex {
             })
             .collect();
         entries.sort_unstable();
-        let mut output = String::from("[");
-        for (index, (id, extended, source)) in entries.into_iter().enumerate() {
-            if index != 0 {
-                output.push(',');
-            }
-            write!(
-                output,
-                "{{\"canId\":{id},\"isExtended\":{extended},\"source\":{{\"channel\":"
-            )
-            .unwrap();
-            match source.channel {
-                Some(channel) => write!(output, "{channel}").unwrap(),
-                None => output.push_str("null"),
-            }
-            write!(output, ",\"direction\":\"{}\"}}}}", source.direction.name()).unwrap();
-        }
-        output.push(']');
-        output
+        entries
+            .into_iter()
+            .map(|(can_id, is_extended, source)| CatalogRawMessage {
+                can_id,
+                is_extended,
+                source,
+            })
+            .collect()
     }
 }
 

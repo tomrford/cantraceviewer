@@ -65,6 +65,59 @@ describe('cantraceviewer/direct', () => {
 		}
 	});
 
+	it('returns catalog objects for messages, warnings, and multiplex ranges', () => {
+		const quoted = client.openDbc(
+			'BO_ 100 Example: 8 ECU\n SG_ State : 0|8@1+ (1,0) [0|255] "line\\n\\"quoted\\"" DASH'
+		);
+		const j1939 = client.openDbc(
+			'BO_ 2565489024 Long: 1785 ECU\n SG_ Late : 1544|32@1+ (1,0) [0|0] "" ECU\nBA_DEF_DEF_ "ProtocolType" "J1939";'
+		);
+		const wide = client.openDbc(
+			'BO_ 291 FD: 64 ECU\n SG_ Raw : 0|65@1+ (1,0) [0|0] "" DASH\n SG_ Scalar : 448|64@1+ (1,0) [0|0] "" DASH'
+		);
+		const multiplexed = client.openDbc(
+			'BO_ 1 Wide: 9 ECU\n SG_ Root M : 0|64@1- (2,3) [0|0] "" ECU\n SG_ Data m18446744073709551615 : 64|8@1+ (1,0) [0|0] "" ECU'
+		);
+		const warned = client.openDbc(
+			'BO_ 1 M: 1 ECU\n SG_ X : 0|8@1+ (1,0) [0|1] "" ECU\nVAL_ 2 Missing 0 "Off";'
+		);
+		try {
+			expect(quoted.catalog.messages[0].signals[0]).toMatchObject({
+				name: 'State',
+				unit: 'linen"quoted"',
+				minimum: 0,
+				maximum: 255,
+				valueDescriptions: []
+			});
+			expect(quoted.catalog.messages[0].j1939).toBeNull();
+			expect(quoted.catalog.messages[0].rawFrameDecodable).toBe(true);
+			expect(j1939.catalog.messages[0]).toMatchObject({
+				frameFormat: 'j1939',
+				rawFrameDecodable: false,
+				j1939: { pgn: 59904, sourceAddress: 128, priority: 6 }
+			});
+			expect(j1939.catalog.messages[0].signals.map((signal) => signal.name)).toEqual(['Late']);
+			expect(wide.catalog.messages[0].signals.map((signal) => signal.name)).toEqual(['Scalar']);
+			expect(multiplexed.catalog.messages[0].signals[1].multiplex).toEqual({
+				selector: 'Root',
+				ranges: [{ first: '18446744073709551615', last: '18446744073709551615' }]
+			});
+			expect(warned.warnings).toEqual([
+				{
+					category: 'dangling-reference',
+					keyword: 'VAL_',
+					line: 3,
+					column: 1,
+					message: 'Value labels reference an unknown message.'
+				}
+			]);
+		} finally {
+			for (const opened of [quoted, j1939, wide, multiplexed, warned]) {
+				client.closeDbc(opened.handle);
+			}
+		}
+	});
+
 	it('isolates retained MF4 limits across clients sharing WASM and caller mutation', async () => {
 		const native = new Uint8Array(await readFile(resolve(fixturesDir, 'mf4/decoded-channels.mf4')));
 		const limits = { ...DEFAULT_PARSING_LIMITS, maxTraceDataBytes: 72 };

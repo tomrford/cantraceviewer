@@ -1,11 +1,11 @@
 #![forbid(unsafe_code)]
 
+use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
 mod asc;
 mod blf;
 mod dbc;
-mod json;
 mod mf4;
 mod series;
 mod trace;
@@ -27,14 +27,14 @@ impl WasmDbc {
         })
     }
 
-    #[wasm_bindgen(js_name = warningsJson)]
-    pub fn warnings_json(&self) -> String {
-        self.inner.warnings_json()
+    #[wasm_bindgen(js_name = warnings)]
+    pub fn warnings(&self) -> Result<JsValue, JsError> {
+        to_js(&self.inner.warnings)
     }
 
-    #[wasm_bindgen(js_name = catalogJson)]
-    pub fn catalog_json(&self) -> String {
-        self.inner.to_catalog_json()
+    #[wasm_bindgen(js_name = catalog)]
+    pub fn catalog(&self) -> Result<JsValue, JsError> {
+        to_js(&self.inner)
     }
 
     #[wasm_bindgen(js_name = decodeSignal)]
@@ -112,9 +112,9 @@ impl WasmTrace {
         })
     }
 
-    #[wasm_bindgen(js_name = rawMessagesJson)]
-    pub fn raw_messages_json(&self) -> String {
-        self.index.catalog_json()
+    #[wasm_bindgen(js_name = rawMessages)]
+    pub fn raw_messages(&self) -> Result<JsValue, JsError> {
+        to_js(&self.index.raw_messages())
     }
 
     #[wasm_bindgen(getter, js_name = hasRawFrames)]
@@ -122,18 +122,21 @@ impl WasmTrace {
         self.inner.data_frame_count > 0
     }
 
-    #[wasm_bindgen(js_name = mf4CatalogJson)]
-    pub fn mf4_catalog_json(&self) -> String {
-        self.mf4
-            .as_ref()
-            .map_or_else(|| "{\"groups\":[]}".to_owned(), mf4::Document::catalog_json)
+    #[wasm_bindgen(js_name = mf4Catalog)]
+    pub fn mf4_catalog(&self) -> Result<JsValue, JsError> {
+        let catalog = match &self.mf4 {
+            Some(document) => document.signal_catalog(),
+            None => mf4::empty_signal_catalog(),
+        };
+        to_js(&catalog)
     }
 
-    #[wasm_bindgen(js_name = mf4EmbeddedDbcsJson)]
-    pub fn mf4_embedded_dbcs_json(&self) -> String {
-        self.mf4
-            .as_ref()
-            .map_or_else(|| "[]".to_owned(), mf4::Document::embedded_dbcs_json)
+    #[wasm_bindgen(js_name = mf4EmbeddedDbcs)]
+    pub fn mf4_embedded_dbcs(&self) -> Result<JsValue, JsError> {
+        match &self.mf4 {
+            Some(document) => to_js(document.embedded_dbcs()),
+            None => to_js(&[] as &[mf4::EmbeddedDbc]),
+        }
     }
 
     #[wasm_bindgen(js_name = mf4EmbeddedDbcBytes)]
@@ -145,11 +148,14 @@ impl WasmTrace {
             .ok_or_else(|| JsError::new("Embedded DBC not found"))
     }
 
-    #[wasm_bindgen(js_name = mf4WarningsJson)]
-    pub fn mf4_warnings_json(&self) -> String {
-        self.mf4
-            .as_ref()
-            .map_or_else(|| "[]".to_owned(), mf4::Document::warnings_json)
+    #[wasm_bindgen(js_name = mf4Warnings)]
+    pub fn mf4_warnings(&self) -> Result<JsValue, JsError> {
+        to_js(
+            self.mf4
+                .as_ref()
+                .map(mf4::Document::warnings)
+                .unwrap_or(&[]),
+        )
     }
 
     #[wasm_bindgen(js_name = decodeMf4Signal)]
@@ -180,6 +186,23 @@ impl WasmTrace {
     #[wasm_bindgen(getter, js_name = durationNs)]
     pub fn duration_ns(&self) -> Option<f64> {
         self.inner.last_data_timestamp_ns.map(|value| value as f64)
+    }
+}
+
+fn to_js<T: Serialize + ?Sized>(value: &T) -> Result<JsValue, JsError> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let serializer = serde_wasm_bindgen::Serializer::json_compatible();
+        return value
+            .serialize(&serializer)
+            .map_err(|error| JsError::new(&error.to_string()));
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = value;
+        Err(JsError::new(
+            "catalog objects are returned from WebAssembly",
+        ))
     }
 }
 

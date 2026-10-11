@@ -3,11 +3,10 @@ mod decode;
 mod error;
 
 use std::collections::BTreeMap;
-use std::fmt::Write;
 
 use fdeflate::{DecompressionError, Decompressor};
+use serde::Serialize;
 
-use crate::json::{write_json_string, write_string_field};
 use crate::trace::Trace;
 
 use block::{FileIndex, is_arxml_attachment, is_dbc_attachment, parse_index};
@@ -31,10 +30,33 @@ pub(crate) struct Document {
     max_data_bytes: usize,
 }
 
-#[derive(Debug)]
-struct EmbeddedDbc {
+#[derive(Debug, Serialize)]
+pub(crate) struct EmbeddedDbc {
+    #[serde(skip)]
     attachment_index: usize,
     name: String,
+}
+
+#[derive(Serialize)]
+pub(crate) struct SignalCatalog<'a> {
+    groups: Vec<SignalGroup<'a>>,
+}
+
+#[derive(Serialize)]
+struct SignalGroup<'a> {
+    name: &'a str,
+    signals: Vec<CatalogSignal<'a>>,
+}
+
+#[derive(Serialize)]
+struct CatalogSignal<'a> {
+    id: u32,
+    name: &'a str,
+    unit: &'a str,
+}
+
+pub(crate) fn empty_signal_catalog() -> SignalCatalog<'static> {
+    SignalCatalog { groups: Vec::new() }
 }
 
 impl Document {
@@ -78,7 +100,7 @@ impl Document {
         ))
     }
 
-    pub(crate) fn catalog_json(&self) -> String {
+    pub(crate) fn signal_catalog(&self) -> SignalCatalog<'_> {
         let mut grouped: BTreeMap<(usize, usize), Vec<&NativeSignal>> = BTreeMap::new();
         for signal in &self.signals {
             grouped
@@ -86,61 +108,35 @@ impl Document {
                 .or_default()
                 .push(signal);
         }
-        let mut output = String::from("{\"groups\":[");
-        for (group_position, ((_data_group, _group), signals)) in grouped.iter().enumerate() {
-            if group_position != 0 {
-                output.push(',');
-            }
-            output.push('{');
-            write_string_field(&mut output, "name", &signals[0].group_name);
-            output.push_str(",\"signals\":[");
-            for (signal_position, signal) in signals.iter().enumerate() {
-                if signal_position != 0 {
-                    output.push(',');
-                }
-                output.push('{');
-                write!(output, "\"id\":{}", signal.id).expect("writing to String cannot fail");
-                output.push(',');
-                write_string_field(&mut output, "name", &signal.name);
-                output.push(',');
-                write_string_field(&mut output, "unit", &signal.unit);
-                output.push('}');
-            }
-            output.push_str("]}");
+        SignalCatalog {
+            groups: grouped
+                .into_values()
+                .map(|signals| SignalGroup {
+                    name: &signals[0].group_name,
+                    signals: signals
+                        .iter()
+                        .map(|signal| CatalogSignal {
+                            id: signal.id,
+                            name: &signal.name,
+                            unit: &signal.unit,
+                        })
+                        .collect(),
+                })
+                .collect(),
         }
-        output.push_str("]}");
-        output
     }
 
-    pub(crate) fn embedded_dbcs_json(&self) -> String {
-        let mut output = String::from("[");
-        for (index, dbc) in self.embedded_dbcs.iter().enumerate() {
-            if index != 0 {
-                output.push(',');
-            }
-            output.push('{');
-            write_string_field(&mut output, "name", &dbc.name);
-            output.push('}');
-        }
-        output.push(']');
-        output
+    pub(crate) fn embedded_dbcs(&self) -> &[EmbeddedDbc] {
+        &self.embedded_dbcs
+    }
+
+    pub(crate) fn warnings(&self) -> &[String] {
+        &self.warnings
     }
 
     pub(crate) fn embedded_dbc_bytes(&self, index: usize) -> Option<&[u8]> {
         let dbc = self.embedded_dbcs.get(index)?;
         self.index.attachments[dbc.attachment_index].data.as_deref()
-    }
-
-    pub(crate) fn warnings_json(&self) -> String {
-        let mut output = String::from("[");
-        for (index, warning) in self.warnings.iter().enumerate() {
-            if index != 0 {
-                output.push(',');
-            }
-            write_json_string(&mut output, warning);
-        }
-        output.push(']');
-        output
     }
 
     pub(crate) fn decode_signal(&self, signal_id: u32) -> Result<Vec<f64>, Mf4Error> {
