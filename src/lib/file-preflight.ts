@@ -32,15 +32,13 @@ export function assertMf4FileContent(bytes: Uint8Array): void {
 	throw new Error('Unsupported MDF version. Open an MDF4 .mf4 file.');
 }
 
-export function assertTraceFileContent(traceType: TraceType, bytes: Uint8Array): void {
-	if (traceType === 'blf') {
-		assertBlfFileContent(bytes);
-		return;
-	}
-	if (traceType === 'mf4') {
-		assertMf4FileContent(bytes);
-		return;
-	}
+const TRACE_CONTENT_ASSERTIONS = {
+	asc: (bytes: Uint8Array) => assertTextFileContent(bytes, 'ASC'),
+	trc: (bytes: Uint8Array) => assertTextFileContent(bytes, 'TRC'),
+	blf: assertBlfFileContent,
+	mf4: assertMf4FileContent
+} satisfies Record<TraceType, (bytes: Uint8Array) => void>;
 
-	assertTextFileContent(bytes, traceType.toUpperCase());
+export function assertTraceFileContent(traceType: TraceType, bytes: Uint8Array): void {
+	TRACE_CONTENT_ASSERTIONS[traceType](bytes);
 }

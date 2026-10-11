@@ -159,8 +159,15 @@ export function shortcutEnabled(action: ShortcutAction, state: ShortcutState): b
 			return !state.plotControlsDisabled && state.hasCrosshairs;
 		case 'resetZoom':
 			return !state.plotControlsDisabled && state.canResetZoom;
-		default:
+		case 'selectSignals':
+		case 'showPalette':
+		case 'openSettings':
+		case 'showHelp':
 			return true;
+		default: {
+			const unexpected: never = action;
+			return unexpected;
+		}
 	}
 }
 
