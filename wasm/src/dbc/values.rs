@@ -1,11 +1,14 @@
 use std::rc::Rc;
 
+use serde::Serialize;
+
 use super::quotes::parse_quoted;
 use super::{DbcError, find_dbc_whitespace, is_dbc_whitespace, trim_dbc};
 
 const JS_SAFE_INTEGER_MAX: i64 = 9_007_199_254_740_991;
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum ValueType {
     #[default]
     Integer,
@@ -13,17 +16,8 @@ pub enum ValueType {
     Float64,
 }
 
-impl ValueType {
-    pub(crate) const fn as_catalog_str(self) -> &'static str {
-        match self {
-            Self::Integer => "integer",
-            Self::Float32 => "float32",
-            Self::Float64 => "float64",
-        }
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ValueDescription {
     pub raw_value: i64,
     pub label: String,

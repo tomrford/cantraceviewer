@@ -6,12 +6,11 @@ import { initSync, Dbc as WasmDbc, Trace as WasmTrace } from './wasm-bindgen/can
 import type {
 	DbcHandle,
 	DbcMessageIdentity,
+	EmbeddedDbc,
 	RawSource,
 	DecodedSignalSeries,
-	Mf4SignalCatalog,
 	OpenDbcResult,
 	OpenTraceResult,
-	ParsedDbc,
 	TraceHandle,
 	TraceMetadata,
 	TraceType
@@ -73,8 +72,8 @@ export function createDirectClient(
 			assertClientOpen();
 			const dbc = WasmDbc.parse(dbcBytes(input, limits.maxDbcBytes));
 			try {
-				const catalog = JSON.parse(dbc.catalogJson()) as ParsedDbc;
-				const warnings = JSON.parse(dbc.warningsJson()) as OpenDbcResult['warnings'];
+				const catalog = dbc.catalog();
+				const warnings = dbc.warnings();
 				return { handle: handles.issue('dbc', dbc), catalog, warnings };
 			} catch (error) {
 				dbc.free();
@@ -90,7 +89,7 @@ export function createDirectClient(
 			const trace = parseTrace(traceType, bytes, limits);
 			try {
 				const metadata: TraceMetadata = {
-					rawMessages: JSON.parse(trace.rawMessagesJson()) as TraceMetadata['rawMessages'],
+					rawMessages: trace.rawMessages(),
 					measurementStartMs: trace.measurementStartMs ?? null,
 					validMessageCount: trace.validMessageCount,
 					skippedLineCount: trace.skippedLineCount,
@@ -98,14 +97,14 @@ export function createDirectClient(
 				};
 				const isMf4 = traceType === 'mf4';
 				const hasRawFrames = trace.hasRawFrames;
-				const mf4Catalog = isMf4 ? (JSON.parse(trace.mf4CatalogJson()) as Mf4SignalCatalog) : null;
-				const embeddedDbcs = isMf4
-					? (JSON.parse(trace.mf4EmbeddedDbcsJson()) as { name: string }[]).map((dbc, index) => ({
-							...dbc,
+				const mf4Catalog = isMf4 ? trace.mf4Catalog() : null;
+				const embeddedDbcs: EmbeddedDbc[] = isMf4
+					? trace.mf4EmbeddedDbcs().map((dbc: { name: string }, index: number) => ({
+							name: dbc.name,
 							bytes: trace.mf4EmbeddedDbcBytes(index)
 						}))
 					: [];
-				const warnings = isMf4 ? (JSON.parse(trace.mf4WarningsJson()) as string[]) : [];
+				const warnings = isMf4 ? trace.mf4Warnings() : [];
 				return {
 					handle: handles.issue('trace', trace),
 					metadata,

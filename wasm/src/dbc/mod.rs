@@ -1,4 +1,3 @@
-mod catalog;
 mod error;
 mod format;
 mod message;
@@ -9,6 +8,8 @@ mod source;
 mod values;
 
 use std::rc::Rc;
+
+use serde::Serialize;
 
 pub use error::DbcError;
 pub use message::Message;
@@ -23,12 +24,14 @@ pub use values::{
 
 const INDEPENDENT_SIGNAL_MESSAGE_ID: u32 = 0xc000_0000;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Dbc {
     pub messages: Vec<Message>,
 
+    #[serde(skip)]
     pub value_tables: Vec<ValueTable>,
 
+    #[serde(skip)]
     pub warnings: Vec<Diagnostic>,
 }
 
@@ -171,15 +174,22 @@ impl Dbc {
         }
         multiplex::resolve(&mut messages, &mux_records)?;
         format::resolve(&mut messages, &format_records, &mut warnings)?;
-        for message in &messages {
-            for signal in &message.signals {
-                if !multiplex::has_supported_width(message, signal) {
+        for message in &mut messages {
+            let supported: Vec<bool> = message
+                .signals
+                .iter()
+                .map(|signal| multiplex::has_supported_width(message, signal))
+                .collect();
+            let decode_error = message.raw_frame_decode_error();
+            for (signal, supported) in message.signals.iter_mut().zip(supported) {
+                signal.in_catalog = supported;
+                if !supported {
                     warnings.push(signal.position.warning(
                         "omitted-feature",
                         "SG_",
                         "Signal or multiplex selector exceeds 64 bits.",
                     ));
-                } else if let Some(reason) = message.raw_frame_decode_error() {
+                } else if let Some(reason) = decode_error {
                     warnings.push(signal.position.warning("omitted-feature", "SG_", reason));
                 }
             }
@@ -191,10 +201,6 @@ impl Dbc {
             value_tables,
             warnings,
         })
-    }
-
-    pub fn to_catalog_json(&self) -> String {
-        catalog::to_json(self)
     }
 
     pub fn find_signal(
@@ -343,7 +349,7 @@ mod tests {
         let signal = &dbc.messages[0].signals[0];
         assert_eq!(signal.value_type, ValueType::Float32);
         assert_eq!(
-            signal.value_descriptions().unwrap()[0].label,
+            signal.value_descriptions.as_deref().unwrap()[0].label,
             "Off\r\n\tline"
         );
     }
@@ -372,7 +378,11 @@ mod tests {
         assert_eq!(utf8, legacy);
         assert_eq!(utf8.messages[0].signals[0].unit, "°C € – ™");
         assert_eq!(
-            utf8.messages[0].signals[0].value_descriptions().unwrap()[0].label,
+            utf8.messages[0].signals[0]
+                .value_descriptions
+                .as_deref()
+                .unwrap()[0]
+                .label,
             "Arrêt"
         );
         assert!(utf8.warnings.is_empty());
@@ -384,7 +394,11 @@ mod tests {
         assert_eq!(dbc.messages.len(), 1);
         assert_eq!(dbc.messages[0].signals.len(), 1);
         assert_eq!(
-            dbc.messages[0].signals[0].value_descriptions().unwrap()[1].label,
+            dbc.messages[0].signals[0]
+                .value_descriptions
+                .as_deref()
+                .unwrap()[1]
+                .label,
             "On"
         );
         let positions: Vec<_> = dbc
@@ -414,7 +428,11 @@ mod tests {
                 "Value labels unavailable: table not found.",
             ]
         );
-        assert!(!dbc.warnings_json().contains("private"));
+        assert!(dbc.warnings.iter().all(|warning| {
+            !warning.message.contains("private")
+                && !warning.keyword.contains("private")
+                && !warning.category.contains("private")
+        }));
         assert_eq!(
             dbc.warnings[3].message,
             "Numeric type references an unknown message."
@@ -441,10 +459,14 @@ mod tests {
                 (2, 2, "SG_")
             );
             assert_eq!(warning.message, expected);
-            assert!(dbc.warnings_json().contains(expected));
-            let catalog = dbc.to_catalog_json();
-            assert!(catalog.contains("\"rawFrameDecodable\":false"));
-            assert!(catalog.contains("\"Value\""));
+            let message = &dbc.messages[0];
+            assert!(!message.raw_frame_decodable);
+            assert!(
+                message
+                    .signals
+                    .iter()
+                    .any(|signal| signal.in_catalog && signal.name == "Value")
+            );
         }
     }
 
@@ -580,12 +602,16 @@ mod tests {
             .unwrap();
             assert_eq!(dbc.messages[0].signals.len(), 2);
             assert_eq!(
-                dbc.messages[0].signals[0].value_descriptions().unwrap()[0].label,
+                dbc.messages[0].signals[0]
+                    .value_descriptions
+                    .as_deref()
+                    .unwrap()[0]
+                    .label,
                 "Empty"
             );
-            let catalog = dbc.to_catalog_json();
-            assert!(!catalog.contains("\"Raw\""));
-            assert!(catalog.contains("\"Scalar\""));
+            assert!(!dbc.messages[0].signals[0].in_catalog);
+            assert!(dbc.messages[0].signals[1].in_catalog);
+            assert_eq!(dbc.messages[0].signals[1].name, "Scalar");
             assert_eq!(dbc.warnings.len(), 1);
             let warning = &dbc.warnings[0];
             assert_eq!(
@@ -636,11 +662,15 @@ mod tests {
              SG_MUL_VAL_ 291 Nested Dependent 2-2;",
         )
         .unwrap();
-        let catalog = dbc.to_catalog_json();
-        assert!(!catalog.contains("\"Raw\""));
-        assert!(!catalog.contains("\"Dependent\""));
-        assert!(!catalog.contains("\"Nested\""));
-        assert!(catalog.contains("\"Scalar\""));
+        assert_eq!(
+            dbc.messages[0]
+                .signals
+                .iter()
+                .filter(|signal| signal.in_catalog)
+                .map(|signal| signal.name.as_str())
+                .collect::<Vec<_>>(),
+            ["Scalar"]
+        );
         assert_eq!(
             dbc.warnings.iter().map(|w| w.category).collect::<Vec<_>>(),
             ["omitted-feature", "omitted-feature", "omitted-feature"]
@@ -675,7 +705,10 @@ VAL_ 100 State 0 "Off" 1 "On";
         )
         .unwrap();
 
-        let descriptions = dbc.messages[0].signals[0].value_descriptions().unwrap();
+        let descriptions = dbc.messages[0].signals[0]
+            .value_descriptions
+            .as_deref()
+            .unwrap();
         assert_eq!(descriptions.len(), 2);
         assert_eq!(descriptions[0].raw_value, 0);
         assert_eq!(descriptions[0].label, "Off");
@@ -719,7 +752,11 @@ BO_ 512 Status: 1 ECU
             assert_eq!(parsed.messages[0].signals.len(), 1);
             assert_eq!(parsed.messages[0].signals[0].name, "X");
             assert_eq!(
-                parsed.messages[0].signals[0].value_descriptions().unwrap()[0].label,
+                parsed.messages[0].signals[0]
+                    .value_descriptions
+                    .as_deref()
+                    .unwrap()[0]
+                    .label,
                 "Off"
             );
         }
@@ -735,7 +772,11 @@ BO_ 512 Status: 1 ECU
         assert_eq!(parsed.messages.len(), 1);
         assert_eq!(parsed.messages[0].name, "M");
         assert_eq!(
-            parsed.messages[0].signals[0].value_descriptions().unwrap()[0].label,
+            parsed.messages[0].signals[0]
+                .value_descriptions
+                .as_deref()
+                .unwrap()[0]
+                .label,
             "Off"
         );
         assert_eq!(parsed.warnings.len(), 1);

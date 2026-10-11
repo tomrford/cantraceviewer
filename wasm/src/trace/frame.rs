@@ -1,7 +1,9 @@
 use super::TraceError;
+use serde::Serialize;
 use std::num::{NonZeroU16, NonZeroU32};
 
-#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub(crate) enum Direction {
     #[default]
     Unknown,
@@ -24,14 +26,6 @@ impl Direction {
             _ => Self::Unknown,
         }
     }
-    pub(crate) fn name(self) -> &'static str {
-        match self {
-            Self::Unknown => "unknown",
-            Self::Rx => "rx",
-            Self::Tx => "tx",
-        }
-    }
-
     pub(crate) fn from_name(name: &str) -> Result<Self, &'static str> {
         match name {
             "unknown" => Ok(Self::Unknown),
@@ -42,7 +36,7 @@ impl Direction {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub(crate) struct RawSource {
     pub(crate) channel: Option<NonZeroU16>,
     pub(crate) direction: Direction,

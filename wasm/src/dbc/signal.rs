@@ -1,38 +1,24 @@
 use std::rc::Rc;
 
+use serde::{Serialize, Serializer};
+
 use super::quotes::parse_quoted;
 use super::{
     DbcError, ValueDescription, ValueType, find_dbc_whitespace, is_dbc_whitespace, trim_dbc,
 };
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum DbcEndian {
     Intel,
     Motorola,
 }
 
-impl DbcEndian {
-    pub(crate) const fn as_catalog_str(self) -> &'static str {
-        match self {
-            Self::Intel => "intel",
-            Self::Motorola => "motorola",
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Signedness {
     Signed,
     Unsigned,
-}
-
-impl Signedness {
-    pub(crate) const fn as_catalog_str(self) -> &'static str {
-        match self {
-            Self::Signed => "signed",
-            Self::Unsigned => "unsigned",
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -81,7 +67,8 @@ impl DecodePlan {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Signal {
     pub name: String,
 
@@ -96,13 +83,28 @@ pub struct Signal {
     pub maximum: Option<f64>,
     pub unit: String,
     pub receivers: Vec<String>,
+    #[serde(serialize_with = "serialize_value_descriptions")]
     pub value_descriptions: Option<Rc<[ValueDescription]>>,
     pub value_type: ValueType,
 
     pub is_multiplexer: bool,
+    #[serde(skip)]
     pub(crate) simple_mux_value: Option<u64>,
     pub multiplex: Option<super::multiplex::MultiplexCondition>,
+    #[serde(skip)]
     pub(super) position: super::source::Position,
+    #[serde(skip)]
+    pub(crate) in_catalog: bool,
+}
+
+fn serialize_value_descriptions<S>(
+    value: &Option<Rc<[ValueDescription]>>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    value.as_deref().unwrap_or(&[]).serialize(serializer)
 }
 
 impl Signal {
@@ -250,6 +252,7 @@ impl Signal {
             simple_mux_value,
             multiplex: None,
             position: Default::default(),
+            in_catalog: false,
         })
     }
 
@@ -312,10 +315,6 @@ impl Signal {
         }
 
         Ok((bit_offset, endian))
-    }
-
-    pub fn value_descriptions(&self) -> Option<&[ValueDescription]> {
-        self.value_descriptions.as_deref()
     }
 }
 

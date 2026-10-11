@@ -3,13 +3,37 @@ use super::{
     signal::DecodePlan,
     source::{Position, Record},
 };
+use serde::ser::SerializeSeq;
+use serde::{Serialize, Serializer};
 use std::collections::HashMap;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct MultiplexCondition {
     pub selector: String,
+    #[serde(serialize_with = "serialize_decimal_ranges")]
     pub ranges: Vec<(u64, u64)>,
+    #[serde(skip)]
     selector_index: usize,
+}
+
+fn serialize_decimal_ranges<S>(ranges: &[(u64, u64)], serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let mut seq = serializer.serialize_seq(Some(ranges.len()))?;
+    for &(first, last) in ranges {
+        seq.serialize_element(&DecimalEndpoints {
+            first: first.to_string(),
+            last: last.to_string(),
+        })?;
+    }
+    seq.end()
+}
+
+#[derive(Serialize)]
+struct DecimalEndpoints {
+    first: String,
+    last: String,
 }
 
 fn error(position: Position, detail: &'static str) -> DbcError {
@@ -244,9 +268,9 @@ mod tests {
         let plan = ActivityPlan::new(message, &message.signals[1]).unwrap();
         assert!(plan.active(&[255, 255, 255, 255, 255, 255, 255, 255, 7]));
         assert!(!plan.active(&[254, 255, 255, 255, 255, 255, 255, 255, 7]));
-        assert!(
-            dbc.to_catalog_json()
-                .contains("\"first\":\"18446744073709551615\"")
+        assert_eq!(
+            message.signals[1].multiplex.as_ref().unwrap().ranges,
+            [(u64::MAX, u64::MAX)]
         );
     }
 

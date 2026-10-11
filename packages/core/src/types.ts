@@ -18,8 +18,8 @@ export type DbcSignal = {
 	signedness: DbcSignedness;
 	factor: number;
 	offset: number;
-	minimum: number;
-	maximum: number;
+	minimum: number | null;
+	maximum: number | null;
 	unit: string;
 	valueType: DbcValueType;
 	isMultiplexer: boolean;

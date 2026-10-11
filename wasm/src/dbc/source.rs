@@ -1,10 +1,10 @@
-use std::{borrow::Cow, fmt::Write};
+use std::borrow::Cow;
 
-use crate::json::write_json_string;
+use serde::Serialize;
 
-use super::{Dbc, DbcError};
+use super::DbcError;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Diagnostic {
     pub category: &'static str,
     pub keyword: &'static str,
@@ -42,34 +42,6 @@ impl Position {
             keyword,
             source: Box::new(source),
         }
-    }
-}
-
-impl Dbc {
-    pub fn warnings_json(&self) -> String {
-        let mut output = String::from("[");
-        for (index, warning) in self.warnings.iter().enumerate() {
-            if index > 0 {
-                output.push(',');
-            }
-            write!(
-                output,
-                "{{\"line\":{},\"column\":{}",
-                warning.line, warning.column
-            )
-            .unwrap();
-            for (key, value) in [
-                ("category", warning.category),
-                ("keyword", warning.keyword),
-                ("message", warning.message),
-            ] {
-                write!(output, ",\"{key}\":").unwrap();
-                write_json_string(&mut output, value);
-            }
-            output.push('}');
-        }
-        output.push(']');
-        output
     }
 }
 

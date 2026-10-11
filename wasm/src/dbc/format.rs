@@ -162,9 +162,7 @@ pub(super) fn resolve(
                 ));
                 continue;
             };
-            message.frame_format = format;
-            message.is_fd = fd;
-            message.format_explicit = true;
+            message.apply_frame_format(format, fd);
             break;
         }
     }
@@ -242,10 +240,17 @@ mod tests {
         let message = &dbc.messages[0];
         assert_eq!(message.frame_format, "j1939");
         assert!(!message.is_fd);
-        let json = dbc.to_catalog_json();
-        assert!(json.contains("\"rawFrameDecodable\":false"));
-        assert!(json.contains("\"pgn\":59904"), "{json}");
-        assert!(json.contains("\"Late\""));
+        assert!(!message.raw_frame_decodable);
+        assert_eq!(
+            message.j1939,
+            Some(crate::dbc::message::J1939 {
+                pgn: 59_904,
+                source_address: 128,
+                priority: 6,
+            })
+        );
+        assert!(message.signals[0].in_catalog);
+        assert_eq!(message.signals[0].name, "Late");
         assert_eq!(
             dbc.warnings[0].message,
             "J1939 transport decoding is not supported."
