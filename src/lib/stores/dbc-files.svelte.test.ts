@@ -41,6 +41,19 @@ describe('dbcFiles', () => {
 		dbcFiles.hasLoadedLibrary = false;
 	});
 
+	it('shows a fatal DBC position from the error fields', async () => {
+		const failure = new Error('DBC input:2:3: SG_: signal bit range falls outside its message');
+		Object.assign(failure, { line: 2, column: 3, keyword: 'SG_' });
+		openDbcMock.mockRejectedValueOnce(failure);
+
+		await dbcFiles.addFiles([file('malformed-source.dbc', 'BO_ 42 Status: 1 ECU')]);
+
+		expect(dbcFiles.files).toEqual([]);
+		expect(dbcFiles.error).toBe(
+			'malformed-source.dbc: SG_ at line 2, column 3. signal bit range falls outside its message'
+		);
+	});
+
 	it('reports an open failure without closing a handle', async () => {
 		openDbcMock.mockRejectedValueOnce(new Error('catalog failed'));
 

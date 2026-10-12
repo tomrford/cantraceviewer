@@ -367,9 +367,11 @@ class DbcFilesStore {
 		dbc: StoredDbc,
 		origin: DbcFileEntry['origin'] = 'library'
 	): Promise<DbcCandidate> {
-		const { handle, catalog, warnings } = await openDbc(dbc.bytes ?? dbc.text).catch((error) => {
-			throw new Error(`${dbc.name}: ${error instanceof Error ? error.message : 'DBC load failed'}`);
-		});
+		const { handle, catalog, warnings } = await openDbc(dbc.bytes ?? dbc.text).catch(
+			(error: unknown) => {
+				throw new Error(`${dbc.name}: ${describeDbcFailure(error)}`);
+			}
+		);
 
 		return {
 			entry: {
@@ -383,6 +385,27 @@ class DbcFilesStore {
 			stored: dbc
 		};
 	}
+}
+
+function describeDbcFailure(error: unknown): string {
+	if (!(error instanceof Error)) return 'DBC load failed';
+	const record = dbcRecord(error);
+	if (!record) return error.message;
+	const positioned = `DBC input:${record.line}:${record.column}: ${record.keyword}: `;
+	const explanation = error.message.startsWith(positioned)
+		? error.message.slice(positioned.length)
+		: error.message;
+	return `${record.keyword} at line ${record.line}, column ${record.column}. ${explanation}`;
+}
+
+function dbcRecord(error: Error): Pick<DbcDiagnostic, 'line' | 'column' | 'keyword'> | undefined {
+	const line = Reflect.get(error, 'line');
+	const column = Reflect.get(error, 'column');
+	const keyword = Reflect.get(error, 'keyword');
+	if (typeof line !== 'number' || typeof column !== 'number' || typeof keyword !== 'string') {
+		return undefined;
+	}
+	return { line, column, keyword };
 }
 
 function assertDbcFileName(file: File): void {
