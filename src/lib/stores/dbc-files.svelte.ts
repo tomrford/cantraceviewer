@@ -388,8 +388,9 @@ class DbcFilesStore {
 }
 
 function describeDbcFailure(error: unknown): string {
-	const record = error instanceof Error ? dbcRecord(error) : undefined;
-	if (!record) return 'DBC load failed';
+	if (!(error instanceof Error)) return 'DBC load failed';
+	const record = dbcRecord(error);
+	if (!record) return error.message;
 	return `${record.keyword} at line ${record.line}, column ${record.column}. ${record.explanation}`;
 }
 
