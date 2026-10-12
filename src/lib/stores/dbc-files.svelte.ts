@@ -388,24 +388,27 @@ class DbcFilesStore {
 }
 
 function describeDbcFailure(error: unknown): string {
-	if (!(error instanceof Error)) return 'DBC load failed';
-	const record = dbcRecord(error);
-	if (!record) return error.message;
-	const positioned = `DBC input:${record.line}:${record.column}: ${record.keyword}: `;
-	const explanation = error.message.startsWith(positioned)
-		? error.message.slice(positioned.length)
-		: error.message;
-	return `${record.keyword} at line ${record.line}, column ${record.column}. ${explanation}`;
+	const record = error instanceof Error ? dbcRecord(error) : undefined;
+	if (!record) return 'DBC load failed';
+	return `${record.keyword} at line ${record.line}, column ${record.column}. ${record.explanation}`;
 }
 
-function dbcRecord(error: Error): Pick<DbcDiagnostic, 'line' | 'column' | 'keyword'> | undefined {
+function dbcRecord(
+	error: Error
+): (Pick<DbcDiagnostic, 'line' | 'column' | 'keyword'> & { explanation: string }) | undefined {
 	const line = Reflect.get(error, 'line');
 	const column = Reflect.get(error, 'column');
 	const keyword = Reflect.get(error, 'keyword');
-	if (typeof line !== 'number' || typeof column !== 'number' || typeof keyword !== 'string') {
+	const explanation = Reflect.get(error, 'explanation');
+	if (
+		typeof line !== 'number' ||
+		typeof column !== 'number' ||
+		typeof keyword !== 'string' ||
+		typeof explanation !== 'string'
+	) {
 		return undefined;
 	}
-	return { line, column, keyword };
+	return { line, column, keyword, explanation };
 }
 
 function assertDbcFileName(file: File): void {

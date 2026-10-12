@@ -43,7 +43,12 @@ describe('dbcFiles', () => {
 
 	it('shows a fatal DBC position from the error fields', async () => {
 		const failure = new Error('DBC input:2:3: SG_: signal bit range falls outside its message');
-		Object.assign(failure, { line: 2, column: 3, keyword: 'SG_' });
+		Object.assign(failure, {
+			line: 2,
+			column: 3,
+			keyword: 'SG_',
+			explanation: 'signal bit range falls outside its message'
+		});
 		openDbcMock.mockRejectedValueOnce(failure);
 
 		await dbcFiles.addFiles([file('malformed-source.dbc', 'BO_ 42 Status: 1 ECU')]);
@@ -62,7 +67,7 @@ describe('dbcFiles', () => {
 		expect(openDbcMock).toHaveBeenCalledWith(new TextEncoder().encode('BO_ 1 Broken: 8 ECU'));
 		expect(closeDbcMock).not.toHaveBeenCalled();
 		expect(dbcFiles.files).toEqual([]);
-		expect(dbcFiles.error).toBe('broken.dbc: catalog failed');
+		expect(dbcFiles.error).toBe('broken.dbc: DBC load failed');
 		expect(dbcFiles.isLoading).toBe(false);
 	});
 
@@ -126,7 +131,7 @@ describe('dbcFiles', () => {
 		openDbcMock.mockRejectedValueOnce(new Error('embedded catalog failed'));
 
 		await dbcFiles.addTransientDbcs(42, [embeddedDbc('broken.dbc', 'broken')]);
-		expect(dbcFiles.error).toBe('broken.dbc: embedded catalog failed');
+		expect(dbcFiles.error).toBe('broken.dbc: DBC load failed');
 
 		await dbcFiles.addTransientDbcs(43, []);
 
@@ -567,7 +572,7 @@ describe('dbcFiles', () => {
 		expect(closeDbcMock).not.toHaveBeenCalled();
 		expect(resetStoredDbcsMock).not.toHaveBeenCalled();
 		expect(dbcFiles.hasLoadedLibrary).toBe(true);
-		expect(dbcFiles.error).toBe('bad.dbc: cached DBC failed');
+		expect(dbcFiles.error).toBe('bad.dbc: DBC load failed');
 	});
 
 	it('surfaces storage-level library read failures without resetting storage', async () => {
