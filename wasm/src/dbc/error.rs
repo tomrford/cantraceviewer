@@ -50,6 +50,18 @@ impl DbcError {
     pub(crate) fn invalid_float(field: &'static str, source: ParseFloatError) -> Self {
         Self::InvalidFloat { field, source }
     }
+
+    pub(crate) fn location(&self) -> Option<(usize, usize, &'static str)> {
+        match self {
+            Self::AtRecord {
+                line,
+                column,
+                keyword,
+                ..
+            } => Some((*line, *column, keyword)),
+            _ => None,
+        }
+    }
 }
 
 impl fmt::Display for DbcError {

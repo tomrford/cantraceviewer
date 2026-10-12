@@ -10,7 +10,11 @@ import type {
 } from './types.ts';
 import type { ParsingLimits } from './limits.ts';
 
-export type WireError = { name: string; message: string };
+export type WireError = {
+	name: string;
+	message: string;
+	record?: Pick<DbcDiagnostic, 'line' | 'column' | 'keyword'>;
+};
 
 export type WorkerRequestBody =
 	| { op: 'init'; limits: ParsingLimits }

@@ -512,7 +512,18 @@ describe('cantraceviewer/direct', () => {
 		const { handle: dbc } = openFixtureDbc();
 		const { handle: trace } = openFixtureTrace();
 		try {
-			expect(() => client.openDbc('BO_ broken')).toThrow('invalid DBC message record');
+			let failure: unknown;
+			try {
+				client.openDbc('BO_ broken');
+			} catch (error) {
+				failure = error;
+			}
+			expect(failure).toMatchObject({
+				line: 1,
+				column: 1,
+				keyword: 'BO_',
+				message: 'DBC input:1:1: BO_: invalid DBC message record'
+			});
 			expect(() =>
 				client.openTrace('asc', new TextEncoder().encode('base nope timestamps absolute'))
 			).toThrow('invalid ASC base declaration');

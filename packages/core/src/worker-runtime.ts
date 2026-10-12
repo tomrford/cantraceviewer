@@ -186,6 +186,19 @@ function packSeries(series: DecodedSignalSeries): Executed {
 }
 
 function toWireError(cause: unknown): WireError {
-	if (cause instanceof Error) return { name: cause.name, message: cause.message };
-	return { name: 'Error', message: String(cause) };
+	if (!(cause instanceof Error)) return { name: 'Error', message: String(cause) };
+	const record = dbcRecord(cause);
+	return record
+		? { name: cause.name, message: cause.message, record }
+		: { name: cause.name, message: cause.message };
+}
+
+function dbcRecord(error: Error): WireError['record'] {
+	const line = Reflect.get(error, 'line');
+	const column = Reflect.get(error, 'column');
+	const keyword = Reflect.get(error, 'keyword');
+	if (typeof line !== 'number' || typeof column !== 'number' || typeof keyword !== 'string') {
+		return undefined;
+	}
+	return { line, column, keyword };
 }

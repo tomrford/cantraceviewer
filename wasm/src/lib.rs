@@ -11,8 +11,35 @@ mod series;
 mod trace;
 mod trc;
 
-use dbc::Dbc;
+use dbc::{Dbc, DbcError};
 use trace::{FrameIndex, Trace as ParsedTrace};
+
+#[wasm_bindgen]
+extern "C" {
+    type Error;
+
+    #[wasm_bindgen(constructor)]
+    fn new(message: &str) -> Error;
+
+    #[wasm_bindgen(method, setter)]
+    fn set_line(this: &Error, value: f64);
+
+    #[wasm_bindgen(method, setter)]
+    fn set_column(this: &Error, value: f64);
+
+    #[wasm_bindgen(method, setter)]
+    fn set_keyword(this: &Error, value: &str);
+}
+
+fn dbc_failure(error: DbcError) -> JsValue {
+    let exception = Error::new(&error.to_string());
+    if let Some((line, column, keyword)) = error.location() {
+        exception.set_line(line as f64);
+        exception.set_column(column as f64);
+        exception.set_keyword(keyword);
+    }
+    exception.into()
+}
 
 #[wasm_bindgen(js_name = Dbc)]
 pub struct WasmDbc {
@@ -21,10 +48,10 @@ pub struct WasmDbc {
 
 #[wasm_bindgen]
 impl WasmDbc {
-    pub fn parse(input: &[u8]) -> Result<WasmDbc, JsError> {
-        Ok(Self {
-            inner: Dbc::parse_bytes(input)?,
-        })
+    pub fn parse(input: &[u8]) -> Result<WasmDbc, JsValue> {
+        Dbc::parse_bytes(input)
+            .map(|inner| Self { inner })
+            .map_err(dbc_failure)
     }
 
     #[wasm_bindgen(js_name = warnings)]

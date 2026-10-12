@@ -100,6 +100,9 @@ export async function checkDbc(client, transfer = true) {
 		failed = true;
 		equal(error.message.includes('2:3: SG_'), true);
 		equal(error.message.includes('private'), false);
+		equal(error.line, 2);
+		equal(error.column, 3);
+		equal(error.keyword, 'SG_');
 	}
 	equal(failed, true);
 
