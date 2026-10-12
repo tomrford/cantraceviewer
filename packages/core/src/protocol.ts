@@ -13,7 +13,7 @@ import type { ParsingLimits } from './limits.ts';
 export type WireError = {
 	name: string;
 	message: string;
-	record?: Pick<DbcDiagnostic, 'line' | 'column' | 'keyword'>;
+	record?: Pick<DbcDiagnostic, 'line' | 'column' | 'keyword'> & { explanation: string };
 };
 
 export type WorkerRequestBody =

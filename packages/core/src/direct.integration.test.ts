@@ -522,6 +522,7 @@ describe('cantraceviewer/direct', () => {
 				line: 1,
 				column: 1,
 				keyword: 'BO_',
+				explanation: 'invalid DBC message record',
 				message: 'DBC input:1:1: BO_: invalid DBC message record'
 			});
 			expect(() =>

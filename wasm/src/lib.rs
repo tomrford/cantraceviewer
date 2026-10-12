@@ -29,6 +29,9 @@ extern "C" {
 
     #[wasm_bindgen(method, setter)]
     fn set_keyword(this: &Error, value: &str);
+
+    #[wasm_bindgen(method, setter)]
+    fn set_explanation(this: &Error, value: &str);
 }
 
 fn dbc_failure(error: DbcError) -> JsValue {
@@ -37,6 +40,7 @@ fn dbc_failure(error: DbcError) -> JsValue {
         exception.set_line(line as f64);
         exception.set_column(column as f64);
         exception.set_keyword(keyword);
+        exception.set_explanation(&error.explanation());
     }
     exception.into()
 }

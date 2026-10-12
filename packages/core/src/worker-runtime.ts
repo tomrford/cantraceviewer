@@ -197,8 +197,14 @@ function dbcRecord(error: Error): WireError['record'] {
 	const line = Reflect.get(error, 'line');
 	const column = Reflect.get(error, 'column');
 	const keyword = Reflect.get(error, 'keyword');
-	if (typeof line !== 'number' || typeof column !== 'number' || typeof keyword !== 'string') {
+	const explanation = Reflect.get(error, 'explanation');
+	if (
+		typeof line !== 'number' ||
+		typeof column !== 'number' ||
+		typeof keyword !== 'string' ||
+		typeof explanation !== 'string'
+	) {
 		return undefined;
 	}
-	return { line, column, keyword };
+	return { line, column, keyword, explanation };
 }

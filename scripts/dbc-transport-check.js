@@ -103,6 +103,7 @@ export async function checkDbc(client, transfer = true) {
 		equal(error.line, 2);
 		equal(error.column, 3);
 		equal(error.keyword, 'SG_');
+		equal(error.explanation, 'signal bit range falls outside its message');
 	}
 	equal(failed, true);
 

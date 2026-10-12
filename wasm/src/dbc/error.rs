@@ -62,6 +62,13 @@ impl DbcError {
             _ => None,
         }
     }
+
+    pub(crate) fn explanation(&self) -> String {
+        match self {
+            Self::AtRecord { source, .. } => source.to_string(),
+            other => other.to_string(),
+        }
+    }
 }
 
 impl fmt::Display for DbcError {

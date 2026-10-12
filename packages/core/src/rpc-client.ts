@@ -260,6 +260,7 @@ function fromWireError(error: WireError): Error {
 		Reflect.set(rebuilt, 'line', error.record.line);
 		Reflect.set(rebuilt, 'column', error.record.column);
 		Reflect.set(rebuilt, 'keyword', error.record.keyword);
+		Reflect.set(rebuilt, 'explanation', error.record.explanation);
 	}
 	return rebuilt;
 }
