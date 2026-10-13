@@ -264,6 +264,8 @@ describe('published package app integration', () => {
 			expect(persist).toHaveBeenCalledTimes(1);
 			expect(dbcFiles.files).toHaveLength(1);
 			expect(dbcFiles.files[0]).toMatchObject({ name: 'kept.dbc', origin: 'library' });
+			expect(dbcFiles.selectorFiles[0]?.transient).toBe(false);
+			expect(dbcFiles.selectorFiles[0]?.badge).toBeUndefined();
 
 			expect(await traceFile.openFile(await fixture('source-selection.asc'))).toBe(true);
 			await onTraceOpened();
