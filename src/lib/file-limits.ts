@@ -19,11 +19,7 @@ function formatBytes(bytes: number): string {
 	return `${bytes.toLocaleString()} bytes`;
 }
 
-export function assertFileSizeWithinLimit(
-	file: { size: number },
-	maxBytes: number,
-	label: string
-): void {
+export function assertFileSizeWithinLimit(file: File, maxBytes: number, label: string): void {
 	if (file.size <= maxBytes) return;
 
 	throw new Error(`${label} file exceeds the ${formatBytes(maxBytes)} limit`);

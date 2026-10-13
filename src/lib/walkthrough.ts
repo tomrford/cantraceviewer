@@ -18,15 +18,14 @@ export const WALKTHROUGH_STEPS: WalkthroughStep[] = [
 		target: 'trace',
 		placement: 'bottom-start',
 		title: 'Open a trace',
-		description: `This example is already open. Open or drop your own ${TRACE_FILE_FORMAT_NAMES} file to replace it. The trace stays in this tab.`
+		description: `Open or drop an ${TRACE_FILE_FORMAT_NAMES} file. The trace stays in this tab.`
 	},
 	{
 		id: 'library',
 		target: 'signal-selector',
 		placement: 'bottom-start',
 		title: 'Your signal library',
-		description:
-			'Open the signal selector. The example DBC is already loaded, and you can add your own files.'
+		description: 'Open the signal selector to add DBC files and choose decoded signals.'
 	},
 	{
 		id: 'add-dbc',
@@ -34,7 +33,7 @@ export const WALKTHROUGH_STEPS: WalkthroughStep[] = [
 		placement: 'right-start',
 		title: 'Add a DBC',
 		description:
-			'The example DBC is only here for this visit. Use the plus button to add DBC files that stay in this browser.'
+			'Use the plus button to add one or more DBC files. They stay in this browser for your next visit.'
 	},
 	{
 		id: 'signals',
@@ -42,7 +41,7 @@ export const WALKTHROUGH_STEPS: WalkthroughStep[] = [
 		placement: 'right-start',
 		title: 'Select signals',
 		description:
-			'Vehicle speed and engine rpm are already on the plot. Expand a message and tick a signal to add another.'
+			'Expand a message and tick a signal. The shared plot updates as you select signals.'
 	},
 	{
 		id: 'controls',
@@ -50,7 +49,7 @@ export const WALKTHROUGH_STEPS: WalkthroughStep[] = [
 		placement: 'bottom-end',
 		title: 'Explore the plot',
 		description:
-			'Use the toolbar here to zoom, box-select, show a marker or hide the legend. Scroll to zoom, drag to pan and right-click the plot for more actions.'
+			'Once signals are plotted, use the toolbar here to zoom, box-select, show a marker or hide the legend. Scroll to zoom, drag to pan and right-click the plot for more actions.'
 	}
 ];
 

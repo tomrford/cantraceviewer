@@ -1,6 +1,6 @@
 import { formatDecodedValue, nearestSignalSample } from '#lib/signal-plot-data.js';
 import { searchIndex } from '#lib/search-index.js';
-import type { DbcOrigin, SelectorSearchIndex } from '#lib/stores/dbc-files.svelte.js';
+import type { SelectorSearchIndex } from '#lib/stores/dbc-files.svelte.js';
 import type { PlotSignal } from '#lib/stores/plot-data.svelte.js';
 import { MAX_Y_AXES } from '#lib/plot-axes.js';
 import type { CrosshairId, LegendCrosshairMode } from '#lib/plot-crosshair.js';
@@ -74,7 +74,7 @@ export type WebMcpSessionSnapshot = {
 	dbcLibrary: { loaded: boolean; loading: boolean };
 	dbcs: Array<{
 		name: string;
-		origin: DbcOrigin;
+		origin: 'library' | 'mf4';
 		messageCount: number;
 		signalCount: number;
 	}>;

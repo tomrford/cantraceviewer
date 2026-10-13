@@ -417,10 +417,10 @@
 										<span class="min-w-0 truncate" class:italic={row.dbc.transient}
 											>{row.dbc.name}</span
 										>
-										{#if row.dbc.badge}
+										{#if row.dbc.transient}
 											<span
 												class="shrink-0 rounded border border-border/70 bg-muted px-1 py-0.5 text-[9px] leading-none font-medium text-muted-foreground not-italic"
-												>{row.dbc.badge}</span
+												>MF4</span
 											>
 										{/if}
 									</button>

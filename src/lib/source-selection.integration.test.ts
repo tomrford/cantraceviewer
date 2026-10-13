@@ -15,7 +15,6 @@ vi.mock('cantraceviewer', async () => {
 		}
 	};
 });
-import { loadDemoFiles } from './demo-session.js';
 import { dbcFiles, buildSelectorSearchIndexes } from './stores/dbc-files.svelte.js';
 import { traceFile } from './stores/trace-file.svelte.js';
 import { plotData } from './stores/plot-data.svelte.js';
@@ -182,108 +181,56 @@ describe('published package app integration', () => {
 			}
 		}
 	});
-
-	it('plots the example speed and rpm without saving the example DBC, then drops it on the next trace', async () => {
+	it('opens the native demo and preserves the saved DBC through trace replacement', async () => {
 		plotData.clearSelectedSignals();
 		await dbcFiles.clear();
 		await dbcFiles.addFiles([await fixture('source-selection.dbc')]);
-		const savedId = dbcFiles.files[0].id;
+		const saved = dbcFiles.files[0];
+		const catalog = structuredClone(saved.catalog);
 		const persist = vi.spyOn(library, 'putStoredDbcs');
-		try {
-			const trace = new File([await readFile('static/example.asc')], 'example.asc');
-			const dbc = new File([await readFile('static/example.dbc')], 'example.dbc');
-			expect(await loadDemoFiles(trace, dbc)).toBe(true);
-
-			expect(persist).not.toHaveBeenCalled();
-			expect(await library.listStoredDbcs()).toEqual([]);
-			expect(dbcFiles.files.find((file) => file.id === savedId)?.origin).toBe('library');
-			const demo = dbcFiles.files.find((file) => file.origin === 'demo');
-			expect(demo?.name).toBe('example.dbc');
-			expect(dbcFiles.selectorFiles.find((file) => file.id === demo?.id)).toMatchObject({
-				name: 'example',
-				transient: true,
-				badge: 'Example'
-			});
-
-			const speed = plotData.signals.find((signal) => signal.signalName === 'vehicle_speed');
-			const rpm = plotData.signals.find((signal) => signal.signalName === 'engine_rpm');
-			expect(Array.from(speed?.series?.timesMs.slice(0, 2) ?? [])).toEqual([10, 110]);
-			expect(Array.from(speed?.series?.values.slice(0, 2) ?? [])).toEqual([100, 123.4]);
-			expect(Array.from(rpm?.series?.timesMs.slice(0, 2) ?? [])).toEqual([10, 110]);
-			expect(Array.from(rpm?.series?.values.slice(0, 2) ?? [])).toEqual([4488, 5379]);
-
-			expect(await traceFile.openFile(await fixture('source-selection.asc'))).toBe(true);
-			await onTraceOpened();
-			expect(dbcFiles.files.map((file) => file.id)).toEqual([savedId]);
-			expect(dbcFiles.files.every((file) => file.origin === 'library')).toBe(true);
-			expect(persist).not.toHaveBeenCalled();
-		} finally {
-			persist.mockRestore();
-		}
-	});
-
-	it('keeps a saved example DBC instead of adding a second session copy', async () => {
-		plotData.clearSelectedSignals();
-		await dbcFiles.clear();
-		const bytes = await readFile('static/example.dbc');
-		await dbcFiles.addFiles([
-			new File(
-				[
-					'BO_ 288 OtherPowertrain: 8 Other\n SG_ vehicle_speed : 0|16@1+ (1,0) [0|65535] "" Other\n SG_ engine_rpm : 16|16@1+ (0.5,0) [0|32767] "" Other\n'
-				],
-				'other.dbc'
-			),
-			new File([bytes], 'saved-example.dbc')
-		]);
-		const example = dbcFiles.files.find((file) => file.name === 'saved-example.dbc');
-		const persist = vi.spyOn(library, 'putStoredDbcs');
-		persist.mockClear();
 		try {
 			expect(
-				await loadDemoFiles(
-					new File([await readFile('static/example.asc')], 'example.asc'),
-					new File([bytes], 'example.dbc')
-				)
+				await traceFile.openFile(new File([await readFile('static/example.mf4')], 'example.mf4'))
 			).toBe(true);
-			expect(persist).not.toHaveBeenCalled();
-			expect(dbcFiles.files.map((file) => file.origin)).toEqual(['library', 'library']);
-			expect(example?.id).toBeTruthy();
-			const speed = plotData.signals.find((signal) => signal.signalName === 'vehicle_speed');
-			const rpm = plotData.signals.find((signal) => signal.signalName === 'engine_rpm');
-			expect(speed?.messageName).toBe('PowertrainStatus');
-			expect(rpm?.messageName).toBe('PowertrainStatus');
-			expect(dbcFiles.signalTargetByKey[speed?.key ?? '']?.file.id).toBe(example?.id);
-			expect(dbcFiles.signalTargetByKey[rpm?.key ?? '']?.file.id).toBe(example?.id);
-			expect(Array.from(speed?.series?.values.slice(0, 2) ?? [])).toEqual([100, 123.4]);
-			expect(Array.from(rpm?.series?.values.slice(0, 2) ?? [])).toEqual([4488, 5379]);
-		} finally {
-			persist.mockRestore();
-		}
-	});
-
-	it('saves the example DBC when that file is added, and keeps it after the next trace', async () => {
-		plotData.clearSelectedSignals();
-		await dbcFiles.clear();
-		const bytes = await readFile('static/example.dbc');
-		expect(
-			await loadDemoFiles(
-				new File([await readFile('static/example.asc')], 'example.asc'),
-				new File([bytes], 'example.dbc')
-			)
-		).toBe(true);
-		const persist = vi.spyOn(library, 'putStoredDbcs');
-		try {
-			await dbcFiles.addFiles([new File([bytes], 'kept.dbc')]);
-			expect(persist).toHaveBeenCalledTimes(1);
-			expect(dbcFiles.files).toHaveLength(1);
-			expect(dbcFiles.files[0]).toMatchObject({ name: 'kept.dbc', origin: 'library' });
-			expect(dbcFiles.selectorFiles[0]?.transient).toBe(false);
-			expect(dbcFiles.selectorFiles[0]?.badge).toBeUndefined();
-
+			await onTraceOpened();
+			expect(traceFile.entry?.hasRawFrames).toBe(false);
+			expect(traceFile.entry?.embeddedDbcs).toEqual([]);
+			expect(traceFile.entry?.metadata.durationNs).toBe(90_000_000_000);
+			expect(traceFile.entry?.mf4Catalog?.groups).toHaveLength(1);
+			const group = traceFile.entry!.mf4Catalog!.groups[0];
+			expect(group.name).toBe('Decoded powertrain');
+			expect(group.signals.map(({ name, unit }) => ({ name, unit }))).toEqual([
+				{ name: 'VehicleSpeed', unit: 'km/h' },
+				{ name: 'EngineSpeed', unit: 'rpm' }
+			]);
+			const expected = [
+				['VehicleSpeed', [0, 50, 80, 100, 30, 0]],
+				['EngineSpeed', [800, 2600, 2400, 2300, 1400, 800]]
+			] as const;
+			for (const [name, values] of expected) {
+				const [key] = [...traceFile.mf4SignalTargetByKey].find(
+					([, target]) => target.signal.name === name
+				)!;
+				await plotData.toggleSignal(key);
+				const series = plotData.signals.find((signal) => signal.key === key)!.series!;
+				expect(series.timesMs).toHaveLength(901);
+				expect([0, 100, 200, 400, 600, 900].map((index) => series.timesMs[index])).toEqual([
+					0, 10_000, 20_000, 40_000, 60_000, 90_000
+				]);
+				expect([0, 100, 200, 400, 600, 900].map((index) => series.values[index])).toEqual(values);
+			}
+			expect(dbcFiles.files).toEqual([saved]);
+			expect(saved.catalog).toEqual(catalog);
 			expect(await traceFile.openFile(await fixture('source-selection.asc'))).toBe(true);
 			await onTraceOpened();
-			expect(dbcFiles.files).toHaveLength(1);
-			expect(dbcFiles.files[0]).toMatchObject({ name: 'kept.dbc', origin: 'library' });
+			expect(plotData.signals).toEqual([]);
+			expect(traceFile.mf4SignalTargetByKey.size).toBe(0);
+			expect(dbcFiles.files).toEqual([saved]);
+			expect(saved.catalog).toEqual(catalog);
+			expect(persist).not.toHaveBeenCalled();
+			const key = dbcFiles.selectorFiles[0].messages[0].signals[0].key;
+			await plotData.toggleSignal(key);
+			expect(plotData.signals[0].series?.values[0]).toBe(10);
 		} finally {
 			persist.mockRestore();
 		}
