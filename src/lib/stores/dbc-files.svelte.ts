@@ -306,8 +306,11 @@ class DbcFilesStore {
 		}
 	}
 
-	addDemoDbc(file: File): Promise<void> {
-		return this.runLibraryOperation(() => this.importDemoDbc(file));
+	addDemoDbc(file: File): Promise<string | null> {
+		let contentId: string | null = null;
+		return this.runLibraryOperation(async () => {
+			contentId = await this.importDemoDbc(file);
+		}).then(() => contentId);
 	}
 
 	dropDemoDbcs(): Promise<void> {
@@ -382,19 +385,21 @@ class DbcFilesStore {
 		});
 	}
 
-	private async importDemoDbc(file: File): Promise<void> {
+	private async importDemoDbc(file: File): Promise<string | null> {
 		this.error = null;
 		let opened: DbcFileEntry | null = null;
 		try {
 			const stored = await this.storedFile(file);
-			if (this.files.some((entry) => entry.id === stored.id)) return;
+			if (this.files.some((entry) => entry.id === stored.id)) return stored.id;
 
 			opened = (await this.openStoredDbc(stored, 'demo')).entry;
 			this.files = [...this.files, opened];
 			opened = null;
+			return stored.id;
 		} catch (error) {
 			if (opened) await closeDbc(opened.handle);
 			this.error = error instanceof Error ? error.message : 'DBC load failed';
+			return null;
 		}
 	}
 

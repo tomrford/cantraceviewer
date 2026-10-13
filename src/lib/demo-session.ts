@@ -36,43 +36,51 @@ export async function loadDemoFiles(
 	await onTraceOpened();
 	if (!isCurrent() || traceFile.entry !== opened) return false;
 
-	await dbcFiles.addDemoDbc(dbc);
+	const exampleDbcId = await dbcFiles.addDemoDbc(dbc);
 	if (!isCurrent() || traceFile.entry !== opened) {
 		await dbcFiles.dropDemoDbcs();
 		return false;
 	}
-	if (dbcFiles.error) return false;
+	if (dbcFiles.error || exampleDbcId === null) return false;
 
-	await selectDemoSignals();
+	await selectDemoSignals(exampleDbcId);
 	return isCurrent() && traceFile.entry === opened && dbcFiles.error === null;
 }
 
-async function selectDemoSignals(): Promise<void> {
+async function selectDemoSignals(exampleDbcId: string): Promise<void> {
 	for (const name of DEMO_SIGNAL_NAMES) {
-		const key = keyForDemoSignal(dbcFiles.signalTargetByKey, name);
+		const key = keyForDemoSignal(dbcFiles.signalTargetByKey, name, exampleDbcId);
 		if (key && !plotData.isSignalSelected(key)) await plotData.toggleSignal(key);
 	}
 }
 
-function keyForDemoSignal(targets: Record<string, DbcSignalTarget>, name: string): string | null {
-	let fallback: string | null = null;
+function keyForDemoSignal(
+	targets: Record<string, DbcSignalTarget>,
+	name: string,
+	exampleDbcId: string
+): string | null {
 	for (const [key, target] of Object.entries(targets)) {
-		if (target.signal.name !== name || target.unavailableReason) continue;
+		if (
+			target.file.id !== exampleDbcId ||
+			target.signal.name !== name ||
+			target.unavailableReason
+		) {
+			continue;
+		}
 
 		switch (target.file.origin) {
 			case 'demo':
-				return key;
 			case 'library':
+				return key;
 			case 'mf4':
-				fallback ??= key;
-				break;
+				continue;
 			default: {
 				const unexpected: never = target.file.origin;
 				return unexpected;
 			}
 		}
 	}
-	return fallback;
+	return null;
 }
 
 async function fetchStaticFile(

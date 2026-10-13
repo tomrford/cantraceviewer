@@ -226,7 +226,16 @@ describe('published package app integration', () => {
 		plotData.clearSelectedSignals();
 		await dbcFiles.clear();
 		const bytes = await readFile('static/example.dbc');
-		await dbcFiles.addFiles([new File([bytes], 'saved-example.dbc')]);
+		await dbcFiles.addFiles([
+			new File(
+				[
+					'BO_ 288 OtherPowertrain: 8 Other\n SG_ vehicle_speed : 0|16@1+ (1,0) [0|65535] "" Other\n SG_ engine_rpm : 16|16@1+ (0.5,0) [0|32767] "" Other\n'
+				],
+				'other.dbc'
+			),
+			new File([bytes], 'saved-example.dbc')
+		]);
+		const example = dbcFiles.files.find((file) => file.name === 'saved-example.dbc');
 		const persist = vi.spyOn(library, 'putStoredDbcs');
 		persist.mockClear();
 		try {
@@ -237,12 +246,16 @@ describe('published package app integration', () => {
 				)
 			).toBe(true);
 			expect(persist).not.toHaveBeenCalled();
-			expect(dbcFiles.files).toHaveLength(1);
-			expect(dbcFiles.files[0]).toMatchObject({ name: 'saved-example.dbc', origin: 'library' });
-			expect(plotData.signals.map((signal) => signal.signalName).sort()).toEqual([
-				'engine_rpm',
-				'vehicle_speed'
-			]);
+			expect(dbcFiles.files.map((file) => file.origin)).toEqual(['library', 'library']);
+			expect(example?.id).toBeTruthy();
+			const speed = plotData.signals.find((signal) => signal.signalName === 'vehicle_speed');
+			const rpm = plotData.signals.find((signal) => signal.signalName === 'engine_rpm');
+			expect(speed?.messageName).toBe('PowertrainStatus');
+			expect(rpm?.messageName).toBe('PowertrainStatus');
+			expect(dbcFiles.signalTargetByKey[speed?.key ?? '']?.file.id).toBe(example?.id);
+			expect(dbcFiles.signalTargetByKey[rpm?.key ?? '']?.file.id).toBe(example?.id);
+			expect(Array.from(speed?.series?.values.slice(0, 2) ?? [])).toEqual([100, 123.4]);
+			expect(Array.from(rpm?.series?.values.slice(0, 2) ?? [])).toEqual([4488, 5379]);
 		} finally {
 			persist.mockRestore();
 		}
