@@ -26,6 +26,7 @@ export function mf4SelectorFiles(trace: Mf4Trace | null): SelectorDbcFile[] {
 			name: 'Decoded signals',
 			kind: 'mf4-native',
 			transient: true,
+			badge: 'MF4',
 			messages: trace.mf4Catalog.groups.map((group, groupIndex) => ({
 				key: JSON.stringify(['mf4', trace.id, 'group', groupIndex]),
 				name: group.name,

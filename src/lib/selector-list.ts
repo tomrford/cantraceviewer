@@ -5,6 +5,7 @@ export type SelectorListDbc = {
 	messages: SelectorListMessage[];
 	kind: 'dbc' | 'mf4-native';
 	transient: boolean;
+	badge?: string;
 };
 
 export type SelectorListMessage = {

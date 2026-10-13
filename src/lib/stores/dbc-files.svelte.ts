@@ -22,13 +22,15 @@ import {
 import { DBC_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '#lib/file-limits.js';
 import { createSearchIndex, searchIndex, type SearchIndex } from '#lib/search-index.js';
 
+export type DbcOrigin = 'library' | 'mf4' | 'demo';
+
 export type DbcFileEntry = {
 	id: string;
 	name: string;
 	handle: DbcHandle;
 	catalog: ParsedDbc;
 	warnings: DbcDiagnostic[];
-	origin: 'library' | 'mf4';
+	origin: DbcOrigin;
 };
 
 export type SelectorDbcFile = {
@@ -37,6 +39,7 @@ export type SelectorDbcFile = {
 	messages: SelectorDbcMessage[];
 	kind: 'dbc' | 'mf4-native';
 	transient: boolean;
+	badge?: string;
 };
 
 type SelectorDbcMessage = {
@@ -72,6 +75,7 @@ type SelectorTreeDbc = {
 	messages: SelectorTreeMessage[];
 	kind: 'dbc' | 'mf4-native';
 	transient: boolean;
+	badge?: string;
 };
 
 type SelectorTreeMessage = {
@@ -126,7 +130,8 @@ class DbcFilesStore {
 			id: entry.id,
 			name: displayDbcName(entry.name),
 			kind: 'dbc',
-			transient: entry.origin === 'mf4',
+			transient: isTransientOrigin(entry.origin),
+			badge: originBadge(entry.origin),
 			messages: entry.catalog.messages.flatMap((message) =>
 				sourceOptions(message, this.rawMessagesById).map((source) => ({
 					key: selectorMessageKey(entry.id, message, source),
@@ -237,7 +242,10 @@ class DbcFilesStore {
 		try {
 			for (const file of files) {
 				const stored = await this.storedFile(file);
-				if (seenIds[stored.id]) continue;
+				if (seenIds[stored.id]) {
+					await this.promoteDemoDbc(stored);
+					continue;
+				}
 
 				seenIds[stored.id] = true;
 				candidates.push(await this.openStoredDbc(stored));
@@ -260,7 +268,18 @@ class DbcFilesStore {
 
 		this.files = this.files.filter((file) => file.id !== id);
 		await closeDbc(entry.handle);
-		if (entry.origin === 'library') await deleteStoredDbc(entry.id);
+		switch (entry.origin) {
+			case 'library':
+				await deleteStoredDbc(entry.id);
+				break;
+			case 'mf4':
+			case 'demo':
+				break;
+			default: {
+				const unexpected: never = entry.origin;
+				return unexpected;
+			}
+		}
 	}
 
 	addTransientDbcs(ownerTraceId: number, dbcs: EmbeddedDbc[]): Promise<void> {
@@ -287,8 +306,16 @@ class DbcFilesStore {
 		}
 	}
 
+	addDemoDbc(file: File): Promise<void> {
+		return this.runLibraryOperation(() => this.importDemoDbc(file));
+	}
+
+	dropDemoDbcs(): Promise<void> {
+		return this.runLibraryOperation(() => this.removeDemoDbcs());
+	}
+
 	async clearTransientDbcs(): Promise<void> {
-		const removed = this.files.filter((file) => file.origin === 'mf4');
+		const removed = this.files.filter((file) => isTransientOrigin(file.origin));
 		if (removed.length === 0) return;
 		const removedIds = new Set(removed.map((file) => file.id));
 		this.files = this.files.filter((file) => !removedIds.has(file.id));
@@ -333,11 +360,11 @@ class DbcFilesStore {
 				}
 			}
 
-			this.files = [...candidates, ...this.files.filter((file) => file.origin === 'mf4')];
+			this.files = [...candidates, ...this.files.filter((file) => isTransientOrigin(file.origin))];
 			this.error = failures.length > 0 ? failures.join('\n') : null;
 		} catch {
 			await closeEntries(candidates);
-			this.files = this.files.filter((file) => file.origin === 'mf4');
+			this.files = this.files.filter((file) => isTransientOrigin(file.origin));
 			this.error = 'Saved DBC library could not be read.';
 		} finally {
 			this.hasLoadedLibrary = true;
@@ -353,6 +380,50 @@ class DbcFilesStore {
 		return operation.finally(() => {
 			if (this.libraryOperation === operation) this.isLoading = false;
 		});
+	}
+
+	private async importDemoDbc(file: File): Promise<void> {
+		this.error = null;
+		let opened: DbcFileEntry | null = null;
+		try {
+			const stored = await this.storedFile(file);
+			if (this.files.some((entry) => entry.id === stored.id)) return;
+
+			opened = (await this.openStoredDbc(stored, 'demo')).entry;
+			this.files = [...this.files, opened];
+			opened = null;
+		} catch (error) {
+			if (opened) await closeDbc(opened.handle);
+			this.error = error instanceof Error ? error.message : 'DBC load failed';
+		}
+	}
+
+	private async removeDemoDbcs(): Promise<void> {
+		const removed = this.files.filter((file) => file.origin === 'demo');
+		if (removed.length === 0) return;
+		const removedIds = new Set(removed.map((file) => file.id));
+		this.files = this.files.filter((file) => !removedIds.has(file.id));
+		await closeEntries(removed);
+	}
+
+	private async promoteDemoDbc(stored: StoredDbc): Promise<void> {
+		const existing = this.files.find((entry) => entry.id === stored.id);
+		if (!existing) return;
+
+		switch (existing.origin) {
+			case 'demo':
+				await putStoredDbcs([stored]);
+				existing.name = stored.name;
+				existing.origin = 'library';
+				return;
+			case 'library':
+			case 'mf4':
+				return;
+			default: {
+				const unexpected: never = existing.origin;
+				return unexpected;
+			}
+		}
 	}
 
 	private async storedFile(file: File): Promise<StoredDbc> {
@@ -382,6 +453,35 @@ class DbcFilesStore {
 			},
 			stored: dbc
 		};
+	}
+}
+
+function isTransientOrigin(origin: DbcOrigin): boolean {
+	switch (origin) {
+		case 'library':
+			return false;
+		case 'mf4':
+		case 'demo':
+			return true;
+		default: {
+			const unexpected: never = origin;
+			return unexpected;
+		}
+	}
+}
+
+function originBadge(origin: DbcOrigin): string | undefined {
+	switch (origin) {
+		case 'library':
+			return undefined;
+		case 'mf4':
+			return 'MF4';
+		case 'demo':
+			return 'Example';
+		default: {
+			const unexpected: never = origin;
+			return unexpected;
+		}
 	}
 }
 

@@ -38,6 +38,7 @@
 		type ShortcutPlatform,
 		type ShortcutState
 	} from '#lib/keyboard-shortcuts.js';
+	import { fetchDemoFiles, loadDemoFiles } from '#lib/demo-session.js';
 	import { dbcFiles } from '#lib/stores/dbc-files.svelte.js';
 	import { plotData } from '#lib/stores/plot-data.svelte.js';
 	import { onTraceOpened } from '#lib/stores/session.js';
@@ -78,6 +79,8 @@
 	let plotPointerRatio = $state<PlotRatioPoint | null>(null);
 	let shortcutPlatform = $state<ShortcutPlatform>('other');
 	let walkthroughStepId = $state<WalkthroughStep['id'] | null>(null);
+	let demoLoading = $state(false);
+	let demoRequest = 0;
 	const plotViewport = new PlotViewportState();
 	const plotControlsDisabled = $derived(!plotData.hasPlottableSignals || traceFile.isLoading);
 	const canResetZoom = $derived(plotData.hasPlottableSignals && !plotViewport.isFitAll);
@@ -252,7 +255,24 @@
 	}
 
 	async function startWalkthrough(): Promise<void> {
-		await showWalkthroughStep('trace');
+		if (demoLoading || traceFile.isLoading) return;
+
+		const request = ++demoRequest;
+		demoLoading = true;
+		try {
+			const files = await fetchDemoFiles();
+			if (request !== demoRequest) return;
+
+			const loaded = await loadDemoFiles(files.trace, files.dbc, () => request === demoRequest);
+			if (request !== demoRequest || !loaded) return;
+			if (traceFile.warning) toast.warning(traceFile.warning);
+			await showWalkthroughStep('trace');
+		} catch (error) {
+			if (request !== demoRequest) return;
+			toast.error(error instanceof Error ? error.message : 'Could not load the example.');
+		} finally {
+			if (request === demoRequest) demoLoading = false;
+		}
 	}
 
 	function openHelp(): void {
@@ -322,6 +342,8 @@
 
 	async function openTraceFile(file: File | null) {
 		if (!file || traceFile.isLoading) return;
+		demoRequest += 1;
+		demoLoading = false;
 		if (await traceFile.openFile(file)) {
 			if (traceFile.warning) {
 				toast.warning(traceFile.warning);
@@ -445,7 +467,7 @@
 	<div class="app-shell flex min-h-screen flex-col bg-background">
 		<header
 			class="relative flex h-16 shrink-0 items-center justify-between gap-2 border-b px-4"
-			aria-busy={traceFile.isLoading}
+			aria-busy={traceFile.isLoading || demoLoading}
 		>
 			<div class="flex items-center">
 				<Popover.Root bind:open={() => signalSelectorOpen, handleSignalSelectorOpen}>
@@ -486,13 +508,13 @@
 								type="button"
 								class="{titleButtonClass} pointer-events-auto w-full lg:w-auto"
 								data-walkthrough-target="trace"
-								disabled={traceFile.isLoading}
-								aria-label={traceFile.isLoading ? 'Loading trace' : 'Load trace'}
+								disabled={traceFile.isLoading || demoLoading}
+								aria-label={traceFile.isLoading || demoLoading ? 'Loading trace' : 'Load trace'}
 								onclick={() => traceInput?.click()}
 							>
 								<AudioWaveformIcon class="size-4 shrink-0 text-sidebar-primary" />
 								<span class="min-w-0 truncate text-sm font-medium">{traceFile.displayName}</span>
-								{#if traceFile.isLoading}
+								{#if traceFile.isLoading || demoLoading}
 									<LoaderCircleIcon
 										class="size-4 shrink-0 animate-spin text-muted-foreground"
 										aria-hidden="true"
@@ -504,8 +526,8 @@
 					</Tooltip.Trigger>
 					<Tooltip.Content sideOffset={6} class="flex-col items-stretch gap-1 pr-3">
 						<span class="flex items-center gap-3">
-							{traceFile.isLoading ? 'Loading trace' : 'Open trace'}
-							{#if !traceFile.isLoading}
+							{traceFile.isLoading || demoLoading ? 'Loading trace' : 'Open trace'}
+							{#if !traceFile.isLoading && !demoLoading}
 								<ShortcutKey keys={shortcutKeys('openTrace', shortcutPlatform)} class="ml-auto" />
 							{/if}
 						</span>
@@ -521,7 +543,7 @@
 				class="hidden"
 				type="file"
 				accept={TRACE_FILE_ACCEPT}
-				disabled={traceFile.isLoading}
+				disabled={traceFile.isLoading || demoLoading}
 				onchange={selectTrace}
 			/>
 
@@ -579,7 +601,7 @@
 			<section
 				class="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-background p-6"
 				aria-label="Trace loading"
-				aria-busy={traceFile.isLoading}
+				aria-busy={traceFile.isLoading || demoLoading}
 				ondragenter={handleTraceDrag}
 				ondragover={handleTraceDrag}
 				ondragleave={clearTraceDrag}
@@ -598,8 +620,12 @@
 						<Empty.Description>{landingDescription}</Empty.Description>
 					</Empty.Header>
 					<Empty.Content class="max-w-none flex-row justify-center">
-						<Button size="lg" disabled={traceFile.isLoading} onclick={() => traceInput?.click()}>
-							{#if traceFile.isLoading}
+						<Button
+							size="lg"
+							disabled={traceFile.isLoading || demoLoading}
+							onclick={() => traceInput?.click()}
+						>
+							{#if traceFile.isLoading || demoLoading}
 								<LoaderCircleIcon data-icon="inline-start" class="size-4 animate-spin" />
 								Loading trace...
 							{:else}
@@ -608,7 +634,12 @@
 							{/if}
 						</Button>
 						{#if walkthroughInvitationVisible}
-							<Button variant="outline" size="lg" onclick={() => void startWalkthrough()}>
+							<Button
+								variant="outline"
+								size="lg"
+								disabled={traceFile.isLoading || demoLoading}
+								onclick={() => void startWalkthrough()}
+							>
 								<CircleHelpIcon data-icon="inline-start" class="size-4" />
 								First time? Take a tour
 							</Button>

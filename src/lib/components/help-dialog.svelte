@@ -82,7 +82,7 @@
 				class="flex h-9 items-center justify-center rounded-md bg-sidebar-primary px-4 text-sm font-medium text-sidebar-primary-foreground transition-[background-color,scale] hover:bg-sidebar-primary/90 active:scale-[0.98]"
 				onclick={startWalkthrough}
 			>
-				Show quick tour
+				Replay demo
 			</button>
 		</Dialog.Footer>
 	</Dialog.Content>
