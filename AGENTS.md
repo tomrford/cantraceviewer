@@ -2,12 +2,14 @@
 
 CAN log plotting app with a reusable Rust and WebAssembly parsing package.
 
+Live instance: https://cantraceviewer.com.
+
 ## Commands
 
 Use the Nix development environment.
 
 ```sh
-nix develop -c pnpm install --frozen-lockfile
+CI=true nix develop -c pnpm install --frozen-lockfile
 nix develop -c pnpm run dev
 nix develop -c pnpm run validate
 nix develop -c pnpm run package:validate
