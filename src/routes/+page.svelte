@@ -40,6 +40,8 @@
 	} from '#lib/keyboard-shortcuts.js';
 	import { dbcFiles } from '#lib/stores/dbc-files.svelte.js';
 	import { plotData } from '#lib/stores/plot-data.svelte.js';
+	import { plotAxes } from '#lib/stores/plot-axes.svelte.js';
+	import { TRACE_MAX_FILE_BYTES } from '#lib/file-limits.js';
 	import { onTraceOpened } from '#lib/stores/session.js';
 	import { traceFile, type TraceFileEntry } from '#lib/stores/trace-file.svelte.js';
 	import { mountWebMcp } from '#lib/webmcp.js';
@@ -61,6 +63,19 @@
 	import { onMount, tick } from 'svelte';
 	import { toast } from 'svelte-sonner';
 
+	type DemoPreset = Readonly<{
+		group: string;
+		signal: string;
+		unit: string;
+		axis: 'primary' | 'new';
+	}>;
+	const DEMO_PRESET = [
+		{ group: 'Decoded powertrain', signal: 'VehicleSpeed', unit: 'km/h', axis: 'primary' },
+		{ group: 'Decoded powertrain', signal: 'EngineSpeed', unit: 'rpm', axis: 'new' }
+	] as const satisfies readonly DemoPreset[];
+
+	let openingTrace = $state(false);
+	const traceBusy = $derived(openingTrace || traceFile.isLoading);
 	let traceInput = $state<HTMLInputElement>();
 	let traceDropActive = $state(false);
 	let webgpuSupported = $state<boolean | null>(null);
@@ -79,10 +94,10 @@
 	let shortcutPlatform = $state<ShortcutPlatform>('other');
 	let walkthroughStepId = $state<WalkthroughStep['id'] | null>(null);
 	const plotViewport = new PlotViewportState();
-	const plotControlsDisabled = $derived(!plotData.hasPlottableSignals || traceFile.isLoading);
+	const plotControlsDisabled = $derived(!plotData.hasPlottableSignals || traceBusy);
 	const canResetZoom = $derived(plotData.hasPlottableSignals && !plotViewport.isFitAll);
 	const shortcutState = $derived<ShortcutState>({
-		traceLoading: traceFile.isLoading,
+		traceLoading: traceBusy,
 		plotControlsDisabled,
 		canResetZoom,
 		canPlaceCrosshair: plotViewport.activeViewport !== null,
@@ -320,14 +335,71 @@
 		await openTraceFile(file);
 	}
 
-	async function openTraceFile(file: File | null) {
-		if (!file || traceFile.isLoading) return;
-		if (await traceFile.openFile(file)) {
-			if (traceFile.warning) {
-				toast.warning(traceFile.warning);
+	async function fetchDemoTrace(): Promise<File> {
+		const response = await fetch('/example.mf4');
+		if (!response.ok || !response.body) throw new Error('Could not load the demo trace.');
+		const limitError = () =>
+			new Error(`Trace file exceeds the ${TRACE_MAX_FILE_BYTES / 1024 / 1024} MiB limit`);
+		if (Number(response.headers.get('content-length')) > TRACE_MAX_FILE_BYTES) {
+			await response.body.cancel();
+			throw limitError();
+		}
+
+		const reader = response.body.getReader();
+		const chunks: Uint8Array<ArrayBuffer>[] = [];
+		let received = 0;
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			received += value.byteLength;
+			if (received > TRACE_MAX_FILE_BYTES) {
+				await reader.cancel();
+				throw limitError();
 			}
+			chunks.push(value);
+		}
+		return new File(chunks, 'example.mf4');
+	}
+
+	async function openTraceFile(
+		source: File | null | (() => Promise<File>),
+		preset?: readonly DemoPreset[]
+	): Promise<void> {
+		if (!source || traceBusy) return;
+		openingTrace = true;
+		try {
+			const file = typeof source === 'function' ? await source() : source;
+			if (!(await traceFile.openFile(file))) return;
+			const opened = traceFile.entry;
+			if (traceFile.warning) toast.warning(traceFile.warning);
 			await onTraceOpened();
+			if (traceFile.entry !== opened) return;
 			if (walkthroughStepId === 'trace') await showWalkthroughStep('library');
+			if (!preset || traceFile.entry !== opened) return;
+
+			const signals = preset.map((item) => {
+				const matches = [...traceFile.mf4SignalTargetByKey].filter(
+					([, target]) =>
+						target.group.name === item.group &&
+						target.signal.name === item.signal &&
+						target.signal.unit === item.unit
+				);
+				if (matches.length !== 1) throw new Error(`Demo signal ${item.signal} is unavailable.`);
+				return { key: matches[0][0], axis: item.axis };
+			});
+			for (const { key, axis } of signals) {
+				if (traceFile.entry !== opened) return;
+				if (!plotData.isSignalSelected(key)) await plotData.toggleSignal(key);
+				if (traceFile.entry !== opened) return;
+				if (!plotData.isSignalSelected(key)) continue;
+				const { decodeError } = plotData.signalDecodeStatus(key);
+				if (decodeError) throw new Error(decodeError);
+				if (axis === 'new') plotAxes.assignToNewAxis(key);
+			}
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : 'Could not open the trace.');
+		} finally {
+			openingTrace = false;
 		}
 	}
 
@@ -335,7 +407,7 @@
 		if (!hasDraggedFiles(event)) return;
 
 		event.preventDefault();
-		if (traceFile.isLoading) return;
+		if (traceBusy) return;
 
 		traceDropActive = true;
 	}
@@ -445,7 +517,7 @@
 	<div class="app-shell flex min-h-screen flex-col bg-background">
 		<header
 			class="relative flex h-16 shrink-0 items-center justify-between gap-2 border-b px-4"
-			aria-busy={traceFile.isLoading}
+			aria-busy={traceBusy}
 		>
 			<div class="flex items-center">
 				<Popover.Root bind:open={() => signalSelectorOpen, handleSignalSelectorOpen}>
@@ -486,13 +558,13 @@
 								type="button"
 								class="{titleButtonClass} pointer-events-auto w-full lg:w-auto"
 								data-walkthrough-target="trace"
-								disabled={traceFile.isLoading}
-								aria-label={traceFile.isLoading ? 'Loading trace' : 'Load trace'}
+								disabled={traceBusy}
+								aria-label={traceBusy ? 'Loading trace' : 'Load trace'}
 								onclick={() => traceInput?.click()}
 							>
 								<AudioWaveformIcon class="size-4 shrink-0 text-sidebar-primary" />
 								<span class="min-w-0 truncate text-sm font-medium">{traceFile.displayName}</span>
-								{#if traceFile.isLoading}
+								{#if traceBusy}
 									<LoaderCircleIcon
 										class="size-4 shrink-0 animate-spin text-muted-foreground"
 										aria-hidden="true"
@@ -504,8 +576,8 @@
 					</Tooltip.Trigger>
 					<Tooltip.Content sideOffset={6} class="flex-col items-stretch gap-1 pr-3">
 						<span class="flex items-center gap-3">
-							{traceFile.isLoading ? 'Loading trace' : 'Open trace'}
-							{#if !traceFile.isLoading}
+							{traceBusy ? 'Loading trace' : 'Open trace'}
+							{#if !traceBusy}
 								<ShortcutKey keys={shortcutKeys('openTrace', shortcutPlatform)} class="ml-auto" />
 							{/if}
 						</span>
@@ -521,7 +593,7 @@
 				class="hidden"
 				type="file"
 				accept={TRACE_FILE_ACCEPT}
-				disabled={traceFile.isLoading}
+				disabled={traceBusy}
 				onchange={selectTrace}
 			/>
 
@@ -579,7 +651,7 @@
 			<section
 				class="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-background p-6"
 				aria-label="Trace loading"
-				aria-busy={traceFile.isLoading}
+				aria-busy={traceBusy}
 				ondragenter={handleTraceDrag}
 				ondragover={handleTraceDrag}
 				ondragleave={clearTraceDrag}
@@ -597,15 +669,23 @@
 						<h1 class="font-heading text-base font-medium tracking-tight">{landingTitle}</h1>
 						<Empty.Description>{landingDescription}</Empty.Description>
 					</Empty.Header>
-					<Empty.Content class="max-w-none flex-row justify-center">
-						<Button size="lg" disabled={traceFile.isLoading} onclick={() => traceInput?.click()}>
-							{#if traceFile.isLoading}
+					<Empty.Content class="max-w-none flex-row flex-wrap justify-center">
+						<Button size="lg" disabled={traceBusy} onclick={() => traceInput?.click()}>
+							{#if traceBusy}
 								<LoaderCircleIcon data-icon="inline-start" class="size-4 animate-spin" />
 								Loading trace...
 							{:else}
 								<AudioWaveformIcon data-icon="inline-start" class="size-4" />
 								Open trace
 							{/if}
+						</Button>
+						<Button
+							variant="outline"
+							size="lg"
+							disabled={traceBusy}
+							onclick={() => void openTraceFile(fetchDemoTrace, DEMO_PRESET)}
+						>
+							Open demo trace
 						</Button>
 						{#if walkthroughInvitationVisible}
 							<Button variant="outline" size="lg" onclick={() => void startWalkthrough()}>

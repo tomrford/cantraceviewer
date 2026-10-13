@@ -18,6 +18,7 @@ vi.mock('cantraceviewer', async () => {
 import { dbcFiles, buildSelectorSearchIndexes } from './stores/dbc-files.svelte.js';
 import { traceFile } from './stores/trace-file.svelte.js';
 import { plotData } from './stores/plot-data.svelte.js';
+import { onTraceOpened } from './stores/session.js';
 import { searchCatalogSignals } from './webmcp-tools.js';
 import { closeTrace } from './wasm.js';
 import * as library from './stores/dbc-library.js';
@@ -178,6 +179,60 @@ describe('published package app integration', () => {
 					'Embedded DBC "sample.dbc" exceeds the 5242880 byte DBC limit.'
 				);
 			}
+		}
+	});
+	it('opens the native demo and preserves the saved DBC through trace replacement', async () => {
+		plotData.clearSelectedSignals();
+		await dbcFiles.clear();
+		await dbcFiles.addFiles([await fixture('source-selection.dbc')]);
+		const saved = dbcFiles.files[0];
+		const catalog = structuredClone(saved.catalog);
+		const persist = vi.spyOn(library, 'putStoredDbcs');
+		try {
+			expect(
+				await traceFile.openFile(new File([await readFile('static/example.mf4')], 'example.mf4'))
+			).toBe(true);
+			await onTraceOpened();
+			expect(traceFile.entry?.hasRawFrames).toBe(false);
+			expect(traceFile.entry?.embeddedDbcs).toEqual([]);
+			expect(traceFile.entry?.metadata.durationNs).toBe(90_000_000_000);
+			expect(traceFile.entry?.mf4Catalog?.groups).toHaveLength(1);
+			const group = traceFile.entry!.mf4Catalog!.groups[0];
+			expect(group.name).toBe('Decoded powertrain');
+			expect(group.signals.map(({ name, unit }) => ({ name, unit }))).toEqual([
+				{ name: 'VehicleSpeed', unit: 'km/h' },
+				{ name: 'EngineSpeed', unit: 'rpm' }
+			]);
+			const expected = [
+				['VehicleSpeed', [0, 50, 80, 100, 30, 0]],
+				['EngineSpeed', [800, 2600, 2400, 2300, 1400, 800]]
+			] as const;
+			for (const [name, values] of expected) {
+				const [key] = [...traceFile.mf4SignalTargetByKey].find(
+					([, target]) => target.signal.name === name
+				)!;
+				await plotData.toggleSignal(key);
+				const series = plotData.signals.find((signal) => signal.key === key)!.series!;
+				expect(series.timesMs).toHaveLength(901);
+				expect([0, 100, 200, 400, 600, 900].map((index) => series.timesMs[index])).toEqual([
+					0, 10_000, 20_000, 40_000, 60_000, 90_000
+				]);
+				expect([0, 100, 200, 400, 600, 900].map((index) => series.values[index])).toEqual(values);
+			}
+			expect(dbcFiles.files).toEqual([saved]);
+			expect(saved.catalog).toEqual(catalog);
+			expect(await traceFile.openFile(await fixture('source-selection.asc'))).toBe(true);
+			await onTraceOpened();
+			expect(plotData.signals).toEqual([]);
+			expect(traceFile.mf4SignalTargetByKey.size).toBe(0);
+			expect(dbcFiles.files).toEqual([saved]);
+			expect(saved.catalog).toEqual(catalog);
+			expect(persist).not.toHaveBeenCalled();
+			const key = dbcFiles.selectorFiles[0].messages[0].signals[0].key;
+			await plotData.toggleSignal(key);
+			expect(plotData.signals[0].series?.values[0]).toBe(10);
+		} finally {
+			persist.mockRestore();
 		}
 	});
 });
