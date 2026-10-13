@@ -1,49 +1,33 @@
-# AGENTS.md
+# CAN Trace Viewer
 
-This repo is the source for CAN Trace Viewer, a client-side CAN log plotter.
+CAN log plotting app with a reusable Rust and WebAssembly parsing package.
 
-The live instance is at https://cantraceviewer.com, served entirely statically from Cloudflare workers.
+Live instance: https://cantraceviewer.com.
 
-The app opens directly into the plotter. Users load one CAN trace, save one or more DBC files to the local browser library, select signals from the signal selector popover, and render decoded signal series on a shared time plot.
+## Commands
 
-Chrome 149+ and Edge 150+ can call page tools through WebMCP (`document.modelContext`) when `chrome://flags/#enable-webmcp-testing` is on or an origin trial is active (HTTPS or localhost). Users load trace and DBC files with the visible browser controls. Tools search and select signals, arrange up to five Y axes, set or reset the time window, and place C1/C2 crosshairs with a legend readout. Numerical inspection reads bounded nearest samples at explicit times or the current crosshairs without moving the plot. Use the same nearest-sample and axis behaviour as the visible UI; screenshots supply signal shape while tool results supply precise values and timestamps. Do not return decoded sample arrays or WASM internals to the model.
-
-Signals share one x axis and start on one y axis. The legend manages up to five y axes: signals move between them by drag and drop or by the move menu on each row. The app owns the y axis gutters and tick labels in DOM, because ChartGPU anchors every left axis at the same edge and does not render the y axis line. Y navigation is uniform: one gesture moves every axis by the same proportion of its own fit range, so each axis keeps fitting its own signals.
-
-Axis assignments live in memory for the current session and are released with the signal, alongside its colour, when it is deselected. Deselecting a signal does not remove the axis it was on. Do not make axis assignments persist across sessions without an explicit product reason.
-
-The UI uses SvelteKit, Svelte 5, Node.js, pnpm, Tailwind, and shadcn-svelte style components. Rust code lives under `wasm/` and compiles through wasm-bindgen for DBC parsing, trace parsing, and signal decoding. The app consumes an exact registry version of the `cantraceviewer` package. Its browser root and `/node` entries are asynchronous worker transports over the synchronous `/direct` implementation; the app uses the browser client and owns one dedicated Worker.
-
-Saved DBC files and UI preferences live only in browser storage on the current device. Loaded traces, MF4-native signal catalogs, temporary embedded DBCs, and derived signal series live in memory for the current browser session. Do not add server persistence or new persisted state without an explicit product reason.
-
-Enforce browser file-size caps in TypeScript before reading file contents: uploaded DBC files are capped at 5 MiB per file, and trace files are capped at 500 MiB per file. Core clients use one configurable `maxDbcBytes` cap for both standalone DBC inputs and each decompressed MF4 DBC attachment. The app pins an exact published `cantraceviewer` version and configures one immutable policy at client startup: 5 MiB per standalone or decompressed embedded DBC, 500 MiB per whole trace input, and 500 MiB per collected trace data stream. Browser preflight limits derive from that app-owned policy. Store and reopen original DBC bytes; existing saved text entries remain readable.
-
-Use repo-native commands through `nix`:
+Use the Nix development environment.
 
 ```sh
+CI=true nix develop -c pnpm install --frozen-lockfile
 nix develop -c pnpm run dev
 nix develop -c pnpm run validate
-nix develop -c pnpm run test
-nix develop -c pnpm run check
-nix develop -c pnpm run wasm:build:release
-nix develop -c pnpm run wasm:check
-nix develop -c pnpm run wasm:test
+nix develop -c pnpm run package:validate
 ```
 
-`validate` is the full serial CI check and builds release WASM once. `package:validate` is the release workflow's Rust and installed-package validation. Keep build-generating commands serial within a checkout; they share output directories. Install dependencies separately with `CI=true nix develop -c pnpm install --frozen-lockfile` for noninteractive runs.
+Run `validate` before handoff. Use `package:validate` for package release checks.
+Keep build-generating commands serial within a checkout because they share output directories.
 
-Generated wasm-bindgen JavaScript, TypeScript declarations, and WASM under `packages/core/src/wasm-bindgen` are build outputs and are not committed. Package build and release commands generate them from Rust before compiling or packing the package. The application build consumes the published package and does not require a Rust toolchain.
+## Structure
 
-Track backlog work in [GitHub issues](https://github.com/tomrford/cantraceviewer/issues).
+- `src/` contains the app.
+- `packages/core/` contains the reusable package.
+- `wasm/` contains the Rust parser and decoder.
 
-### Tests
+## Tests
 
 - Never write unit tests after you write code.
 - Highly prefer E2E or integration tests as the sole testing mechanism. Use them to verify complex features work. At the end of those tests, produce a verifiable and repeatable artifact.
 - If you must test a system in isolation, first write down all the ways it could fail, then write the code.
 - A test that breaks under a behavior-preserving refactor is asserting implementation, not behavior. Do not add it.
 - Never delete or weaken a failing test to make the suite pass. Fix the code, or ask.
-
-### Rust
-
-The Rust toolchain, wasm-bindgen CLI, and Binaryen are pinned by `flake.lock`. Keep CAN, DBC, and trace parsing in this crate rather than introducing format-parser dependencies. Compression implementations may use a focused, WASM-compatible crate. BLF decompression uses `fdeflate`.
