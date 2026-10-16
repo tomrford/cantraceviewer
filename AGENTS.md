@@ -31,3 +31,11 @@ Keep build-generating commands serial within a checkout because they share outpu
 - If you must test a system in isolation, first write down all the ways it could fail, then write the code.
 - A test that breaks under a behavior-preserving refactor is asserting implementation, not behavior. Do not add it.
 - Never delete or weaken a failing test to make the suite pass. Fix the code, or ask.
+
+## Reference sources
+
+Clone upstream sources into `.repos/` (gitignored) only when needed; prefer a shallow clone at the noted ref.
+
+- python-can: https://github.com/hardbyte/python-can (trace format readers/writers)
+- chartgpu: https://github.com/chartgpu/chartgpu at the version in `package.json`
+- blf_asc: crate `blf_asc` 0.2.0
