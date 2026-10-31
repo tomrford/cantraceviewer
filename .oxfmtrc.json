@@ -4,9 +4,8 @@
 	"singleQuote": true,
 	"trailingComma": "none",
 	"printWidth": 100,
-	"svelte": true,
 	"sortTailwindcss": {
-		"stylesheet": "./src/routes/layout.css"
+		"stylesheet": "./src/app.css"
 	},
 	"sortPackageJson": false,
 	"ignorePatterns": [

@@ -1,22 +1,13 @@
-import adapter from '@sveltejs/adapter-static';
-import { sveltekit } from '@sveltejs/kit/vite';
+import babel from '@rolldown/plugin-babel';
 import tailwindcss from '@tailwindcss/vite';
+import react, { reactCompilerPreset } from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-	plugins: [
-		tailwindcss(),
-		sveltekit({
-			adapter: adapter(),
-			compilerOptions: {
-				runes: ({ filename }) =>
-					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
-			},
-			paths: {
-				relative: false
-			}
-		})
-	],
+	plugins: [tailwindcss(), react(), babel({ presets: [reactCompilerPreset()] })],
+	publicDir: 'static',
+	build: { outDir: 'build' },
+	worker: { format: 'es' },
 	optimizeDeps: { exclude: ['cantraceviewer'] },
 	test: {
 		expect: { requireAssertions: true },

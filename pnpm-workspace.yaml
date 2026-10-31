@@ -19,5 +19,3 @@ minimumReleaseAgeExclude:
 # (2026-10-08T18:24Z) are newer than 4320 minutes.
 overrides:
   miniflare>sharp: 0.35.5
-patchedDependencies:
-  svelte-check@4.7.1: patches/svelte-check@4.7.1.patch

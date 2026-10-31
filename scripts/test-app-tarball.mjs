@@ -19,7 +19,8 @@ try {
 		'src',
 		'wasm/tests/fixtures',
 		'static',
-		'patches',
+		'scripts/prerender.mjs',
+		'index.html',
 		'components.json',
 		'tsconfig.json',
 		'vite.config.ts'
@@ -38,9 +39,11 @@ try {
 	await cp(join(repo, 'pnpm-lock.yaml'), join(root, 'pnpm-lock.yaml'));
 
 	execFileSync('pnpm', ['install', '--no-frozen-lockfile'], { cwd: root, stdio: 'inherit' });
-	for (const script of ['check:app', 'test:run']) {
-		execFileSync('pnpm', ['run', script], { cwd: root, stdio: 'inherit' });
-	}
+	execFileSync('pnpm', ['exec', 'tsc', '--noEmit', '-p', 'tsconfig.json'], {
+		cwd: root,
+		stdio: 'inherit'
+	});
+	execFileSync('pnpm', ['run', 'test:run'], { cwd: root, stdio: 'inherit' });
 	const installed = JSON.parse(
 		await readFile(join(root, 'node_modules/cantraceviewer/package.json'), 'utf8')
 	);
@@ -50,7 +53,7 @@ try {
 	assert.equal(await readFile(join(root, 'build/index.html'), 'utf8').then(Boolean), true);
 	const output = await readdir(join(root, 'build'), { recursive: true });
 	assert(
-		output.some((name) => /workers\/worker-.*\.js$/.test(name)),
+		output.some((name) => /(^|\/)worker-[^/]*\.js$/.test(name)),
 		'app omitted Worker'
 	);
 	assert(
