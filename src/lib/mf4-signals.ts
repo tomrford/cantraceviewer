@@ -2,7 +2,7 @@ import {
 	buildSelectorSearchIndexes,
 	type SelectorDbcFile,
 	type SelectorSearchIndex
-} from '#lib/stores/dbc-files.svelte.js';
+} from '#lib/selector-list.js';
 import type { Mf4Signal, Mf4SignalGroup, OpenTraceResult } from '#lib/wasm.js';
 
 type Mf4Trace = OpenTraceResult & { id: number };

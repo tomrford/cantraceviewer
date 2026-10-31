@@ -1,7 +1,7 @@
 import { formatDecodedValue, nearestSignalSample } from '#lib/signal-plot-data.js';
 import { searchIndex } from '#lib/search-index.js';
-import type { SelectorSearchIndex } from '#lib/stores/dbc-files.svelte.js';
-import type { PlotSignal } from '#lib/stores/plot-data.svelte.js';
+import type { SelectorSearchIndex } from '#lib/selector-list.js';
+import type { PlotSignal } from '#lib/stores/plot-data.js';
 import { MAX_Y_AXES } from '#lib/plot-axes.js';
 import type { CrosshairId, LegendCrosshairMode } from '#lib/plot-crosshair.js';
 import type { PlotAxisRange } from '#lib/plot-viewport.js';

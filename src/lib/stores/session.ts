@@ -1,24 +1,24 @@
-import { dbcFiles } from './dbc-files.svelte.js';
-import { plotAxes } from './plot-axes.svelte.js';
-import { plotData } from './plot-data.svelte.js';
-import { resetPreferences } from './preferences.svelte.js';
-import { traceFile } from './trace-file.svelte.js';
+import { addTransientDbcs, removeDbcFile, resetDbcLibrary } from './dbc-files.js';
+import { resetAxes } from './plot-axes.js';
+import { clearSelectedSignals, deselectDbcFile } from './plot-data.js';
+import { resetPreferences } from './preferences.js';
+import { traceFile } from './trace-file.js';
 
 export async function onTraceOpened(): Promise<void> {
-	plotData.clearSelectedSignals();
-	plotAxes.reset();
-	const trace = traceFile.entry;
-	await dbcFiles.addTransientDbcs(trace?.id ?? 0, trace?.embeddedDbcs ?? []);
+	clearSelectedSignals();
+	resetAxes();
+	const trace = traceFile.getState().entry;
+	await addTransientDbcs(trace?.id ?? 0, trace?.embeddedDbcs ?? []);
 }
 
 export async function onDbcRemoved(dbcFileId: string): Promise<void> {
-	plotData.deselectDbcFile(dbcFileId);
-	await dbcFiles.removeFile(dbcFileId);
+	deselectDbcFile(dbcFileId);
+	await removeDbcFile(dbcFileId);
 }
 
 export async function onResetPersistentData(): Promise<void> {
-	plotData.clearSelectedSignals();
-	plotAxes.reset();
+	clearSelectedSignals();
+	resetAxes();
 	resetPreferences();
-	await dbcFiles.resetLibrary();
+	await resetDbcLibrary();
 }

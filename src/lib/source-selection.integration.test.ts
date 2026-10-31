@@ -15,9 +15,22 @@ vi.mock('cantraceviewer', async () => {
 		}
 	};
 });
-import { dbcFiles, buildSelectorSearchIndexes } from './stores/dbc-files.svelte.js';
-import { traceFile } from './stores/trace-file.svelte.js';
-import { plotData } from './stores/plot-data.svelte.js';
+import {
+	addDbcFiles,
+	addTransientDbcs,
+	clearDbcFiles,
+	dbcFiles,
+	loadDbcLibrary,
+	removeDbcFile
+} from './stores/dbc-files.js';
+import { openTraceFile, traceFile } from './stores/trace-file.js';
+import {
+	clearSelectedSignals,
+	deselectDbcFile,
+	plotData,
+	toggleSignal
+} from './stores/plot-data.js';
+import { buildSelectorSearchIndexes } from './selector-list.js';
 import { onTraceOpened } from './stores/session.js';
 import { searchCatalogSignals } from './webmcp-tools.js';
 import { closeTrace } from './wasm.js';
@@ -26,19 +39,20 @@ import * as library from './stores/dbc-library.js';
 const fixture = async (name: string) =>
 	new File([await readFile(`wasm/tests/fixtures/${name}`)], name);
 afterAll(async () => {
-	plotData.clearSelectedSignals();
-	await dbcFiles.clear();
-	if (traceFile.entry) await closeTrace(traceFile.entry.handle);
-	traceFile.entry = null;
+	clearSelectedSignals();
+	await clearDbcFiles();
+	const { entry } = traceFile.getState();
+	if (entry) await closeTrace(entry.handle);
+	traceFile.setState(traceFile.getInitialState());
 	await transport.client?.close();
 });
 
 describe('published package app integration', () => {
 	it('keeps observed sources separate through selector, public search, decode and deletion', async () => {
-		expect(await traceFile.openFile(await fixture('source-selection.asc'))).toBe(true);
-		await dbcFiles.addFiles([await fixture('source-selection.dbc')]);
-		expect(dbcFiles.error).toBeNull();
-		const messages = dbcFiles.selectorFiles[0].messages;
+		expect(await openTraceFile(await fixture('source-selection.asc'))).toBe(true);
+		await addDbcFiles([await fixture('source-selection.dbc')]);
+		expect(dbcFiles.getState().error).toBeNull();
+		const messages = dbcFiles.getState().selectorFiles[0].messages;
 		const badges = (name: string) =>
 			messages.filter((m) => m.name === name).map((m) => m.sourceBadges);
 		expect(badges('BusOnly')).toEqual([['1'], ['2']]);
@@ -55,7 +69,7 @@ describe('published package app integration', () => {
 		]);
 		expect(badges('Extended')).toEqual([[]]);
 		const hits = searchCatalogSignals(
-			buildSelectorSearchIndexes(dbcFiles.selectorFiles),
+			buildSelectorSearchIndexes(dbcFiles.getState().selectorFiles),
 			'Value',
 			() => false,
 			50
@@ -67,24 +81,26 @@ describe('published package app integration', () => {
 		expect(hits.map((h) => h.label)).toContain('UnknownChannel.Value [Unknown channel · Rx]');
 		const expected = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130];
 		for (const [index, hit] of hits.entries()) {
-			await plotData.toggleSignal(hit.key);
-			const plotted = plotData.signals.find((s) => s.key === hit.key);
+			await toggleSignal(hit.key);
+			const plotted = plotData.getState().signals.find((s) => s.key === hit.key);
 			expect(plotted?.label).toBe(hit.label);
 			expect(plotted?.series?.values[0]).toBe(expected[index]);
 			expect(plotted?.series?.timesMs[0]).toBe(0);
 		}
-		await plotData.toggleSignal(hits[1].key);
-		expect(plotData.signals.map((s) => s.key)).not.toContain(hits[1].key);
-		expect(plotData.signals.find((s) => s.key === hits[0].key)?.series?.values[1]).toBe(11);
-		plotData.deselectDbcFile(dbcFiles.files[0].id);
-		await dbcFiles.removeFile(dbcFiles.files[0].id);
-		expect(plotData.signals).toEqual([]);
-		expect(dbcFiles.selectorFiles).toEqual([]);
+		await toggleSignal(hits[1].key);
+		expect(plotData.getState().signals.map((s) => s.key)).not.toContain(hits[1].key);
+		expect(plotData.getState().signals.find((s) => s.key === hits[0].key)?.series?.values[1]).toBe(
+			11
+		);
+		deselectDbcFile(dbcFiles.getState().files[0].id);
+		await removeDbcFile(dbcFiles.getState().files[0].id);
+		expect(plotData.getState().signals).toEqual([]);
+		expect(dbcFiles.getState().selectorFiles).toEqual([]);
 	});
 	it('retains positioned diagnostics through upload, reload and embedded imports while decoding usable signals', async () => {
-		plotData.clearSelectedSignals();
-		await dbcFiles.clear();
-		expect(await traceFile.openFile(await fixture('source-selection.asc'))).toBe(true);
+		clearSelectedSignals();
+		await clearDbcFiles();
+		expect(await openTraceFile(await fixture('source-selection.asc'))).toBe(true);
 		const input = await fixture('partial-load.dbc');
 		const bytes = new Uint8Array(await input.arrayBuffer());
 		const expectedWarnings = [
@@ -104,57 +120,60 @@ describe('published package app integration', () => {
 			}
 		];
 		const checkEntry = () => {
-			const entry = dbcFiles.files[0];
+			const entry = dbcFiles.getState().files[0];
 			expect(entry.name).toBe('partial-load.dbc');
 			expect(entry.warnings).toEqual(expectedWarnings);
 			expect(entry.catalog.messages).toHaveLength(8);
 			expect(entry.catalog.messages.flatMap((m) => m.signals)).toHaveLength(8);
-			expect(dbcFiles.selectorFiles[0].messages).toHaveLength(14);
-			expect(dbcFiles.error).toBeNull();
+			expect(dbcFiles.getState().selectorFiles[0].messages).toHaveLength(14);
+			expect(dbcFiles.getState().error).toBeNull();
 		};
-		await dbcFiles.addFiles([input]);
+		await addDbcFiles([input]);
 		checkEntry();
-		const uploadedWarnings = structuredClone(dbcFiles.files[0].warnings);
-		const key = dbcFiles.selectorFiles[0].messages[0].signals[0].key;
-		await plotData.toggleSignal(key);
-		expect(plotData.signals[0].series?.values[0]).toBe(10);
-		plotData.clearSelectedSignals();
-		await dbcFiles.clear();
+		const uploadedWarnings = structuredClone(dbcFiles.getState().files[0].warnings);
+		const key = dbcFiles.getState().selectorFiles[0].messages[0].signals[0].key;
+		await toggleSignal(key);
+		expect(plotData.getState().signals[0].series?.values[0]).toBe(10);
+		clearSelectedSignals();
+		await clearDbcFiles();
 		// Node has no IndexedDB: substitute only the storage read, retaining real parsing.
 		const stored = vi
 			.spyOn(library, 'listStoredDbcs')
 			.mockResolvedValueOnce([{ id: 'saved-partial', name: input.name, bytes }]);
-		dbcFiles.hasLoadedLibrary = false;
-		await dbcFiles.loadLibrary();
+		dbcFiles.setState({ hasLoadedLibrary: false });
+		await loadDbcLibrary();
 		stored.mockRestore();
 		checkEntry();
-		expect(dbcFiles.files[0].warnings).toEqual(uploadedWarnings);
-		await dbcFiles.clear();
-		expect(
-			await traceFile.openFile(new File([await compressedAttachment(bytes)], 'partial.mf4'))
-		).toBe(true);
-		await dbcFiles.addTransientDbcs(traceFile.entry!.id, traceFile.entry!.embeddedDbcs);
-		expect(dbcFiles.files[0].warnings).toEqual(uploadedWarnings);
-		expect(dbcFiles.files[0].catalog.messages).toHaveLength(8);
-		expect(dbcFiles.files[0].origin).toBe('mf4');
-		await dbcFiles.clear();
-		await dbcFiles.addFiles([await fixture('malformed-source.dbc')]);
-		expect(dbcFiles.files).toEqual([]);
-		expect(dbcFiles.error).toContain('malformed-source.dbc');
-		expect(dbcFiles.error).toContain('2:3: SG_');
+		expect(dbcFiles.getState().files[0].warnings).toEqual(uploadedWarnings);
+		await clearDbcFiles();
+		expect(await openTraceFile(new File([await compressedAttachment(bytes)], 'partial.mf4'))).toBe(
+			true
+		);
+		await addTransientDbcs(
+			traceFile.getState().entry!.id,
+			traceFile.getState().entry!.embeddedDbcs
+		);
+		expect(dbcFiles.getState().files[0].warnings).toEqual(uploadedWarnings);
+		expect(dbcFiles.getState().files[0].catalog.messages).toHaveLength(8);
+		expect(dbcFiles.getState().files[0].origin).toBe('mf4');
+		await clearDbcFiles();
+		await addDbcFiles([await fixture('malformed-source.dbc')]);
+		expect(dbcFiles.getState().files).toEqual([]);
+		expect(dbcFiles.getState().error).toContain('malformed-source.dbc');
+		expect(dbcFiles.getState().error).toContain('2:3: SG_');
 	});
 	it('accepts original Windows-1252 bytes at the exact app DBC cap and rejects over-cap before reading', async () => {
 		const bytes = await readFile('wasm/tests/fixtures/encoding-windows1252.dbc');
 		const padded = new Uint8Array(5 * 1024 * 1024).fill(32);
 		padded.set(bytes);
-		await dbcFiles.addFiles([new File([padded], 'legacy-exact.dbc')]);
-		expect(dbcFiles.error).toBeNull();
-		expect(dbcFiles.files[0].catalog.messages[0].signals[0].unit).toBe('°C € – ™');
+		await addDbcFiles([new File([padded], 'legacy-exact.dbc')]);
+		expect(dbcFiles.getState().error).toBeNull();
+		expect(dbcFiles.getState().files[0].catalog.messages[0].signals[0].unit).toBe('°C € – ™');
 		const oversized = new File([padded, ' '], 'legacy-over.dbc');
 		const reading = vi.spyOn(oversized, 'arrayBuffer');
-		await dbcFiles.addFiles([oversized]);
+		await addDbcFiles([oversized]);
 		expect(reading).not.toHaveBeenCalled();
-		expect(dbcFiles.error).toBe('DBC file exceeds the 5 MiB limit');
+		expect(dbcFiles.getState().error).toBe('DBC file exceeds the 5 MiB limit');
 	});
 	it('imports exact-cap compressed legacy attachments and skips one byte over', async () => {
 		const bytes = new Uint8Array(5 * 1024 * 1024).fill(32);
@@ -162,17 +181,18 @@ describe('published package app integration', () => {
 		for (const accepted of [true, false]) {
 			const input = accepted ? bytes : new Uint8Array(bytes.length + 1).fill(32);
 			if (!accepted) input.set(bytes);
-			expect(
-				await traceFile.openFile(new File([await compressedAttachment(input)], 'legacy.mf4'))
-			).toBe(true);
-			const trace = traceFile.entry!;
+			expect(await openTraceFile(new File([await compressedAttachment(input)], 'legacy.mf4'))).toBe(
+				true
+			);
+			const trace = traceFile.getState().entry!;
 			expect(trace.embeddedDbcs.length).toBe(accepted ? 1 : 0);
 			if (accepted) {
 				expect(Buffer.compare(trace.embeddedDbcs[0].bytes, bytes)).toBe(0);
-				await dbcFiles.addTransientDbcs(trace.id, trace.embeddedDbcs);
-				expect(dbcFiles.error).toBeNull();
+				await addTransientDbcs(trace.id, trace.embeddedDbcs);
+				expect(dbcFiles.getState().error).toBeNull();
 				expect(
-					dbcFiles.files.find((file) => file.origin === 'mf4')?.catalog.messages[0].signals[0].unit
+					dbcFiles.getState().files.find((file) => file.origin === 'mf4')?.catalog.messages[0]
+						.signals[0].unit
 				).toBe('°C € – ™');
 			} else {
 				expect(trace.warnings).toContain(
@@ -182,22 +202,22 @@ describe('published package app integration', () => {
 		}
 	});
 	it('opens the native demo and preserves the saved DBC through trace replacement', async () => {
-		plotData.clearSelectedSignals();
-		await dbcFiles.clear();
-		await dbcFiles.addFiles([await fixture('source-selection.dbc')]);
-		const saved = dbcFiles.files[0];
+		clearSelectedSignals();
+		await clearDbcFiles();
+		await addDbcFiles([await fixture('source-selection.dbc')]);
+		const saved = dbcFiles.getState().files[0];
 		const catalog = structuredClone(saved.catalog);
 		const persist = vi.spyOn(library, 'putStoredDbcs');
 		try {
 			expect(
-				await traceFile.openFile(new File([await readFile('static/example.mf4')], 'example.mf4'))
+				await openTraceFile(new File([await readFile('static/example.mf4')], 'example.mf4'))
 			).toBe(true);
 			await onTraceOpened();
-			expect(traceFile.entry?.hasRawFrames).toBe(false);
-			expect(traceFile.entry?.embeddedDbcs).toEqual([]);
-			expect(traceFile.entry?.metadata.durationNs).toBe(90_000_000_000);
-			expect(traceFile.entry?.mf4Catalog?.groups).toHaveLength(1);
-			const group = traceFile.entry!.mf4Catalog!.groups[0];
+			expect(traceFile.getState().entry?.hasRawFrames).toBe(false);
+			expect(traceFile.getState().entry?.embeddedDbcs).toEqual([]);
+			expect(traceFile.getState().entry?.metadata.durationNs).toBe(90_000_000_000);
+			expect(traceFile.getState().entry?.mf4Catalog?.groups).toHaveLength(1);
+			const group = traceFile.getState().entry!.mf4Catalog!.groups[0];
 			expect(group.name).toBe('Decoded powertrain');
 			expect(group.signals.map(({ name, unit }) => ({ name, unit }))).toEqual([
 				{ name: 'VehicleSpeed', unit: 'km/h' },
@@ -208,29 +228,29 @@ describe('published package app integration', () => {
 				['EngineSpeed', [800, 2600, 2400, 2300, 1400, 800]]
 			] as const;
 			for (const [name, values] of expected) {
-				const [key] = [...traceFile.mf4SignalTargetByKey].find(
+				const [key] = [...traceFile.getState().mf4SignalTargetByKey].find(
 					([, target]) => target.signal.name === name
 				)!;
-				await plotData.toggleSignal(key);
-				const series = plotData.signals.find((signal) => signal.key === key)!.series!;
+				await toggleSignal(key);
+				const series = plotData.getState().signals.find((signal) => signal.key === key)!.series!;
 				expect(series.timesMs).toHaveLength(901);
 				expect([0, 100, 200, 400, 600, 900].map((index) => series.timesMs[index])).toEqual([
 					0, 10_000, 20_000, 40_000, 60_000, 90_000
 				]);
 				expect([0, 100, 200, 400, 600, 900].map((index) => series.values[index])).toEqual(values);
 			}
-			expect(dbcFiles.files).toEqual([saved]);
+			expect(dbcFiles.getState().files).toEqual([saved]);
 			expect(saved.catalog).toEqual(catalog);
-			expect(await traceFile.openFile(await fixture('source-selection.asc'))).toBe(true);
+			expect(await openTraceFile(await fixture('source-selection.asc'))).toBe(true);
 			await onTraceOpened();
-			expect(plotData.signals).toEqual([]);
-			expect(traceFile.mf4SignalTargetByKey.size).toBe(0);
-			expect(dbcFiles.files).toEqual([saved]);
+			expect(plotData.getState().signals).toEqual([]);
+			expect(traceFile.getState().mf4SignalTargetByKey.size).toBe(0);
+			expect(dbcFiles.getState().files).toEqual([saved]);
 			expect(saved.catalog).toEqual(catalog);
 			expect(persist).not.toHaveBeenCalled();
-			const key = dbcFiles.selectorFiles[0].messages[0].signals[0].key;
-			await plotData.toggleSignal(key);
-			expect(plotData.signals[0].series?.values[0]).toBe(10);
+			const key = dbcFiles.getState().selectorFiles[0].messages[0].signals[0].key;
+			await toggleSignal(key);
+			expect(plotData.getState().signals[0].series?.values[0]).toBe(10);
 		} finally {
 			persist.mockRestore();
 		}

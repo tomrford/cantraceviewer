@@ -1,4 +1,4 @@
-import type { PlotSignal } from './stores/plot-data.svelte.js';
+import type { PlotSignal } from './stores/plot-data.js';
 
 export type LegendOrderMode = 'selection' | 'alphabetical' | 'grouped';
 

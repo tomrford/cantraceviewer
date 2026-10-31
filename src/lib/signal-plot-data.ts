@@ -1,6 +1,6 @@
 import { paddedXRange, paddedYRange, type PlotAxisRange, type PlotViewport } from './plot-viewport';
-import type { PlotSignal } from './stores/plot-data.svelte.js';
-import type { TimestampMode } from './stores/preferences.svelte.js';
+import type { PlotSignal } from './stores/plot-data.js';
+import type { TimestampMode } from './stores/preferences.js';
 
 export type DecodedValueFormatContext = Pick<
 	PlotSignal,

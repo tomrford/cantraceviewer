@@ -18,20 +18,26 @@ type MaterializedSignal = {
 
 type WindowSlice = { start: number; end: number; xMin: number; xMax: number };
 
+/**
+ * Windows and LTTB-samples signal views around the viewport, reusing buffered slices while
+ * panning. `settleAfter` re-samples exactly once interaction pauses and calls `onSettle` when
+ * that changed any view, so the caller can push the result again.
+ */
 export class PlotWindow {
-	#revision = $state(0);
-	// eslint-disable-next-line svelte/prefer-svelte-reactivity
 	#cache = new Map<string, MaterializedSignal>();
 	#lastViews: WindowedSignalView[] = [];
 	#settleTimer: ReturnType<typeof setTimeout> | null = null;
+	#onSettle: () => void;
+
+	constructor(onSettle: () => void) {
+		this.#onSettle = onSettle;
+	}
 
 	viewsFor(views: SignalView[], viewport: PlotViewport | null): WindowedSignalView[] {
-		void this.#revision;
 		const budget = perSignalBudget(views);
 		const next = views.map((view) => this.#materialize(view, viewport, budget, false));
 
 		if (this.#cache.size !== views.length) {
-			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- transient lookup set
 			const keep = new Set(views.map((view) => view.key));
 			for (const key of this.#cache.keys()) {
 				if (!keep.has(key)) this.#cache.delete(key);
@@ -52,7 +58,7 @@ export class PlotWindow {
 				const before = this.#cache.get(view.key)?.view;
 				if (this.#materialize(view, viewport, budget, true) !== before) changed = true;
 			}
-			if (changed) this.#revision += 1;
+			if (changed) this.#onSettle();
 		}, SETTLE_MS);
 	}
 

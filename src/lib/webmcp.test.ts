@@ -1,10 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createWebMcpPlotHost } from './webmcp-plot.js';
-import { PlotViewportState } from './plot-viewport-state.svelte.js';
-import { plotAxes } from './stores/plot-axes.svelte.js';
-import type { LegendCrosshairMode, PlotCrosshair } from './plot-crosshair.js';
-import { buildSelectorSearchIndexes, type SelectorDbcFile } from './stores/dbc-files.svelte.js';
-import { documentModelContext, mountWebMcp } from './webmcp.js';
+import { addAxis, plotAxes, removeAxis, resetAxes } from './stores/plot-axes.js';
+import { plotModel } from './stores/plot-model.js';
+import { plotView, setViewport } from './stores/plot-view.js';
+import { buildSelectorSearchIndexes, type SelectorDbcFile } from './selector-list.js';
+import { documentModelContext, mountWebMcp, storeHost } from './webmcp.js';
 import {
 	INSPECTION_SIGNAL_LIMIT,
 	SEARCH_RESULT_LIMIT_MAX,
@@ -196,30 +195,38 @@ describe('WebMCP numerical analysis', () => {
 });
 
 describe('WebMCP shared plot', () => {
-	afterEach(() => plotAxes.reset());
+	afterEach(() => {
+		resetAxes();
+		plotView.setState(plotView.getInitialState());
+	});
+
+	const axes = () => plotAxes.getState();
+	const viewport = () => plotView.getState();
+	const state = () => ({
+		crosshairs: plotView.getState().crosshairs,
+		readout: plotView.getState().legendCrosshairMode
+	});
 
 	function plot() {
-		const viewport = new PlotViewportState();
-		viewport.domainSource = () => ({ xMin: 0, xMax: 20, yMin: 0, yMax: 8000 });
-		const state: { crosshairs: PlotCrosshair[]; readout: LegendCrosshairMode } = {
-			crosshairs: [],
-			readout: 'c1'
-		};
+		plotModel.setState({ fullDomain: { xMin: 0, xMax: 20, yMin: 0, yMax: 8000 } });
 		const host = fakeHost({
-			...createWebMcpPlotHost(viewport, state),
+			view: storeHost.view,
+			setTimeWindow: storeHost.setTimeWindow,
+			setCrosshairs: storeHost.setCrosshairs,
+			setSignalAxes: storeHost.setSignalAxes,
 			session: () => ({
 				...sessionSnapshot(),
 				plotted: sessionSnapshot().plotted.map((signal) => ({
 					...signal,
-					axis: plotAxes.ids.indexOf(plotAxes.assignment.get(signal.key) ?? 'y') + 1
+					axis: axes().ids.indexOf(axes().assignment.get(signal.key) ?? 'y') + 1
 				}))
 			})
 		});
-		return { viewport, state, tools: toolsByName(host) };
+		return { tools: toolsByName(host) };
 	}
 
 	it('places exact markers and reads their nearest samples without moving the shared plot', async () => {
-		const { viewport, state, tools } = plot();
+		const { tools } = plot();
 		await tools.set_time_window.execute({ startMs: 2, endMs: 18 });
 		const result = await tools.set_crosshairs.execute({
 			crosshairs: [
@@ -228,7 +235,7 @@ describe('WebMCP shared plot', () => {
 			],
 			readout: 'delta'
 		});
-		expect(state).toEqual({
+		expect(state()).toEqual({
 			crosshairs: [
 				{ id: 1, x: 4, y: 1000 },
 				{ id: 2, x: 16, y: 4000 }
@@ -248,14 +255,14 @@ describe('WebMCP shared plot', () => {
 				}
 			]
 		});
-		const before = structuredClone(state);
+		const before = structuredClone(state());
 		await tools.inspect_at_times.execute({ timesMs: [-5, 10, 25] });
-		expect(state).toEqual(before);
-		expect(viewport.activeViewport).toEqual({ xMin: 2, xMax: 18, yMin: 0, yMax: 8000 });
+		expect(state()).toEqual(before);
+		expect(viewport().activeViewport).toEqual({ xMin: 2, xMax: 18, yMin: 0, yMax: 8000 });
 	});
 
 	it('reports clamping, keeps marker heights on moves and normalises the readout on removal', async () => {
-		const { state, tools } = plot();
+		const { tools } = plot();
 		await tools.set_crosshairs.execute({
 			crosshairs: [
 				{ id: 1, timeMs: 5, value: 1200 },
@@ -270,17 +277,17 @@ describe('WebMCP shared plot', () => {
 			view: { crosshairs: [{ id: 1, timeMs: 0, value: 1200 }], readout: 'c1' }
 		});
 		await tools.set_crosshairs.execute({ crosshairs: [{ id: 2, timeMs: 50 }] });
-		expect(state.readout).toBe('c2');
-		expect(state.crosshairs[0].x).toBe(20);
+		expect(state().readout).toBe('c2');
+		expect(state().crosshairs[0].x).toBe(20);
 		await tools.set_crosshairs.execute({ crosshairs: [] });
-		expect(state).toEqual({ crosshairs: [], readout: 'c1' });
+		expect(state()).toEqual({ crosshairs: [], readout: 'c1' });
 		await expect(tools.inspect_at_times.execute({})).rejects.toThrow('Place crosshairs');
 	});
 
 	it('rejects invalid marker batches without altering existing markers', async () => {
-		const { state, tools } = plot();
+		const { tools } = plot();
 		await tools.set_crosshairs.execute({ crosshairs: [{ id: 1, timeMs: 5 }] });
-		const before = structuredClone(state);
+		const before = structuredClone(state());
 		for (const input of [
 			{
 				crosshairs: [
@@ -293,20 +300,20 @@ describe('WebMCP shared plot', () => {
 			{ crosshairs: [{ id: 2, timeMs: 5 }], readout: 'delta' }
 		])
 			await expect(tools.set_crosshairs.execute(input)).rejects.toThrow();
-		expect(state).toEqual(before);
+		expect(state()).toEqual(before);
 	});
 
 	it('preserves Y zoom on time changes and resets all ranges on an empty request', async () => {
-		const { viewport, tools } = plot();
-		viewport.setManual({ xMin: 5, xMax: 15, yMin: 2000, yMax: 6000 });
+		const { tools } = plot();
+		setViewport({ xMin: 5, xMax: 15, yMin: 2000, yMax: 6000 });
 		expect(await tools.set_time_window.execute({ startMs: -10, endMs: 40 })).toMatchObject({
 			clamped: true,
 			view: { isFullTimeRange: true, axes: [{ axis: 1, range: { min: 2000, max: 6000 } }] }
 		});
 		await expect(tools.set_time_window.execute({ startMs: 10 })).rejects.toThrow();
 		await tools.set_time_window.execute({});
-		expect(viewport.isFitAll).toBe(true);
-		expect(viewport.activeViewport).toEqual({ xMin: 0, xMax: 20, yMin: 0, yMax: 8000 });
+		expect(viewport().isFitAll).toBe(true);
+		expect(viewport().activeViewport).toEqual({ xMin: 0, xMax: 20, yMin: 0, yMax: 8000 });
 	});
 
 	it('uses real legend axis assignments, repeats without creating extra axes and preserves empty axes', async () => {
@@ -316,16 +323,16 @@ describe('WebMCP shared plot', () => {
 			plotted: [{ key: engineKey, axis: 2 }]
 		});
 		await tools.set_signal_axes.execute(input);
-		expect(plotAxes.ids).toHaveLength(2);
-		expect(plotAxes.assignment.get(engineKey)).toBe(plotAxes.ids[1]);
+		expect(axes().ids).toHaveLength(2);
+		expect(axes().assignment.get(engineKey)).toBe(axes().ids[1]);
 		await tools.set_signal_axes.execute({ assignments: [{ signal: 'EEC1.EngineSpeed', axis: 1 }] });
-		expect(plotAxes.assignment.has(engineKey)).toBe(false);
-		expect(plotAxes.ids).toHaveLength(2);
-		plotAxes.addAxis();
-		plotAxes.removeAxis(plotAxes.ids[1]);
+		expect(axes().assignment.has(engineKey)).toBe(false);
+		expect(axes().ids).toHaveLength(2);
+		addAxis();
+		removeAxis(axes().ids[1]);
 		await tools.set_signal_axes.execute(input);
-		expect(plotAxes.assignment.get(engineKey)).toBe(plotAxes.ids[1]);
-		expect(plotAxes.ids).toHaveLength(2);
+		expect(axes().assignment.get(engineKey)).toBe(axes().ids[1]);
+		expect(axes().ids).toHaveLength(2);
 	});
 
 	it('validates the entire axis batch before changing the layout', async () => {
@@ -342,8 +349,8 @@ describe('WebMCP shared plot', () => {
 			]
 		])
 			await expect(tools.set_signal_axes.execute({ assignments })).rejects.toThrow();
-		expect(plotAxes.ids).toEqual(['y']);
-		expect(plotAxes.assignment.size).toBe(0);
+		expect(axes().ids).toEqual(['y']);
+		expect(axes().assignment.size).toBe(0);
 	});
 
 	it('enforces inspection limits for explicitly requested signals as well as defaults', async () => {
@@ -370,7 +377,7 @@ describe('WebMCP shared plot', () => {
 describe('WebMCP registration', () => {
 	it('feature-detects absence and registers with a single-input execute contract', async () => {
 		expect(documentModelContext()).toBeNull();
-		mountWebMcp(fakePageHost(), null)();
+		mountWebMcp(null)();
 
 		const registered = new Map<string, ReturnType<typeof createWebMcpTools>[number]>();
 		const context = {
@@ -379,7 +386,7 @@ describe('WebMCP registration', () => {
 				options?.signal?.addEventListener('abort', () => registered.delete(tool.name));
 			})
 		};
-		const unmount = mountWebMcp(fakePageHost(), context);
+		const unmount = mountWebMcp(context);
 		await vi.waitFor(() => expect(registered.has('set_signal_axes')).toBe(true));
 		await expect(registered.get('describe_session')?.execute({})).resolves.toMatchObject({
 			traceLoading: false
@@ -423,15 +430,6 @@ function fakeHost(overrides: Partial<WebMcpHost> = {}): WebMcpHost {
 		session: () => sessionSnapshot(),
 		dbcLibrary: () => ({ loaded: true, loading: false }),
 		...overrides
-	};
-}
-
-function fakePageHost() {
-	return {
-		view: () => viewState(),
-		setTimeWindow: (range: { startMs: number; endMs: number } | null) => range,
-		setCrosshairs: () => {},
-		setSignalAxes: async () => {}
 	};
 }
 

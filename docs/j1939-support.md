@@ -185,7 +185,7 @@ pretending they are ordinary scalar series.
 
 ## UI And Store Work
 
-The DBC overlap guard in `src/lib/stores/dbc-files.svelte.ts` keys by exact CAN
+The DBC overlap guard in `src/lib/stores/dbc-files.ts` keys by exact CAN
 ID and extended flag. J1939 changes that key. The store should key by the parsed
 message identity:
 
@@ -196,7 +196,7 @@ message identity:
 This keeps normal overlap rejection while allowing source-agnostic J1939 DBCs
 to behave like PGN databases.
 
-The plot signal model in `src/lib/stores/plot-data.svelte.ts` should carry
+The plot signal model in `src/lib/stores/plot-data.ts` should carry
 `protocol`, `pgn`, `spn`, `sourceAddress`, and `destinationAddress` when
 available. The first UI pass can keep the existing signal picker layout and add
 metadata to details/legend affordances instead of adding a new protocol panel.
