@@ -127,22 +127,24 @@ class DbcFilesStore {
 			name: displayDbcName(entry.name),
 			kind: 'dbc',
 			transient: entry.origin === 'mf4',
-			messages: entry.catalog.messages.flatMap((message) =>
-				sourceOptions(message, this.rawMessagesById).map((source) => ({
+			messages: entry.catalog.messages.flatMap((message) => {
+				const sources = sourceOptions(message, this.rawMessagesById);
+				const unavailableReason = messageUnavailableReason(
+					message,
+					this.rawMessagesById,
+					traceFile.entry !== null
+				);
+				return sources.map((source) => ({
 					key: selectorMessageKey(entry.id, message, source),
 					name: message.name,
 					sourceLabel: sourceLabel(source),
-					sourceBadges: sourceBadges(source, sourceOptions(message, this.rawMessagesById)),
+					sourceBadges: sourceBadges(source, sources),
 					signals: message.signals.map((signal) => ({
 						...selectorSignal(entry.id, message, signal, source),
-						unavailableReason: messageUnavailableReason(
-							message,
-							this.rawMessagesById,
-							traceFile.entry !== null
-						)
+						unavailableReason
 					}))
-				}))
-			)
+				}));
+			})
 		}))
 	);
 
@@ -408,15 +410,18 @@ function buildSignalTargetIndex(
 
 	for (const file of files) {
 		for (const message of file.catalog.messages) {
-			for (const source of sourceOptions(message, rawMessages)) {
+			const sources = sourceOptions(message, rawMessages);
+			const unavailableReason = messageUnavailableReason(message, rawMessages, traceLoaded);
+			for (const source of sources) {
+				const badges = sourceBadges(source, sources);
 				for (const signal of message.signals) {
 					index[signalIdentityKey(file.id, message, signal.name, source)] = {
-						unavailableReason: messageUnavailableReason(message, rawMessages, traceLoaded),
+						unavailableReason,
 						file,
 						message,
 						signal,
 						source,
-						sourceBadges: sourceBadges(source, sourceOptions(message, rawMessages))
+						sourceBadges: badges
 					};
 				}
 			}

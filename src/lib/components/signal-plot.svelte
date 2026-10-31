@@ -7,6 +7,8 @@
 		plotImageFilename,
 		savePlotImage
 	} from '#lib/plot-image-export.js';
+	import { buildSignalCsv, signalCsvFilename } from '#lib/plot-data-export.js';
+	import { downloadBlob } from '#lib/file-download.js';
 	import type { PlotAxisRange, PlotPoint, PlotViewport } from '#lib/plot-viewport.js';
 	import { plotGrid, Y_TICK_COUNT, type AxisTickGenerator } from '#lib/plot-axis-layout.js';
 	import { FALLBACK_PLOT_THEME, resolvePlotTheme, type PlotTheme } from '#lib/plot-theme.js';
@@ -55,6 +57,7 @@
 	import MinusIcon from '@lucide/svelte/icons/minus';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
+	import TableIcon from '@lucide/svelte/icons/table';
 	import XIcon from '@lucide/svelte/icons/x';
 
 	let {
@@ -369,6 +372,15 @@
 			imageExportBusy = false;
 		}
 	}
+
+	function exportSignalData(): void {
+		const csv = buildSignalCsv(plotData.signals);
+		downloadBlob(
+			new Blob([csv], { type: 'text/csv;charset=utf-8' }),
+			signalCsvFilename(traceFile.displayName)
+		);
+		toast.success('Decoded signal data saved as CSV.');
+	}
 </script>
 
 <section
@@ -500,6 +512,10 @@
 				>
 					<DownloadIcon />
 					Save image
+				</ContextMenu.Item>
+				<ContextMenu.Item disabled={!hasPlottableSignals} onSelect={exportSignalData}>
+					<TableIcon />
+					Save data (CSV)
 				</ContextMenu.Item>
 				<ContextMenu.Separator />
 				<ContextMenu.Item

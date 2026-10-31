@@ -1,3 +1,5 @@
+import { downloadBlob } from './file-download.js';
+
 const EXPORT_BRAND = 'cantraceviewer.com';
 
 export async function capturePlotImage(root: HTMLElement): Promise<Blob> {
@@ -23,16 +25,7 @@ export async function copyPlotImage(image: Promise<Blob>): Promise<void> {
 }
 
 export async function savePlotImage(image: Promise<Blob>, filename: string): Promise<void> {
-	const blob = await image;
-	const url = URL.createObjectURL(blob);
-	const link = document.createElement('a');
-	link.download = filename;
-	link.href = url;
-	link.hidden = true;
-	document.body.appendChild(link);
-	link.click();
-	link.remove();
-	setTimeout(() => URL.revokeObjectURL(url), 0);
+	downloadBlob(await image, filename);
 }
 
 export function plotImageFilename(traceName: string): string {

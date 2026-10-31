@@ -426,9 +426,10 @@
 
 	function formatTraceMetadata(trace: TraceFileEntry): string {
 		const { metadata } = trace;
-		const start = metadata.measurementStartMs
-			? new Date(metadata.measurementStartMs).toLocaleString()
-			: 'Not available';
+		const start =
+			metadata.measurementStartMs === null
+				? 'Not available'
+				: new Date(metadata.measurementStartMs).toLocaleString();
 		const duration =
 			metadata.durationNs === null ? 'Not available' : formatDuration(metadata.durationNs);
 
