@@ -271,7 +271,9 @@ export function SignalPlot({
 
 			{(rendererMessage !== null || !hasData) && (
 				<div
-					role={renderer.status === 'error' ? 'alert' : 'status'}
+					role={
+						rendererMessage === null ? undefined : renderer.status === 'error' ? 'alert' : 'status'
+					}
 					className="absolute inset-0 z-30 flex items-center justify-center px-6 text-center text-sm text-muted-foreground"
 				>
 					{rendererMessage ?? EMPTY_MESSAGE}
