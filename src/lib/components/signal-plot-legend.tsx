@@ -57,23 +57,16 @@ type MoveMenus = { targets: AxisTarget[]; canAddAxis: boolean };
 export function SignalPlotLegend() {
 	const axes = useStore(plotModel, (state) => state.axes);
 	const addable = useStore(plotAxes, canAddAxis);
-	const crosshairs = useStore(plotView, (state) => state.crosshairs);
+	const hasC1 = useStore(plotView, (state) => crosshairById(state.crosshairs, 1) !== null);
+	const hasC2 = useStore(plotView, (state) => crosshairById(state.crosshairs, 2) !== null);
 	const mode = useStore(plotView, (state) => state.legendCrosshairMode);
-	const timestampMode = useStore(preferences, (state) => state.timestampMode);
-	const measurementStartMs = useStore(
-		traceFile,
-		(state) => state.entry?.metadata.measurementStartMs
-	);
 	const [selectOpen, setSelectOpen] = useState(false);
 	useSuspendPlot(selectOpen);
 
-	const c1 = crosshairById(crosshairs, 1);
-	const c2 = crosshairById(crosshairs, 2);
 	const options: { value: LegendCrosshairMode; label: string }[] = [];
-	if (c1 !== null) options.push({ value: 'c1', label: 'Value at C1' });
-	if (c2 !== null) options.push({ value: 'c2', label: 'Value at C2' });
-	if (c1 !== null && c2 !== null) options.push({ value: 'delta', label: 'Delta C2 − C1' });
-	const activeCrosshair = mode === 'c1' ? c1 : mode === 'c2' ? c2 : null;
+	if (hasC1) options.push({ value: 'c1', label: 'Value at C1' });
+	if (hasC2) options.push({ value: 'c2', label: 'Value at C2' });
+	if (hasC1 && hasC2) options.push({ value: 'delta', label: 'Delta C2 − C1' });
 	const multiAxis = axes.length > 1;
 	const menus: MoveMenus = {
 		targets: axes.map((axis) => ({ id: axis.id, label: axis.label })),
@@ -135,20 +128,37 @@ export function SignalPlotLegend() {
 				</button>
 			)}
 
-			{mode === 'delta' && c1 !== null && c2 !== null ? (
-				<div className="mt-2 font-mono text-xs text-muted-foreground tabular-nums">
-					C2 − C1 · Δt {formatTimeDelta(c2.x - c1.x)}
-					{multiAxis ? '' : ` · Δy ${yText(c2.y - c1.y)}`}
-				</div>
-			) : (
-				activeCrosshair !== null && (
-					<div className="mt-2 font-mono text-xs text-muted-foreground tabular-nums">
-						C{activeCrosshair.id} ·{' '}
-						{formatAxisTime(activeCrosshair.x, { measurementStartMs, mode: timestampMode })}
-						{multiAxis ? '' : ` · y ${yText(activeCrosshair.y)}`}
-					</div>
-				)
-			)}
+			<LegendReadout multiAxis={multiAxis} />
+		</div>
+	);
+}
+
+/** The crosshair time/value line; the only legend part that follows crosshair positions. */
+function LegendReadout({ multiAxis }: { multiAxis: boolean }) {
+	const crosshairs = useStore(plotView, (state) => state.crosshairs);
+	const mode = useStore(plotView, (state) => state.legendCrosshairMode);
+	const timestampMode = useStore(preferences, (state) => state.timestampMode);
+	const measurementStartMs = useStore(
+		traceFile,
+		(state) => state.entry?.metadata.measurementStartMs
+	);
+	const c1 = crosshairById(crosshairs, 1);
+	const c2 = crosshairById(crosshairs, 2);
+
+	if (mode === 'delta' && c1 !== null && c2 !== null) {
+		return (
+			<div className="mt-2 font-mono text-xs text-muted-foreground tabular-nums">
+				C2 − C1 · Δt {formatTimeDelta(c2.x - c1.x)}
+				{multiAxis ? '' : ` · Δy ${yText(c2.y - c1.y)}`}
+			</div>
+		);
+	}
+	const active = mode === 'c1' ? c1 : mode === 'c2' ? c2 : null;
+	if (active === null) return null;
+	return (
+		<div className="mt-2 font-mono text-xs text-muted-foreground tabular-nums">
+			C{active.id} · {formatAxisTime(active.x, { measurementStartMs, mode: timestampMode })}
+			{multiAxis ? '' : ` · y ${yText(active.y)}`}
 		</div>
 	);
 }

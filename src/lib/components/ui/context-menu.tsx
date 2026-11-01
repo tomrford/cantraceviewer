@@ -1,14 +1,10 @@
 import * as React from 'react';
 import { ContextMenu as ContextMenuPrimitive } from '@base-ui/react/context-menu';
 import { cn } from '#lib/utils.js';
-import { RiArrowRightSLine, RiCheckLine } from '@remixicon/react';
+import { RiArrowRightSLine } from '@remixicon/react';
 
 function ContextMenu({ ...props }: ContextMenuPrimitive.Root.Props) {
 	return <ContextMenuPrimitive.Root data-slot="context-menu" {...props} />;
-}
-
-function ContextMenuPortal({ ...props }: ContextMenuPrimitive.Portal.Props) {
-	return <ContextMenuPrimitive.Portal data-slot="context-menu-portal" {...props} />;
 }
 
 function ContextMenuTrigger({ className, ...props }: ContextMenuPrimitive.Trigger.Props) {
@@ -49,27 +45,6 @@ function ContextMenuContent({
 				/>
 			</ContextMenuPrimitive.Positioner>
 		</ContextMenuPrimitive.Portal>
-	);
-}
-
-function ContextMenuGroup({ ...props }: ContextMenuPrimitive.Group.Props) {
-	return <ContextMenuPrimitive.Group data-slot="context-menu-group" {...props} />;
-}
-
-function ContextMenuLabel({
-	className,
-	inset,
-	...props
-}: ContextMenuPrimitive.GroupLabel.Props & {
-	inset?: boolean;
-}) {
-	return (
-		<ContextMenuPrimitive.GroupLabel
-			data-slot="context-menu-label"
-			data-inset={inset}
-			className={cn('px-2 py-1.5 text-xs text-muted-foreground data-inset:pl-7.5', className)}
-			{...props}
-		/>
 	);
 }
 
@@ -135,68 +110,6 @@ function ContextMenuSubContent({ ...props }: React.ComponentProps<typeof Context
 	);
 }
 
-function ContextMenuCheckboxItem({
-	className,
-	children,
-	checked,
-	inset,
-	...props
-}: ContextMenuPrimitive.CheckboxItem.Props & {
-	inset?: boolean;
-}) {
-	return (
-		<ContextMenuPrimitive.CheckboxItem
-			data-slot="context-menu-checkbox-item"
-			data-inset={inset}
-			className={cn(
-				"relative flex min-h-7 cursor-default items-center gap-2 rounded-md py-1.5 pr-8 pl-2 text-xs outline-hidden select-none focus:bg-accent focus:text-accent-foreground focus:**:text-accent-foreground data-inset:pl-7.5 data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5",
-				className
-			)}
-			checked={checked}
-			{...props}
-		>
-			<span className="pointer-events-none absolute right-2 flex items-center justify-center">
-				<ContextMenuPrimitive.CheckboxItemIndicator>
-					<RiCheckLine />
-				</ContextMenuPrimitive.CheckboxItemIndicator>
-			</span>
-			{children}
-		</ContextMenuPrimitive.CheckboxItem>
-	);
-}
-
-function ContextMenuRadioGroup({ ...props }: ContextMenuPrimitive.RadioGroup.Props) {
-	return <ContextMenuPrimitive.RadioGroup data-slot="context-menu-radio-group" {...props} />;
-}
-
-function ContextMenuRadioItem({
-	className,
-	children,
-	inset,
-	...props
-}: ContextMenuPrimitive.RadioItem.Props & {
-	inset?: boolean;
-}) {
-	return (
-		<ContextMenuPrimitive.RadioItem
-			data-slot="context-menu-radio-item"
-			data-inset={inset}
-			className={cn(
-				"relative flex min-h-7 cursor-default items-center gap-2 rounded-md py-1.5 pr-8 pl-2 text-xs outline-hidden select-none focus:bg-accent focus:text-accent-foreground focus:**:text-accent-foreground data-inset:pl-7.5 data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5",
-				className
-			)}
-			{...props}
-		>
-			<span className="pointer-events-none absolute right-2 flex items-center justify-center">
-				<ContextMenuPrimitive.RadioItemIndicator>
-					<RiCheckLine />
-				</ContextMenuPrimitive.RadioItemIndicator>
-			</span>
-			{children}
-		</ContextMenuPrimitive.RadioItem>
-	);
-}
-
 function ContextMenuSeparator({ className, ...props }: ContextMenuPrimitive.Separator.Props) {
 	return (
 		<ContextMenuPrimitive.Separator
@@ -225,15 +138,9 @@ export {
 	ContextMenuTrigger,
 	ContextMenuContent,
 	ContextMenuItem,
-	ContextMenuCheckboxItem,
-	ContextMenuRadioItem,
-	ContextMenuLabel,
 	ContextMenuSeparator,
 	ContextMenuShortcut,
-	ContextMenuGroup,
-	ContextMenuPortal,
 	ContextMenuSub,
 	ContextMenuSubContent,
-	ContextMenuSubTrigger,
-	ContextMenuRadioGroup
+	ContextMenuSubTrigger
 };

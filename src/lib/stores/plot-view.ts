@@ -45,8 +45,6 @@ export type PlotViewState = {
 	legendVisible: boolean;
 	/** A legend menu is open; plot pointer interaction is suspended meanwhile. */
 	legendSelectOpen: boolean;
-	/** Transient pointer position over the plot area; read it with getState(), do not render it. */
-	pointerRatio: PlotRatioPoint | null;
 };
 
 const FIT: ViewportMode = { mode: 'fit' };
@@ -59,10 +57,13 @@ export const plotView = createStore<PlotViewState>()(
 		legendCrosshairMode: 'c1',
 		boxZoomEnabled: false,
 		legendVisible: true,
-		legendSelectOpen: false,
-		pointerRatio: null
+		legendSelectOpen: false
 	}))
 );
+
+// Pointer position over the plot area. Kept out of the store: it changes on every hover move and
+// only `placeCrosshair` reads it.
+let pointerRatio: PlotRatioPoint | null = null;
 
 plotModel.subscribe((model, previous) => {
 	if (
@@ -131,7 +132,7 @@ export function upsertCrosshair(crosshair: PlotCrosshair): void {
 
 /** Place a crosshair at the plot pointer (or the viewport centre when off the plot / `'center'`). */
 export function placeCrosshair(id: CrosshairId, anchor: 'pointer' | 'center' = 'pointer'): void {
-	const { activeViewport, pointerRatio } = plotView.getState();
+	const { activeViewport } = plotView.getState();
 	if (activeViewport === null) return;
 	const point =
 		anchor === 'center' || pointerRatio === null
@@ -184,8 +185,8 @@ export function setLegendSelectOpen(open: boolean): void {
 	plotView.setState((state) => ({ legendSelectOpen: open && state.legendVisible }));
 }
 
-export function setPointerRatio(pointerRatio: PlotRatioPoint | null): void {
-	if (plotView.getState().pointerRatio !== pointerRatio) plotView.setState({ pointerRatio });
+export function setPointerRatio(ratio: PlotRatioPoint | null): void {
+	pointerRatio = ratio;
 }
 
 function viewportState(viewportMode: ViewportMode, yWindow: PlotYWindow) {

@@ -47,17 +47,19 @@ export function PlotCrosshairOverlay({
 	const track = useRef<HTMLDivElement>(null);
 	const gesture = useRef<Gesture>({ drag: null, frame: null, pending: null });
 
+	// Drop an in-flight drag when a legend menu opens or the crosshair is removed (C key, Clear
+	// all, WebMCP), so a pending frame cannot re-create it.
 	useEffect(() => {
 		const current = gesture.current;
 		const unsubscribe = plotView.subscribe(
-			(state) => state.legendSelectOpen,
-			(open) => open && cancelGesture(current)
+			(state) => state.legendSelectOpen || crosshairById(state.crosshairs, id) === null,
+			(cancel) => cancel && cancelGesture(current)
 		);
 		return () => {
 			unsubscribe();
 			cancelGesture(current);
 		};
-	}, []);
+	}, [id]);
 
 	function suspended() {
 		return plotView.getState().legendSelectOpen;
@@ -111,7 +113,7 @@ export function PlotCrosshairOverlay({
 		const point = pointAt(event);
 		if (current === null || point === null || state.drag === null) return;
 		state.pending = moveCrosshair(state.pending ?? current, point, state.drag.axis);
-		state.frame ??= requestAnimationFrame(() => flushGesture(state));
+		if (state.frame === null) state.frame = requestAnimationFrame(() => flushGesture(state));
 	}
 
 	function rememberContextMenuPoint(event: MouseEvent) {

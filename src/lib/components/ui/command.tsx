@@ -120,19 +120,6 @@ function CommandGroup({
 	);
 }
 
-function CommandSeparator({
-	className,
-	...props
-}: React.ComponentProps<typeof CommandPrimitive.Separator>) {
-	return (
-		<CommandPrimitive.Separator
-			data-slot="command-separator"
-			className={cn('-mx-1 my-1 h-px bg-border/50', className)}
-			{...props}
-		/>
-	);
-}
-
 function CommandItem({
 	className,
 	children,
@@ -174,6 +161,5 @@ export {
 	CommandEmpty,
 	CommandGroup,
 	CommandItem,
-	CommandShortcut,
-	CommandSeparator
+	CommandShortcut
 };

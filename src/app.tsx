@@ -1,12 +1,9 @@
 import { AudioWaveform, CircleQuestionMark, Database, LoaderCircle } from 'lucide-react';
-import { useEffect, type ChangeEvent, type DragEvent } from 'react';
+import { lazy, Suspense, useEffect, useState, type ChangeEvent, type DragEvent } from 'react';
 import { useStore } from 'zustand';
-import { CommandPalette } from '#lib/components/command-palette.js';
-import { HelpDialog } from '#lib/components/help-dialog.js';
 import { PlotToolbar } from '#lib/components/plot-toolbar.js';
 import { SettingsDialog } from '#lib/components/settings-dialog.js';
 import { ShortcutKey } from '#lib/components/shortcut-key.js';
-import { SignalPlot } from '#lib/components/signal-plot.js';
 import { SignalSelectorDialog } from '#lib/components/signal-selector-dialog.js';
 import {
 	AlertDialog,
@@ -59,6 +56,17 @@ import { isDark, preferences } from '#lib/stores/preferences.js';
 import { clearTraceError, traceFile, type TraceFileEntry } from '#lib/stores/trace-file.js';
 import { TRACE_FILE_ACCEPT, TRACE_FILE_FORMAT_NAMES } from '#lib/trace-file-types.js';
 import { shouldShowWalkthrough, WALKTHROUGH_STEPS } from '#lib/walkthrough.js';
+
+// Not needed for first paint (or the prerendered shell): loaded when a trace opens or a dialog
+// first opens.
+const loadSignalPlot = () => import('#lib/components/signal-plot.js');
+const SignalPlot = lazy(() => loadSignalPlot().then((m) => ({ default: m.SignalPlot })));
+const HelpDialog = lazy(() =>
+	import('#lib/components/help-dialog.js').then((m) => ({ default: m.HelpDialog }))
+);
+const CommandPalette = lazy(() =>
+	import('#lib/components/command-palette.js').then((m) => ({ default: m.CommandPalette }))
+);
 
 const SITE_TITLE = 'CAN Trace Viewer';
 const LANDING_TITLE = 'Plot CAN bus logs in your browser';
@@ -139,6 +147,13 @@ function AppShell() {
 		hasCrosshairs
 	});
 	const stepIndex = WALKTHROUGH_STEPS.findIndex((step) => step.id === stepId);
+	// Dialogs mount on first open and stay mounted so their close animations run.
+	const helpMounted = useOpenedOnce(helpOpen);
+	const paletteMounted = useOpenedOnce(paletteOpen);
+
+	useEffect(() => {
+		if (traceBusy) void loadSignalPlot();
+	}, [traceBusy]);
 
 	const dragHandlers = {
 		onDragEnter: handleTraceDrag,
@@ -212,7 +227,9 @@ function AppShell() {
 			</header>
 
 			{hasTrace ? (
-				<SignalPlot shortcutPlatform={platform} dropActive={dropActive} {...dragHandlers} />
+				<Suspense>
+					<SignalPlot shortcutPlatform={platform} dropActive={dropActive} {...dragHandlers} />
+				</Suspense>
 			) : (
 				<Landing traceBusy={traceBusy} dropActive={dropActive} {...dragHandlers} />
 			)}
@@ -245,22 +262,34 @@ function AppShell() {
 				/>
 			)}
 
-			<HelpDialog
-				open={helpOpen}
-				onOpenChange={(helpOpen) => appShell.setState({ helpOpen })}
-				shortcutPlatform={platform}
-				onStartWalkthrough={startWalkthrough}
-			/>
-
-			<CommandPalette
-				open={paletteOpen}
-				onOpenChange={(paletteOpen) => appShell.setState({ paletteOpen })}
-				shortcutPlatform={platform}
-				state={shortcutState}
-				onRun={runShortcut}
-			/>
+			<Suspense>
+				{helpMounted && (
+					<HelpDialog
+						open={helpOpen}
+						onOpenChange={(helpOpen) => appShell.setState({ helpOpen })}
+						shortcutPlatform={platform}
+						onStartWalkthrough={startWalkthrough}
+					/>
+				)}
+				{paletteMounted && (
+					<CommandPalette
+						open={paletteOpen}
+						onOpenChange={(paletteOpen) => appShell.setState({ paletteOpen })}
+						shortcutPlatform={platform}
+						state={shortcutState}
+						onRun={runShortcut}
+					/>
+				)}
+			</Suspense>
 		</div>
 	);
+}
+
+/** True from the first render where `open` is true onwards. */
+function useOpenedOnce(open: boolean): boolean {
+	const [opened, setOpened] = useState(open);
+	if (open && !opened) setOpened(true);
+	return opened;
 }
 
 function TraceButton({ traceBusy }: { traceBusy: boolean }) {

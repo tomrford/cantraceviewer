@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ComponentProps } from 'react';
 import { useStore } from 'zustand';
 import { toast } from 'sonner';
-import type { ChartGPUInstance, ChartGPUOptions } from 'chartgpu';
+import type { ChartGPUInstance, ChartGPUOptions, ThemeConfig } from 'chartgpu';
 import {
 	BoxSelect,
 	Copy,
@@ -39,11 +39,11 @@ import {
 	savePlotImage
 } from '#lib/plot-image-export.js';
 import { createPlotPerfStats } from '#lib/plot-perf.js';
-import { emptyAxisSeries, plotSeriesForViews } from '#lib/plot-series.js';
+import { emptyAxisSeries, plotSeriesForViews, type PlotSeriesConfig } from '#lib/plot-series.js';
 import { resolvePlotTheme, type PlotTheme } from '#lib/plot-theme.js';
 import type { PlotPoint } from '#lib/plot-viewport.js';
 import { PlotWindow } from '#lib/plot-window.js';
-import { formatAxisTime } from '#lib/signal-plot-data.js';
+import { formatAxisTime, type WindowedSignalView } from '#lib/signal-plot-data.js';
 import { clearSelectedSignals, plotData } from '#lib/stores/plot-data.js';
 import { plotModel, type PlotModelState } from '#lib/stores/plot-model.js';
 import {
@@ -69,6 +69,7 @@ const AXIS_FONT_SIZE = 12;
 const EMPTY_MESSAGE = 'Select signals from the signal selector to view them.';
 
 type ContextTarget = { point: PlotPoint | null; crosshairId: CrosshairId | null };
+type ImageDestination = 'copy' | 'save';
 
 /**
  * The ChartGPU plot with its overlays. Chart options are pushed from store subscriptions on one
@@ -103,84 +104,10 @@ export function SignalPlot({
 		const root = rootRef.current;
 		const surface = surfaceRef.current;
 		if (root === null || surface === null) return;
-
-		let disposed = false;
-		let chart: ChartGPUInstance | null = null;
-		let resizeObserver: ResizeObserver | null = null;
-		let frame: number | null = null;
-		let theme = resolvePlotTheme(getComputedStyle(root));
-		const perfStats = createPlotPerfStats();
-		const plotWindow = new PlotWindow(schedule);
-
-		function currentOptions(): ChartGPUOptions {
-			const model = plotModel.getState();
-			const view = plotView.getState();
-			const views = plotWindow.viewsFor(model.views, view.activeViewport);
-			return chartOptions(theme, model, view, views, {
-				measurementStartMs: traceFile.getState().entry?.metadata.measurementStartMs,
-				mode: preferences.getState().timestampMode
-			});
-		}
-
-		function settle() {
-			plotWindow.settleAfter(plotModel.getState().views, plotView.getState().activeViewport);
-		}
-
-		function schedule() {
-			frame ??= requestAnimationFrame(() => {
-				frame = null;
-				if (chart === null) return;
-				const start = performance.now();
-				chart.setOption(currentOptions());
-				perfStats?.record(performance.now() - start);
-				settle();
-			});
-		}
-
-		const themeObserver = new MutationObserver(() => {
-			theme = resolvePlotTheme(getComputedStyle(root));
-			schedule();
+		return mountChart(root, surface, {
+			onTicks: (generate) => setGenerateTicks(() => generate),
+			onError: setChartError
 		});
-		themeObserver.observe(document.documentElement, { attributeFilter: ['class'] });
-		const unsubscribes = [
-			plotModel.subscribe(schedule),
-			plotView.subscribe((state) => state.activeViewport, schedule),
-			plotView.subscribe((state) => state.axisRanges, schedule),
-			preferences.subscribe(schedule)
-		];
-
-		if ('gpu' in navigator) {
-			void (async () => {
-				try {
-					const mod = await import('chartgpu');
-					if (disposed) return;
-					const created = await mod.ChartGPU.create(surface, currentOptions());
-					if (disposed) {
-						created.dispose();
-						return;
-					}
-					chart = created;
-					settle();
-					setGenerateTicks(() => mod.generateValueAxisTicks);
-					resizeObserver = new ResizeObserver(() => chart?.resize());
-					resizeObserver.observe(surface);
-				} catch (error) {
-					if (!disposed) {
-						setChartError(error instanceof Error ? error.message : 'ChartGPU failed to start.');
-					}
-				}
-			})();
-		}
-
-		return () => {
-			disposed = true;
-			if (frame !== null) cancelAnimationFrame(frame);
-			for (const unsubscribe of unsubscribes) unsubscribe();
-			themeObserver.disconnect();
-			plotWindow.dispose();
-			resizeObserver?.disconnect();
-			chart?.dispose();
-		};
 	}, []);
 
 	function rememberContextMenuPoint(
@@ -194,24 +121,12 @@ export function SignalPlot({
 		if (contextMenu?.point) upsertCrosshair({ id, ...contextMenu.point });
 	}
 
-	async function exportCurrentView(destination: 'copy' | 'save') {
+	async function exportCurrentView(destination: ImageDestination) {
 		const root = rootRef.current;
 		if (imageExportBusy || root === null) return;
 		setImageExportBusy(true);
-		try {
-			const image = capturePlotImage(root);
-			if (destination === 'copy') {
-				await copyPlotImage(image);
-				toast.success('Image copied to clipboard.');
-			} else {
-				await savePlotImage(image, plotImageFilename(traceFile.getState().displayName));
-			}
-		} catch (error) {
-			console.error('Plot image export failed.', error);
-			toast.error(destination === 'copy' ? 'Could not copy image.' : 'Could not save image.');
-		} finally {
-			setImageExportBusy(false);
-		}
+		await exportPlotImage(root, destination);
+		setImageExportBusy(false);
 	}
 
 	const shortcut = (action: ShortcutAction) => (
@@ -361,20 +276,133 @@ export function SignalPlot({
 	);
 }
 
-function chartOptions(
-	theme: PlotTheme,
-	model: PlotModelState,
-	view: PlotViewState,
-	views: ReturnType<PlotWindow['viewsFor']>,
-	time: { measurementStartMs?: number | null; mode: TimestampMode }
-): ChartGPUOptions {
-	const series = plotSeriesForViews(
-		views,
-		(signal) => model.axisIdByKey.get(signal.key) ?? model.primaryAxisId
-	);
+/**
+ * Starts ChartGPU on `surface` (when WebGPU exists) and pushes options from store subscriptions,
+ * coalesced to one `setOption` per animation frame. Returns the teardown.
+ */
+function mountChart(
+	root: HTMLElement,
+	surface: HTMLElement,
+	callbacks: { onTicks: (generate: AxisTickGenerator) => void; onError: (message: string) => void }
+): () => void {
+	let disposed = false;
+	let chart: ChartGPUInstance | null = null;
+	let resizeObserver: ResizeObserver | null = null;
+	let frame: number | null = null;
+	let theme = chartTheme(resolvePlotTheme(getComputedStyle(root)));
+	// ChartGPU reuses per-series state only for identical series objects, so rebuild them only
+	// when the windowed views or the axis assignment change.
+	let seriesCache: {
+		views: WindowedSignalView[];
+		model: PlotModelState;
+		series: PlotSeriesConfig[];
+	} | null = null;
+	const perfStats = createPlotPerfStats();
+	const plotWindow = new PlotWindow(schedule);
+
+	function currentOptions(): ChartGPUOptions {
+		const model = plotModel.getState();
+		const view = plotView.getState();
+		const views = plotWindow.viewsFor(model.views, view.activeViewport);
+		if (seriesCache?.views !== views || seriesCache.model !== model) {
+			const series = plotSeriesForViews(
+				views,
+				(signal) => model.axisIdByKey.get(signal.key) ?? model.primaryAxisId
+			);
+			seriesCache = {
+				views,
+				model,
+				series: series.length > 0 ? series : [emptyAxisSeries(model.primaryAxisId)]
+			};
+		}
+		return chartOptions(theme, model, view, seriesCache.series, {
+			measurementStartMs: traceFile.getState().entry?.metadata.measurementStartMs,
+			mode: preferences.getState().timestampMode
+		});
+	}
+
+	function settle() {
+		plotWindow.settleAfter(plotModel.getState().views, plotView.getState().activeViewport);
+	}
+
+	function schedule() {
+		if (frame !== null) return;
+		frame = requestAnimationFrame(() => {
+			frame = null;
+			if (chart === null) return;
+			const start = performance.now();
+			chart.setOption(currentOptions());
+			perfStats?.record(performance.now() - start);
+			settle();
+		});
+	}
+
+	async function start() {
+		try {
+			const mod = await import('chartgpu');
+			if (disposed) return;
+			const created = await mod.ChartGPU.create(surface, currentOptions());
+			if (disposed) {
+				created.dispose();
+				return;
+			}
+			chart = created;
+			settle();
+			callbacks.onTicks(mod.generateValueAxisTicks);
+			resizeObserver = new ResizeObserver(() => chart?.resize());
+			resizeObserver.observe(surface);
+		} catch (error) {
+			if (!disposed) {
+				callbacks.onError(error instanceof Error ? error.message : 'ChartGPU failed to start.');
+			}
+		}
+	}
+
+	const themeObserver = new MutationObserver(() => {
+		theme = chartTheme(resolvePlotTheme(getComputedStyle(root)));
+		schedule();
+	});
+	themeObserver.observe(document.documentElement, { attributeFilter: ['class'] });
+	// Every viewport write replaces `axisRanges`, so it alone tracks viewport changes.
+	const unsubscribes = [
+		plotModel.subscribe(schedule),
+		plotView.subscribe((state) => state.axisRanges, schedule),
+		preferences.subscribe(schedule)
+	];
+	if ('gpu' in navigator) void start();
+
+	return () => {
+		disposed = true;
+		if (frame !== null) cancelAnimationFrame(frame);
+		for (const unsubscribe of unsubscribes) unsubscribe();
+		themeObserver.disconnect();
+		plotWindow.dispose();
+		resizeObserver?.disconnect();
+		chart?.dispose();
+	};
+}
+
+async function exportPlotImage(root: HTMLElement, destination: ImageDestination): Promise<void> {
+	try {
+		const image = capturePlotImage(root);
+		if (destination === 'copy') {
+			await copyPlotImage(image);
+			toast.success('Image copied to clipboard.');
+		} else {
+			await savePlotImage(image, plotImageFilename(traceFile.getState().displayName));
+		}
+	} catch (error) {
+		console.error('Plot image export failed.', error);
+		toast.error(destination === 'copy' ? 'Could not copy image.' : 'Could not save image.');
+	}
+}
+
+type ChartTheme = { gridLine: string; config: ThemeConfig };
+
+function chartTheme(theme: PlotTheme): ChartTheme {
 	return {
-		performance: { lod: 'strict' },
-		theme: {
+		gridLine: theme.gridLine,
+		config: {
 			backgroundColor: theme.background,
 			textColor: theme.text,
 			axisLineColor: theme.axisLine,
@@ -383,7 +411,20 @@ function chartOptions(
 			colorPalette: SIGNAL_COLORS,
 			fontFamily: theme.fontFamily,
 			fontSize: AXIS_FONT_SIZE
-		},
+		}
+	};
+}
+
+function chartOptions(
+	theme: ChartTheme,
+	model: PlotModelState,
+	view: PlotViewState,
+	series: PlotSeriesConfig[],
+	time: { measurementStartMs?: number | null; mode: TimestampMode }
+): ChartGPUOptions {
+	return {
+		performance: { lod: 'strict' },
+		theme: theme.config,
 		grid: model.grid,
 		gridLines: { color: theme.gridLine, opacity: 1 },
 		xAxis: {
@@ -408,6 +449,6 @@ function chartOptions(
 		animation: false,
 		palette: SIGNAL_COLORS,
 		annotations: [],
-		series: series.length > 0 ? series : [emptyAxisSeries(model.primaryAxisId)]
+		series
 	};
 }
