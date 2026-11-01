@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { Popover as PopoverPrimitive } from '@base-ui/react/popover';
 import {
 	CircleQuestionMark,
@@ -87,6 +88,7 @@ const legendOrderOptions: { value: LegendOrderMode; label: string; description: 
  * close it; Escape, the trigger and the close button do.
  */
 export function SettingsDialog({ triggerClassName }: { triggerClassName?: string }) {
+	const panel = useRef<HTMLDivElement>(null);
 	const open = useStore(appShell, (s) => s.settingsOpen);
 	const theme = useStore(preferences, (s) => s.theme);
 	const timestampMode = useStore(preferences, (s) => s.timestampMode);
@@ -116,7 +118,9 @@ export function SettingsDialog({ triggerClassName }: { triggerClassName?: string
 			<PopoverContent
 				align="end"
 				sideOffset={-32}
-				initialFocus={false}
+				ref={panel}
+				// The panel rather than its first button, whose tooltip would open on focus.
+				initialFocus={panel}
 				className="relative grid w-[min(22rem,calc(100vw-1rem))] translate-x-2 -translate-y-2 gap-4 rounded-lg border border-border/70 bg-popover/90 p-4 pt-14 text-popover-foreground backdrop-blur-md"
 				style={{ boxShadow: '0 1px 2px rgb(0 0 0 / 0.08)' }}
 			>
