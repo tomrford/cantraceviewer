@@ -5,6 +5,12 @@
 @import '@fontsource-variable/geist-mono';
 
 @custom-variant dark (&:is(.dark *));
+/* Below the minimum supported viewport (600x500) only the landing gate shows. */
+@custom-variant too-small {
+	@media (max-width: 599px), (max-height: 499px) {
+		@slot;
+	}
+}
 
 :root {
 	--background: oklch(1 0 0);

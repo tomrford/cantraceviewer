@@ -1,0 +1,72 @@
+import { Info } from 'lucide-react';
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger
+} from '#lib/components/ui/dialog.js';
+import type { DbcFileEntry } from '#lib/stores/dbc-files.js';
+
+export function DbcInformation({ file }: { file: DbcFileEntry }) {
+	const signalCount = file.catalog.messages.reduce(
+		(count, message) => count + message.signals.length,
+		0
+	);
+	const warnings = file.warnings.filter((warning) => warning.category !== 'unsupported-record');
+	const hasOmissions = warnings.some((warning) => warning.category === 'omitted-feature');
+
+	return (
+		<Dialog>
+			<DialogTrigger
+				className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-70 hover:bg-accent hover:text-accent-foreground hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
+				aria-label={`Information about ${file.name}`}
+			>
+				<Info className="size-4" />
+			</DialogTrigger>
+			<DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+				<DialogHeader>
+					<DialogTitle className="pr-8 break-words">{file.name}</DialogTitle>
+					<DialogDescription className={warnings.length ? '' : 'sr-only'}>
+						{hasOmissions
+							? 'Some signals or decoding settings could not be used.'
+							: warnings.length
+								? 'Some DBC definitions could not be applied.'
+								: 'DBC file information.'}
+					</DialogDescription>
+				</DialogHeader>
+				<dl className="space-y-1 text-muted-foreground">
+					<div className="flex justify-between gap-4">
+						<dt className="text-muted-foreground">Loaded messages</dt>
+						<dd className="tabular-nums">{file.catalog.messages.length}</dd>
+					</div>
+					<div className="flex justify-between gap-4">
+						<dt className="text-muted-foreground">Loaded signals</dt>
+						<dd className="tabular-nums">{signalCount}</dd>
+					</div>
+				</dl>
+				{warnings.length > 0 && (
+					<>
+						<h3 className="font-medium">
+							{warnings.length} {warnings.length === 1 ? 'warning' : 'warnings'}
+						</h3>
+						{/* oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- keyboard users must be able to scroll the warnings */}
+						<section className="max-h-[30vh] overflow-auto" tabIndex={0} aria-label="DBC warnings">
+							<ul className="space-y-2">
+								{warnings.map((warning, index) => (
+									<li key={index} className="flex gap-3">
+										<span className="shrink-0 text-muted-foreground tabular-nums">
+											Line {warning.line}
+										</span>
+										<span>{warning.message}</span>
+									</li>
+								))}
+							</ul>
+						</section>
+					</>
+				)}
+			</DialogContent>
+		</Dialog>
+	);
+}

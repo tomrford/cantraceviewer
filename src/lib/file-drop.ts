@@ -1,14 +1,18 @@
 import { isTraceFileName } from './trace-file-types';
 
-export function filesFromDrop(event: DragEvent): File[] {
+// Structural so both native and React drag events fit.
+type DropEvent = { dataTransfer: DataTransfer | null };
+type LeaveEvent = { relatedTarget: EventTarget | null; currentTarget: EventTarget | null };
+
+export function filesFromDrop(event: DropEvent): File[] {
 	return Array.from(event.dataTransfer?.files ?? []);
 }
 
-export function hasDraggedFiles(event: DragEvent): boolean {
+export function hasDraggedFiles(event: DropEvent): boolean {
 	return event.dataTransfer?.types.includes('Files') ?? false;
 }
 
-export function dragLeftCurrentTarget(event: DragEvent): boolean {
+export function dragLeftCurrentTarget(event: LeaveEvent): boolean {
 	const nextTarget = event.relatedTarget;
 	return !(
 		nextTarget instanceof Node &&
