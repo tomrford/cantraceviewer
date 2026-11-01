@@ -1,3 +1,4 @@
+import { useStore } from 'zustand';
 import {
 	Command,
 	CommandDialog,
@@ -16,29 +17,23 @@ import {
 	type ShortcutAction,
 	type ShortcutState
 } from '#lib/keyboard-shortcuts.js';
-import { runShortcut } from '#lib/stores/app-shell.js';
+import { appShell, runShortcut } from '#lib/stores/app-shell.js';
 
 const groups = groupedShortcuts().map(({ group, actions }) => ({
 	group,
 	actions: actions.filter((action) => action !== 'showPalette')
 }));
 
-export function CommandPalette({
-	open,
-	onOpenChange,
-	state
-}: {
-	open: boolean;
-	onOpenChange: (open: boolean) => void;
-	state: ShortcutState;
-}) {
+export function CommandPalette({ state }: { state: ShortcutState }) {
+	const open = useStore(appShell, (s) => s.paletteOpen);
+
 	function run(action: ShortcutAction): void {
-		onOpenChange(false);
+		appShell.setState({ paletteOpen: false });
 		runShortcut(action);
 	}
 
 	return (
-		<CommandDialog open={open} onOpenChange={onOpenChange}>
+		<CommandDialog open={open} onOpenChange={(paletteOpen) => appShell.setState({ paletteOpen })}>
 			<Command>
 				<CommandInput placeholder="Search for a command..." />
 				<CommandList>

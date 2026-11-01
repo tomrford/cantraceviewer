@@ -107,7 +107,7 @@ export function SignalPlot({
 			: renderer.status === 'unsupported'
 				? 'WebGPU is unavailable. Use a browser with WebGPU enabled to view the plot.'
 				: renderer.status === 'error'
-					? `Could not start the plot renderer: ${renderer.message}`
+					? renderer.message
 					: null;
 
 	useEffect(() => {
@@ -340,8 +340,15 @@ function mountChart(
 
 	async function start() {
 		try {
-			const mod = await import('chartgpu');
+			const mod = await import('chartgpu').catch(() => null);
 			if (disposed) return;
+			if (mod === null) {
+				onStatus({
+					status: 'error',
+					message: 'The plot renderer could not be downloaded. Reload the page to try again.'
+				});
+				return;
+			}
 			const created = await mod.ChartGPU.create(surface, currentOptions());
 			if (disposed) {
 				created.dispose();
@@ -357,7 +364,7 @@ function mountChart(
 			if (!disposed) {
 				onStatus({
 					status: 'error',
-					message: error instanceof Error ? error.message : 'ChartGPU failed to start.'
+					message: `Could not start the plot renderer: ${error instanceof Error ? error.message : 'unknown error'}`
 				});
 			}
 		}
