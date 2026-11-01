@@ -118,7 +118,11 @@ export function shortcutSuppressedBySurface(target: ShortcutTarget | null): bool
 	const surface = target?.closest?.(TRANSIENT_SURFACE_SELECTOR) ?? null;
 	// A closing popup keeps focus until its exit animation unmounts it; keys belong to the page.
 	if (surface?.getAttribute?.('data-closed') != null) return false;
-	const modal = surface !== null && surface.getAttribute?.('aria-modal') !== 'false';
+	// Popovers and the walkthrough panel are non-modal, so global shortcuts keep working inside.
+	const modal =
+		surface !== null &&
+		surface.getAttribute?.('data-slot') !== 'popover-content' &&
+		surface.getAttribute?.('aria-modal') !== 'false';
 	return isEditableShortcutTarget(target) || modal;
 }
 

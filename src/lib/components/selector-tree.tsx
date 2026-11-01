@@ -3,11 +3,11 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useStore } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import { ChevronDown, ChevronRight, CircleAlert, LoaderCircle, Trash2 } from 'lucide-react';
-import { Badge } from '#lib/components/ui/badge.js';
 import { Checkbox } from '#lib/components/ui/checkbox.js';
 import { Label } from '#lib/components/ui/label.js';
 import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tooltip.js';
 import { DbcInformation } from '#lib/components/dbc-information.js';
+import { SourceBadge } from '#lib/components/source-badge.js';
 import {
 	selectorRows,
 	type SelectorDbcFile,
@@ -205,7 +205,7 @@ function MessageRow({
 			</span>
 			<span className="truncate">{message.name}</span>
 			{message.sourceBadges?.map((badge) => (
-				<Badge key={badge}>{badge}</Badge>
+				<SourceBadge key={badge}>{badge}</SourceBadge>
 			))}
 		</button>
 	);

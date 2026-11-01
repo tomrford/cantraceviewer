@@ -1,5 +1,5 @@
 import { AudioWaveform, CircleQuestionMark, Database, LoaderCircle } from 'lucide-react';
-import { useEffect, type ChangeEvent, type DragEvent } from 'react';
+import { useEffect, useState, type ChangeEvent, type ComponentProps, type DragEvent } from 'react';
 import { useStore } from 'zustand';
 import { PlotToolbar } from '#lib/components/plot-toolbar.js';
 import { SettingsDialog } from '#lib/components/settings-dialog.js';
@@ -64,13 +64,6 @@ const squircleButtonClass =
 const titleButtonClass =
 	'flex h-10 max-w-[min(28rem,calc(100vw-12rem))] items-center gap-2 rounded-lg border border-border/70 bg-muted px-4 text-sm font-medium text-foreground transition-[box-shadow,scale] hover:bg-muted/80 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.98] disabled:pointer-events-none disabled:opacity-60';
 
-const traceDragHandlers = {
-	onDragEnter: handleTraceDrag,
-	onDragOver: handleTraceDrag,
-	onDragLeave: clearTraceDrag,
-	onDrop: dropTrace
-};
-
 export function App() {
 	const dark = useStore(preferences, isDark);
 	const webgpuSupported = useStore(appShell, (s) => s.webgpuSupported);
@@ -118,7 +111,7 @@ export function App() {
 function AppShell() {
 	const traceBusy = useStore(appShell, (s) => s.openingTrace);
 	const hasTrace = useStore(traceFile, (s) => s.entry !== null);
-	const dropActive = useStore(appShell, (s) => s.traceDropActive);
+	const [dropActive, setDropActive] = useState(false);
 	const traceError = useStore(traceFile, (s) => s.error);
 	const signalSelectorOpen = useStore(appShell, (s) => s.signalSelectorOpen);
 	const signalSearchFocusRequest = useStore(appShell, (s) => s.signalSearchFocusRequest);
@@ -133,10 +126,29 @@ function AppShell() {
 		canPlaceCrosshair,
 		hasCrosshairs
 	});
-	// ChartGPU is the one lazy chunk: fetch it as a trace opens rather than once the plot mounts.
-	useEffect(() => {
-		if (traceBusy) void import('chartgpu').catch(() => undefined);
-	}, [traceBusy]);
+
+	function handleTraceDrag(event: DragEvent) {
+		if (!hasDraggedFiles(event)) return;
+		event.preventDefault();
+		if (!traceBusy) setDropActive(true);
+	}
+
+	function handleTraceDragLeave(event: DragEvent) {
+		if (dragLeftCurrentTarget(event)) setDropActive(false);
+	}
+
+	function handleTraceDrop(event: DragEvent) {
+		event.preventDefault();
+		setDropActive(false);
+		void openTrace(traceFileFromDrop(filesFromDrop(event)));
+	}
+
+	const traceDragHandlers = {
+		onDragEnter: handleTraceDrag,
+		onDragOver: handleTraceDrag,
+		onDragLeave: handleTraceDragLeave,
+		onDrop: handleTraceDrop
+	};
 
 	return (
 		<div className="flex min-h-screen flex-col bg-background too-small:hidden">
@@ -196,7 +208,7 @@ function AppShell() {
 			{hasTrace ? (
 				<SignalPlot dropActive={dropActive} {...traceDragHandlers} />
 			) : (
-				<Landing traceBusy={traceBusy} dropActive={dropActive} />
+				<Landing traceBusy={traceBusy} dropActive={dropActive} {...traceDragHandlers} />
 			)}
 
 			<AlertDialog
@@ -262,7 +274,11 @@ function TraceButton({ traceBusy }: { traceBusy: boolean }) {
 	);
 }
 
-function Landing({ traceBusy, dropActive }: { traceBusy: boolean; dropActive: boolean }) {
+function Landing({
+	traceBusy,
+	dropActive,
+	...props
+}: ComponentProps<'section'> & { traceBusy: boolean; dropActive: boolean }) {
 	const hasLoadedLibrary = useStore(dbcFiles, (s) => s.hasLoadedLibrary);
 	const walkthroughVersion = useStore(preferences, (s) => s.walkthroughVersion);
 	const stepId = useStore(appShell, (s) => s.walkthroughStepId);
@@ -276,7 +292,7 @@ function Landing({ traceBusy, dropActive }: { traceBusy: boolean; dropActive: bo
 			className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-background p-6"
 			aria-label="Trace loading"
 			aria-busy={traceBusy}
-			{...traceDragHandlers}
+			{...props}
 		>
 			{dropActive && (
 				<div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-background/25 text-sm font-medium text-foreground backdrop-blur-[1px]">
@@ -320,22 +336,6 @@ function Landing({ traceBusy, dropActive }: { traceBusy: boolean; dropActive: bo
 			</Empty>
 		</section>
 	);
-}
-
-function handleTraceDrag(event: DragEvent): void {
-	if (!hasDraggedFiles(event)) return;
-	event.preventDefault();
-	if (!appShell.getState().openingTrace) appShell.setState({ traceDropActive: true });
-}
-
-function clearTraceDrag(event: DragEvent): void {
-	if (dragLeftCurrentTarget(event)) appShell.setState({ traceDropActive: false });
-}
-
-function dropTrace(event: DragEvent): void {
-	event.preventDefault();
-	appShell.setState({ traceDropActive: false });
-	void openTrace(traceFileFromDrop(filesFromDrop(event)));
 }
 
 function selectTrace(event: ChangeEvent<HTMLInputElement>): void {
