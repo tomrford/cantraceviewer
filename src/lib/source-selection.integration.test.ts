@@ -21,13 +21,15 @@ import {
 	clearDbcFiles,
 	dbcFiles,
 	loadDbcLibrary,
-	removeDbcFile
+	removeDbcFile,
+	resetDbcLibrary
 } from './stores/dbc-files.js';
 import { openTraceFile, traceFile } from './stores/trace-file.js';
 import {
 	clearSelectedSignals,
 	deselectDbcFile,
 	plotData,
+	signalDecodeStatus,
 	toggleSignal
 } from './stores/plot-data.js';
 import { buildSelectorSearchIndexes } from './selector-list.js';
@@ -253,6 +255,108 @@ describe('published package app integration', () => {
 			expect(plotData.getState().signals[0].series?.values[0]).toBe(10);
 		} finally {
 			persist.mockRestore();
+		}
+	});
+	it('ignores an old decode completion while the replacement trace selection is still decoding', async () => {
+		clearSelectedSignals();
+		await clearDbcFiles();
+		expect(await openTraceFile(await fixture('source-selection.asc'))).toBe(true);
+		await onTraceOpened();
+		await addDbcFiles([await fixture('source-selection.dbc')]);
+		const key = dbcFiles.getState().selectorFiles[0].messages[0].signals[0].key;
+		const oldDecoded = Promise.withResolvers<void>();
+		const newDecoded = Promise.withResolvers<void>();
+		const releaseOld = Promise.withResolvers<void>();
+		const releaseNew = Promise.withResolvers<void>();
+		const client = transport.client!;
+		const decode = client.getSignalValues.bind(client);
+		// Hold only delivery: both responses come from the real package Worker/WASM.
+		const responses = vi
+			.spyOn(client, 'getSignalValues')
+			.mockImplementationOnce(async (...args) => {
+				const series = await decode(...args);
+				oldDecoded.resolve();
+				await releaseOld.promise;
+				return series;
+			})
+			.mockImplementationOnce(async (...args) => {
+				const series = await decode(...args);
+				newDecoded.resolve();
+				await releaseNew.promise;
+				return series;
+			});
+		try {
+			const oldSelection = toggleSignal(key);
+			await oldDecoded.promise;
+			const replacement = (await (await fixture('source-selection.asc')).text())
+				.replace('d 1 0a', 'd 1 63')
+				.replace('d 1 0b', 'd 1 64');
+			expect(await openTraceFile(new File([replacement], 'replacement.asc'))).toBe(true);
+			await onTraceOpened();
+			expect(plotData.getState().signals).toEqual([]);
+			const newSelection = toggleSignal(key);
+			await newDecoded.promise;
+			releaseOld.resolve();
+			await oldSelection;
+			expect(signalDecodeStatus(key)).toEqual({ isDecoding: true, decodeError: null });
+			expect(plotData.getState().signals[0].series).toBeNull();
+			releaseNew.resolve();
+			await newSelection;
+			expect(signalDecodeStatus(key)).toEqual({ isDecoding: false, decodeError: null });
+			expect(Array.from(plotData.getState().signals[0].series!.timesMs)).toEqual([0, 100]);
+			expect(Array.from(plotData.getState().signals[0].series!.values)).toEqual([99, 100]);
+		} finally {
+			releaseOld.resolve();
+			releaseNew.resolve();
+			responses.mockRestore();
+		}
+	});
+	it('finishes an import write before a queued reset and can persist and reload a later import', async () => {
+		clearSelectedSignals();
+		await clearDbcFiles();
+		const writeStarted = Promise.withResolvers<void>();
+		const releaseWrite = Promise.withResolvers<void>();
+		let stored: library.StoredDbc[] = [];
+		// Node has no IndexedDB. Substitute storage only, retaining real hashing and parsing.
+		const write = vi.spyOn(library, 'putStoredDbcs').mockImplementation(async (dbcs) => {
+			writeStarted.resolve();
+			await releaseWrite.promise;
+			stored.push(...structuredClone(dbcs));
+		});
+		const reset = vi.spyOn(library, 'resetStoredDbcs').mockImplementation(async () => {
+			stored = [];
+		});
+		const read = vi
+			.spyOn(library, 'listStoredDbcs')
+			.mockImplementation(async () => structuredClone(stored));
+		try {
+			const input = await fixture('source-selection.dbc');
+			const importing = addDbcFiles([input]);
+			await writeStarted.promise;
+			const resetting = resetDbcLibrary();
+			expect(dbcFiles.getState().isLoading).toBe(true);
+			releaseWrite.resolve();
+			await Promise.all([importing, resetting]);
+			expect(dbcFiles.getState().isLoading).toBe(false);
+			expect(dbcFiles.getState().files).toEqual([]);
+			dbcFiles.setState({ hasLoadedLibrary: false });
+			await loadDbcLibrary();
+			expect(dbcFiles.getState().selectorFiles).toEqual([]);
+			await addDbcFiles([input]);
+			await clearDbcFiles();
+			dbcFiles.setState({ hasLoadedLibrary: false });
+			await loadDbcLibrary();
+			expect(dbcFiles.getState().error).toBeNull();
+			expect(dbcFiles.getState().files.map((file) => file.name)).toEqual([input.name]);
+			expect(await openTraceFile(await fixture('source-selection.asc'))).toBe(true);
+			await onTraceOpened();
+			await toggleSignal(dbcFiles.getState().selectorFiles[0].messages[0].signals[0].key);
+			expect(Array.from(plotData.getState().signals[0].series!.values)).toEqual([10, 11]);
+		} finally {
+			releaseWrite.resolve();
+			write.mockRestore();
+			reset.mockRestore();
+			read.mockRestore();
 		}
 	});
 });
