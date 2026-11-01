@@ -20,9 +20,9 @@ function ContextMenuTrigger({ className, ...props }: ContextMenuPrimitive.Trigge
 function ContextMenuContent({
 	className,
 	align = 'start',
-	alignOffset = 0,
+	alignOffset = 4,
 	side = 'right',
-	sideOffset = 2,
+	sideOffset = 0,
 	...props
 }: ContextMenuPrimitive.Popup.Props &
 	Pick<ContextMenuPrimitive.Positioner.Props, 'align' | 'alignOffset' | 'side' | 'sideOffset'>) {
@@ -52,51 +52,27 @@ function ContextMenuItem({
 	className,
 	inset,
 	variant = 'default',
-	disabled,
-	children,
 	...props
 }: ContextMenuPrimitive.Item.Props & {
 	inset?: boolean;
 	variant?: 'default' | 'destructive';
 }) {
-	const itemProps = {
-		'data-slot': 'context-menu-item',
-		'data-inset': inset,
-		'data-variant': variant,
-		className: cn(
-			"group/context-menu-item relative flex min-h-7 cursor-default items-center gap-2 rounded-md px-2 py-1 text-xs/relaxed outline-hidden select-none focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground data-inset:pl-7.5 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive dark:data-[variant=destructive]:focus:bg-destructive/20 data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5 data-[variant=destructive]:*:[svg]:text-destructive",
-			className
-		)
-	};
-	// Base UI keeps disabled items in the arrow-key order, so these stay out of its item list.
-	if (disabled) {
-		return (
-			<div role="menuitem" aria-disabled="true" data-disabled="" {...itemProps}>
-				{children}
-			</div>
-		);
-	}
 	return (
-		<ContextMenuPrimitive.Item {...itemProps} {...props}>
-			{children}
-		</ContextMenuPrimitive.Item>
+		<ContextMenuPrimitive.Item
+			data-slot="context-menu-item"
+			data-inset={inset}
+			data-variant={variant}
+			className={cn(
+				"group/context-menu-item relative flex min-h-7 cursor-default items-center gap-2 rounded-md px-2 py-1 text-xs/relaxed outline-hidden select-none focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground data-inset:pl-7.5 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive dark:data-[variant=destructive]:focus:bg-destructive/20 data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5 data-[variant=destructive]:*:[svg]:text-destructive",
+				className
+			)}
+			{...props}
+		/>
 	);
 }
 
-const OpenSubmenuContext = React.createContext<(() => void) | null>(null);
-
 function ContextMenuSub({ ...props }: ContextMenuPrimitive.SubmenuRoot.Props) {
-	const [open, setOpen] = React.useState(false);
-	return (
-		<OpenSubmenuContext value={() => setOpen(true)}>
-			<ContextMenuPrimitive.SubmenuRoot
-				data-slot="context-menu-sub"
-				open={open}
-				onOpenChange={setOpen}
-				{...props}
-			/>
-		</OpenSubmenuContext>
-	);
+	return <ContextMenuPrimitive.SubmenuRoot data-slot="context-menu-sub" {...props} />;
 }
 
 function ContextMenuSubTrigger({
@@ -107,15 +83,10 @@ function ContextMenuSubTrigger({
 }: ContextMenuPrimitive.SubmenuTrigger.Props & {
 	inset?: boolean;
 }) {
-	const openSubmenu = React.use(OpenSubmenuContext);
 	return (
 		<ContextMenuPrimitive.SubmenuTrigger
 			data-slot="context-menu-sub-trigger"
 			data-inset={inset}
-			// Base UI only opens a hover trigger on hover or touch, so a mouse press opens it here.
-			onPointerDown={(event) => {
-				if (event.pointerType !== 'touch' && event.button === 0) openSubmenu?.();
-			}}
 			className={cn(
 				"flex min-h-7 cursor-default items-center gap-2 rounded-md px-2 py-1 text-xs outline-hidden select-none focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground data-inset:pl-7.5 data-open:bg-accent data-open:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5",
 				className
@@ -134,8 +105,6 @@ function ContextMenuSubContent({ ...props }: React.ComponentProps<typeof Context
 			data-slot="context-menu-sub-content"
 			className="relative animate-none! bg-popover/70 shadow-md before:pointer-events-none before:absolute before:inset-0 before:-z-1 before:rounded-[inherit] before:backdrop-blur-2xl before:backdrop-saturate-150 **:data-[slot$=-item]:focus:bg-foreground/10 **:data-[slot$=-item]:data-highlighted:bg-foreground/10 **:data-[slot$=-separator]:bg-foreground/5 **:data-[slot$=-trigger]:focus:bg-foreground/10 **:data-[slot$=-trigger]:aria-expanded:bg-foreground/10! **:data-[variant=destructive]:**:text-accent-foreground! **:data-[variant=destructive]:text-accent-foreground! **:data-[variant=destructive]:focus:bg-foreground/10!"
 			side="right"
-			sideOffset={0}
-			align="center"
 			{...props}
 		/>
 	);
