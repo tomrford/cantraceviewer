@@ -1,4 +1,5 @@
 import { PRIMARY_Y_AXIS_ID } from '#lib/plot-axes.js';
+import type { LegendCrosshairMode } from '#lib/plot-crosshair.js';
 import { dbcFiles } from '#lib/stores/dbc-files.js';
 import { addAxis, assignAxis, plotAxes } from '#lib/stores/plot-axes.js';
 import {
@@ -10,20 +11,16 @@ import {
 import { plotModel } from '#lib/stores/plot-model.js';
 import { plotView, resetZoom, setCrosshairs, setViewport } from '#lib/stores/plot-view.js';
 import { traceFile } from '#lib/stores/trace-file.js';
-import { createWebMcpTools, type WebMcpHost, type WebMcpTool } from '#lib/webmcp-tools.js';
+import {
+	createWebMcpTools,
+	type WebMcpCrosshairInput,
+	type WebMcpPlottedSignal,
+	type WebMcpTimeRange,
+	type WebMcpTool
+} from '#lib/webmcp-tools.js';
 
-type ModelContext = {
-	registerTool: (
-		tool: {
-			name: string;
-			title?: string;
-			description: string;
-			inputSchema?: object;
-			execute: (input: object, options?: { signal?: AbortSignal }) => Promise<unknown>;
-			annotations?: { readOnlyHint?: boolean; untrustedContentHint?: boolean };
-		},
-		options?: { signal?: AbortSignal }
-	) => Promise<void>;
+export type ModelContext = {
+	registerTool: (tool: WebMcpTool, options?: { signal?: AbortSignal }) => Promise<void>;
 };
 
 declare global {
@@ -32,15 +29,8 @@ declare global {
 	}
 }
 
-export function documentModelContext(): ModelContext | null {
-	if (typeof document === 'undefined') return null;
-	const context = document.modelContext;
-	if (context === undefined || typeof context.registerTool !== 'function') return null;
-	return context;
-}
-
-export function mountWebMcp(context: ModelContext | null = documentModelContext()): () => void {
-	if (context === null) return () => {};
+export function mountWebMcp(context: ModelContext | undefined = document.modelContext): () => void {
+	if (typeof context?.registerTool !== 'function') return () => {};
 
 	const controller = new AbortController();
 	void registerTools(context, createWebMcpTools(storeHost), controller.signal);
@@ -64,7 +54,7 @@ async function registerTools(
 }
 
 /** WebMCP host backed directly by the app stores, so tools see the same plot as the page. */
-export const storeHost: WebMcpHost = {
+export const storeHost = {
 	view: () => {
 		const domain = plotModel.getState().fullDomain;
 		const {
@@ -86,7 +76,7 @@ export const storeHost: WebMcpHost = {
 			readout: legendCrosshairMode
 		};
 	},
-	setTimeWindow: (range) => {
+	setTimeWindow: (range: WebMcpTimeRange | null) => {
 		const active = plotView.getState().activeViewport;
 		if (active === null) return null;
 		if (range === null) resetZoom();
@@ -94,7 +84,7 @@ export const storeHost: WebMcpHost = {
 		const applied = plotView.getState().activeViewport;
 		return applied === null ? null : { startMs: applied.xMin, endMs: applied.xMax };
 	},
-	setCrosshairs: (markers, readout) => {
+	setCrosshairs: (markers: WebMcpCrosshairInput[], readout?: LegendCrosshairMode) => {
 		const { activeViewport: active, crosshairs, legendCrosshairMode } = plotView.getState();
 		const centreY = active === null ? 0 : (active.yMin + active.yMax) / 2;
 		const has = (id: number) => markers.some((marker) => marker.id === id);
@@ -113,7 +103,7 @@ export const storeHost: WebMcpHost = {
 			readout ?? (previousValid ? legendCrosshairMode : has(1) ? 'c1' : has(2) ? 'c2' : 'c1')
 		);
 	},
-	setSignalAxes: async (assignments) => {
+	setSignalAxes: (assignments: Array<{ key: string; axis: number }>) => {
 		for (const { key, axis } of assignments) {
 			while (plotAxes.getState().ids.length < axis) addAxis();
 			assignAxis(key, plotAxes.getState().ids[axis - 1]);
@@ -123,7 +113,7 @@ export const storeHost: WebMcpHost = {
 		...dbcFiles.getState().selectorSearchIndexes,
 		...traceFile.getState().mf4SelectorIndexes
 	],
-	plottedSignals: () =>
+	plottedSignals: (): WebMcpPlottedSignal[] =>
 		plotData
 			.getState()
 			.signals.flatMap((signal) =>
@@ -131,10 +121,6 @@ export const storeHost: WebMcpHost = {
 			),
 	isSignalSelected,
 	toggleSignal,
-	dbcLibrary: () => {
-		const { hasLoadedLibrary, isLoading } = dbcFiles.getState();
-		return { loaded: hasLoadedLibrary, loading: isLoading };
-	},
 	session: () => {
 		const { entry: trace, displayName, warning, isLoading } = traceFile.getState();
 		const { files, hasLoadedLibrary, isLoading: dbcLoading } = dbcFiles.getState();

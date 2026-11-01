@@ -1,6 +1,6 @@
 import { useEffect, useSyncExternalStore, type ComponentType, type ReactNode } from 'react';
 
-export type DeferredComponent<P extends object> = ComponentType<P> & {
+type DeferredComponent<P extends object> = ComponentType<P> & {
 	/** Fetches the component's chunk; later calls share the first fetch. */
 	preload: () => Promise<void>;
 };

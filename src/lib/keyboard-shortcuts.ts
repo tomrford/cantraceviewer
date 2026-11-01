@@ -107,7 +107,7 @@ export function shortcutFromEvent(
 	return null;
 }
 
-export type ShortcutTarget = {
+type ShortcutTarget = {
 	readonly tagName?: string;
 	readonly isContentEditable?: boolean;
 	closest?: (selector: string) => ShortcutTarget | null;

@@ -21,7 +21,6 @@ try {
 		'static',
 		'scripts/prerender.mjs',
 		'index.html',
-		'components.json',
 		'tsconfig.json',
 		'vite.config.ts'
 	]) {

@@ -2,7 +2,7 @@ import { paddedXRange, paddedYRange, type PlotAxisRange, type PlotViewport } fro
 import type { PlotSignal } from './stores/plot-data.js';
 import type { TimestampMode } from './stores/preferences.js';
 
-export type DecodedValueFormatContext = Pick<
+type DecodedValueFormatContext = Pick<
 	PlotSignal,
 	'unit' | 'valueType' | 'factor' | 'offset' | 'minimum' | 'maximum' | 'valueDescriptions'
 >;
@@ -14,7 +14,7 @@ export type LegendSignalValue = {
 	outOfRange: boolean;
 };
 
-export type SignalSample = {
+type SignalSample = {
 	timeMs: number;
 	value: number;
 };

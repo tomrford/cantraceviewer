@@ -2,7 +2,7 @@ import { TRACE_FILE_FORMAT_NAMES } from './trace-file-types';
 
 export const WALKTHROUGH_VERSION = 1;
 
-export type WalkthroughPlacement = 'bottom-start' | 'bottom-end' | 'right-start';
+type WalkthroughPlacement = 'bottom-start' | 'bottom-end' | 'right-start';
 
 export type WalkthroughStep = {
 	id: 'library' | 'add-dbc' | 'trace' | 'signals' | 'controls';
@@ -62,7 +62,7 @@ export type WalkthroughRect = {
 	height: number;
 };
 
-export type WalkthroughSize = {
+type WalkthroughSize = {
 	width: number;
 	height: number;
 };

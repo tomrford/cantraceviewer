@@ -1,7 +1,7 @@
 import { createStore } from 'zustand/vanilla';
 import { MAX_Y_AXES, nextYAxisId, PRIMARY_Y_AXIS_ID, type YAxisId } from '#lib/plot-axes.js';
 
-export type PlotAxesState = {
+type PlotAxesState = {
 	ids: readonly YAxisId[];
 	/** Signal key -> non-primary axis; unassigned signals sit on the primary axis. */
 	assignment: ReadonlyMap<string, YAxisId>;

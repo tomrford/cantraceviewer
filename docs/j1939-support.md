@@ -185,16 +185,18 @@ pretending they are ordinary scalar series.
 
 ## UI And Store Work
 
-The DBC overlap guard in `src/lib/stores/dbc-files.ts` keys by exact CAN
-ID and extended flag. J1939 changes that key. The store should key by the parsed
-message identity:
+The parser rejects a DBC that repeats a message identity, and the store has no
+separate duplicate check. `messageIdentityKey` and `signalIdentityKey` in
+`src/lib/stores/dbc-files.ts` key by extended flag, exact CAN ID and message
+size. J1939 changes that identity. Both the parser check and the store keys
+should use the parsed message identity:
 
 - exact CAN: `can:extended:0x18fee900`
 - J1939 PGN: `j1939:pgn:0xf004`
 - J1939 PGN with strict source: `j1939:pgn:0xf004:sa:0x00`
 
-This keeps normal overlap rejection while allowing source-agnostic J1939 DBCs
-to behave like PGN databases.
+This keeps duplicate rejection within a DBC while allowing source-agnostic J1939
+DBCs to behave like PGN databases.
 
 The plot signal model in `src/lib/stores/plot-data.ts` should carry
 `protocol`, `pgn`, `spn`, `sourceAddress`, and `destinationAddress` when
@@ -207,7 +209,7 @@ metadata to details/legend affordances instead of adding a new protocol panel.
 2. Parse the small DBC attribute subset for `ProtocolType`, `VFrameFormat`, and
    `SPN`.
 3. Add `MessageIdentity` to the DBC model and JSON catalog.
-4. Update selected-signal matching and DBC overlap keys to use that identity.
+4. Update selected-signal matching and DBC identity keys to use that identity.
 5. Add single-frame J1939 fixtures across ASC, TRC, and BLF.
 6. Add optional source-address filtering only if fixture/user traces need it.
 7. Widen payload length types and TRC payload buffering.

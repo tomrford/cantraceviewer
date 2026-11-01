@@ -2,7 +2,7 @@ import type { PlotGrid } from './plot-axis-layout.js';
 
 export type PlotRatioPoint = { xRatio: number; yRatio: number };
 
-export type PlotAreaRect = { left: number; top: number; width: number; height: number };
+type PlotAreaRect = { left: number; top: number; width: number; height: number };
 
 /** The plot area of `surface` in client coordinates: its bounding box less the grid margins. */
 export function plotAreaRect(surface: HTMLElement, grid: PlotGrid): PlotAreaRect {

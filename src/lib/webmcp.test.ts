@@ -3,7 +3,7 @@ import { addAxis, plotAxes, removeAxis, resetAxes } from './stores/plot-axes.js'
 import { plotModel } from './stores/plot-model.js';
 import { plotView, setViewport } from './stores/plot-view.js';
 import { buildSelectorSearchIndexes, type SelectorDbcFile } from './selector-list.js';
-import { documentModelContext, mountWebMcp, storeHost } from './webmcp.js';
+import { mountWebMcp, storeHost, type ModelContext } from './webmcp.js';
 import {
 	INSPECTION_SIGNAL_LIMIT,
 	SEARCH_RESULT_LIMIT_MAX,
@@ -12,9 +12,7 @@ import {
 	resolveSignalRefs,
 	searchCatalogSignals,
 	type WebMcpHost,
-	type WebMcpPlottedSignal,
-	type WebMcpSessionSnapshot,
-	type WebMcpView
+	type WebMcpPlottedSignal
 } from './webmcp-tools.js';
 
 const engineKey = '["powertrain","standard:207:8","EngineSpeed"]';
@@ -23,12 +21,7 @@ const rpmKey = '["engine","standard:256:8","EngineRpm"]';
 
 describe('WebMCP tool contract', () => {
 	it('summarises plain session state without decoded arrays', () => {
-		const view = viewState();
-		const summary = describeSession(sessionSnapshot(), {
-			...view,
-			timeDomainMs: new Proxy(view.timeDomainMs!, {}),
-			timeWindowMs: new Proxy(view.timeWindowMs!, {})
-		});
+		const summary = describeSession(sessionSnapshot(), viewState());
 
 		expect(summary.trace?.name).toBe('drive');
 		expect(summary.plotted[0]).toMatchObject({
@@ -376,8 +369,10 @@ describe('WebMCP shared plot', () => {
 
 describe('WebMCP registration', () => {
 	it('feature-detects absence and registers with a single-input execute contract', async () => {
-		expect(documentModelContext()).toBeNull();
-		mountWebMcp(null)();
+		vi.stubGlobal('document', {});
+		mountWebMcp()();
+		vi.unstubAllGlobals();
+		mountWebMcp({} as ModelContext)();
 
 		const registered = new Map<string, ReturnType<typeof createWebMcpTools>[number]>();
 		const context = {
@@ -409,7 +404,7 @@ function fakeHost(overrides: Partial<WebMcpHost> = {}): WebMcpHost {
 		view: () => viewState(),
 		setTimeWindow: (range) => range,
 		setCrosshairs: () => {},
-		setSignalAxes: async () => {},
+		setSignalAxes: () => {},
 		signalCatalog: () => catalog(),
 		plottedSignals: () => [
 			plottedSignal(engineKey, 'EEC1.EngineSpeed'),
@@ -428,7 +423,6 @@ function fakeHost(overrides: Partial<WebMcpHost> = {}): WebMcpHost {
 			else selected.add(key);
 		}),
 		session: () => sessionSnapshot(),
-		dbcLibrary: () => ({ loaded: true, loading: false }),
 		...overrides
 	};
 }
@@ -459,7 +453,7 @@ function plottedSignal(
 	};
 }
 
-function viewState(): WebMcpView {
+function viewState(): ReturnType<WebMcpHost['view']> {
 	return {
 		timeDomainMs: { startMs: 0, endMs: 12_000 },
 		timeWindowMs: { startMs: 1000, endMs: 2000 },
@@ -470,7 +464,7 @@ function viewState(): WebMcpView {
 	};
 }
 
-function sessionSnapshot(): WebMcpSessionSnapshot {
+function sessionSnapshot(): ReturnType<WebMcpHost['session']> {
 	return {
 		trace: {
 			name: 'drive',

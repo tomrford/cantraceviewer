@@ -24,7 +24,7 @@ export type SelectorDbcFile = {
 	transient: boolean;
 };
 
-export type SelectorFilter = {
+type SelectorFilter = {
 	hideUnavailable?: boolean;
 	query: string;
 	activeOnly: boolean;

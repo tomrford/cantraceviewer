@@ -29,11 +29,7 @@ const Y_PADDING = 0.05;
 const MIN_SPAN = 1e-9;
 const EQUAL_TOLERANCE = 1e-6;
 
-export function paddedRange(
-	min: number,
-	max: number,
-	paddingFraction: number
-): PlotAxisRange | null {
+function paddedRange(min: number, max: number, paddingFraction: number): PlotAxisRange | null {
 	if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
 	if (min === max) {
 		const padding = Math.max(1, Math.abs(min) * 0.05);

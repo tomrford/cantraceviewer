@@ -26,7 +26,7 @@ import {
 import { plotData } from './plot-data.js';
 import { plotModel } from './plot-model.js';
 
-export type ViewportMode = { mode: 'fit' } | { mode: 'manual'; xMin: number; xMax: number };
+type ViewportMode = { mode: 'fit' } | { mode: 'manual'; xMin: number; xMax: number };
 
 export type PlotViewState = {
 	viewportMode: ViewportMode;
