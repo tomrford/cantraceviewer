@@ -86,6 +86,7 @@ export function SignalPlot({
 	const [renderer, setRenderer] = useState<RendererState>({ status: 'loading' });
 	const [contextTarget, setContextTarget] = useState<ContextTarget | null>(null);
 	const [imageExportBusy, setImageExportBusy] = useState(false);
+	const [crosshairsMenuOpen, setCrosshairsMenuOpen] = useState(false);
 
 	const hasPlottableSignals = useStore(plotData, (state) => state.hasPlottableSignals);
 	const hasSelectedSignals = useStore(plotData, (state) => state.selected.size > 0);
@@ -190,8 +191,14 @@ export function SignalPlot({
 							{shortcut('resetZoom')}
 						</ContextMenuItem>
 						<ContextMenuSeparator />
-						<ContextMenuSub>
-							<ContextMenuSubTrigger>
+						<ContextMenuSub open={crosshairsMenuOpen} onOpenChange={setCrosshairsMenuOpen}>
+							{/* Base UI ignores mouse presses on a hover-opened trigger; a press still opens it.
+							    Keyboard and screen reader clicks (detail 0) keep Base UI's own toggle. */}
+							<ContextMenuSubTrigger
+								onClick={(event) => {
+									if (event.detail > 0) setCrosshairsMenuOpen(true);
+								}}
+							>
 								<Crosshair />
 								Crosshairs
 							</ContextMenuSubTrigger>
@@ -271,7 +278,9 @@ export function SignalPlot({
 
 			{(rendererMessage !== null || !hasData) && (
 				<div
-					role={renderer.status === 'error' ? 'alert' : 'status'}
+					role={
+						rendererMessage === null ? undefined : renderer.status === 'error' ? 'alert' : 'status'
+					}
 					className="absolute inset-0 z-30 flex items-center justify-center px-6 text-center text-sm text-muted-foreground"
 				>
 					{rendererMessage ?? EMPTY_MESSAGE}
