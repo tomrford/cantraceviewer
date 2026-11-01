@@ -79,6 +79,8 @@ export function PlotInteraction({
 		const button = buttonRef.current;
 		if (startViewport === null || point === null || button === null) return;
 		event.preventDefault();
+		// Cancelling the press also stops the browser focusing the button, as a click normally would.
+		button.focus({ preventScroll: true });
 		// On the button even for a press on a crosshair handle, which unmounts when panned off-screen.
 		button.setPointerCapture(event.pointerId);
 		const { pointerId } = event;
