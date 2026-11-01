@@ -7,11 +7,7 @@ import { ButtonGroup } from '#lib/components/ui/button-group.js';
 import { Popover, PopoverContent, PopoverTrigger } from '#lib/components/ui/popover.js';
 import { Toggle } from '#lib/components/ui/toggle.js';
 import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tooltip.js';
-import {
-	shortcutKeys,
-	type ShortcutAction,
-	type ShortcutPlatform
-} from '#lib/keyboard-shortcuts.js';
+import type { ShortcutAction } from '#lib/keyboard-shortcuts.js';
 import { crosshairById, type CrosshairId } from '#lib/plot-crosshair.js';
 import { plotData } from '#lib/stores/plot-data.js';
 import {
@@ -30,13 +26,7 @@ const toolbarIconButtonClass =
 	'border-input bg-transparent hover:bg-muted hover:text-foreground dark:bg-transparent dark:hover:bg-muted/50';
 
 // Only booleans are selected so panning, zooming and crosshair drags never re-render the toolbar.
-export function PlotToolbar({
-	disabled,
-	shortcutPlatform
-}: {
-	disabled: boolean;
-	shortcutPlatform: ShortcutPlatform;
-}) {
+export function PlotToolbar({ disabled }: { disabled: boolean }) {
 	const isFitAll = useStore(plotView, (s) => s.isFitAll);
 	const hasPlottableSignals = useStore(plotData, (s) => s.hasPlottableSignals);
 	const canResetZoom = hasPlottableSignals && !isFitAll;
@@ -59,7 +49,7 @@ export function PlotToolbar({
 				<TooltipTrigger render={trigger} />
 				<TooltipContent sideOffset={6}>
 					{label}
-					{action && <ShortcutKey keys={shortcutKeys(action, shortcutPlatform)} />}
+					{action && <ShortcutKey action={action} />}
 				</TooltipContent>
 			</Tooltip>
 		);
@@ -75,10 +65,7 @@ export function PlotToolbar({
 			>
 				<Crosshair />
 				{placed ? `Center C${id}` : `Place C${id}`}
-				<ShortcutKey
-					keys={shortcutKeys(id === 1 ? 'placeC1' : 'placeC2', shortcutPlatform)}
-					className="ml-auto"
-				/>
+				<ShortcutKey action={id === 1 ? 'placeC1' : 'placeC2'} className="ml-auto" />
 			</Button>
 		);
 	}
@@ -179,10 +166,7 @@ export function PlotToolbar({
 						>
 							<X />
 							Clear all
-							<ShortcutKey
-								keys={shortcutKeys('clearCrosshairs', shortcutPlatform)}
-								className="ml-auto"
-							/>
+							<ShortcutKey action="clearCrosshairs" className="ml-auto" />
 						</Button>
 					</PopoverContent>
 				</Popover>

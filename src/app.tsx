@@ -33,9 +33,7 @@ import {
 	hasDraggedFiles,
 	traceFileFromDrop
 } from '#lib/file-drop.js';
-import { shortcutKeys } from '#lib/keyboard-shortcuts.js';
 import {
-	advanceWalkthrough,
 	appShell,
 	chooseTraceFile,
 	connectAppShell,
@@ -43,10 +41,7 @@ import {
 	handleDbcAdded,
 	handleSignalToggle,
 	openDemoTrace,
-	openHelp,
-	isTraceBusy,
 	openTrace,
-	runShortcut,
 	setSignalSelectorOpen,
 	startWalkthrough,
 	TRACE_INPUT_ID
@@ -57,7 +52,7 @@ import { plotView } from '#lib/stores/plot-view.js';
 import { isDark, preferences } from '#lib/stores/preferences.js';
 import { clearTraceError, traceFile, type TraceFileEntry } from '#lib/stores/trace-file.js';
 import { TRACE_FILE_ACCEPT, TRACE_FILE_FORMAT_NAMES } from '#lib/trace-file-types.js';
-import { shouldShowWalkthrough, WALKTHROUGH_STEPS } from '#lib/walkthrough.js';
+import { shouldShowWalkthrough } from '#lib/walkthrough.js';
 
 // Not needed for first paint (or the prerendered shell): loaded when a trace opens or a dialog
 // first opens.
@@ -87,6 +82,13 @@ const squircleButtonClass =
 	'flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground transition-[background-color,border-color,color,box-shadow,opacity,scale] hover:bg-sidebar-primary/90 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden active:scale-[0.96] disabled:pointer-events-none disabled:opacity-50';
 const titleButtonClass =
 	'flex h-10 max-w-[min(28rem,calc(100vw-12rem))] items-center gap-2 rounded-lg border border-border/70 bg-muted px-4 text-sm font-medium text-foreground transition-[box-shadow,scale] hover:bg-muted/80 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.98] disabled:pointer-events-none disabled:opacity-60';
+
+const traceDragHandlers = {
+	onDragEnter: handleTraceDrag,
+	onDragOver: handleTraceDrag,
+	onDragLeave: clearTraceDrag,
+	onDrop: dropTrace
+};
 
 export function App() {
 	const dark = useStore(preferences, isDark);
@@ -133,17 +135,12 @@ export function App() {
 }
 
 function AppShell() {
-	const platform = useStore(appShell, (s) => s.shortcutPlatform);
-	const openingTrace = useStore(appShell, (s) => s.openingTrace);
-	const traceLoading = useStore(traceFile, (s) => s.isLoading);
-	const traceBusy = openingTrace || traceLoading;
+	const traceBusy = useStore(appShell, (s) => s.openingTrace);
 	const hasTrace = useStore(traceFile, (s) => s.entry !== null);
 	const dropActive = useStore(appShell, (s) => s.traceDropActive);
 	const traceError = useStore(traceFile, (s) => s.error);
-	const stepId = useStore(appShell, (s) => s.walkthroughStepId);
 	const signalSelectorOpen = useStore(appShell, (s) => s.signalSelectorOpen);
 	const signalSearchFocusRequest = useStore(appShell, (s) => s.signalSearchFocusRequest);
-	const settingsOpen = useStore(appShell, (s) => s.settingsOpen);
 	const helpOpen = useStore(appShell, (s) => s.helpOpen);
 	const paletteOpen = useStore(appShell, (s) => s.paletteOpen);
 	const hasPlottable = useStore(plotData, (s) => s.hasPlottableSignals);
@@ -157,7 +154,6 @@ function AppShell() {
 		canPlaceCrosshair,
 		hasCrosshairs
 	});
-	const stepIndex = WALKTHROUGH_STEPS.findIndex((step) => step.id === stepId);
 	// Dialogs mount on first open and stay mounted so their close animations run.
 	const helpMounted = useOpenedOnce(helpOpen);
 	const paletteMounted = useOpenedOnce(paletteOpen);
@@ -165,13 +161,6 @@ function AppShell() {
 	useEffect(() => {
 		if (traceBusy) void SignalPlot.preload().catch(() => undefined);
 	}, [traceBusy]);
-
-	const dragHandlers = {
-		onDragEnter: handleTraceDrag,
-		onDragOver: handleTraceDrag,
-		onDragLeave: clearTraceDrag,
-		onDrop: dropTrace
-	};
 
 	return (
 		<div className="flex min-h-screen flex-col bg-background too-small:hidden">
@@ -201,7 +190,7 @@ function AppShell() {
 							</TooltipTrigger>
 							<TooltipContent sideOffset={6}>
 								Signal selector
-								<ShortcutKey keys={shortcutKeys('selectSignals', platform)} />
+								<ShortcutKey action="selectSignals" />
 							</TooltipContent>
 						</Tooltip>
 					</SignalSelectorDialog>
@@ -222,25 +211,16 @@ function AppShell() {
 
 				<div className="flex items-center gap-2" data-walkthrough-target="plot-controls">
 					<div className="flex items-center">
-						<PlotToolbar
-							disabled={shortcutState.plotControlsDisabled}
-							shortcutPlatform={platform}
-						/>
+						<PlotToolbar disabled={shortcutState.plotControlsDisabled} />
 					</div>
-					<SettingsDialog
-						open={settingsOpen}
-						onOpenChange={(settingsOpen) => appShell.setState({ settingsOpen })}
-						shortcutPlatform={platform}
-						onOpenHelp={openHelp}
-						triggerClassName={squircleButtonClass}
-					/>
+					<SettingsDialog triggerClassName={squircleButtonClass} />
 				</div>
 			</header>
 
 			{hasTrace ? (
-				<SignalPlot shortcutPlatform={platform} dropActive={dropActive} {...dragHandlers} />
+				<SignalPlot dropActive={dropActive} {...traceDragHandlers} />
 			) : (
-				<Landing traceBusy={traceBusy} dropActive={dropActive} {...dragHandlers} />
+				<Landing traceBusy={traceBusy} dropActive={dropActive} />
 			)}
 
 			<AlertDialog
@@ -262,30 +242,16 @@ function AppShell() {
 				)}
 			</AlertDialog>
 
-			{stepIndex >= 0 && (
-				<Walkthrough
-					step={WALKTHROUGH_STEPS[stepIndex]}
-					stepIndex={stepIndex}
-					stepCount={WALKTHROUGH_STEPS.length}
-					onAdvance={advanceWalkthrough}
-				/>
-			)}
+			<Walkthrough />
 
 			{helpMounted && (
-				<HelpDialog
-					open={helpOpen}
-					onOpenChange={(helpOpen) => appShell.setState({ helpOpen })}
-					shortcutPlatform={platform}
-					onStartWalkthrough={startWalkthrough}
-				/>
+				<HelpDialog open={helpOpen} onOpenChange={(helpOpen) => appShell.setState({ helpOpen })} />
 			)}
 			{paletteMounted && (
 				<CommandPalette
 					open={paletteOpen}
 					onOpenChange={(paletteOpen) => appShell.setState({ paletteOpen })}
-					shortcutPlatform={platform}
 					state={shortcutState}
-					onRun={runShortcut}
 				/>
 			)}
 		</div>
@@ -300,7 +266,6 @@ function useOpenedOnce(open: boolean): boolean {
 }
 
 function TraceButton({ traceBusy }: { traceBusy: boolean }) {
-	const platform = useStore(appShell, (s) => s.shortcutPlatform);
 	const displayName = useStore(traceFile, (s) => s.displayName);
 	const entry = useStore(traceFile, (s) => s.entry);
 	const metadata = entry ? formatTraceMetadata(entry) : null;
@@ -322,21 +287,13 @@ function TraceButton({ traceBusy }: { traceBusy: boolean }) {
 				<AudioWaveform className="size-4 shrink-0 text-sidebar-primary" />
 				<span className="min-w-0 truncate text-sm font-medium">{displayName}</span>
 				{traceBusy && (
-					<>
-						<LoaderCircle
-							className="size-4 shrink-0 animate-spin text-muted-foreground"
-							aria-hidden="true"
-						/>
-						<span className="sr-only">Loading trace</span>
-					</>
+					<LoaderCircle className="size-4 shrink-0 animate-spin text-muted-foreground" />
 				)}
 			</TooltipTrigger>
 			<TooltipContent sideOffset={6} className="flex-col items-stretch gap-1 pr-3">
 				<span className="flex items-center gap-3">
 					{traceBusy ? 'Loading trace' : 'Open trace'}
-					{!traceBusy && (
-						<ShortcutKey keys={shortcutKeys('openTrace', platform)} className="ml-auto" />
-					)}
+					{!traceBusy && <ShortcutKey action="openTrace" className="ml-auto" />}
 				</span>
 				{metadata && <span className="whitespace-pre-line text-muted-foreground">{metadata}</span>}
 			</TooltipContent>
@@ -344,18 +301,7 @@ function TraceButton({ traceBusy }: { traceBusy: boolean }) {
 	);
 }
 
-function Landing({
-	traceBusy,
-	dropActive,
-	...dragHandlers
-}: {
-	traceBusy: boolean;
-	dropActive: boolean;
-	onDragEnter: (event: DragEvent) => void;
-	onDragOver: (event: DragEvent) => void;
-	onDragLeave: (event: DragEvent) => void;
-	onDrop: (event: DragEvent) => void;
-}) {
+function Landing({ traceBusy, dropActive }: { traceBusy: boolean; dropActive: boolean }) {
 	const hasLoadedLibrary = useStore(dbcFiles, (s) => s.hasLoadedLibrary);
 	const walkthroughVersion = useStore(preferences, (s) => s.walkthroughVersion);
 	const stepId = useStore(appShell, (s) => s.walkthroughStepId);
@@ -369,7 +315,7 @@ function Landing({
 			className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-background p-6"
 			aria-label="Trace loading"
 			aria-busy={traceBusy}
-			{...dragHandlers}
+			{...traceDragHandlers}
 		>
 			{dropActive && (
 				<div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-background/25 text-sm font-medium text-foreground backdrop-blur-[1px]">
@@ -418,7 +364,7 @@ function Landing({
 function handleTraceDrag(event: DragEvent): void {
 	if (!hasDraggedFiles(event)) return;
 	event.preventDefault();
-	if (!isTraceBusy()) appShell.setState({ traceDropActive: true });
+	if (!appShell.getState().openingTrace) appShell.setState({ traceDropActive: true });
 }
 
 function clearTraceDrag(event: DragEvent): void {

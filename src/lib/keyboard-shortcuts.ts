@@ -15,11 +15,10 @@ export type ShortcutAction =
 	| 'placeC2'
 	| 'clearCrosshairs';
 
-export type ShortcutGroup = 'Trace' | 'View' | 'Crosshairs' | 'App';
+type ShortcutGroup = 'Trace' | 'View' | 'Crosshairs' | 'App';
 
 type ShortcutDefinition = {
 	key: string;
-	displayKey: string;
 	label: string;
 	group: ShortcutGroup;
 	primary?: boolean;
@@ -38,38 +37,21 @@ export type ShortcutState = {
 	hasCrosshairs: boolean;
 };
 
-export const SHORTCUTS = {
-	openTrace: { key: 'o', displayKey: 'O', label: 'Open trace', group: 'Trace', primary: true },
-	selectSignals: {
-		key: '/',
-		displayKey: '/',
-		label: 'Signal selector',
-		group: 'Trace',
-		primary: true
-	},
-	zoomIn: { key: '+', displayKey: '+', label: 'Zoom in', group: 'View' },
-	zoomOut: { key: '-', displayKey: '-', label: 'Zoom out', group: 'View' },
-	resetZoom: { key: '0', displayKey: '0', label: 'Zoom to full extent', group: 'View' },
-	toggleBoxZoom: { key: 'b', displayKey: 'B', label: 'Box zoom or drag pan', group: 'View' },
-	toggleLegend: { key: 'l', displayKey: 'L', label: 'Show or hide legend', group: 'View' },
-	placeC1: { key: '1', displayKey: '1', label: 'Place or centre C1', group: 'Crosshairs' },
-	placeC2: { key: '2', displayKey: '2', label: 'Place or centre C2', group: 'Crosshairs' },
-	clearCrosshairs: {
-		key: 'c',
-		displayKey: 'C',
-		label: 'Clear crosshairs',
-		group: 'Crosshairs'
-	},
-	showPalette: {
-		key: 'k',
-		displayKey: 'K',
-		label: 'Command palette',
-		group: 'App',
-		primary: true
-	},
-	openSettings: { key: ',', displayKey: ',', label: 'Settings', group: 'App', primary: true },
-	showHelp: { key: '?', displayKey: '?', label: 'Help and shortcuts', group: 'App' }
-} satisfies Record<ShortcutAction, ShortcutDefinition>;
+const SHORTCUTS: Record<ShortcutAction, ShortcutDefinition> = {
+	openTrace: { key: 'o', label: 'Open trace', group: 'Trace', primary: true },
+	selectSignals: { key: '/', label: 'Signal selector', group: 'Trace', primary: true },
+	zoomIn: { key: '+', label: 'Zoom in', group: 'View' },
+	zoomOut: { key: '-', label: 'Zoom out', group: 'View' },
+	resetZoom: { key: '0', label: 'Zoom to full extent', group: 'View' },
+	toggleBoxZoom: { key: 'b', label: 'Box zoom or drag pan', group: 'View' },
+	toggleLegend: { key: 'l', label: 'Show or hide legend', group: 'View' },
+	placeC1: { key: '1', label: 'Place or centre C1', group: 'Crosshairs' },
+	placeC2: { key: '2', label: 'Place or centre C2', group: 'Crosshairs' },
+	clearCrosshairs: { key: 'c', label: 'Clear crosshairs', group: 'Crosshairs' },
+	showPalette: { key: 'k', label: 'Command palette', group: 'App', primary: true },
+	openSettings: { key: ',', label: 'Settings', group: 'App', primary: true },
+	showHelp: { key: '?', label: 'Help and shortcuts', group: 'App' }
+};
 
 const GROUP_ORDER: ShortcutGroup[] = ['Trace', 'View', 'Crosshairs', 'App'];
 
@@ -78,7 +60,7 @@ export function groupedShortcuts(): { group: ShortcutGroup; actions: ShortcutAct
 	return GROUP_ORDER.map((group) => ({
 		group,
 		actions: actions.filter((action) => SHORTCUTS[action].group === group)
-	})).filter((entry) => entry.actions.length > 0);
+	}));
 }
 
 export function detectShortcutPlatform(platform: string): ShortcutPlatform {
@@ -88,10 +70,8 @@ export function detectShortcutPlatform(platform: string): ShortcutPlatform {
 const PRIMARY_KEY_LABEL = { mac: '⌘', other: 'Ctrl' } satisfies Record<ShortcutPlatform, string>;
 
 export function shortcutKeys(action: ShortcutAction, platform: ShortcutPlatform): string[] {
-	const shortcut: ShortcutDefinition = SHORTCUTS[action];
-	return shortcut.primary
-		? [PRIMARY_KEY_LABEL[platform], shortcut.displayKey]
-		: [shortcut.displayKey];
+	const { key, primary } = SHORTCUTS[action];
+	return primary ? [PRIMARY_KEY_LABEL[platform], key.toUpperCase()] : [key.toUpperCase()];
 }
 
 export function shortcutLabel(action: ShortcutAction): string {
@@ -99,8 +79,7 @@ export function shortcutLabel(action: ShortcutAction): string {
 }
 
 export function overridesBrowserShortcut(action: ShortcutAction): boolean {
-	const shortcut: ShortcutDefinition = SHORTCUTS[action];
-	return shortcut.primary === true;
+	return SHORTCUTS[action].primary === true;
 }
 
 const LETTER_KEY = /^[a-z]$/;
@@ -109,24 +88,20 @@ export function shortcutFromEvent(
 	event: ShortcutEvent,
 	platform: ShortcutPlatform
 ): ShortcutAction | null {
-	if (event.defaultPrevented || event.repeat) return null;
+	if (event.defaultPrevented || event.repeat || event.altKey) return null;
 
+	const key = event.key.toLowerCase();
+	const primaryPressed =
+		platform === 'mac' ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
 	for (const [action, shortcut] of Object.entries(SHORTCUTS) as [
 		ShortcutAction,
 		ShortcutDefinition
 	][]) {
-		if (shortcut.primary) {
-			const primaryPressed =
-				platform === 'mac' ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
-			if (!primaryPressed || event.altKey) continue;
-
-			if (event.shiftKey && LETTER_KEY.test(shortcut.key)) continue;
-			if (event.key.toLowerCase() === shortcut.key) return action;
-			continue;
-		}
-
-		if (event.metaKey || event.ctrlKey || event.altKey) continue;
-		if (event.key === shortcut.key || event.key.toLowerCase() === shortcut.key) return action;
+		if (shortcut.key !== key) continue;
+		const modifiersMatch = shortcut.primary
+			? primaryPressed && !(event.shiftKey && LETTER_KEY.test(key))
+			: !event.metaKey && !event.ctrlKey;
+		if (modifiersMatch) return action;
 	}
 
 	return null;
@@ -143,7 +118,8 @@ export function shortcutSuppressedBySurface(target: ShortcutTarget | null): bool
 	const surface = target?.closest?.(TRANSIENT_SURFACE_SELECTOR) ?? null;
 	// A closing popup keeps focus until its exit animation unmounts it; keys belong to the page.
 	if (surface?.getAttribute?.('data-closed') != null) return false;
-	return isEditableShortcutTarget(target) || isModalSurface(surface);
+	const modal = surface !== null && surface.getAttribute?.('aria-modal') !== 'false';
+	return isEditableShortcutTarget(target) || modal;
 }
 
 export function shortcutEnabled(action: ShortcutAction, state: ShortcutState): boolean {
@@ -167,10 +143,6 @@ export function shortcutEnabled(action: ShortcutAction, state: ShortcutState): b
 		case 'openSettings':
 		case 'showHelp':
 			return true;
-		default: {
-			const unexpected: never = action;
-			return unexpected;
-		}
 	}
 }
 
@@ -190,9 +162,3 @@ export function isEditableShortcutTarget(target: ShortcutTarget | null): boolean
 
 const TRANSIENT_SURFACE_SELECTOR =
 	'[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-slot="context-menu-content"], [data-slot="context-menu-sub-content"], [data-slot="select-content"], [data-slot="alert-dialog-content"]';
-
-function isModalSurface(surface: ShortcutTarget | null): boolean {
-	if (!surface) return false;
-
-	return surface.getAttribute?.('aria-modal') !== 'false';
-}

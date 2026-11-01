@@ -12,12 +12,11 @@ import { ShortcutKey } from '#lib/components/shortcut-key.js';
 import {
 	groupedShortcuts,
 	shortcutEnabled,
-	shortcutKeys,
 	shortcutLabel,
 	type ShortcutAction,
-	type ShortcutPlatform,
 	type ShortcutState
 } from '#lib/keyboard-shortcuts.js';
+import { runShortcut } from '#lib/stores/app-shell.js';
 
 const groups = groupedShortcuts().map(({ group, actions }) => ({
 	group,
@@ -27,23 +26,19 @@ const groups = groupedShortcuts().map(({ group, actions }) => ({
 export function CommandPalette({
 	open,
 	onOpenChange,
-	shortcutPlatform,
-	state,
-	onRun
+	state
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
-	shortcutPlatform: ShortcutPlatform;
 	state: ShortcutState;
-	onRun: (action: ShortcutAction) => void;
 }) {
 	function run(action: ShortcutAction): void {
 		onOpenChange(false);
-		onRun(action);
+		runShortcut(action);
 	}
 
 	return (
-		<CommandDialog open={open} onOpenChange={(next) => onOpenChange(next)}>
+		<CommandDialog open={open} onOpenChange={onOpenChange}>
 			<Command>
 				<CommandInput placeholder="Search for a command..." />
 				<CommandList>
@@ -59,7 +54,7 @@ export function CommandPalette({
 								>
 									<span>{shortcutLabel(action)}</span>
 									<CommandShortcut>
-										<ShortcutKey keys={shortcutKeys(action, shortcutPlatform)} />
+										<ShortcutKey action={action} />
 									</CommandShortcut>
 								</CommandItem>
 							))}

@@ -1,12 +1,7 @@
 import { createStore } from 'zustand/vanilla';
-import { closeTrace, openTrace, type OpenTraceResult, type TraceType } from '#lib/wasm.js';
+import { closeTrace, openTrace, type OpenTraceResult } from '#lib/wasm.js';
 import { TRACE_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '#lib/file-limits.js';
-import {
-	buildMf4SignalTargetIndex,
-	mf4SelectorSearchIndexes,
-	type Mf4SignalTarget
-} from '#lib/mf4-signals.js';
-import type { SelectorSearchIndex } from '#lib/selector-list.js';
+import { buildMf4SignalTargetIndex, mf4SelectorSearchIndexes } from '#lib/mf4-signals.js';
 import {
 	TRACE_FILE_DESCRIPTION,
 	displayTraceName,
@@ -15,23 +10,12 @@ import {
 
 export type TraceFileEntry = OpenTraceResult & { id: number; file: File };
 
-export type TraceFileState = {
-	entry: TraceFileEntry | null;
-	isLoading: boolean;
-	error: string | null;
-	/** Derived from `entry` on every write. */
-	displayName: string;
-	warning: string | null;
-	mf4SignalTargetByKey: ReadonlyMap<string, Mf4SignalTarget>;
-	mf4SelectorIndexes: SelectorSearchIndex[];
-};
-
 let nextTraceId = 1;
 
-export const traceFile = createStore<TraceFileState>()(() => ({
+export const traceFile = createStore(() => ({
 	...entryState(null),
 	isLoading: false,
-	error: null
+	error: null as string | null
 }));
 
 export async function openTraceFile(file: File): Promise<boolean> {
@@ -39,7 +23,10 @@ export async function openTraceFile(file: File): Promise<boolean> {
 
 	let next: TraceFileEntry | null = null;
 	try {
-		const traceType = traceTypeForFile(file);
+		const traceType = traceTypeForFileName(file.name);
+		if (traceType === null) {
+			throw new Error(`Unsupported trace file type. Open ${TRACE_FILE_DESCRIPTION}.`);
+		}
 		assertFileSizeWithinLimit(file, TRACE_MAX_FILE_BYTES, 'Trace');
 
 		const bytes = new Uint8Array(await file.arrayBuffer());
@@ -82,10 +69,4 @@ function traceWarning(entry: TraceFileEntry | null): string | null {
 		warnings.push(`Parsed with ${count} malformed ${count === 1 ? 'line' : 'lines'} skipped.`);
 	}
 	return warnings.length > 0 ? warnings.join(' ') : null;
-}
-
-function traceTypeForFile(file: File): TraceType {
-	const traceType = traceTypeForFileName(file.name);
-	if (traceType !== null) return traceType;
-	throw new Error(`Unsupported trace file type. Open ${TRACE_FILE_DESCRIPTION}.`);
 }
