@@ -7,10 +7,10 @@ const PLOT_THEME_TOKENS = {
 	fontFamily: '--font-mono'
 } as const;
 
-export type PlotThemeRole = keyof typeof PLOT_THEME_TOKENS;
+type PlotThemeRole = keyof typeof PLOT_THEME_TOKENS;
 export type PlotTheme = { [Role in PlotThemeRole]: string };
 
-export const FALLBACK_PLOT_THEME = {
+const FALLBACK_PLOT_THEME = {
 	background: '#ffffff',
 	text: '#71717a',
 	axisLine: '#d4d4d8',

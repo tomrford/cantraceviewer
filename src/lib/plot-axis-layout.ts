@@ -16,7 +16,7 @@ export function axisGutterOffset(index: number, axisCount: number): number {
 	return (Math.max(1, axisCount) - 1 - index) * Y_AXIS_GUTTER;
 }
 
-export type AxisTick = { ratio: number; value: number };
+type AxisTick = { ratio: number; value: number };
 export type AxisTickGenerator = (min: number, max: number, count: number) => number[];
 
 export function axisTicks(

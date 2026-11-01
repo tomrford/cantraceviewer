@@ -38,7 +38,7 @@ vi.mock('./stores/dbc-library.js', async (importOriginal) => ({
 const tools = new Map<string, WebMcpTool>();
 const unmount = mountWebMcp({
 	registerTool: async (tool) => {
-		tools.set(tool.name, tool as WebMcpTool);
+		tools.set(tool.name, tool);
 	}
 });
 afterAll(async () => {

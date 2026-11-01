@@ -35,7 +35,7 @@ import { connectPreferences, setPreference } from './preferences.js';
 import { onTraceOpened } from './session.js';
 import { openTraceFile, traceFile } from './trace-file.js';
 
-export type WalkthroughStepId = WalkthroughStep['id'];
+type WalkthroughStepId = WalkthroughStep['id'];
 
 export const TRACE_INPUT_ID = 'trace-file-input';
 
@@ -69,7 +69,7 @@ export function connectAppShell(): () => void {
 	};
 }
 
-export type ShortcutInputs = {
+type ShortcutInputs = {
 	traceBusy: boolean;
 	hasPlottable: boolean;
 	isFitAll: boolean;

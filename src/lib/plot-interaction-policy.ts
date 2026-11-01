@@ -1,4 +1,4 @@
-export type PlotWheelAction =
+type PlotWheelAction =
 	| { type: 'pan-x'; deltaX: number }
 	| { type: 'zoom'; delta: number; axes: { x: boolean; y: boolean } };
 

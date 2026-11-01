@@ -12,7 +12,7 @@ type PersistedPreferences = {
 	walkthroughVersion: number;
 };
 
-export type PreferencesState = PersistedPreferences & { systemDark: boolean };
+type PreferencesState = PersistedPreferences & { systemDark: boolean };
 
 const DEFAULTS: PersistedPreferences = {
 	theme: 'system',

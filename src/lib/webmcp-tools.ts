@@ -4,30 +4,20 @@ import type { SelectorSearchIndex } from '#lib/selector-list.js';
 import type { PlotSignal } from '#lib/stores/plot-data.js';
 import { MAX_Y_AXES } from '#lib/plot-axes.js';
 import type { CrosshairId, LegendCrosshairMode } from '#lib/plot-crosshair.js';
-import type { PlotAxisRange } from '#lib/plot-viewport.js';
+import type { storeHost } from '#lib/webmcp.js';
 
 export const SEARCH_RESULT_LIMIT_MAX = 50;
-export const SEARCH_RESULT_LIMIT_DEFAULT = 25;
-export const SIGNAL_SELECTION_LIMIT = 50;
+const SEARCH_RESULT_LIMIT_DEFAULT = 25;
+const SIGNAL_SELECTION_LIMIT = 50;
 export const INSPECTION_SIGNAL_LIMIT = 20;
-export const INSPECTION_TIME_LIMIT = 20;
+const INSPECTION_TIME_LIMIT = 20;
 
 export type WebMcpTimeRange = {
 	startMs: number;
 	endMs: number;
 };
 
-export type WebMcpView = {
-	timeDomainMs: WebMcpTimeRange | null;
-	timeWindowMs: WebMcpTimeRange | null;
-	isFullTimeRange: boolean;
-	axes: Array<{ axis: number; range: PlotAxisRange | null }>;
-	crosshairs: WebMcpCrosshair[];
-	readout: LegendCrosshairMode;
-};
-
-export type WebMcpCrosshair = { id: CrosshairId; timeMs: number; value: number };
-export type WebMcpCrosshairInput = Omit<WebMcpCrosshair, 'value'> & { value?: number };
+export type WebMcpCrosshairInput = { id: CrosshairId; timeMs: number; value?: number };
 
 export type WebMcpPlottedSignal = Pick<
 	PlotSignal,
@@ -44,49 +34,7 @@ export type WebMcpPlottedSignal = Pick<
 	series: NonNullable<PlotSignal['series']>;
 };
 
-export type WebMcpHost = {
-	view: () => WebMcpView;
-	setTimeWindow: (range: WebMcpTimeRange | null) => WebMcpTimeRange | null;
-	setCrosshairs: (crosshairs: WebMcpCrosshairInput[], readout?: LegendCrosshairMode) => void;
-	setSignalAxes: (assignments: Array<{ key: string; axis: number }>) => Promise<void>;
-	signalCatalog: () => SelectorSearchIndex[];
-	plottedSignals: () => WebMcpPlottedSignal[];
-	isSignalSelected: (key: string) => boolean;
-	toggleSignal: (key: string) => Promise<void>;
-	session: () => WebMcpSessionSnapshot;
-	dbcLibrary: () => { loaded: boolean; loading: boolean };
-};
-
-export type WebMcpSessionSnapshot = {
-	trace: {
-		name: string;
-		fileName: string;
-		hasRawFrames: boolean;
-		validMessageCount: number;
-		skippedLineCount: number;
-		durationNs: number | null;
-		durationMs: number | null;
-		measurementStartMs: number | null;
-		mf4NativeSignalCount: number;
-		warning: string | null;
-	} | null;
-	traceLoading: boolean;
-	dbcLibrary: { loaded: boolean; loading: boolean };
-	dbcs: Array<{
-		name: string;
-		origin: 'library' | 'mf4';
-		messageCount: number;
-		signalCount: number;
-	}>;
-	plotted: Array<{
-		key: string;
-		label: string;
-		unit: string;
-		axis: number;
-		decodeStatus: 'idle' | 'decoding' | 'ready' | 'error';
-		decodeError: string | null;
-	}>;
-};
+export type WebMcpHost = typeof storeHost;
 
 export type WebMcpTool = {
 	name: string;
@@ -104,20 +52,13 @@ const EMPTY_OBJECT_SCHEMA = {
 	additionalProperties: false
 } as const;
 
-function throwIfAborted(signal?: AbortSignal): void {
-	if (signal === undefined || !signal.aborted) return;
-	if (signal.reason !== undefined) throw signal.reason;
-	throw new DOMException('The operation was aborted.', 'AbortError');
-}
-
-export function describeSession(snapshot: WebMcpSessionSnapshot, view: WebMcpView) {
+export function describeSession(
+	snapshot: ReturnType<WebMcpHost['session']>,
+	view: ReturnType<WebMcpHost['view']>
+) {
 	return {
-		trace: snapshot.trace === null ? null : { ...snapshot.trace },
-		traceLoading: snapshot.traceLoading,
-		dbcLibrary: { ...snapshot.dbcLibrary },
-		dbcs: snapshot.dbcs.map((dbc) => ({ ...dbc })),
-		plotted: snapshot.plotted.map((signal) => ({ ...signal })),
-		view: copyView(view),
+		...snapshot,
+		view,
 		notes: [
 			'Load trace and DBC files with the visible browser controls.',
 			...(snapshot.dbcLibrary.loaded
@@ -137,38 +78,33 @@ export function searchCatalogSignals(
 	library: { loaded: boolean; loading: boolean } = { loaded: true, loading: false }
 ) {
 	const cappedLimit = clampLimit(limit);
-	const hits: Array<{
-		key: string;
-		label: string;
-		messageName: string;
-		signalName: string;
-		arbitrationId: string | null;
-		selected: boolean;
-		available: boolean;
-		unavailableReason: string | null;
-		source: string;
-	}> = [];
+	const hits = indexes.flatMap((index) =>
+		searchIndex(index.signals, query).map(({ signal }) => ({
+			key: signal.key,
+			label: signal.label,
+			messageName: signal.messageName,
+			signalName: signal.signalName,
+			arbitrationId: signal.arbitrationId ?? null,
+			selected: isSignalSelected(signal.key),
+			available: !signal.unavailableReason,
+			unavailableReason: signal.unavailableReason ?? null,
+			source: index.dbc.name
+		}))
+	);
 
-	for (const index of indexes) {
-		for (const { signal } of searchIndex(index.signals, query)) {
-			hits.push({
-				key: signal.key,
-				label: signal.label,
-				messageName: signal.messageName,
-				signalName: signal.signalName,
-				arbitrationId: signal.arbitrationId ?? null,
-				selected: isSignalSelected(signal.key),
-				available: !signal.unavailableReason,
-				unavailableReason: signal.unavailableReason ?? null,
-				source: index.dbc.name
-			});
-			if (hits.length > cappedLimit) {
-				return searchResult(query, cappedLimit, true, hits.slice(0, cappedLimit), library);
-			}
-		}
-	}
-
-	return searchResult(query, cappedLimit, false, hits, library);
+	return {
+		query,
+		limit: cappedLimit,
+		truncated: hits.length > cappedLimit,
+		results: hits.slice(0, cappedLimit),
+		libraryLoaded: library.loaded,
+		libraryLoading: library.loading,
+		...(library.loaded
+			? {}
+			: {
+					note: 'The saved DBC library has not finished loading. Empty results are not a complete catalogue; search again after dbcLibrary.loaded is true.'
+				})
+	};
 }
 
 export function resolveSignalRefs(indexes: SelectorSearchIndex[], refs: string[]) {
@@ -180,15 +116,7 @@ export function resolveSignalRefs(indexes: SelectorSearchIndex[], refs: string[]
 
 function resolveRefs<T extends SignalReference>(signals: T[], refs: string[]) {
 	const byKey = new Map(signals.map((signal) => [signal.key, signal]));
-	const byLabel = new Map<string, T[]>();
-
-	for (const signal of signals) {
-		const label = signal.label.toLowerCase();
-		const matches = byLabel.get(label);
-		if (matches) matches.push(signal);
-		else byLabel.set(label, [signal]);
-	}
-
+	const byLabel = Map.groupBy(signals, (signal) => signal.label.toLowerCase());
 	const resolved: T[] = [];
 	const missing: string[] = [];
 	const ambiguous: Array<{ ref: string; matches: Array<{ key: string; label: string }> }> = [];
@@ -228,7 +156,7 @@ export function createWebMcpTools(host: WebMcpHost): WebMcpTool[] {
 			inputSchema: EMPTY_OBJECT_SCHEMA,
 			annotations: { readOnlyHint: true, untrustedContentHint: true },
 			execute: async (_input, options) => {
-				throwIfAborted(options?.signal);
+				options?.signal?.throwIfAborted();
 				return describeSession(host.session(), host.view());
 			}
 		},
@@ -253,7 +181,7 @@ export function createWebMcpTools(host: WebMcpHost): WebMcpTool[] {
 			},
 			annotations: { readOnlyHint: true, untrustedContentHint: true },
 			execute: async (input, options) => {
-				throwIfAborted(options?.signal);
+				options?.signal?.throwIfAborted();
 				const { query, limit = SEARCH_RESULT_LIMIT_DEFAULT } = input as {
 					query: string;
 					limit?: number;
@@ -263,7 +191,7 @@ export function createWebMcpTools(host: WebMcpHost): WebMcpTool[] {
 					query,
 					host.isSignalSelected,
 					limit,
-					host.dbcLibrary()
+					host.session().dbcLibrary
 				);
 			}
 		},
@@ -296,7 +224,7 @@ export function createWebMcpTools(host: WebMcpHost): WebMcpTool[] {
 				const unavailable: Array<{ key: string; label: string; reason: string }> = [];
 
 				for (const signal of resolved) {
-					throwIfAborted(options?.signal);
+					options?.signal?.throwIfAborted();
 					if (selected && !host.isSignalSelected(signal.key) && signal.unavailableReason) {
 						unavailable.push({
 							key: signal.key,
@@ -329,7 +257,7 @@ export function createWebMcpTools(host: WebMcpHost): WebMcpTool[] {
 					}
 				}
 
-				throwIfAborted(options?.signal);
+				options?.signal?.throwIfAborted();
 				return { selected, changed, unchanged, unavailable, missing, ambiguous };
 			}
 		},
@@ -347,11 +275,11 @@ export function createWebMcpTools(host: WebMcpHost): WebMcpTool[] {
 				additionalProperties: false
 			},
 			execute: async (input, options) => {
-				throwIfAborted(options?.signal);
+				options?.signal?.throwIfAborted();
 				const bounds = input as Partial<WebMcpTimeRange>;
 				if (bounds.startMs === undefined && bounds.endMs === undefined) {
 					const applied = host.setTimeWindow(null);
-					return { ok: applied !== null, applied, view: copyView(host.view()) };
+					return { ok: applied !== null, applied, view: host.view() };
 				}
 				const requested = bounds as WebMcpTimeRange;
 				if (!Number.isFinite(requested.startMs) || !Number.isFinite(requested.endMs)) {
@@ -379,11 +307,11 @@ export function createWebMcpTools(host: WebMcpHost): WebMcpTool[] {
 				const applied = host.setTimeWindow(clamped);
 				return {
 					ok: applied !== null,
-					requested: { ...requested },
-					domain: { ...domain },
+					requested,
+					domain,
 					applied,
 					clamped: applied?.startMs !== requested.startMs || applied?.endMs !== requested.endMs,
-					view: copyView(host.view())
+					view: host.view()
 				};
 			}
 		},
@@ -413,12 +341,12 @@ export function createWebMcpTools(host: WebMcpHost): WebMcpTool[] {
 			},
 			annotations: { readOnlyHint: true, untrustedContentHint: true },
 			execute: async (input, options) => {
-				throwIfAborted(options?.signal);
+				options?.signal?.throwIfAborted();
 				const { timesMs: requestedTimes, signals: refs } = input as {
 					timesMs?: number[];
 					signals?: string[];
 				};
-				const crosshairs = requestedTimes === undefined ? copyView(host.view()).crosshairs : [];
+				const crosshairs = requestedTimes === undefined ? host.view().crosshairs : [];
 				const timesMs = requestedTimes ?? crosshairs.map((crosshair) => crosshair.timeMs);
 				if (requestedTimes === undefined && timesMs.length === 0) {
 					throw new Error('Place crosshairs or provide timesMs to inspect.');
@@ -440,7 +368,7 @@ export function createWebMcpTools(host: WebMcpHost): WebMcpTool[] {
 				const results = resolution.resolved.map((signal) => inspectSignal(signal, timesMs));
 
 				return {
-					timesMs: [...timesMs],
+					timesMs,
 					crosshairs,
 					deltaTimesMs: timesMs.map((time, index) =>
 						index === 0 ? null : time - timesMs[index - 1]
@@ -485,7 +413,7 @@ export function createWebMcpTools(host: WebMcpHost): WebMcpTool[] {
 				additionalProperties: false
 			},
 			execute: async (input, options) => {
-				throwIfAborted(options?.signal);
+				options?.signal?.throwIfAborted();
 				const { crosshairs, readout } = input as {
 					crosshairs: WebMcpCrosshairInput[];
 					readout?: LegendCrosshairMode;
@@ -526,9 +454,9 @@ export function createWebMcpTools(host: WebMcpHost): WebMcpTool[] {
 							}));
 				host.setCrosshairs(applied, readout);
 				return {
-					requested: crosshairs.map((marker) => ({ ...marker })),
+					requested: crosshairs,
 					clamped: applied.some((marker, index) => marker.timeMs !== crosshairs[index].timeMs),
-					view: copyView(host.view())
+					view: host.view()
 				};
 			}
 		},
@@ -560,7 +488,7 @@ export function createWebMcpTools(host: WebMcpHost): WebMcpTool[] {
 			},
 			annotations: { untrustedContentHint: true },
 			execute: async (input, options) => {
-				throwIfAborted(options?.signal);
+				options?.signal?.throwIfAborted();
 				const { assignments } = input as { assignments: Array<{ signal: string; axis: number }> };
 				validateRefs(
 					assignments.map(({ signal }) => signal),
@@ -577,7 +505,7 @@ export function createWebMcpTools(host: WebMcpHost): WebMcpTool[] {
 				});
 				if (new Set(resolved.map(({ key }) => key)).size !== resolved.length)
 					throw new TypeError('Assign each signal only once.');
-				await host.setSignalAxes(resolved);
+				host.setSignalAxes(resolved);
 				return describeSession(host.session(), host.view());
 			}
 		}
@@ -646,52 +574,4 @@ function validateRefs(refs: string[], limit: number): void {
 function clampLimit(limit: number): number {
 	if (!Number.isFinite(limit)) return SEARCH_RESULT_LIMIT_DEFAULT;
 	return Math.min(SEARCH_RESULT_LIMIT_MAX, Math.max(1, Math.floor(limit)));
-}
-
-function searchResult(
-	query: string,
-	limit: number,
-	truncated: boolean,
-	results: Array<{
-		key: string;
-		label: string;
-		messageName: string;
-		signalName: string;
-		arbitrationId: string | null;
-		selected: boolean;
-		source: string;
-	}>,
-	library: { loaded: boolean; loading: boolean }
-) {
-	return {
-		query,
-		limit,
-		truncated,
-		results,
-		libraryLoaded: library.loaded,
-		libraryLoading: library.loading,
-		...(library.loaded
-			? {}
-			: {
-					note: 'The saved DBC library has not finished loading. Empty results are not a complete catalogue; search again after dbcLibrary.loaded is true.'
-				})
-	};
-}
-
-function copyRange(range: WebMcpTimeRange | null): WebMcpTimeRange | null {
-	return range === null ? null : { ...range };
-}
-
-function copyView(view: WebMcpView): WebMcpView {
-	return {
-		timeDomainMs: copyRange(view.timeDomainMs),
-		timeWindowMs: copyRange(view.timeWindowMs),
-		isFullTimeRange: view.isFullTimeRange,
-		axes: view.axes.map(({ axis, range }) => ({
-			axis,
-			range: range === null ? null : { ...range }
-		})),
-		crosshairs: view.crosshairs.map((marker) => ({ ...marker })).sort((a, b) => a.id - b.id),
-		readout: view.readout
-	};
 }

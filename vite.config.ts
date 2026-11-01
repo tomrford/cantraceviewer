@@ -11,7 +11,6 @@ export default defineConfig({
 	optimizeDeps: { exclude: ['cantraceviewer'] },
 	test: {
 		expect: { requireAssertions: true },
-		environment: 'node',
 		include: ['src/**/*.{test,spec}.{js,ts}', 'packages/**/*.{test,spec}.{js,ts}']
 	}
 });
