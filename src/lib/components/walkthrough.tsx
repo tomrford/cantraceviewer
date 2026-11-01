@@ -1,20 +1,19 @@
 import { useEffect, useRef } from 'react';
+import { useStore } from 'zustand';
 import { Button } from '#lib/components/ui/button.js';
-import { placeWalkthrough, type WalkthroughStep } from '#lib/walkthrough.js';
+import { advanceWalkthrough, appShell } from '#lib/stores/app-shell.js';
+import { placeWalkthrough, WALKTHROUGH_STEPS, type WalkthroughStep } from '#lib/walkthrough.js';
+
+export function Walkthrough() {
+	const stepId = useStore(appShell, (s) => s.walkthroughStepId);
+	const stepIndex = WALKTHROUGH_STEPS.findIndex((step) => step.id === stepId);
+	if (stepIndex < 0) return null;
+	return <WalkthroughPanel step={WALKTHROUGH_STEPS[stepIndex]} stepIndex={stepIndex} />;
+}
 
 // Position and visibility are written straight to the panel so tracking the target
 // on scroll/resize never re-renders.
-export function Walkthrough({
-	step,
-	stepIndex,
-	stepCount,
-	onAdvance
-}: {
-	step: WalkthroughStep;
-	stepIndex: number;
-	stepCount: number;
-	onAdvance: () => void;
-}) {
+function WalkthroughPanel({ step, stepIndex }: { step: WalkthroughStep; stepIndex: number }) {
 	const panelRef = useRef<HTMLDivElement>(null);
 	const { target: targetId, placement } = step;
 
@@ -71,7 +70,7 @@ export function Walkthrough({
 		>
 			<div className="grid gap-1" aria-live="polite">
 				<div className="text-xs text-muted-foreground">
-					Step {stepIndex + 1} of {stepCount}
+					Step {stepIndex + 1} of {WALKTHROUGH_STEPS.length}
 				</div>
 				<h2 id="walkthrough-title" className="text-sm font-medium">
 					{step.title}
@@ -82,8 +81,8 @@ export function Walkthrough({
 			</div>
 
 			<div className="flex justify-end">
-				<Button className="h-10 px-3" onClick={onAdvance}>
-					{stepIndex === stepCount - 1 ? 'Finish' : 'Next'}
+				<Button className="h-10 px-3" onClick={advanceWalkthrough}>
+					{stepIndex === WALKTHROUGH_STEPS.length - 1 ? 'Finish' : 'Next'}
 				</Button>
 			</div>
 		</div>

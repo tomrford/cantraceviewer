@@ -24,11 +24,7 @@ import {
 	ContextMenuSubTrigger,
 	ContextMenuTrigger
 } from '#lib/components/ui/context-menu.js';
-import {
-	shortcutKeys,
-	type ShortcutAction,
-	type ShortcutPlatform
-} from '#lib/keyboard-shortcuts.js';
+import type { ShortcutAction } from '#lib/keyboard-shortcuts.js';
 import { Y_TICK_COUNT, type AxisTickGenerator } from '#lib/plot-axis-layout.js';
 import { SIGNAL_COLORS } from '#lib/plot-colors.js';
 import type { CrosshairId } from '#lib/plot-crosshair.js';
@@ -81,10 +77,9 @@ type RendererState =
  */
 export function SignalPlot({
 	dropActive = false,
-	shortcutPlatform,
 	className,
 	...props
-}: ComponentProps<'section'> & { dropActive?: boolean; shortcutPlatform: ShortcutPlatform }) {
+}: ComponentProps<'section'> & { dropActive?: boolean }) {
 	const rootRef = useRef<HTMLElement>(null);
 	const surfaceRef = useRef<HTMLDivElement>(null);
 	const [renderer, setRenderer] = useState<RendererState>({ status: 'loading' });
@@ -142,7 +137,7 @@ export function SignalPlot({
 
 	const shortcut = (action: ShortcutAction) => (
 		<ContextMenuShortcut>
-			<ShortcutKey keys={shortcutKeys(action, shortcutPlatform)} />
+			<ShortcutKey action={action} />
 		</ContextMenuShortcut>
 	);
 

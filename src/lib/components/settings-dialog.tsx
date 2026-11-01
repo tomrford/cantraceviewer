@@ -26,7 +26,7 @@ import {
 	SelectValue
 } from '#lib/components/ui/select.js';
 import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tooltip.js';
-import { shortcutKeys, type ShortcutPlatform } from '#lib/keyboard-shortcuts.js';
+import { appShell, openHelp } from '#lib/stores/app-shell.js';
 import {
 	preferences,
 	setPreference,
@@ -86,19 +86,8 @@ const legendOrderOptions: { value: LegendOrderMode; label: string; description: 
  * Settings popover including its trigger. Outside presses and focus moving away do not
  * close it; Escape, the trigger and the close button do.
  */
-export function SettingsDialog({
-	open,
-	onOpenChange,
-	shortcutPlatform,
-	onOpenHelp,
-	triggerClassName
-}: {
-	open: boolean;
-	onOpenChange: (open: boolean) => void;
-	shortcutPlatform: ShortcutPlatform;
-	onOpenHelp: () => void;
-	triggerClassName?: string;
-}) {
+export function SettingsDialog({ triggerClassName }: { triggerClassName?: string }) {
+	const open = useStore(appShell, (s) => s.settingsOpen);
 	const theme = useStore(preferences, (s) => s.theme);
 	const timestampMode = useStore(preferences, (s) => s.timestampMode);
 	const legendOrder = useStore(preferences, (s) => s.legendOrder);
@@ -110,7 +99,7 @@ export function SettingsDialog({
 			open={open}
 			onOpenChange={(next, details) => {
 				if (!next && (details.reason === 'outside-press' || details.reason === 'focus-out')) return;
-				onOpenChange(next);
+				appShell.setState({ settingsOpen: next });
 			}}
 		>
 			<Tooltip>
@@ -121,7 +110,7 @@ export function SettingsDialog({
 				</TooltipTrigger>
 				<TooltipContent sideOffset={6}>
 					Settings
-					<ShortcutKey keys={shortcutKeys('openSettings', shortcutPlatform)} />
+					<ShortcutKey action="openSettings" />
 				</TooltipContent>
 			</Tooltip>
 			<PopoverContent
@@ -140,7 +129,7 @@ export function SettingsDialog({
 										type="button"
 										className={iconButtonClass}
 										aria-label="Open help"
-										onClick={onOpenHelp}
+										onClick={openHelp}
 									/>
 								}
 							>
@@ -148,7 +137,7 @@ export function SettingsDialog({
 							</TooltipTrigger>
 							<TooltipContent sideOffset={6}>
 								Help
-								<ShortcutKey keys={shortcutKeys('showHelp', shortcutPlatform)} />
+								<ShortcutKey action="showHelp" />
 							</TooltipContent>
 						</Tooltip>
 						<Tooltip>

@@ -3,7 +3,6 @@
 // Handlers run outside React render, so they read current state with getState().
 import { toast } from 'sonner';
 import { createStore } from 'zustand/vanilla';
-import { TRACE_MAX_FILE_BYTES } from '../file-limits.js';
 import {
 	detectShortcutPlatform,
 	overridesBrowserShortcut,
@@ -88,10 +87,6 @@ export function deriveShortcutState(inputs: ShortcutInputs): ShortcutState {
 	};
 }
 
-export function isTraceBusy(): boolean {
-	return appShell.getState().openingTrace || traceFile.getState().isLoading;
-}
-
 function handleShortcutKey(event: KeyboardEvent): void {
 	const action = shortcutFromEvent(event, appShell.getState().shortcutPlatform);
 	if (action === null) return;
@@ -101,7 +96,7 @@ function handleShortcutKey(event: KeyboardEvent): void {
 	if (shortcutSuppressedBySurface(event.target instanceof Element ? event.target : null)) return;
 	const view = plotView.getState();
 	const state = deriveShortcutState({
-		traceBusy: isTraceBusy(),
+		traceBusy: appShell.getState().openingTrace,
 		hasPlottable: plotData.getState().hasPlottableSignals,
 		isFitAll: view.isFitAll,
 		canPlaceCrosshair: view.activeViewport !== null,
@@ -113,53 +108,35 @@ function handleShortcutKey(event: KeyboardEvent): void {
 	event.preventDefault();
 }
 
+const SHORTCUT_RUNNERS: Record<ShortcutAction, () => void> = {
+	openTrace: chooseTraceFile,
+	selectSignals: () => {
+		appShell.setState({ settingsOpen: false });
+		setSignalSelectorOpen(true);
+		appShell.setState((s) => ({ signalSearchFocusRequest: s.signalSearchFocusRequest + 1 }));
+	},
+	showPalette: () => {
+		appShell.setState({ settingsOpen: false });
+		setSignalSelectorOpen(false);
+		appShell.setState({ paletteOpen: true });
+	},
+	openSettings: () => {
+		setSignalSelectorOpen(false);
+		appShell.setState({ settingsOpen: true });
+	},
+	showHelp: openHelp,
+	zoomIn: () => zoomBy(0.5),
+	zoomOut: () => zoomBy(2),
+	resetZoom,
+	toggleBoxZoom,
+	toggleLegend,
+	placeC1: () => placeCrosshair(1),
+	placeC2: () => placeCrosshair(2),
+	clearCrosshairs
+};
+
 export function runShortcut(action: ShortcutAction): void {
-	switch (action) {
-		case 'openTrace':
-			chooseTraceFile();
-			break;
-		case 'selectSignals':
-			appShell.setState({ settingsOpen: false });
-			setSignalSelectorOpen(true);
-			appShell.setState((s) => ({ signalSearchFocusRequest: s.signalSearchFocusRequest + 1 }));
-			break;
-		case 'showPalette':
-			appShell.setState({ settingsOpen: false });
-			setSignalSelectorOpen(false);
-			appShell.setState({ paletteOpen: true });
-			break;
-		case 'openSettings':
-			setSignalSelectorOpen(false);
-			appShell.setState({ settingsOpen: true });
-			break;
-		case 'showHelp':
-			openHelp();
-			break;
-		case 'zoomIn':
-			zoomBy(0.5);
-			break;
-		case 'zoomOut':
-			zoomBy(2);
-			break;
-		case 'resetZoom':
-			resetZoom();
-			break;
-		case 'toggleBoxZoom':
-			toggleBoxZoom();
-			break;
-		case 'toggleLegend':
-			toggleLegend();
-			break;
-		case 'placeC1':
-			placeCrosshair(1);
-			break;
-		case 'placeC2':
-			placeCrosshair(2);
-			break;
-		case 'clearCrosshairs':
-			clearCrosshairs();
-			break;
-	}
+	SHORTCUT_RUNNERS[action]();
 }
 
 export function chooseTraceFile(): void {
@@ -215,17 +192,10 @@ export function advanceWalkthrough(): void {
 	appShell.setState({ walkthroughStepId: null, signalSelectorOpen: false });
 }
 
-type DemoPreset = Readonly<{
-	group: string;
-	signal: string;
-	unit: string;
-	axis: 'primary' | 'new';
-}>;
-
-const DEMO_PRESET: readonly DemoPreset[] = [
+const DEMO_PRESET = [
 	{ group: 'Decoded powertrain', signal: 'VehicleSpeed', unit: 'km/h', axis: 'primary' },
 	{ group: 'Decoded powertrain', signal: 'EngineSpeed', unit: 'rpm', axis: 'new' }
-];
+] as const;
 
 export function openDemoTrace(): Promise<void> {
 	return openTrace(fetchDemoTrace, DEMO_PRESET);
@@ -233,9 +203,9 @@ export function openDemoTrace(): Promise<void> {
 
 export async function openTrace(
 	source: File | null | (() => Promise<File>),
-	preset?: readonly DemoPreset[]
+	preset?: typeof DEMO_PRESET
 ): Promise<void> {
-	if (!source || isTraceBusy()) return;
+	if (!source || appShell.getState().openingTrace) return;
 	appShell.setState({ openingTrace: true });
 	try {
 		const file = typeof source === 'function' ? await source() : source;
@@ -277,26 +247,6 @@ export async function openTrace(
 
 async function fetchDemoTrace(): Promise<File> {
 	const response = await fetch('/example.mf4');
-	if (!response.ok || !response.body) throw new Error('Could not load the demo trace.');
-	const limitError = () =>
-		new Error(`Trace file exceeds the ${TRACE_MAX_FILE_BYTES / 1024 / 1024} MiB limit`);
-	if (Number(response.headers.get('content-length')) > TRACE_MAX_FILE_BYTES) {
-		await response.body.cancel();
-		throw limitError();
-	}
-
-	const reader = response.body.getReader();
-	const chunks: Uint8Array<ArrayBuffer>[] = [];
-	let received = 0;
-	while (true) {
-		const { done, value } = await reader.read();
-		if (done) break;
-		received += value.byteLength;
-		if (received > TRACE_MAX_FILE_BYTES) {
-			await reader.cancel();
-			throw limitError();
-		}
-		chunks.push(value);
-	}
-	return new File(chunks, 'example.mf4');
+	if (!response.ok) throw new Error('Could not load the demo trace.');
+	return new File([await response.blob()], 'example.mf4');
 }

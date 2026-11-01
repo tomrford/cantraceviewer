@@ -1,18 +1,17 @@
-import type { ComponentProps } from 'react';
+import { useStore } from 'zustand';
+import { shortcutKeys, type ShortcutAction } from '#lib/keyboard-shortcuts.js';
+import { appShell } from '#lib/stores/app-shell.js';
 import { cn } from '#lib/utils.js';
 
-export function ShortcutKey({
-	keys,
-	className,
-	...props
-}: ComponentProps<'span'> & { keys: string[] }) {
+export function ShortcutKey({ action, className }: { action: ShortcutAction; className?: string }) {
+	const platform = useStore(appShell, (s) => s.shortcutPlatform);
+
 	return (
 		<span
 			data-slot="kbd-group"
 			className={cn('relative inline-flex shrink-0 items-center gap-0.5', className)}
-			{...props}
 		>
-			{keys.map((key) => (
+			{shortcutKeys(action, platform).map((key) => (
 				<kbd
 					key={key}
 					data-slot="kbd"

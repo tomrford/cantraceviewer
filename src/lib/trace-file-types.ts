@@ -1,35 +1,20 @@
 import type { TraceType } from './wasm';
 
-const TRACE_FILE_FORMATS = [
-	{ type: 'asc', extension: '.asc', name: 'ASC' },
-	{ type: 'trc', extension: '.trc', name: 'TRC' },
-	{ type: 'blf', extension: '.blf', name: 'BLF' },
-	{ type: 'mf4', extension: '.mf4', name: 'MF4' }
-] as const satisfies readonly {
-	type: TraceType;
-	extension: string;
-	name: string;
-}[];
+const TRACE_TYPES = ['asc', 'trc', 'blf', 'mf4'] as const satisfies readonly TraceType[];
+const TRACE_EXTENSIONS = TRACE_TYPES.map((type) => `.${type}`);
 
-export const TRACE_FILE_ACCEPT = TRACE_FILE_FORMATS.map(({ extension }) => extension).join(',');
-export const TRACE_FILE_DESCRIPTION = formatList(
-	TRACE_FILE_FORMATS.map(({ extension }) => extension)
-);
-export const TRACE_FILE_FORMAT_NAMES = formatList(TRACE_FILE_FORMATS.map(({ name }) => name));
+export const TRACE_FILE_ACCEPT = TRACE_EXTENSIONS.join(',');
+export const TRACE_FILE_DESCRIPTION = formatList(TRACE_EXTENSIONS);
+export const TRACE_FILE_FORMAT_NAMES = formatList(TRACE_TYPES.map((type) => type.toUpperCase()));
 
 export function traceTypeForFileName(fileName: string): TraceType | null {
 	const lowerName = fileName.toLowerCase();
-	return TRACE_FILE_FORMATS.find(({ extension }) => lowerName.endsWith(extension))?.type ?? null;
-}
-
-export function isTraceFileName(fileName: string): boolean {
-	return traceTypeForFileName(fileName) !== null;
+	return TRACE_TYPES.find((type) => lowerName.endsWith(`.${type}`)) ?? null;
 }
 
 export function displayTraceName(fileName: string): string {
-	const lowerName = fileName.toLowerCase();
-	const format = TRACE_FILE_FORMATS.find(({ extension }) => lowerName.endsWith(extension));
-	return format ? fileName.slice(0, -format.extension.length) : fileName;
+	const type = traceTypeForFileName(fileName);
+	return type ? fileName.slice(0, -`.${type}`.length) : fileName;
 }
 
 function formatList(items: readonly string[]): string {

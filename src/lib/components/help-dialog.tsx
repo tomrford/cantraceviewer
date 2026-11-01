@@ -8,34 +8,26 @@ import {
 	DialogTitle
 } from '#lib/components/ui/dialog.js';
 import { ShortcutKey } from '#lib/components/shortcut-key.js';
-import {
-	groupedShortcuts,
-	shortcutKeys,
-	shortcutLabel,
-	type ShortcutPlatform
-} from '#lib/keyboard-shortcuts.js';
+import { groupedShortcuts, shortcutLabel } from '#lib/keyboard-shortcuts.js';
+import { startWalkthrough } from '#lib/stores/app-shell.js';
 import { TRACE_FILE_FORMAT_NAMES } from '#lib/trace-file-types.js';
 
 const groups = groupedShortcuts();
 
 export function HelpDialog({
 	open,
-	onOpenChange,
-	shortcutPlatform,
-	onStartWalkthrough
+	onOpenChange
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
-	shortcutPlatform: ShortcutPlatform;
-	onStartWalkthrough: () => void;
 }) {
-	function startWalkthrough(): void {
+	function showTour(): void {
 		onOpenChange(false);
-		onStartWalkthrough();
+		startWalkthrough();
 	}
 
 	return (
-		<Dialog open={open} onOpenChange={(next) => onOpenChange(next)}>
+		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="max-h-[85vh] gap-0 overflow-y-auto sm:max-w-lg">
 				<DialogHeader>
 					<DialogTitle>CAN Trace Viewer</DialogTitle>
@@ -75,7 +67,7 @@ export function HelpDialog({
 							{actions.map((action) => (
 								<div key={action} className="flex items-center justify-between gap-4 py-1 text-sm">
 									<span>{shortcutLabel(action)}</span>
-									<ShortcutKey keys={shortcutKeys(action, shortcutPlatform)} />
+									<ShortcutKey action={action} />
 								</div>
 							))}
 						</div>
@@ -89,7 +81,7 @@ export function HelpDialog({
 					<button
 						type="button"
 						className="flex h-9 items-center justify-center rounded-md bg-sidebar-primary px-4 text-sm font-medium text-sidebar-primary-foreground transition-[background-color,scale] hover:bg-sidebar-primary/90 active:scale-[0.98]"
-						onClick={startWalkthrough}
+						onClick={showTour}
 					>
 						Show quick tour
 					</button>
