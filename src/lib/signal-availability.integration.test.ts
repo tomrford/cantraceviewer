@@ -8,7 +8,7 @@ import {
 	plotData,
 	toggleSignal
 } from './stores/plot-data.js';
-import { buildSelectorSearchIndexes, visibleSelectorTree } from './selector-list.js';
+import { buildSelectorSearchIndexes, selectorRows, type SelectorListRow } from './selector-list.js';
 import { onTraceOpened } from './stores/session.js';
 import { mountWebMcp } from './webmcp.js';
 import type { WebMcpTool } from './webmcp-tools.js';
@@ -119,23 +119,24 @@ it('keeps absent and transported definitions searchable, rejects additions, and 
 	expect(isSignalSelected(hits[0].key)).toBe(true);
 	expect(plotData.getState().signals[0].series?.values.length).toBe(0); // ID present, payload too short.
 	const indexes = buildSelectorSearchIndexes(dbcFiles.getState().selectorFiles);
+	const dbcIds = dbcFiles.getState().files.map((file) => file.id);
 	const filter = {
 		query: '',
 		activeOnly: false,
 		hideUnavailable: true,
 		isSignalSelected,
-		expandedDbcIds: new Set(dbcFiles.getState().files.map((file) => file.id)),
-		expandedMessageKeys: new Set(indexes[0].dbc.messages.map((message) => message.key))
+		expanded: new Set([...dbcIds, ...indexes[0].dbc.messages.map((message) => message.key)])
 	};
-	const tree = (overrides: Partial<typeof filter> = {}) =>
-		visibleSelectorTree(dbcFiles.getState().selectorSearchIndexes, { ...filter, ...overrides });
-	expect(tree()[0].messages.map((message) => message.name)).toEqual(['Present']);
-	expect(tree({ query: 'Missing' })).toEqual([]);
-	expect(tree({ activeOnly: true })[0].messages[0].signals).toHaveLength(1);
-	expect(tree({ expandedMessageKeys: new Set() })[0].messages[0]).toMatchObject({
-		expanded: false,
-		signals: []
-	});
+	const rows = (overrides: Partial<typeof filter> = {}) =>
+		selectorRows(dbcFiles.getState().selectorSearchIndexes, { ...filter, ...overrides });
+	const ofKind = <K extends SelectorListRow['kind']>(list: SelectorListRow[], kind: K) =>
+		list.filter((row): row is Extract<SelectorListRow, { kind: K }> => row.kind === kind);
+	expect(ofKind(rows(), 'message').map((row) => row.message.name)).toEqual(['Present']);
+	expect(rows({ query: 'Missing' })).toEqual([]);
+	expect(ofKind(rows({ activeOnly: true }), 'signal')).toHaveLength(1);
+	const collapsed = rows({ expanded: new Set(dbcIds) });
+	expect(ofKind(collapsed, 'message')[0]).toMatchObject({ expanded: false });
+	expect(ofKind(collapsed, 'signal')).toEqual([]);
 	expect((await search()).results).toHaveLength(4);
 	await loadTrace('signal-availability-extended.asc');
 	expect(plotData.getState().signals).toEqual([]);

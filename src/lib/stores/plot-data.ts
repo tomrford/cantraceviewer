@@ -13,8 +13,8 @@ import { dbcFiles, sourceLabel, type DbcSignalTarget } from './dbc-files.js';
 import { preferences } from './preferences.js';
 import { traceFile, type TraceFileEntry } from './trace-file.js';
 
-export type SelectedSignalState = {
-	status: 'idle' | 'decoding' | 'ready' | 'error';
+type SelectedSignalState = {
+	isDecoding: boolean;
 	series: DecodedSignalSeries | null;
 	error: string | null;
 };
@@ -66,12 +66,12 @@ export function isSignalSelected(key: string): boolean {
 	return plotData.getState().selected.has(key);
 }
 
-export function signalDecodeStatus(
-	key: string,
-	selected: PlotDataState['selected'] = plotData.getState().selected
-): { isDecoding: boolean; decodeError: string | null } {
-	const state = selected.get(key);
-	return { isDecoding: state?.status === 'decoding', decodeError: state?.error ?? null };
+export function signalDecodeStatus(key: string): {
+	isDecoding: boolean;
+	decodeError: string | null;
+} {
+	const state = plotData.getState().selected.get(key);
+	return { isDecoding: state?.isDecoding ?? false, decodeError: state?.error ?? null };
 }
 
 export async function toggleSignal(key: string): Promise<void> {
@@ -87,9 +87,8 @@ export async function toggleSignal(key: string): Promise<void> {
 	const target = findSignalTarget(key);
 	if (!target || (target.kind === 'dbc' && target.value.unavailableReason)) return;
 
-	signalColors.colorFor(key);
-	setSignalState(key, { status: 'idle', series: null, error: null });
-	await decodeSignal(key);
+	setSignalState(key, { isDecoding: false, series: null, error: null });
+	await decodeSignal(key, target);
 }
 
 export function deselectDbcFile(dbcFileId: string): void {
@@ -111,12 +110,14 @@ export function clearSelectedSignals(): void {
 	plotData.setState(signalsState(new Map()));
 }
 
-async function decodeSignal(key: string): Promise<void> {
+async function decodeSignal(
+	key: string,
+	target: NonNullable<ReturnType<typeof findSignalTarget>>
+): Promise<void> {
 	const trace = traceFile.getState().entry;
-	const target = findSignalTarget(key);
-	if (!trace || !target) return;
+	if (!trace) return;
 
-	const decoding: SelectedSignalState = { status: 'decoding', series: null, error: null };
+	const decoding: SelectedSignalState = { isDecoding: true, series: null, error: null };
 	setSignalState(key, decoding);
 	const isCurrent = () =>
 		plotData.getState().selected.get(key) === decoding &&
@@ -129,18 +130,18 @@ async function decodeSignal(key: string): Promise<void> {
 				? await getMf4SignalValues(trace.handle, target.value.signal.id)
 				: await decodeDbcSignal(trace, target.value);
 
-		if (isCurrent()) setSignalState(key, { status: 'ready', series, error: null });
+		if (isCurrent()) setSignalState(key, { isDecoding: false, series, error: null });
 	} catch (error) {
 		if (isCurrent()) {
 			setSignalState(key, {
-				status: 'error',
+				isDecoding: false,
 				series: null,
 				error: error instanceof Error ? error.message : 'Signal decode failed'
 			});
 		}
 	} finally {
 		if (plotData.getState().selected.get(key) === decoding) {
-			setSignalState(key, { ...decoding, status: 'idle' });
+			setSignalState(key, { ...decoding, isDecoding: false });
 		}
 	}
 }
@@ -158,7 +159,7 @@ function decodeDbcSignal(trace: TraceFileEntry, target: DbcSignalTarget) {
 			sizeBytes: target.message.sizeBytes
 		},
 		target.signal.name,
-		target.source ? { ...target.source } : undefined
+		target.source
 	);
 }
 

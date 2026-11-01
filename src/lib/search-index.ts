@@ -3,6 +3,7 @@ export type SearchIndex<T> = {
 	entries: Array<{ item: T; haystack: string; identifier: string | null }>;
 };
 
+/** `getSearchIdentifier` must return lowercase hex without leading zeros, like `toString(16)`. */
 export function createSearchIndex<T>(
 	items: T[],
 	getSearchText: (item: T) => string,
@@ -10,20 +11,19 @@ export function createSearchIndex<T>(
 ): SearchIndex<T> {
 	return {
 		items,
-		entries: items.map((item) => {
-			const haystack = normalizeSearchText(getSearchText(item));
-			const identifier = getSearchIdentifier(item);
-			return {
-				item,
-				haystack,
-				identifier: identifier == null ? null : canonicalHexId(normalizeSearchText(identifier))
-			};
-		})
+		entries: items.map((item) => ({
+			item,
+			haystack: normalizeSearchText(getSearchText(item)),
+			identifier: getSearchIdentifier(item) ?? null
+		}))
 	};
 }
 
 export function searchIndex<T>(index: SearchIndex<T>, query: string): T[] {
-	const terms = tokenizeSearchText(normalizeSearchText(query));
+	const terms = normalizeSearchText(query)
+		.split(/[\s\p{P}]+/u)
+		.map((term) => term.replace(/^0x(?=[0-9a-f]+$)/u, ''))
+		.filter(Boolean);
 	if (terms.length === 0) return index.items;
 
 	return index.entries
@@ -38,14 +38,7 @@ function matchSearchTerm(term: string, haystack: string, identifier: string | nu
 	if (identifier === null) return false;
 	const idTerm = canonicalHexId(term);
 	if (idTerm === null) return false;
-	return isShortHexTerm(idTerm) ? identifier === idTerm : identifier.includes(idTerm);
-}
-
-function tokenizeSearchText(text: string): string[] {
-	return text
-		.split(/[\s\p{P}]+/u)
-		.map(stripHexPrefix)
-		.filter(Boolean);
+	return idTerm.length < 3 ? identifier === idTerm : identifier.includes(idTerm);
 }
 
 function normalizeSearchText(text: string): string {
@@ -55,16 +48,7 @@ function normalizeSearchText(text: string): string {
 		.toLowerCase();
 }
 
-function stripHexPrefix(term: string): string {
-	if (term.startsWith('0x') && /^[0-9a-f]+$/u.test(term.slice(2))) return term.slice(2);
-	return term;
-}
-
 function canonicalHexId(text: string): string | null {
 	if (!/^[0-9a-f]+$/u.test(text)) return null;
 	return text.replace(/^0+/u, '') || '0';
-}
-
-function isShortHexTerm(term: string): boolean {
-	return term.length > 0 && term.length < 3;
 }

@@ -518,7 +518,6 @@ function file(
 	return {
 		id: name,
 		name,
-		kind: 'dbc',
 		transient: false,
 		messages: [
 			{

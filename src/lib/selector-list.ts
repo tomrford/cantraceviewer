@@ -21,15 +21,7 @@ export type SelectorDbcFile = {
 	id: string;
 	name: string;
 	messages: SelectorDbcMessage[];
-	kind: 'dbc' | 'mf4-native';
 	transient: boolean;
-};
-
-export type SelectorListMessage = SelectorDbcMessage & { expanded: boolean };
-
-export type SelectorListDbc = Omit<SelectorDbcFile, 'messages'> & {
-	expanded: boolean;
-	messages: SelectorListMessage[];
 };
 
 export type SelectorFilter = {
@@ -37,8 +29,8 @@ export type SelectorFilter = {
 	query: string;
 	activeOnly: boolean;
 	isSignalSelected: (key: string) => boolean;
-	expandedDbcIds: ReadonlySet<string>;
-	expandedMessageKeys: ReadonlySet<string>;
+	/** DBC ids and message keys. They cannot collide: message keys are JSON arrays. */
+	expanded: ReadonlySet<string>;
 };
 
 type SelectorSearchEntry = {
@@ -52,15 +44,9 @@ export type SelectorSearchIndex = {
 };
 
 export type SelectorListRow =
-	| { kind: 'dbc'; key: string; dbc: SelectorListDbc }
-	| { kind: 'message'; key: string; dbc: SelectorListDbc; message: SelectorListMessage }
-	| {
-			kind: 'signal';
-			key: string;
-			dbc: SelectorListDbc;
-			message: SelectorListMessage;
-			signal: SelectorListSignal;
-	  };
+	| { kind: 'dbc'; key: string; dbc: SelectorDbcFile; expanded: boolean }
+	| { kind: 'message'; key: string; message: SelectorDbcMessage; expanded: boolean }
+	| { kind: 'signal'; key: string; signal: SelectorListSignal };
 
 export function buildSelectorSearchIndexes(files: SelectorDbcFile[]): SelectorSearchIndex[] {
 	return files.map((dbc) => {
@@ -79,82 +65,58 @@ export function buildSelectorSearchIndexes(files: SelectorDbcFile[]): SelectorSe
 	});
 }
 
-export function visibleSelectorTree(
+export function selectorRows(
 	indexes: readonly SelectorSearchIndex[],
 	filter: SelectorFilter
-): SelectorListDbc[] {
-	const query = filter.query.trim().toLowerCase();
-	if (query.length === 0 && !filter.activeOnly && !filter.hideUnavailable) {
-		return indexes.map(({ dbc }) => {
-			if (!filter.expandedDbcIds.has(dbc.id)) return { ...dbc, expanded: false, messages: [] };
-
-			return {
-				...dbc,
-				expanded: true,
-				messages: dbc.messages
-					.filter((message) => message.signals.length > 0)
-					.map((message) =>
-						filter.expandedMessageKeys.has(message.key)
-							? { ...message, expanded: true }
-							: { ...message, expanded: false, signals: [] }
-					)
-			};
-		});
-	}
-
-	return indexes.flatMap((index) => {
-		const signalsByMessage: Record<string, SelectorListSignal[]> = {};
-		const visibleSignals = searchIndex(index.signals, query).filter(
-			({ signal }) =>
-				(!filter.activeOnly || filter.isSignalSelected(signal.key)) &&
-				(!filter.hideUnavailable || !signal.unavailableReason)
-		);
-
-		for (const { messageKey, signal } of visibleSignals) {
-			signalsByMessage[messageKey] ??= [];
-			signalsByMessage[messageKey].push(signal);
-		}
-
-		const messages = index.dbc.messages
-			.map((message) => ({
-				...message,
-				expanded: filter.expandedMessageKeys.has(message.key),
-				signals: signalsByMessage[message.key] ?? []
-			}))
-			.filter((message) => message.signals.length > 0);
-
-		if (messages.length === 0) return [];
-
-		const expanded = filter.expandedDbcIds.has(index.dbc.id);
-		return [
-			{
-				...index.dbc,
-				expanded,
-				messages: expanded
-					? messages.map((message) => ({
-							...message,
-							signals: message.expanded ? message.signals : []
-						}))
-					: []
-			}
-		];
-	});
-}
-
-export function flattenSelectorTree(files: SelectorListDbc[]): SelectorListRow[] {
+): SelectorListRow[] {
+	const query = filter.query.trim();
+	// A punctuation-only query has no search terms, but it still counts as filtering.
+	const filtering = query.length > 0 || filter.activeOnly || filter.hideUnavailable;
+	// This runs per deferred keystroke. Match every catalogue before allocating any rows, because
+	// rows still alive during matching get copied by each scavenge on a large catalogue.
+	const catalogues = indexes.map(({ dbc, signals }) => ({
+		dbc,
+		matches: filtering ? visibleSignalsByMessage(signals, query, filter) : null
+	}));
 	const rows: SelectorListRow[] = [];
-	for (const dbc of files) {
-		rows.push({ kind: 'dbc', key: `dbc:${dbc.id}`, dbc });
-		if (!dbc.expanded) continue;
+
+	for (const { dbc, matches } of catalogues) {
+		// Only filtering hides a DBC with nothing to show; unfiltered, an empty DBC keeps its row.
+		if (matches?.size === 0) continue;
+
+		const dbcExpanded = filter.expanded.has(dbc.id);
+		rows.push({ kind: 'dbc', key: `dbc:${dbc.id}`, dbc, expanded: dbcExpanded });
+		if (!dbcExpanded) continue;
 
 		for (const message of dbc.messages) {
-			rows.push({ kind: 'message', key: `message:${message.key}`, dbc, message });
-			if (!message.expanded) continue;
+			const visible = matches ? matches.get(message.key) : message.signals;
+			if (!visible?.length) continue;
 
-			for (const signal of message.signals) {
-				rows.push({ kind: 'signal', key: `signal:${signal.key}`, dbc, message, signal });
+			const expanded = filter.expanded.has(message.key);
+			rows.push({ kind: 'message', key: `message:${message.key}`, message, expanded });
+			if (!expanded) continue;
+
+			for (const signal of visible) {
+				rows.push({ kind: 'signal', key: `signal:${signal.key}`, signal });
 			}
 		}
 	}
 	return rows;
+}
+
+function visibleSignalsByMessage(
+	signals: SearchIndex<SelectorSearchEntry>,
+	query: string,
+	filter: SelectorFilter
+): Map<string, SelectorListSignal[]> {
+	const byMessage = new Map<string, SelectorListSignal[]>();
+	for (const { messageKey, signal } of searchIndex(signals, query)) {
+		if (filter.activeOnly && !filter.isSignalSelected(signal.key)) continue;
+		if (filter.hideUnavailable && signal.unavailableReason) continue;
+
+		const group = byMessage.get(messageKey);
+		if (group) group.push(signal);
+		else byMessage.set(messageKey, [signal]);
+	}
+	return byMessage;
 }
