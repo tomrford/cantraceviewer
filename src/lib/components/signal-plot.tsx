@@ -86,7 +86,6 @@ export function SignalPlot({
 	const [renderer, setRenderer] = useState<RendererState>({ status: 'loading' });
 	const [contextTarget, setContextTarget] = useState<ContextTarget | null>(null);
 	const [imageExportBusy, setImageExportBusy] = useState(false);
-	const [crosshairsMenuOpen, setCrosshairsMenuOpen] = useState(false);
 
 	const hasPlottableSignals = useStore(plotData, (state) => state.hasPlottableSignals);
 	const hasSelectedSignals = useStore(plotData, (state) => state.selected.size > 0);
@@ -191,14 +190,8 @@ export function SignalPlot({
 							{shortcut('resetZoom')}
 						</ContextMenuItem>
 						<ContextMenuSeparator />
-						<ContextMenuSub open={crosshairsMenuOpen} onOpenChange={setCrosshairsMenuOpen}>
-							{/* Base UI ignores mouse presses on a hover-opened trigger; a press still opens it.
-							    Keyboard and screen reader clicks (detail 0) keep Base UI's own toggle. */}
-							<ContextMenuSubTrigger
-								onClick={(event) => {
-									if (event.detail > 0) setCrosshairsMenuOpen(true);
-								}}
-							>
+						<ContextMenuSub>
+							<ContextMenuSubTrigger>
 								<Crosshair />
 								Crosshairs
 							</ContextMenuSubTrigger>
