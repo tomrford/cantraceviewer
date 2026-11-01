@@ -7,27 +7,9 @@ export type DecodedValueFormatContext = Pick<
 	'unit' | 'valueType' | 'factor' | 'offset' | 'minimum' | 'maximum' | 'valueDescriptions'
 >;
 
-export type SignalView = {
-	key: string;
-	label: string;
-	messageName: string;
-	sourceBadges?: string[];
-	signalName: string;
-	unit: string;
-	color: string;
-	x: Float64Array;
-	y: Float64Array;
-	points: number;
-	valueType: PlotSignal['valueType'];
-	factor: number;
-	offset: number;
-	minimum: number | null;
-	maximum: number | null;
-	valueDescriptions: PlotSignal['valueDescriptions'];
-};
+export type SignalView = Omit<PlotSignal, 'series'> & { x: Float64Array; y: Float64Array };
 
 export type LegendSignalValue = {
-	key: string;
 	text: string;
 	outOfRange: boolean;
 };
@@ -37,11 +19,7 @@ export type SignalSample = {
 	value: number;
 };
 
-export type WindowedSignalView = SignalView & {
-	x: Float64Array<ArrayBufferLike>;
-	y: Float64Array<ArrayBufferLike>;
-	sampled: boolean;
-};
+export type WindowedSignalView = SignalView & { sampled: boolean };
 
 const LEGEND_MAX_SIGNIFICANT_DIGITS = 7;
 
@@ -127,29 +105,8 @@ export function formatDecodedValue(value: number | null, context: DecodedValueFo
 
 const EMPTY_SERIES = new Float64Array(0);
 
-function signalView(signal: PlotSignal): SignalView {
-	const series = signal.series;
-	const sourceTimes = series?.timesMs ?? EMPTY_SERIES;
-	const sourceValues = series?.values ?? EMPTY_SERIES;
-
-	return {
-		key: signal.key,
-		label: signal.label,
-		messageName: signal.messageName,
-		sourceBadges: signal.sourceBadges,
-		signalName: signal.signalName,
-		unit: signal.unit,
-		color: signal.color,
-		x: sourceTimes,
-		y: sourceValues,
-		points: sourceTimes.length,
-		valueType: signal.valueType,
-		factor: signal.factor,
-		offset: signal.offset,
-		minimum: signal.minimum,
-		maximum: signal.maximum,
-		valueDescriptions: signal.valueDescriptions
-	};
+function signalView({ series, ...signal }: PlotSignal): SignalView {
+	return { ...signal, x: series?.timesMs ?? EMPTY_SERIES, y: series?.values ?? EMPTY_SERIES };
 }
 
 export function createSignalViewCache(): (signals: PlotSignal[]) => SignalView[] {
@@ -187,12 +144,7 @@ function viewMatchesSignal(view: SignalView, signal: PlotSignal): boolean {
 }
 
 export function crosshairValue(view: SignalView, x: number): LegendSignalValue {
-	const formatted = formatDecodedValue(nearestSignalSample(view.x, view.y, x)?.value ?? null, view);
-	return {
-		key: view.key,
-		text: formatted.text,
-		outOfRange: formatted.outOfRange
-	};
+	return formatDecodedValue(nearestSignalSample(view.x, view.y, x)?.value ?? null, view);
 }
 
 export function crosshairDeltaValue(
@@ -201,13 +153,13 @@ export function crosshairDeltaValue(
 	toX: number
 ): LegendSignalValue {
 	if (view.valueDescriptions.length > 0) {
-		return { key: view.key, text: 'N/A', outOfRange: false };
+		return { text: 'N/A', outOfRange: false };
 	}
 
 	const from = nearestSignalSample(view.x, view.y, fromX)?.value ?? null;
 	const to = nearestSignalSample(view.x, view.y, toX)?.value ?? null;
 	if (from === null || to === null || !Number.isFinite(from) || !Number.isFinite(to)) {
-		return { key: view.key, text: '-', outOfRange: false };
+		return { text: '-', outOfRange: false };
 	}
 
 	const formatted = formatLegendNumericValue(
@@ -215,7 +167,6 @@ export function crosshairDeltaValue(
 		view.valueType === 'integer' ? view.factor : null
 	);
 	return {
-		key: view.key,
 		text: view.unit ? `${formatted} ${view.unit}` : formatted,
 		outOfRange: false
 	};
@@ -281,19 +232,18 @@ export function formatAxisTime(
 		});
 	}
 
-	const seconds = value / 1000;
-	if (seconds < 60) return `${seconds.toFixed(3)}s`;
-	const minutes = Math.floor(seconds / 60);
-	return `${minutes}m ${(seconds - minutes * 60).toFixed(3)}s`;
+	return secondsText(value / 1000);
 }
 
 export function formatTimeDelta(valueMs: number): string {
 	if (!Number.isFinite(valueMs)) return '';
-	const sign = valueMs < 0 ? '-' : '';
-	const seconds = Math.abs(valueMs) / 1000;
-	if (seconds < 60) return `${sign}${seconds.toFixed(3)}s`;
+	return `${valueMs < 0 ? '-' : ''}${secondsText(Math.abs(valueMs) / 1000)}`;
+}
+
+function secondsText(seconds: number): string {
+	if (seconds < 60) return `${seconds.toFixed(3)}s`;
 	const minutes = Math.floor(seconds / 60);
-	return `${sign}${minutes}m ${(seconds - minutes * 60).toFixed(3)}s`;
+	return `${minutes}m ${(seconds - minutes * 60).toFixed(3)}s`;
 }
 
 export function formatAxisValue(value: number): string | null {
@@ -314,31 +264,19 @@ export function formatAxisValue(value: number): string | null {
 
 type ViewDomain = { xMin: number; xMax: number; yMin: number; yMax: number };
 
-const viewDomainCache = new WeakMap<
-	Float64Array<ArrayBufferLike>,
-	{ y: Float64Array<ArrayBufferLike>; domain: ViewDomain | null }
->();
+const viewDomainCache = new WeakMap<SignalView, ViewDomain | null>();
 
 function viewDomain(view: SignalView): ViewDomain | null {
-	const cached = viewDomainCache.get(view.x);
-	if (cached !== undefined && cached.y === view.y) return cached.domain;
+	const cached = viewDomainCache.get(view);
+	if (cached !== undefined) return cached;
 
-	const domain = scanViewDomain(view.x, view.y, view.points);
-	viewDomainCache.set(view.x, { y: view.y, domain });
-	return domain;
-}
-
-function scanViewDomain(
-	x: Float64Array<ArrayBufferLike>,
-	y: Float64Array<ArrayBufferLike>,
-	points: number
-): ViewDomain | null {
+	const { x, y } = view;
 	let xMin = Number.POSITIVE_INFINITY;
 	let xMax = Number.NEGATIVE_INFINITY;
 	let yMin = Number.POSITIVE_INFINITY;
 	let yMax = Number.NEGATIVE_INFINITY;
 
-	for (let index = 0; index < points; index += 1) {
+	for (let index = 0; index < x.length; index += 1) {
 		const xValue = x[index];
 		const yValue = y[index];
 		if (!Number.isFinite(xValue) || !Number.isFinite(yValue)) continue;
@@ -348,53 +286,39 @@ function scanViewDomain(
 		if (yValue > yMax) yMax = yValue;
 	}
 
-	if (
-		!Number.isFinite(xMin) ||
-		!Number.isFinite(xMax) ||
-		!Number.isFinite(yMin) ||
-		!Number.isFinite(yMax)
-	) {
-		return null;
-	}
-	return { xMin, xMax, yMin, yMax };
+	const domain = xMin === Number.POSITIVE_INFINITY ? null : { xMin, xMax, yMin, yMax };
+	viewDomainCache.set(view, domain);
+	return domain;
 }
 
 export function nearestSignalSample(
-	timesMs: Float64Array<ArrayBufferLike>,
-	values: Float64Array<ArrayBufferLike>,
+	timesMs: Float64Array,
+	values: Float64Array,
 	timeMs: number
 ): SignalSample | null {
 	const points = Math.min(timesMs.length, values.length);
 	if (points === 0 || !Number.isFinite(timeMs)) return null;
-	let low = 0;
-	let high = points - 1;
-
-	while (low < high) {
-		const mid = Math.floor((low + high) / 2);
-		if (timesMs[mid] < timeMs) low = mid + 1;
-		else high = mid;
-	}
-
+	const low = Math.min(bisect(timesMs, timeMs, false), points - 1);
 	const previous = Math.max(0, low - 1);
 	const nearest =
 		Math.abs(timesMs[previous] - timeMs) <= Math.abs(timesMs[low] - timeMs) ? previous : low;
 	return { timeMs: timesMs[nearest], value: values[nearest] };
 }
 
-function visibleIndexRange(x: Float64Array<ArrayBufferLike>, xMin: number, xMax: number) {
+function visibleIndexRange(x: Float64Array, xMin: number, xMax: number) {
 	if (x.length === 0 || !Number.isFinite(xMin) || !Number.isFinite(xMax)) {
 		return { start: 0, end: x.length };
 	}
 
 	const min = Math.min(xMin, xMax);
 	const max = Math.max(xMin, xMax);
-	const start = lowerBound(x, min);
-	const end = upperBound(x, max);
+	const start = bisect(x, min, false);
+	const end = bisect(x, max, true);
 
 	return { start, end: Math.max(start, end) };
 }
 
-export function renderIndexRange(x: Float64Array<ArrayBufferLike>, xMin: number, xMax: number) {
+export function renderIndexRange(x: Float64Array, xMin: number, xMax: number) {
 	const { start, end } = visibleIndexRange(x, xMin, xMax);
 	if (start < end) {
 		return {
@@ -410,23 +334,13 @@ export function renderIndexRange(x: Float64Array<ArrayBufferLike>, xMin: number,
 	return { start, end };
 }
 
-function lowerBound(values: Float64Array<ArrayBufferLike>, target: number): number {
+/** The first index holding a value at or above `target`, or above it when `inclusive`. */
+function bisect(values: Float64Array, target: number, inclusive: boolean): number {
 	let low = 0;
 	let high = values.length;
 	while (low < high) {
 		const mid = Math.floor((low + high) / 2);
-		if (values[mid] < target) low = mid + 1;
-		else high = mid;
-	}
-	return low;
-}
-
-function upperBound(values: Float64Array<ArrayBufferLike>, target: number): number {
-	let low = 0;
-	let high = values.length;
-	while (low < high) {
-		const mid = Math.floor((low + high) / 2);
-		if (values[mid] <= target) low = mid + 1;
+		if (inclusive ? values[mid] <= target : values[mid] < target) low = mid + 1;
 		else high = mid;
 	}
 	return low;

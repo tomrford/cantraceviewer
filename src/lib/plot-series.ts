@@ -35,7 +35,7 @@ export function plotSeriesForViews(
 	yAxisFor: (view: WindowedSignalView) => YAxisId
 ): PlotSeriesConfig[] {
 	return views.flatMap((view) => {
-		if (view.points === 0) return [];
+		if (view.x.length === 0) return [];
 		const yAxis = yAxisFor(view);
 		const line = lineSeries(view, yAxis);
 		return view.sampled ? [line] : [line, sampleMarkerSeries(view, yAxis)];

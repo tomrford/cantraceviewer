@@ -1,5 +1,6 @@
 import type { PlotGrid } from './plot-axis-layout.js';
-import type { PlotRatioPoint } from './plot-geometry.js';
+
+export type PlotRatioPoint = { xRatio: number; yRatio: number };
 
 export type PlotAreaRect = { left: number; top: number; width: number; height: number };
 

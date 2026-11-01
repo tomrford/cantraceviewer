@@ -86,24 +86,14 @@ export function PlotCrosshairOverlay({
 
 	function moveDrag(event: PointerEvent) {
 		if (gesture.current.drag?.pointerId !== event.pointerId) return;
-		if (suspended()) {
-			cancelGesture(gesture.current);
-			return;
-		}
 		event.preventDefault();
 		updateFromPointer(event);
 	}
 
-	function stopDrag(event: PointerEvent<HTMLElement>) {
+	function stopDrag(event: PointerEvent) {
 		if (gesture.current.drag?.pointerId !== event.pointerId) return;
-		if (suspended()) {
-			cancelGesture(gesture.current);
-			return;
-		}
-		gesture.current.drag = null;
 		flushGesture(gesture.current);
-		const target = event.currentTarget;
-		if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
+		cancelGesture(gesture.current);
 	}
 
 	// Coalesce drag updates to one store write per frame.
@@ -187,9 +177,8 @@ function flushGesture(gesture: Gesture): void {
 function cancelGesture(gesture: Gesture): void {
 	const { drag } = gesture;
 	gesture.drag = null;
-	if (gesture.frame !== null) cancelAnimationFrame(gesture.frame);
-	gesture.frame = null;
 	gesture.pending = null;
+	flushGesture(gesture);
 	if (drag?.target.hasPointerCapture(drag.pointerId))
 		drag.target.releasePointerCapture(drag.pointerId);
 }

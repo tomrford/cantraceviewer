@@ -29,7 +29,6 @@ export type PlotModelState = {
 	axes: PlotAxisView[];
 	/** Axes that hold at least one signal; these get a gutter. */
 	gutterAxes: PlotAxisView[];
-	primaryAxisId: YAxisId;
 	axisIdByKey: ReadonlyMap<string, YAxisId>;
 	grid: PlotGrid;
 	/** Full extent: x over all signals, y over primary-axis signals; trace duration if none. */
@@ -74,7 +73,6 @@ function modelState(previous: PlotModelState | null): PlotModelState {
 		views,
 		axes,
 		gutterAxes,
-		primaryAxisId: axes[0].id,
 		axisIdByKey: new Map(
 			groups.flatMap((group) => group.signals.map((view) => [view.key, group.id]))
 		),

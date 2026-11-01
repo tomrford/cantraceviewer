@@ -25,7 +25,6 @@ function view(x: number[], y: number[] = x): SignalView {
 		color: '#fff',
 		x: new Float64Array(x),
 		y: new Float64Array(y),
-		points: x.length,
 		valueType: 'integer' as const,
 		factor: 1,
 		offset: 0,
@@ -148,8 +147,8 @@ describe('signal plot data', () => {
 	it('recomputes the domain when the value series changes for the same time series', () => {
 		const x = new Float64Array([0, 100]);
 		const base = view([], []);
-		const first = { ...base, x, y: new Float64Array([0, 10]), points: 2 };
-		const second = { ...base, x, y: new Float64Array([0, 40]), points: 2 };
+		const first = { ...base, x, y: new Float64Array([0, 10]) };
+		const second = { ...base, x, y: new Float64Array([0, 40]) };
 
 		expect(signalYRange([first])).toEqual({ min: -0.5, max: 10.5 });
 		expect(signalYRange([second])).toEqual({ min: -2, max: 42 });
@@ -176,17 +175,14 @@ describe('signal plot data', () => {
 			maximum: 12.4
 		};
 		expect(crosshairValue(floating, 0)).toEqual({
-			key: 'signal',
 			text: '12.34 V',
 			outOfRange: false
 		});
 		expect(crosshairValue(floating, 10)).toEqual({
-			key: 'signal',
 			text: '12.49 V',
 			outOfRange: true
 		});
 		expect(crosshairDeltaValue(floating, 0, 10)).toEqual({
-			key: 'signal',
 			text: '0.15 V',
 			outOfRange: false
 		});
@@ -292,12 +288,10 @@ describe('signal plot data', () => {
 		};
 
 		expect(crosshairValue(signal, 9)).toEqual({
-			key: 'signal',
 			text: '10.0 V',
 			outOfRange: false
 		});
 		expect(crosshairDeltaValue(signal, 9, 19)).toEqual({
-			key: 'signal',
 			text: '15.0 V',
 			outOfRange: false
 		});
@@ -322,7 +316,6 @@ describe('signal plot data', () => {
 		};
 
 		expect(crosshairDeltaValue(signal, 0, 10)).toEqual({
-			key: 'signal',
 			text: 'N/A',
 			outOfRange: false
 		});

@@ -12,7 +12,7 @@ import {
 	SelectTrigger,
 	SelectValue
 } from '#lib/components/ui/select.js';
-import type { YAxisId } from '#lib/plot-axes.js';
+import { PRIMARY_Y_AXIS_ID, type YAxisId } from '#lib/plot-axes.js';
 import {
 	crosshairById,
 	type LegendCrosshairMode,
@@ -47,9 +47,6 @@ import { preferences } from '#lib/stores/preferences.js';
 import { traceFile } from '#lib/stores/trace-file.js';
 import { cn } from '#lib/utils.js';
 
-type AxisTarget = { id: YAxisId; label: string };
-type MoveMenus = { targets: AxisTarget[]; canAddAxis: boolean };
-
 /**
  * Plot legend: signals grouped by Y axis with crosshair readouts and axis management. Readouts
  * are selected per row and per axis header, so a crosshair drag re-renders only changed values.
@@ -68,10 +65,6 @@ export function SignalPlotLegend() {
 	if (hasC2) options.push({ value: 'c2', label: 'Value at C2' });
 	if (hasC1 && hasC2) options.push({ value: 'delta', label: 'Delta C2 − C1' });
 	const multiAxis = axes.length > 1;
-	const menus: MoveMenus = {
-		targets: axes.map((axis) => ({ id: axis.id, label: axis.label })),
-		canAddAxis: addable
-	};
 
 	return (
 		<div
@@ -107,13 +100,7 @@ export function SignalPlotLegend() {
 
 			<div className={multiAxis ? 'space-y-1' : 'space-y-2'}>
 				{axes.map((axis) => (
-					<LegendAxisGroup
-						key={axis.id}
-						axis={axis}
-						primaryAxisId={axes[0].id}
-						showHeader={multiAxis}
-						menus={menus}
-					/>
+					<LegendAxisGroup key={axis.id} axis={axis} showHeader={multiAxis} />
 				))}
 			</div>
 
@@ -163,19 +150,9 @@ function LegendReadout({ multiAxis }: { multiAxis: boolean }) {
 	);
 }
 
-function LegendAxisGroup({
-	axis,
-	primaryAxisId,
-	showHeader,
-	menus
-}: {
-	axis: PlotAxisView;
-	primaryAxisId: YAxisId;
-	showHeader: boolean;
-	menus: MoveMenus;
-}) {
+function LegendAxisGroup({ axis, showHeader }: { axis: PlotAxisView; showHeader: boolean }) {
 	const cursorText = useStore(plotView, (state) =>
-		showHeader ? axisCursorText(state, axis.id, primaryAxisId) : null
+		showHeader ? axisCursorText(state, axis.id) : null
 	);
 	const [dropActive, setDropActive] = useState(false);
 
@@ -237,7 +214,7 @@ function LegendAxisGroup({
 			) : (
 				<ul className="space-y-2">
 					{axis.signals.map((view) => (
-						<LegendSignalRow key={view.key} view={view} axisId={axis.id} menus={menus} />
+						<LegendSignalRow key={view.key} view={view} axisId={axis.id} />
 					))}
 				</ul>
 			)}
@@ -245,23 +222,17 @@ function LegendAxisGroup({
 	);
 }
 
-function LegendSignalRow({
-	view,
-	axisId,
-	menus
-}: {
-	view: SignalView;
-	axisId: YAxisId;
-	menus: MoveMenus;
-}) {
+function LegendSignalRow({ view, axisId }: { view: SignalView; axisId: YAxisId }) {
+	// Neither store changes during a crosshair drag, so only `value` follows the drag.
+	const axes = useStore(plotModel, (state) => state.axes);
+	const addable = useStore(plotAxes, canAddAxis);
 	const value = useStore(
 		plotView,
 		useShallow((state) => legendValue(view, state.crosshairs, state.legendCrosshairMode))
 	);
-	const showValue = useStore(plotView, (state) => state.crosshairs.length > 0);
 	const [menuOpen, setMenuOpen] = useState(false);
 	useSuspendPlot(menuOpen);
-	const movable = menus.targets.length > 1;
+	const movable = axes.length > 1;
 
 	function choose(action: () => void) {
 		setMenuOpen(false);
@@ -286,10 +257,10 @@ function LegendSignalRow({
 			className={cn(
 				'grid min-w-0 items-center gap-2 rounded-sm text-xs',
 				movable
-					? showValue
+					? value !== null
 						? 'grid-cols-[1.25rem_0.75rem_minmax(0,1fr)_auto]'
 						: 'grid-cols-[1.25rem_0.75rem_minmax(0,1fr)]'
-					: showValue
+					: value !== null
 						? 'grid-cols-[0.75rem_minmax(0,1fr)_auto]'
 						: 'grid-cols-[0.75rem_minmax(0,1fr)]'
 			)}
@@ -309,7 +280,7 @@ function LegendSignalRow({
 					</PopoverTrigger>
 					<PopoverContent align="start" className="w-48 gap-1 p-1.5">
 						<div className="px-2 py-1 text-xs font-medium text-muted-foreground">Move to</div>
-						{menus.targets.map((target) => (
+						{axes.map((target) => (
 							<button
 								key={target.id}
 								type="button"
@@ -320,7 +291,7 @@ function LegendSignalRow({
 								{target.label}
 							</button>
 						))}
-						{menus.canAddAxis && (
+						{addable && (
 							<button
 								type="button"
 								className={moveItem}
@@ -346,14 +317,14 @@ function LegendSignalRow({
 					<Badge key={badge}>{badge}</Badge>
 				))}
 			</span>
-			{showValue && (
+			{value !== null && (
 				<span
-					className={cn('font-mono tabular-nums', value?.outOfRange && 'text-destructive')}
+					className={cn('font-mono tabular-nums', value.outOfRange && 'text-destructive')}
 					title={
-						value?.outOfRange ? `Outside DBC range [${view.minimum}, ${view.maximum}]` : undefined
+						value.outOfRange ? `Outside DBC range [${view.minimum}, ${view.maximum}]` : undefined
 					}
 				>
-					{value?.text ?? '-'}
+					{value.text}
 				</span>
 			)}
 		</li>
@@ -387,9 +358,9 @@ function legendValue(
 	return crosshair === null ? null : crosshairValue(view, crosshair.x);
 }
 
-function axisCursorText(state: PlotViewState, axisId: YAxisId, primaryAxisId: YAxisId) {
+function axisCursorText(state: PlotViewState, axisId: YAxisId) {
 	const range = state.axisRanges.get(axisId);
-	const primaryRange = state.axisRanges.get(primaryAxisId);
+	const primaryRange = state.axisRanges.get(PRIMARY_Y_AXIS_ID);
 	if (range === undefined || primaryRange === undefined) return null;
 	const c1 = crosshairById(state.crosshairs, 1);
 	const c2 = crosshairById(state.crosshairs, 2);

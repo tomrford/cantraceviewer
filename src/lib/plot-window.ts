@@ -6,17 +6,13 @@ const TOTAL_SAMPLING_BUDGET = 50_000;
 const BUFFER_SPANS = 3;
 const SETTLE_MS = 150;
 
-type MaterializedSignal = {
+type WindowSlice = { start: number; end: number; xMin: number; xMax: number };
+
+type MaterializedSignal = WindowSlice & {
 	source: SignalView;
 	budget: number;
-	xMin: number;
-	xMax: number;
-	start: number;
-	end: number;
 	view: WindowedSignalView;
 };
-
-type WindowSlice = { start: number; end: number; xMin: number; xMax: number };
 
 /**
  * Windows and LTTB-samples signal views around the viewport, reusing buffered slices while
@@ -85,43 +81,19 @@ export class PlotWindow {
 
 		const points = slice.end - slice.start;
 		const target = slice.xMin === -Infinity ? budget : budget * BUFFER_SPANS;
-		let materialized: WindowedSignalView;
-		if (points > target) {
-			const sampledColumns = lttbSample(view.x, view.y, slice.start, slice.end, target);
-			materialized = {
-				...view,
-				x: sampledColumns.x,
-				y: sampledColumns.y,
-				points: target,
-				sampled: true
-			};
-		} else if (slice.start === 0 && slice.end === view.points) {
-			materialized = { ...view, sampled: false };
-		} else {
-			materialized = {
-				...view,
-				x: view.x.subarray(slice.start, slice.end),
-				y: view.y.subarray(slice.start, slice.end),
-				points,
-				sampled: false
-			};
-		}
+		const sampled = points > target;
+		const columns = sampled
+			? lttbSample(view.x, view.y, slice.start, slice.end, target)
+			: { x: view.x.subarray(slice.start, slice.end), y: view.y.subarray(slice.start, slice.end) };
+		const materialized = { ...view, ...columns, sampled };
 
-		this.#cache.set(view.key, {
-			source: view,
-			budget,
-			xMin: slice.xMin,
-			xMax: slice.xMax,
-			start: slice.start,
-			end: slice.end,
-			view: materialized
-		});
+		this.#cache.set(view.key, { ...slice, source: view, budget, view: materialized });
 		return materialized;
 	}
 }
 
 function perSignalBudget(views: SignalView[]): number {
-	const active = views.filter((view) => view.points > 0).length;
+	const active = views.filter((view) => view.x.length > 0).length;
 	return Math.max(2, Math.floor(TOTAL_SAMPLING_BUDGET / Math.max(1, active)));
 }
 
@@ -132,14 +104,14 @@ function covers(cached: MaterializedSignal, viewport: PlotViewport | null): bool
 
 function windowSlice(view: SignalView, viewport: PlotViewport | null): WindowSlice {
 	if (viewport === null) {
-		return { start: 0, end: view.points, xMin: -Infinity, xMax: Infinity };
+		return { start: 0, end: view.x.length, xMin: -Infinity, xMax: Infinity };
 	}
 
 	const span = viewport.xMax - viewport.xMin;
 	const bufferedMin = viewport.xMin - span;
 	const bufferedMax = viewport.xMax + span;
 	const { start, end } = renderIndexRange(view.x, bufferedMin, bufferedMax);
-	if (start === 0 && end === view.points) {
+	if (start === 0 && end === view.x.length) {
 		return { start, end, xMin: -Infinity, xMax: Infinity };
 	}
 	return { start, end, xMin: bufferedMin, xMax: bufferedMax };

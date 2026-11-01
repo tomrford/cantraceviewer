@@ -69,7 +69,7 @@ export const storeHost: WebMcpHost = {
 		const domain = plotModel.getState().fullDomain;
 		const {
 			activeViewport: active,
-			secondaryRanges,
+			axisRanges,
 			crosshairs,
 			legendCrosshairMode
 		} = plotView.getState();
@@ -80,12 +80,7 @@ export const storeHost: WebMcpHost = {
 				domain !== null && active?.xMin === domain.xMin && active.xMax === domain.xMax,
 			axes: plotAxes.getState().ids.map((id, index) => ({
 				axis: index + 1,
-				range:
-					index === 0
-						? active === null
-							? null
-							: { min: active.yMin, max: active.yMax }
-						: (secondaryRanges.get(id) ?? null)
+				range: axisRanges.get(id) ?? null
 			})),
 			crosshairs: crosshairs.map(({ id, x, y }) => ({ id, timeMs: x, value: y })),
 			readout: legendCrosshairMode

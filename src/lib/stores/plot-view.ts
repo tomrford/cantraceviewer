@@ -1,6 +1,6 @@
 import { subscribeWithSelector } from 'zustand/middleware';
 import { createStore } from 'zustand/vanilla';
-import type { YAxisId } from '#lib/plot-axes.js';
+import { PRIMARY_Y_AXIS_ID, type YAxisId } from '#lib/plot-axes.js';
 import {
 	crosshairById,
 	removeCrosshair,
@@ -9,7 +9,7 @@ import {
 	type LegendCrosshairMode,
 	type PlotCrosshair
 } from '#lib/plot-crosshair.js';
-import type { PlotRatioPoint } from '#lib/plot-geometry.js';
+import type { PlotRatioPoint } from '#lib/plot-pointer.js';
 import {
 	advanceYWindow,
 	applyYWindow,
@@ -34,9 +34,7 @@ export type PlotViewState = {
 	/** Derived from the mode, Y window and plot model on every write. */
 	activeViewport: PlotViewport | null;
 	isFitAll: boolean;
-	/** Non-primary axis ranges with the Y window applied. */
-	secondaryRanges: ReadonlyMap<YAxisId, PlotAxisRange>;
-	/** `secondaryRanges` plus the primary axis range from `activeViewport`. */
+	/** Non-primary fit ranges with the Y window applied, plus the primary from `activeViewport`. */
 	axisRanges: ReadonlyMap<YAxisId, PlotAxisRange>;
 
 	crosshairs: PlotCrosshair[];
@@ -68,8 +66,7 @@ let pointerRatio: PlotRatioPoint | null = null;
 plotModel.subscribe((model, previous) => {
 	if (
 		model.fullDomain === previous.fullDomain &&
-		model.secondaryFitRanges === previous.secondaryFitRanges &&
-		model.primaryAxisId === previous.primaryAxisId
+		model.secondaryFitRanges === previous.secondaryFitRanges
 	) {
 		return;
 	}
@@ -190,19 +187,17 @@ export function setPointerRatio(ratio: PlotRatioPoint | null): void {
 }
 
 function viewportState(viewportMode: ViewportMode, yWindow: PlotYWindow) {
-	const { fullDomain, secondaryFitRanges, primaryAxisId } = plotModel.getState();
+	const { fullDomain, secondaryFitRanges } = plotModel.getState();
 	let activeViewport = fullDomain;
 	if (viewportMode.mode === 'manual' && fullDomain !== null) {
 		const y = applyYWindow({ min: fullDomain.yMin, max: fullDomain.yMax }, yWindow);
 		activeViewport = { xMin: viewportMode.xMin, xMax: viewportMode.xMax, yMin: y.min, yMax: y.max };
 	}
 
-	const secondaryRanges = new Map<YAxisId, PlotAxisRange>();
-	for (const [id, range] of secondaryFitRanges)
-		secondaryRanges.set(id, applyYWindow(range, yWindow));
-	const axisRanges = new Map(secondaryRanges);
+	const axisRanges = new Map<YAxisId, PlotAxisRange>();
+	for (const [id, range] of secondaryFitRanges) axisRanges.set(id, applyYWindow(range, yWindow));
 	if (activeViewport !== null) {
-		axisRanges.set(primaryAxisId, { min: activeViewport.yMin, max: activeViewport.yMax });
+		axisRanges.set(PRIMARY_Y_AXIS_ID, { min: activeViewport.yMin, max: activeViewport.yMax });
 	}
 
 	return {
@@ -210,7 +205,6 @@ function viewportState(viewportMode: ViewportMode, yWindow: PlotYWindow) {
 		yWindow,
 		activeViewport,
 		isFitAll: viewportMode.mode === 'fit',
-		secondaryRanges,
 		axisRanges
 	};
 }

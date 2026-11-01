@@ -9,7 +9,6 @@ import { Toggle } from '#lib/components/ui/toggle.js';
 import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tooltip.js';
 import type { ShortcutAction } from '#lib/keyboard-shortcuts.js';
 import { crosshairById, type CrosshairId } from '#lib/plot-crosshair.js';
-import { plotData } from '#lib/stores/plot-data.js';
 import {
 	clearCrosshairs,
 	placeCrosshair,
@@ -28,14 +27,12 @@ const toolbarIconButtonClass =
 // Only booleans are selected so panning, zooming and crosshair drags never re-render the toolbar.
 export function PlotToolbar({ disabled }: { disabled: boolean }) {
 	const isFitAll = useStore(plotView, (s) => s.isFitAll);
-	const hasPlottableSignals = useStore(plotData, (s) => s.hasPlottableSignals);
-	const canResetZoom = hasPlottableSignals && !isFitAll;
 	const boxZoomEnabled = useStore(plotView, (s) => s.boxZoomEnabled);
 	const legendVisible = useStore(plotView, (s) => s.legendVisible);
 	const canPlaceCrosshair = useStore(plotView, (s) => s.activeViewport !== null);
-	const hasCrosshairs = useStore(plotView, (s) => s.crosshairs.length > 0);
 	const hasC1 = useStore(plotView, (s) => crosshairById(s.crosshairs, 1) !== null);
 	const hasC2 = useStore(plotView, (s) => crosshairById(s.crosshairs, 2) !== null);
+	const hasCrosshairs = hasC1 || hasC2;
 	const [crosshairMenuOpen, setCrosshairMenuOpen] = useState(false);
 
 	function closeMenuAfter(action: () => void): void {
@@ -52,6 +49,52 @@ export function PlotToolbar({ disabled }: { disabled: boolean }) {
 					{action && <ShortcutKey action={action} />}
 				</TooltipContent>
 			</Tooltip>
+		);
+	}
+
+	function zoomButton(
+		label: string,
+		action: ShortcutAction,
+		icon: ReactElement,
+		onClick: () => void,
+		isDisabled = disabled
+	) {
+		return tooltipButton(
+			<Button
+				variant="outline"
+				size="icon"
+				className={toolbarIconButtonClass}
+				aria-label={label}
+				disabled={isDisabled}
+				onClick={onClick}
+			>
+				{icon}
+			</Button>,
+			label,
+			action
+		);
+	}
+
+	function displayToggle(
+		pressed: boolean,
+		onPressedChange: (pressed: boolean) => void,
+		icon: ReactElement,
+		label: string,
+		action: ShortcutAction
+	) {
+		return tooltipButton(
+			<Toggle
+				pressed={pressed}
+				onPressedChange={onPressedChange}
+				disabled={disabled}
+				variant="outline"
+				size="default"
+				aria-label={label}
+			>
+				{icon}
+			</Toggle>,
+			label,
+			action
 		);
 	}
 
@@ -76,61 +119,21 @@ export function PlotToolbar({ disabled }: { disabled: boolean }) {
 	return (
 		<>
 			<ButtonGroup aria-label="Plot zoom controls">
-				{tooltipButton(
-					<Button
-						variant="outline"
-						size="icon"
-						className={toolbarIconButtonClass}
-						aria-label="Zoom in"
-						disabled={disabled}
-						onClick={() => zoomBy(0.5)}
-					>
-						<Plus className="size-3.5" />
-					</Button>,
-					'Zoom in',
-					'zoomIn'
-				)}
-				{tooltipButton(
-					<Button
-						variant="outline"
-						size="icon"
-						className={toolbarIconButtonClass}
-						aria-label="Zoom out"
-						disabled={disabled}
-						onClick={() => zoomBy(2)}
-					>
-						<Minus className="size-3.5" />
-					</Button>,
-					'Zoom out',
-					'zoomOut'
-				)}
-				{tooltipButton(
-					<Button
-						variant="outline"
-						size="icon"
-						className={toolbarIconButtonClass}
-						aria-label="Zoom to full extent"
-						disabled={disabled || !canResetZoom}
-						onClick={resetZoom}
-					>
-						<Expand className="size-3.5" />
-					</Button>,
+				{zoomButton('Zoom in', 'zoomIn', <Plus className="size-3.5" />, () => zoomBy(0.5))}
+				{zoomButton('Zoom out', 'zoomOut', <Minus className="size-3.5" />, () => zoomBy(2))}
+				{zoomButton(
 					'Zoom to full extent',
-					'resetZoom'
+					'resetZoom',
+					<Expand className="size-3.5" />,
+					resetZoom,
+					disabled || isFitAll
 				)}
 			</ButtonGroup>
 			<ButtonGroup aria-label="Plot display controls">
-				{tooltipButton(
-					<Toggle
-						pressed={boxZoomEnabled}
-						onPressedChange={setBoxZoomEnabled}
-						disabled={disabled}
-						variant="outline"
-						size="default"
-						aria-label={boxZoomLabel}
-					>
-						<SquareDashed className="size-3.5" />
-					</Toggle>,
+				{displayToggle(
+					boxZoomEnabled,
+					setBoxZoomEnabled,
+					<SquareDashed className="size-3.5" />,
 					boxZoomLabel,
 					'toggleBoxZoom'
 				)}
@@ -170,17 +173,10 @@ export function PlotToolbar({ disabled }: { disabled: boolean }) {
 						</Button>
 					</PopoverContent>
 				</Popover>
-				{tooltipButton(
-					<Toggle
-						pressed={legendVisible}
-						onPressedChange={setLegendVisible}
-						disabled={disabled}
-						variant="outline"
-						size="default"
-						aria-label={legendLabel}
-					>
-						<List className="size-3.5" />
-					</Toggle>,
+				{displayToggle(
+					legendVisible,
+					setLegendVisible,
+					<List className="size-3.5" />,
 					legendLabel,
 					'toggleLegend'
 				)}

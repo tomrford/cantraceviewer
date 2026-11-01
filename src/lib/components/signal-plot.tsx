@@ -25,6 +25,7 @@ import {
 	ContextMenuTrigger
 } from '#lib/components/ui/context-menu.js';
 import type { ShortcutAction } from '#lib/keyboard-shortcuts.js';
+import { PRIMARY_Y_AXIS_ID } from '#lib/plot-axes.js';
 import { Y_TICK_COUNT, type AxisTickGenerator } from '#lib/plot-axis-layout.js';
 import { SIGNAL_COLORS } from '#lib/plot-colors.js';
 import type { CrosshairId } from '#lib/plot-crosshair.js';
@@ -311,12 +312,12 @@ function mountChart(
 		if (seriesCache?.views !== views || seriesCache.model !== model) {
 			const series = plotSeriesForViews(
 				views,
-				(signal) => model.axisIdByKey.get(signal.key) ?? model.primaryAxisId
+				(signal) => model.axisIdByKey.get(signal.key) ?? PRIMARY_Y_AXIS_ID
 			);
 			seriesCache = {
 				views,
 				model,
-				series: series.length > 0 ? series : [emptyAxisSeries(model.primaryAxisId)]
+				series: series.length > 0 ? series : [emptyAxisSeries(PRIMARY_Y_AXIS_ID)]
 			};
 		}
 		return chartOptions(theme, model, view, seriesCache.series, {
