@@ -26,7 +26,6 @@ import { DialogTrigger } from '#lib/components/ui/dialog.js';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader } from '#lib/components/ui/empty.js';
 import { Toaster } from '#lib/components/ui/sonner.js';
 import {
-	ignoreFocusOpen,
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
@@ -180,7 +179,7 @@ function AppShell() {
 						onDbcAdded={handleDbcAdded}
 						onSignalToggle={handleSignalToggle}
 					>
-						<Tooltip onOpenChange={ignoreFocusOpen}>
+						<Tooltip>
 							<TooltipTrigger
 								render={
 									<DialogTrigger

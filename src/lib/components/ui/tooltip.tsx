@@ -9,14 +9,6 @@ function Tooltip({ ...props }: TooltipPrimitive.Root.Props) {
 	return <TooltipPrimitive.Root data-slot="tooltip" {...props} />;
 }
 
-/**
- * `onOpenChange` for the tooltip on a panel's trigger. Closing a panel returns focus to its
- * trigger; opening there would leave a tooltip on screen that takes the next Escape.
- */
-function ignoreFocusOpen(open: boolean, details: TooltipPrimitive.Root.ChangeEventDetails) {
-	if (open && details.reason === 'trigger-focus') details.cancel();
-}
-
 function TooltipTrigger({ ...props }: TooltipPrimitive.Trigger.Props) {
 	return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />;
 }
@@ -56,4 +48,4 @@ function TooltipContent({
 	);
 }
 
-export { ignoreFocusOpen, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider };
+export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider };

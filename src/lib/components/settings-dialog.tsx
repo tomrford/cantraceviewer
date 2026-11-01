@@ -26,12 +26,7 @@ import {
 	SelectTrigger,
 	SelectValue
 } from '#lib/components/ui/select.js';
-import {
-	ignoreFocusOpen,
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger
-} from '#lib/components/ui/tooltip.js';
+import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tooltip.js';
 import { appShell, openHelp } from '#lib/stores/app-shell.js';
 import {
 	preferences,
@@ -100,7 +95,7 @@ export function SettingsDialog({ triggerClassName }: { triggerClassName?: string
 
 	return (
 		<Popover open={open} onOpenChange={(settingsOpen) => appShell.setState({ settingsOpen })}>
-			<Tooltip onOpenChange={ignoreFocusOpen}>
+			<Tooltip>
 				<TooltipTrigger
 					render={<PopoverTrigger className={triggerClassName} aria-label="Open settings" />}
 				>
