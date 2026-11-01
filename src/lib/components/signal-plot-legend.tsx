@@ -4,7 +4,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { GripVertical, Plus, Trash2 } from 'lucide-react';
 import { SourceBadge } from '#lib/components/source-badge.js';
 import { Button, buttonVariants } from '#lib/components/ui/button.js';
-import { Popover, PopoverContent, PopoverTrigger } from '#lib/components/ui/popover.js';
+import { Menu, MenuContent, MenuItem, MenuTrigger } from '#lib/components/ui/menu.js';
 import {
 	Select,
 	SelectContent,
@@ -86,11 +86,47 @@ export function SignalPlotLegend() {
 				</div>
 			)}
 
-			<div className={multiAxis ? 'space-y-1' : 'space-y-2'}>
-				{axes.map((axis) => (
-					<LegendAxisGroup key={axis.id} axis={axis} showHeader={multiAxis} />
-				))}
-			</div>
+			{/* Keep the menu mounted while a move reparents its trigger into another axis. */}
+			<Menu<string>>
+				{({ payload }) => (
+					<>
+						<div className={multiAxis ? 'space-y-1' : 'space-y-2'}>
+							{axes.map((axis) => (
+								<LegendAxisGroup key={axis.id} axis={axis} showHeader={multiAxis} />
+							))}
+						</div>
+						{payload !== undefined && (
+							<MenuContent
+								align="start"
+								className="w-48"
+								// Moving axes remounts the row; let the menu restore focus to its new trigger.
+								finalFocus={() => document.getElementById(moveTriggerId(payload))}
+							>
+								<div className="px-2 py-1 text-xs font-medium text-muted-foreground">Move to</div>
+								{axes.map((target) => (
+									<MenuItem
+										key={target.id}
+										className="h-6 font-normal [&_svg]:size-3"
+										disabled={target.signals.some((signal) => signal.key === payload)}
+										onClick={() => assignAxis(payload, target.id)}
+									>
+										{target.label}
+									</MenuItem>
+								))}
+								{addable && (
+									<MenuItem
+										className="h-6 font-normal [&_svg]:size-3"
+										onClick={() => assignToNewAxis(payload)}
+									>
+										<Plus />
+										New Y axis
+									</MenuItem>
+								)}
+							</MenuContent>
+						)}
+					</>
+				)}
+			</Menu>
 
 			{addable && (
 				<button
@@ -202,7 +238,7 @@ function LegendAxisGroup({ axis, showHeader }: { axis: PlotAxisView; showHeader:
 			) : (
 				<ul className="space-y-2">
 					{axis.signals.map((view) => (
-						<LegendSignalRow key={view.key} view={view} axisId={axis.id} />
+						<LegendSignalRow key={view.key} view={view} />
 					))}
 				</ul>
 			)}
@@ -210,32 +246,20 @@ function LegendAxisGroup({ axis, showHeader }: { axis: PlotAxisView; showHeader:
 	);
 }
 
-function LegendSignalRow({ view, axisId }: { view: SignalView; axisId: YAxisId }) {
+function LegendSignalRow({ view }: { view: SignalView }) {
 	// Neither field changes during a crosshair drag, so only `value` follows the drag.
 	const axes = useStore(appStore, (state) => state.plotModel.axes);
-	const addable = useStore(appStore, canAddAxis);
 	const value = useStore(
 		appStore,
 		useShallow((state) => legendValue(view, state.crosshairs, state.legendCrosshairMode))
 	);
-	const [menuOpen, setMenuOpen] = useState(false);
 	const movable = axes.length > 1;
-
-	function choose(action: () => void) {
-		setMenuOpen(false);
-		action();
-	}
 
 	function startDrag(event: DragEvent) {
 		if (!movable) return;
 		event.dataTransfer.setData('text/plain', view.key);
 		event.dataTransfer.effectAllowed = 'move';
 	}
-
-	const moveItem = cn(
-		buttonVariants({ variant: 'ghost', size: 'sm' }),
-		'w-full justify-start font-normal'
-	);
 
 	return (
 		// Rows drag onto other axis groups; the move menu is the keyboard path.
@@ -255,41 +279,17 @@ function LegendSignalRow({ view, axisId }: { view: SignalView; axisId: YAxisId }
 			onDragStart={startDrag}
 		>
 			{movable && (
-				<Popover modal open={menuOpen} onOpenChange={setMenuOpen}>
-					<PopoverTrigger
-						className={cn(
-							buttonVariants({ variant: 'ghost', size: 'icon' }),
-							'size-5 cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing'
-						)}
-						aria-label={`Move ${view.label} to another Y axis`}
-					>
-						<GripVertical className="size-3.5" />
-					</PopoverTrigger>
-					<PopoverContent align="start" className="w-48 gap-1 p-1.5">
-						<div className="px-2 py-1 text-xs font-medium text-muted-foreground">Move to</div>
-						{axes.map((target) => (
-							<button
-								key={target.id}
-								type="button"
-								className={moveItem}
-								disabled={target.id === axisId}
-								onClick={() => choose(() => assignAxis(view.key, target.id))}
-							>
-								{target.label}
-							</button>
-						))}
-						{addable && (
-							<button
-								type="button"
-								className={moveItem}
-								onClick={() => choose(() => assignToNewAxis(view.key))}
-							>
-								<Plus />
-								New Y axis
-							</button>
-						)}
-					</PopoverContent>
-				</Popover>
+				<MenuTrigger
+					id={moveTriggerId(view.key)}
+					payload={view.key}
+					className={cn(
+						buttonVariants({ variant: 'ghost', size: 'icon' }),
+						'size-5 cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing'
+					)}
+					aria-label={`Move ${view.label} to another Y axis`}
+				>
+					<GripVertical className="size-3.5" />
+				</MenuTrigger>
 			)}
 
 			<span className="size-2 rounded-full" style={{ backgroundColor: view.color }} />
@@ -350,4 +350,8 @@ function axisCursorText(state: AppState, axisId: YAxisId) {
 
 function yText(value: number): string {
 	return formatAxisValue(value) ?? '-';
+}
+
+function moveTriggerId(signalKey: string): string {
+	return `move-signal-${signalKey}`;
 }

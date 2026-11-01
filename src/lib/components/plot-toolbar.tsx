@@ -1,10 +1,10 @@
-import { useState, type ReactElement } from 'react';
+import type { ReactElement } from 'react';
 import { Crosshair, Expand, List, Minus, Plus, SquareDashed, X } from 'lucide-react';
 import { useStore } from 'zustand';
 import { ShortcutKey } from '#lib/components/shortcut-key.js';
 import { Button, buttonVariants } from '#lib/components/ui/button.js';
 import { ButtonGroup } from '#lib/components/ui/button-group.js';
-import { Popover, PopoverContent, PopoverTrigger } from '#lib/components/ui/popover.js';
+import { Menu, MenuContent, MenuItem, MenuTrigger } from '#lib/components/ui/menu.js';
 import { Toggle } from '#lib/components/ui/toggle.js';
 import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tooltip.js';
 import type { ShortcutAction } from '#lib/keyboard-shortcuts.js';
@@ -32,13 +32,6 @@ export function PlotToolbar({ disabled }: { disabled: boolean }) {
 	const hasC1 = useStore(appStore, (s) => crosshairById(s.crosshairs, 1) !== null);
 	const hasC2 = useStore(appStore, (s) => crosshairById(s.crosshairs, 2) !== null);
 	const hasCrosshairs = hasC1 || hasC2;
-	const [crosshairMenuOpen, setCrosshairMenuOpen] = useState(false);
-
-	function closeMenuAfter(action: () => void): void {
-		setCrosshairMenuOpen(false);
-		action();
-	}
-
 	const boxZoomLabel = boxZoomEnabled ? 'Use drag pan' : 'Use box zoom';
 	const legendLabel = legendVisible ? 'Hide legend' : 'Show legend';
 
@@ -70,9 +63,9 @@ export function PlotToolbar({ disabled }: { disabled: boolean }) {
 				>
 					<SquareDashed className="size-3.5" />
 				</DisplayToggle>
-				<Popover open={crosshairMenuOpen} onOpenChange={setCrosshairMenuOpen}>
+				<Menu>
 					<ToolbarTooltip label="Crosshairs">
-						<PopoverTrigger
+						<MenuTrigger
 							className={cn(
 								buttonVariants({ variant: 'outline', size: 'default' }),
 								toolbarIconButtonClass,
@@ -82,33 +75,32 @@ export function PlotToolbar({ disabled }: { disabled: boolean }) {
 							aria-label="Manage crosshairs"
 						>
 							<Crosshair className="size-3.5" />
-						</PopoverTrigger>
+						</MenuTrigger>
 					</ToolbarTooltip>
-					<PopoverContent align="end" className="w-52 gap-1 p-1.5">
+					<MenuContent align="end" className="w-52">
 						<CrosshairMenuItem
 							id={1}
 							placed={hasC1}
 							disabled={!canPlaceCrosshair}
-							onClick={() => closeMenuAfter(() => placeCrosshair(1, 'center'))}
+							onClick={() => placeCrosshair(1, 'center')}
 						/>
 						<CrosshairMenuItem
 							id={2}
 							placed={hasC2}
 							disabled={!canPlaceCrosshair}
-							onClick={() => closeMenuAfter(() => placeCrosshair(2, 'center'))}
+							onClick={() => placeCrosshair(2, 'center')}
 						/>
-						<Button
-							variant="ghost"
-							className="w-full justify-start text-destructive hover:bg-destructive/10 hover:text-destructive"
+						<MenuItem
+							className="w-full justify-start text-destructive data-highlighted:bg-destructive/10 data-highlighted:text-destructive"
 							disabled={!hasCrosshairs}
-							onClick={() => closeMenuAfter(clearCrosshairs)}
+							onClick={clearCrosshairs}
 						>
 							<X />
 							Clear all
 							<ShortcutKey action="clearCrosshairs" className="ml-auto" />
-						</Button>
-					</PopoverContent>
-				</Popover>
+						</MenuItem>
+					</MenuContent>
+				</Menu>
 				<DisplayToggle
 					label={legendLabel}
 					action="toggleLegend"
@@ -215,10 +207,10 @@ function CrosshairMenuItem({
 	onClick: () => void;
 }) {
 	return (
-		<Button variant="ghost" className="w-full justify-start" disabled={disabled} onClick={onClick}>
+		<MenuItem disabled={disabled} onClick={onClick}>
 			<Crosshair />
 			{placed ? `Center C${id}` : `Place C${id}`}
 			<ShortcutKey action={id === 1 ? 'placeC1' : 'placeC2'} className="ml-auto" />
-		</Button>
+		</MenuItem>
 	);
 }
