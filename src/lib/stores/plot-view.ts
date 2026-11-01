@@ -41,8 +41,6 @@ export type PlotViewState = {
 	legendCrosshairMode: LegendCrosshairMode;
 	boxZoomEnabled: boolean;
 	legendVisible: boolean;
-	/** A legend menu is open; plot pointer interaction is suspended meanwhile. */
-	legendSelectOpen: boolean;
 };
 
 const FIT: ViewportMode = { mode: 'fit' };
@@ -54,8 +52,7 @@ export const plotView = createStore<PlotViewState>()(
 		crosshairs: [],
 		legendCrosshairMode: 'c1',
 		boxZoomEnabled: false,
-		legendVisible: true,
-		legendSelectOpen: false
+		legendVisible: true
 	}))
 );
 
@@ -165,21 +162,12 @@ export function toggleBoxZoom(): void {
 	setBoxZoomEnabled(!plotView.getState().boxZoomEnabled);
 }
 
-/** Hiding the legend also closes its menus. */
 export function setLegendVisible(visible: boolean): void {
-	plotView.setState((state) => ({
-		legendVisible: visible,
-		legendSelectOpen: visible && state.legendSelectOpen
-	}));
+	plotView.setState({ legendVisible: visible });
 }
 
 export function toggleLegend(): void {
 	setLegendVisible(!plotView.getState().legendVisible);
-}
-
-/** Stays false while the legend is hidden. */
-export function setLegendSelectOpen(open: boolean): void {
-	plotView.setState((state) => ({ legendSelectOpen: open && state.legendVisible }));
 }
 
 export function setPointerRatio(ratio: PlotRatioPoint | null): void {

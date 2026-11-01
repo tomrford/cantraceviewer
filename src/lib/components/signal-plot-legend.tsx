@@ -1,4 +1,4 @@
-import { useEffect, useState, type DragEvent } from 'react';
+import { useState, type DragEvent } from 'react';
 import { useStore } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import { GripVertical, Plus, Trash2 } from 'lucide-react';
@@ -37,12 +37,7 @@ import {
 	removeAxis
 } from '#lib/stores/plot-axes.js';
 import { plotModel, type PlotAxisView } from '#lib/stores/plot-model.js';
-import {
-	plotView,
-	setLegendCrosshairMode,
-	setLegendSelectOpen,
-	type PlotViewState
-} from '#lib/stores/plot-view.js';
+import { plotView, setLegendCrosshairMode, type PlotViewState } from '#lib/stores/plot-view.js';
 import { preferences } from '#lib/stores/preferences.js';
 import { traceFile } from '#lib/stores/trace-file.js';
 import { cn } from '#lib/utils.js';
@@ -57,8 +52,6 @@ export function SignalPlotLegend() {
 	const hasC1 = useStore(plotView, (state) => crosshairById(state.crosshairs, 1) !== null);
 	const hasC2 = useStore(plotView, (state) => crosshairById(state.crosshairs, 2) !== null);
 	const mode = useStore(plotView, (state) => state.legendCrosshairMode);
-	const [selectOpen, setSelectOpen] = useState(false);
-	useSuspendPlot(selectOpen);
 
 	const options: { value: LegendCrosshairMode; label: string }[] = [];
 	if (hasC1) options.push({ value: 'c1', label: 'Value at C1' });
@@ -80,9 +73,6 @@ export function SignalPlotLegend() {
 						items={options}
 						value={mode}
 						onValueChange={(value) => value !== null && setLegendCrosshairMode(value)}
-						open={selectOpen}
-						onOpenChange={setSelectOpen}
-						modal={false}
 					>
 						<SelectTrigger className="w-36">
 							<SelectValue />
@@ -231,7 +221,6 @@ function LegendSignalRow({ view, axisId }: { view: SignalView; axisId: YAxisId }
 		useShallow((state) => legendValue(view, state.crosshairs, state.legendCrosshairMode))
 	);
 	const [menuOpen, setMenuOpen] = useState(false);
-	useSuspendPlot(menuOpen);
 	const movable = axes.length > 1;
 
 	function choose(action: () => void) {
@@ -268,7 +257,7 @@ function LegendSignalRow({ view, axisId }: { view: SignalView; axisId: YAxisId }
 			onDragStart={startDrag}
 		>
 			{movable && (
-				<Popover open={menuOpen} onOpenChange={setMenuOpen}>
+				<Popover modal open={menuOpen} onOpenChange={setMenuOpen}>
 					<PopoverTrigger
 						className={cn(
 							buttonVariants({ variant: 'ghost', size: 'icon' }),
@@ -329,21 +318,6 @@ function LegendSignalRow({ view, axisId }: { view: SignalView; axisId: YAxisId }
 			)}
 		</li>
 	);
-}
-
-let openLegendMenus = 0;
-
-/** Suspend plot pointer interaction while any legend menu is open, including across unmounts. */
-function useSuspendPlot(open: boolean): void {
-	useEffect(() => {
-		if (!open) return;
-		openLegendMenus += 1;
-		setLegendSelectOpen(true);
-		return () => {
-			openLegendMenus -= 1;
-			if (openLegendMenus === 0) setLegendSelectOpen(false);
-		};
-	}, [open]);
 }
 
 function legendValue(

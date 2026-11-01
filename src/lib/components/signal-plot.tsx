@@ -21,8 +21,7 @@ import {
 	ContextMenuShortcut,
 	ContextMenuSub,
 	ContextMenuSubContent,
-	ContextMenuSubTrigger,
-	ContextMenuTrigger
+	ContextMenuSubTrigger
 } from '#lib/components/ui/context-menu.js';
 import type { ShortcutAction } from '#lib/keyboard-shortcuts.js';
 import { PRIMARY_Y_AXIS_ID } from '#lib/plot-axes.js';
@@ -94,7 +93,6 @@ export function SignalPlot({
 	const hasCrosshairs = useStore(plotView, (state) => state.crosshairs.length > 0);
 	const boxZoomEnabled = useStore(plotView, (state) => state.boxZoomEnabled);
 	const legendVisible = useStore(plotView, (state) => state.legendVisible);
-	const legendSelectOpen = useStore(plotView, (state) => state.legendSelectOpen);
 	// A remembered point is meaningless once nothing is plotted.
 	const contextMenu = hasPlottableSignals ? contextTarget : null;
 	const removableCrosshair = contextMenu?.crosshairId ?? null;
@@ -135,7 +133,8 @@ export function SignalPlot({
 		<section
 			ref={rootRef}
 			className={cn(
-				'relative min-h-0 flex-1 overflow-hidden bg-background',
+				// Isolated so the z-indexes below stay under modal backdrops, which have none of their own.
+				'relative isolate min-h-0 flex-1 overflow-hidden bg-background',
 				dropActive && 'outline-2 -outline-offset-2 outline-emerald-500/70',
 				className
 			)}
@@ -153,15 +152,10 @@ export function SignalPlot({
 
 			{hasPlottableSignals && (
 				<ContextMenu>
-					<ContextMenuTrigger className="contents">
-						<PlotInteraction
-							eventRoot={rootRef}
-							plotSurface={surfaceRef}
-							onContextMenuPoint={rememberContextMenuPoint}
-						/>
+					<PlotInteraction plotSurface={surfaceRef} onContextMenuPoint={rememberContextMenuPoint}>
 						<PlotCrosshairOverlay id={1} onContextMenuPoint={rememberContextMenuPoint} />
 						<PlotCrosshairOverlay id={2} onContextMenuPoint={rememberContextMenuPoint} />
-					</ContextMenuTrigger>
+					</PlotInteraction>
 					<ContextMenuContent className="w-52">
 						<ContextMenuItem onClick={() => zoomBy(0.5)}>
 							<Plus />
@@ -234,15 +228,6 @@ export function SignalPlot({
 						</ContextMenuItem>
 					</ContextMenuContent>
 				</ContextMenu>
-			)}
-
-			{legendSelectOpen && hasPlottableSignals && legendVisible && (
-				<div
-					data-export-ignore
-					data-plot-interaction-blocker
-					className="absolute inset-0 z-[45]"
-					aria-hidden="true"
-				/>
 			)}
 
 			{hasData && renderer.status === 'ready' && (
