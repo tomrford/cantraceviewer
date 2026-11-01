@@ -177,7 +177,11 @@ export function SignalSelectorDialog({
 					data-walkthrough-target="signal-selector-panel"
 					align="start"
 					sideOffset={-32}
+					// The panel is viewport-tall and overlays its trigger; the default padding shifts it up.
+					collisionPadding={0}
 					initialFocus={false}
+					// Focus returned to the trigger opens its tooltip, which then takes the next Escape.
+					finalFocus={false}
 					className="relative grid h-[calc(100vh-1rem)] w-[min(26rem,calc(100vw-1rem))] -translate-x-2 -translate-y-2 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden rounded-lg border border-border/70 bg-popover/90 p-4 pt-14 text-popover-foreground backdrop-blur-md"
 					style={{ boxShadow: '0 1px 2px rgb(0 0 0 / 0.08)' }}
 					onDragEnter={handleDrag}
