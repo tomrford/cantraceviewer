@@ -25,8 +25,7 @@ export function groupSignalsByYAxis<T extends { key: string }>(
 	axisIds: readonly YAxisId[],
 	assignment: ReadonlyMap<string, YAxisId>
 ): YAxisGroup<T>[] {
-	const ids = axisIds.length > 0 ? axisIds : [PRIMARY_Y_AXIS_ID];
-	const groups: YAxisGroup<T>[] = ids.map((id, index) => ({ id, index, signals: [] }));
+	const groups: YAxisGroup<T>[] = axisIds.map((id, index) => ({ id, index, signals: [] }));
 	const byId = new Map(groups.map((group) => [group.id, group]));
 
 	for (const signal of signals) {

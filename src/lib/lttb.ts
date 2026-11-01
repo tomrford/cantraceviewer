@@ -1,6 +1,6 @@
 export function lttbSample(
-	x: Float64Array<ArrayBufferLike>,
-	y: Float64Array<ArrayBufferLike>,
+	x: Float64Array,
+	y: Float64Array,
 	start: number,
 	end: number,
 	target: number

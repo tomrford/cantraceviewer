@@ -1,8 +1,7 @@
 import { useEffect, useRef, type MouseEvent, type RefObject } from 'react';
 import { useStore } from 'zustand';
-import { normalizedWheelDelta, type PlotRatioPoint } from '#lib/plot-geometry.js';
-import { plotDragMode, plotWheelAction } from '#lib/plot-interaction-policy.js';
-import { plotAreaRect, ratioInArea } from '#lib/plot-pointer.js';
+import { plotWheelAction } from '#lib/plot-interaction-policy.js';
+import { plotAreaRect, ratioInArea, type PlotRatioPoint } from '#lib/plot-pointer.js';
 import {
 	boxViewport,
 	dataPointAtRatio,
@@ -117,15 +116,14 @@ function wireGestures(
 	}
 
 	function startButtonDrag(event: PointerEvent) {
-		const mode = plotDragMode(event.button, plotView.getState().boxZoomEnabled);
-		if (!suspended() && event.button === 0 && mode !== null) startDrag(event, mode);
+		if (suspended() || event.button !== 0) return;
+		startDrag(event, plotView.getState().boxZoomEnabled ? 'box' : 'pan');
 	}
 
 	function startMiddleDrag(event: PointerEvent) {
 		if (
 			suspended() ||
 			event.button !== 1 ||
-			plotDragMode(event.button, plotView.getState().boxZoomEnabled) !== 'pan' ||
 			plotView.getState().activeViewport === null ||
 			!isPlotTarget(event.target)
 		) {
@@ -135,20 +133,9 @@ function wireGestures(
 		startDrag(event, 'pan');
 	}
 
-	function ownsDrag(event: PointerEvent): DragState | null {
-		if (drag?.pointerId !== event.pointerId || drag.captureTarget !== event.currentTarget) {
-			return null;
-		}
-		if (suspended()) {
-			cancelDrag();
-			return null;
-		}
-		return drag;
-	}
-
 	function moveDrag(event: PointerEvent) {
-		const state = ownsDrag(event);
-		if (state === null) return;
+		const state = drag;
+		if (state?.pointerId !== event.pointerId) return;
 		event.preventDefault();
 		if (state.type === 'box') {
 			const point = ratioInArea(area(), event);
@@ -162,8 +149,8 @@ function wireGestures(
 	}
 
 	function stopDrag(event: PointerEvent) {
-		const state = ownsDrag(event);
-		if (state === null) return;
+		const state = drag;
+		if (state?.pointerId !== event.pointerId) return;
 		cancelDrag();
 		const viewport = plotView.getState().activeViewport;
 		if (state.type !== 'box' || viewport === null) return;
@@ -234,11 +221,10 @@ function wireGestures(
 	root.addEventListener('auxclick', preventMiddleAutoscroll, options);
 	root.addEventListener('pointerleave', clearPointer, options);
 	button.addEventListener('pointerdown', startButtonDrag, options);
-	for (const target of [root, button]) {
-		target.addEventListener('pointermove', moveDrag, options);
-		target.addEventListener('pointerup', stopDrag, options);
-		target.addEventListener('pointercancel', stopDrag, options);
-	}
+	// Drags capture to `button` or `root`; both deliver here, the former by bubbling.
+	root.addEventListener('pointermove', moveDrag, options);
+	root.addEventListener('pointerup', stopDrag, options);
+	root.addEventListener('pointercancel', stopDrag, options);
 	window.addEventListener('keydown', cancelBoxZoom, { ...options, capture: true });
 	const unsubscribe = plotView.subscribe(
 		(state) => state.legendSelectOpen,
@@ -255,4 +241,14 @@ function wireGestures(
 		cancelDrag();
 		clearPointer();
 	};
+}
+
+function normalizedWheelDelta(event: WheelEvent, pageHeight: number) {
+	const unit =
+		event.deltaMode === WheelEvent.DOM_DELTA_LINE
+			? 16
+			: event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+				? pageHeight
+				: 1;
+	return { x: event.deltaX * unit, y: event.deltaY * unit };
 }

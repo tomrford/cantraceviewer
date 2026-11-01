@@ -1,14 +1,6 @@
-export type PlotDragMode = 'pan' | 'box';
-
 export type PlotWheelAction =
 	| { type: 'pan-x'; deltaX: number }
 	| { type: 'zoom'; delta: number; axes: { x: boolean; y: boolean } };
-
-export function plotDragMode(button: number, boxZoomEnabled: boolean): PlotDragMode | null {
-	if (button === 1) return 'pan';
-	if (button === 0) return boxZoomEnabled ? 'box' : 'pan';
-	return null;
-}
 
 export function plotWheelAction(
 	delta: { x: number; y: number },
