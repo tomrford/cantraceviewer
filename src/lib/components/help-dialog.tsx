@@ -10,21 +10,22 @@ import {
 } from '#lib/components/ui/dialog.js';
 import { ShortcutKey } from '#lib/components/shortcut-key.js';
 import { groupedShortcuts, shortcutLabel } from '#lib/keyboard-shortcuts.js';
-import { appShell, startWalkthrough } from '#lib/stores/app-shell.js';
+import { startWalkthrough } from '#lib/stores/app-shell.js';
 import { TRACE_FILE_FORMAT_NAMES } from '#lib/trace-file-types.js';
+import { appStore, update } from '#lib/stores/store.js';
 
 const groups = groupedShortcuts();
 
 export function HelpDialog() {
-	const open = useStore(appShell, (s) => s.helpOpen);
+	const open = useStore(appStore, (s) => s.helpOpen);
 
 	function showTour(): void {
-		appShell.setState({ helpOpen: false });
+		update({ helpOpen: false });
 		startWalkthrough();
 	}
 
 	return (
-		<Dialog open={open} onOpenChange={(helpOpen) => appShell.setState({ helpOpen })}>
+		<Dialog open={open} onOpenChange={(helpOpen) => update({ helpOpen })}>
 			<DialogContent className="max-h-[85vh] gap-0 overflow-y-auto sm:max-w-lg">
 				<DialogHeader>
 					<DialogTitle>CAN Trace Viewer</DialogTitle>

@@ -1,8 +1,7 @@
-// Page-level UI state and its orchestration: trace opening (file, drop, demo preset), the
+// Page-level UI orchestration: trace opening (file, drop, demo preset), the
 // walkthrough and which overlay is open.
 // Handlers run outside React render, so they read current state with getState().
 import { toast } from 'sonner';
-import { createStore } from 'zustand/vanilla';
 import {
 	adjacentWalkthroughStep,
 	WALKTHROUGH_VERSION,
@@ -12,26 +11,18 @@ import { assignToNewAxis } from './plot-axes.js';
 import { isSignalSelected, signalDecodeStatus, toggleSignal } from './plot-data.js';
 import { setPreference } from './preferences.js';
 import { onTraceOpened } from './session.js';
-import { openTraceFile, traceFile } from './trace-file.js';
+import { appStore, update } from './store.js';
+import { openTraceFile } from './trace-file.js';
 
 type WalkthroughStepId = WalkthroughStep['id'];
 
-export const appShell = createStore(() => ({
-	openingTrace: false,
-	signalSelectorOpen: false,
-	settingsOpen: false,
-	helpOpen: false,
-	paletteOpen: false,
-	walkthroughStepId: null as WalkthroughStepId | null
-}));
-
 export function openHelp(): void {
-	appShell.setState({ settingsOpen: false, helpOpen: true });
+	update({ settingsOpen: false, helpOpen: true });
 }
 
 export function setSignalSelectorOpen(open: boolean): void {
-	appShell.setState({ signalSelectorOpen: open });
-	const step = appShell.getState().walkthroughStepId;
+	update({ signalSelectorOpen: open });
+	const step = appStore.getState().walkthroughStepId;
 	if (open && step === 'library') {
 		void showWalkthroughStep('add-dbc');
 	} else if (!open && (step === 'add-dbc' || step === 'signals')) {
@@ -40,11 +31,11 @@ export function setSignalSelectorOpen(open: boolean): void {
 }
 
 export function handleDbcAdded(): void {
-	if (appShell.getState().walkthroughStepId === 'add-dbc') void showWalkthroughStep('signals');
+	if (appStore.getState().walkthroughStepId === 'add-dbc') void showWalkthroughStep('signals');
 }
 
 export function handleSignalToggle(): void {
-	if (appShell.getState().walkthroughStepId === 'signals') void showWalkthroughStep('controls');
+	if (appStore.getState().walkthroughStepId === 'signals') void showWalkthroughStep('controls');
 }
 
 export function startWalkthrough(): void {
@@ -53,17 +44,17 @@ export function startWalkthrough(): void {
 
 // The panel unmounts, the overlays settle for a frame, then the next step measures its target.
 async function showWalkthroughStep(stepId: WalkthroughStepId): Promise<void> {
-	appShell.setState({
+	update({
 		walkthroughStepId: null,
 		settingsOpen: false,
 		signalSelectorOpen: stepId === 'add-dbc' || stepId === 'signals'
 	});
 	await new Promise((resolve) => requestAnimationFrame(resolve));
-	appShell.setState({ walkthroughStepId: stepId });
+	update({ walkthroughStepId: stepId });
 }
 
 export function advanceWalkthrough(): void {
-	const current = appShell.getState().walkthroughStepId;
+	const current = appStore.getState().walkthroughStepId;
 	if (!current) return;
 	const next = adjacentWalkthroughStep(current, 1);
 	if (next) {
@@ -71,7 +62,7 @@ export function advanceWalkthrough(): void {
 		return;
 	}
 	setPreference('walkthroughVersion', WALKTHROUGH_VERSION);
-	appShell.setState({ walkthroughStepId: null, signalSelectorOpen: false });
+	update({ walkthroughStepId: null, signalSelectorOpen: false });
 }
 
 const DEMO_PRESET = [
@@ -87,22 +78,22 @@ export async function openTrace(
 	source: File | null | (() => Promise<File>),
 	preset?: typeof DEMO_PRESET
 ): Promise<void> {
-	if (!source || appShell.getState().openingTrace) return;
-	appShell.setState({ openingTrace: true });
+	if (!source || appStore.getState().openingTrace) return;
+	update({ openingTrace: true });
 	// ChartGPU is the one lazy chunk: fetch it as a trace opens rather than once the plot mounts.
 	void import('chartgpu').catch(() => undefined);
 	try {
 		const file = typeof source === 'function' ? await source() : source;
 		if (!(await openTraceFile(file))) return;
-		const { entry: opened, warning } = traceFile.getState();
-		const stillOpen = () => traceFile.getState().entry === opened;
-		if (warning) toast.warning(warning);
+		const { trace: opened, traceWarning } = appStore.getState();
+		const stillOpen = () => appStore.getState().trace === opened;
+		if (traceWarning) toast.warning(traceWarning);
 		await onTraceOpened();
 		if (!stillOpen()) return;
-		if (appShell.getState().walkthroughStepId === 'trace') await showWalkthroughStep('library');
+		if (appStore.getState().walkthroughStepId === 'trace') await showWalkthroughStep('library');
 		if (!preset || !stillOpen()) return;
 
-		const targets = [...traceFile.getState().mf4SignalTargetByKey];
+		const targets = [...appStore.getState().mf4SignalTargetByKey];
 		const signals = preset.map((item) => {
 			const matches = targets.filter(
 				([, target]) =>
@@ -125,7 +116,7 @@ export async function openTrace(
 	} catch (error) {
 		toast.error(error instanceof Error ? error.message : 'Could not open the trace.');
 	} finally {
-		appShell.setState({ openingTrace: false });
+		update({ openingTrace: false });
 	}
 }
 

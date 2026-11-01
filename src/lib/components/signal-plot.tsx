@@ -40,26 +40,24 @@ import { resolvePlotTheme, type PlotTheme } from '#lib/plot-theme.js';
 import type { PlotPoint } from '#lib/plot-viewport.js';
 import { PlotWindow } from '#lib/plot-window.js';
 import { formatAxisTime, type WindowedSignalView } from '#lib/signal-plot-data.js';
-import { clearSelectedSignals, plotData } from '#lib/stores/plot-data.js';
-import { plotModel, type PlotModelState } from '#lib/stores/plot-model.js';
+import { clearSelectedSignals } from '#lib/stores/plot-data.js';
 import {
 	clearCrosshairs,
 	deleteCrosshair,
-	plotView,
 	resetZoom,
 	toggleBoxZoom,
 	upsertCrosshair,
-	zoomBy,
-	type PlotViewState
+	zoomBy
 } from '#lib/stores/plot-view.js';
-import { isDark, preferences, type TimestampMode } from '#lib/stores/preferences.js';
-import { traceFile } from '#lib/stores/trace-file.js';
+import { isDark } from '#lib/stores/preferences.js';
 import { cn } from '#lib/utils.js';
 import { PlotCrosshairOverlay } from './plot-crosshair.js';
 import { PlotInteraction } from './plot-interaction.js';
 import { ShortcutKey } from './shortcut-key.js';
 import { SignalPlotAxes } from './signal-plot-axes.js';
 import { SignalPlotLegend } from './signal-plot-legend.js';
+import type { PlotModelState } from '#lib/stores/derive.js';
+import { appStore, type AppState, type TimestampMode } from '#lib/stores/store.js';
 
 const AXIS_FONT_SIZE = 12;
 const EMPTY_MESSAGE = 'Select signals from the signal selector to view them.';
@@ -86,13 +84,13 @@ export function SignalPlot({
 	const [contextTarget, setContextTarget] = useState<ContextTarget | null>(null);
 	const [imageExportBusy, startImageExport] = useTransition();
 
-	const hasPlottableSignals = useStore(plotData, (state) => state.hasPlottableSignals);
-	const hasSelectedSignals = useStore(plotData, (state) => state.selected.size > 0);
-	const dataReady = useStore(plotModel, (state) => state.fullDomain !== null);
-	const isFitAll = useStore(plotView, (state) => state.isFitAll);
-	const hasCrosshairs = useStore(plotView, (state) => state.crosshairs.length > 0);
-	const boxZoomEnabled = useStore(plotView, (state) => state.boxZoomEnabled);
-	const legendVisible = useStore(plotView, (state) => state.legendVisible);
+	const hasPlottableSignals = useStore(appStore, (state) => state.hasPlottableSignals);
+	const hasSelectedSignals = useStore(appStore, (state) => state.selected.size > 0);
+	const dataReady = useStore(appStore, (state) => state.plotModel.fullDomain !== null);
+	const isFitAll = useStore(appStore, (state) => state.isFitAll);
+	const hasCrosshairs = useStore(appStore, (state) => state.crosshairs.length > 0);
+	const boxZoomEnabled = useStore(appStore, (state) => state.boxZoomEnabled);
+	const legendVisible = useStore(appStore, (state) => state.legendVisible);
 	// A remembered point is meaningless once nothing is plotted.
 	const contextMenu = hasPlottableSignals ? contextTarget : null;
 	const removableCrosshair = contextMenu?.crosshairId ?? null;
@@ -271,7 +269,7 @@ function mountChart(
 	let chart: ChartGPUInstance | null = null;
 	let resizeObserver: ResizeObserver | null = null;
 	let frame: number | null = null;
-	let themeDark = isDark(preferences.getState());
+	let themeDark = isDark(appStore.getState());
 	let theme = chartTheme(resolvePlotTheme(getComputedStyle(root)));
 	// ChartGPU reuses per-series state only for identical series objects, so rebuild them only
 	// when the windowed views or the axis assignment change.
@@ -285,14 +283,14 @@ function mountChart(
 
 	function currentOptions(): ChartGPUOptions {
 		// connectPreferences toggles the dark class in the same store update that scheduled this frame.
-		const dark = isDark(preferences.getState());
+		const state = appStore.getState();
+		const dark = isDark(state);
 		if (dark !== themeDark) {
 			themeDark = dark;
 			theme = chartTheme(resolvePlotTheme(getComputedStyle(root)));
 		}
-		const model = plotModel.getState();
-		const view = plotView.getState();
-		const views = plotWindow.viewsFor(model.views, view.activeViewport);
+		const model = state.plotModel;
+		const views = plotWindow.viewsFor(model.views, state.activeViewport);
 		if (seriesCache?.views !== views || seriesCache.model !== model) {
 			const series = plotSeriesForViews(
 				views,
@@ -304,9 +302,9 @@ function mountChart(
 				series: series.length > 0 ? series : [emptyAxisSeries(PRIMARY_Y_AXIS_ID)]
 			};
 		}
-		return chartOptions(theme, model, view, seriesCache.series, {
-			measurementStartMs: traceFile.getState().entry?.metadata.measurementStartMs,
-			mode: preferences.getState().timestampMode
+		return chartOptions(theme, model, state, seriesCache.series, {
+			measurementStartMs: state.trace?.metadata.measurementStartMs,
+			mode: state.timestampMode
 		});
 	}
 
@@ -318,7 +316,10 @@ function mountChart(
 			const start = performance.now();
 			chart.setOption(currentOptions());
 			perfStats?.record(performance.now() - start);
-			plotWindow.settleAfter(plotModel.getState().views, plotView.getState().activeViewport);
+			plotWindow.settleAfter(
+				appStore.getState().plotModel.views,
+				appStore.getState().activeViewport
+			);
 		});
 	}
 
@@ -354,18 +355,23 @@ function mountChart(
 		}
 	}
 
-	// Every viewport write replaces `axisRanges`, so it alone tracks viewport changes.
-	const unsubscribes = [
-		plotModel.subscribe(schedule),
-		plotView.subscribe((state) => state.axisRanges, schedule),
-		preferences.subscribe(schedule)
-	];
+	// Every viewport change replaces `axisRanges`, so it alone tracks viewport changes.
+	const unsubscribe = appStore.subscribe((state, previous) => {
+		if (
+			state.plotModel !== previous.plotModel ||
+			state.axisRanges !== previous.axisRanges ||
+			state.timestampMode !== previous.timestampMode ||
+			isDark(state) !== isDark(previous)
+		) {
+			schedule();
+		}
+	});
 	void start();
 
 	return () => {
 		disposed = true;
 		if (frame !== null) cancelAnimationFrame(frame);
-		for (const unsubscribe of unsubscribes) unsubscribe();
+		unsubscribe();
 		plotWindow.dispose();
 		resizeObserver?.disconnect();
 		chart?.dispose();
@@ -379,7 +385,7 @@ async function exportPlotImage(root: HTMLElement, destination: ImageDestination)
 			await copyPlotImage(image);
 			toast.success('Image copied to clipboard.');
 		} else {
-			await savePlotImage(image, plotImageFilename(traceFile.getState().displayName));
+			await savePlotImage(image, plotImageFilename(appStore.getState().traceName));
 		}
 	} catch (error) {
 		console.error('Plot image export failed.', error);
@@ -408,7 +414,7 @@ function chartTheme(theme: PlotTheme): ChartTheme {
 function chartOptions(
 	theme: ChartTheme,
 	model: PlotModelState,
-	view: PlotViewState,
+	view: AppState,
 	series: PlotSeriesConfig[],
 	time: { measurementStartMs?: number | null; mode: TimestampMode }
 ): ChartGPUOptions {

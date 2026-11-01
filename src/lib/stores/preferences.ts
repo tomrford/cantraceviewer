@@ -1,25 +1,10 @@
-import { createStore } from 'zustand/vanilla';
-import type { LegendOrderMode } from '#lib/plot-signal-order.js';
-
-export type ThemePreference = 'system' | 'light' | 'dark';
-export type TimestampMode = 'relative' | 'absolute';
-export type { LegendOrderMode };
-
-type PersistedPreferences = {
-	theme: ThemePreference;
-	timestampMode: TimestampMode;
-	legendOrder: LegendOrderMode;
-	walkthroughVersion: number;
-};
-
-type PreferencesState = PersistedPreferences & { systemDark: boolean };
-
-const DEFAULTS: PersistedPreferences = {
-	theme: 'system',
-	timestampMode: 'relative',
-	legendOrder: 'selection',
-	walkthroughVersion: 0
-};
+import {
+	appStore,
+	DEFAULT_PREFERENCES,
+	update,
+	type AppState,
+	type PersistedPreferences
+} from './store.js';
 
 // Values are JSON-serialised under these keys; the theme key is also read by the inline
 // script in index.html before first paint.
@@ -37,25 +22,16 @@ const ALLOWED: { [K in keyof PersistedPreferences]: (value: unknown) => boolean 
 	walkthroughVersion: (value) => typeof value === 'number' && Number.isFinite(value)
 };
 
-const PREFERENCE_NAMES = Object.keys(DEFAULTS) as (keyof PersistedPreferences)[];
+const PREFERENCE_NAMES = Object.keys(DEFAULT_PREFERENCES) as (keyof PersistedPreferences)[];
 
-/**
- * Holds defaults until `connectPreferences()` runs. Hydration still matches the prerendered markup
- * after it has run, because `useStore` reads the initial state for its server snapshot.
- */
-export const preferences = createStore<PreferencesState>()(() => ({
-	...DEFAULTS,
-	systemDark: false
-}));
-
-export const isDark = (state: PreferencesState): boolean =>
+export const isDark = (state: Pick<AppState, 'theme' | 'systemDark'>): boolean =>
 	state.theme === 'dark' || (state.theme === 'system' && state.systemDark);
 
 export function setPreference<K extends keyof PersistedPreferences>(
 	name: K,
 	value: PersistedPreferences[K]
 ): void {
-	preferences.setState({ [name]: value } as Pick<PersistedPreferences, K>);
+	update({ [name]: value });
 	try {
 		localStorage.setItem(STORAGE_KEYS[name], JSON.stringify(value));
 	} catch {
@@ -64,7 +40,7 @@ export function setPreference<K extends keyof PersistedPreferences>(
 }
 
 export function resetPreferences(): void {
-	for (const name of PREFERENCE_NAMES) setPreference(name, DEFAULTS[name]);
+	for (const name of PREFERENCE_NAMES) setPreference(name, DEFAULT_PREFERENCES[name]);
 }
 
 /**
@@ -78,18 +54,20 @@ export function connectPreferences(): void {
 		const value = readStored(name, localStorageItem(STORAGE_KEYS[name]));
 		if (value !== undefined) Object.assign(stored, { [name]: value });
 	}
-	preferences.setState({ ...stored, systemDark: media.matches });
+	update({ ...stored, systemDark: media.matches });
 
 	const applyTheme = () =>
-		document.documentElement.classList.toggle('dark', isDark(preferences.getState()));
+		document.documentElement.classList.toggle('dark', isDark(appStore.getState()));
 	applyTheme();
-	preferences.subscribe(applyTheme);
+	appStore.subscribe((state, previous) => {
+		if (isDark(state) !== isDark(previous)) applyTheme();
+	});
 
-	media.addEventListener('change', (event) => preferences.setState({ systemDark: event.matches }));
+	media.addEventListener('change', (event) => update({ systemDark: event.matches }));
 	window.addEventListener('storage', (event) => {
 		if (event.key !== STORAGE_KEYS.theme) return;
 		const theme = readStored('theme', event.newValue);
-		if (theme !== undefined) preferences.setState({ theme });
+		if (theme !== undefined) update({ theme });
 	});
 }
 

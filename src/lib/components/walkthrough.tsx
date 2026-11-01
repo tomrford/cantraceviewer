@@ -2,11 +2,12 @@ import { useRef } from 'react';
 import { Popover as PopoverPrimitive } from '@base-ui/react/popover';
 import { useStore } from 'zustand';
 import { Button } from '#lib/components/ui/button.js';
-import { advanceWalkthrough, appShell } from '#lib/stores/app-shell.js';
+import { advanceWalkthrough } from '#lib/stores/app-shell.js';
 import { WALKTHROUGH_STEPS, type WalkthroughStep } from '#lib/walkthrough.js';
+import { appStore } from '#lib/stores/store.js';
 
 export function Walkthrough() {
-	const stepId = useStore(appShell, (s) => s.walkthroughStepId);
+	const stepId = useStore(appStore, (s) => s.walkthroughStepId);
 	const stepIndex = WALKTHROUGH_STEPS.findIndex((step) => step.id === stepId);
 	if (stepIndex < 0) return null;
 	return <WalkthroughPanel step={WALKTHROUGH_STEPS[stepIndex]} stepIndex={stepIndex} />;

@@ -33,25 +33,23 @@ import {
 	assignAxis,
 	assignToNewAxis,
 	canAddAxis,
-	plotAxes,
 	removeAxis
 } from '#lib/stores/plot-axes.js';
-import { plotModel, type PlotAxisView } from '#lib/stores/plot-model.js';
-import { plotView, setLegendCrosshairMode, type PlotViewState } from '#lib/stores/plot-view.js';
-import { preferences } from '#lib/stores/preferences.js';
-import { traceFile } from '#lib/stores/trace-file.js';
+import { setLegendCrosshairMode } from '#lib/stores/plot-view.js';
 import { cn } from '#lib/utils.js';
+import type { PlotAxisView } from '#lib/stores/derive.js';
+import { appStore, type AppState } from '#lib/stores/store.js';
 
 /**
  * Plot legend: signals grouped by Y axis with crosshair readouts and axis management. Readouts
  * are selected per row and per axis header, so a crosshair drag re-renders only changed values.
  */
 export function SignalPlotLegend() {
-	const axes = useStore(plotModel, (state) => state.axes);
-	const addable = useStore(plotAxes, canAddAxis);
-	const hasC1 = useStore(plotView, (state) => crosshairById(state.crosshairs, 1) !== null);
-	const hasC2 = useStore(plotView, (state) => crosshairById(state.crosshairs, 2) !== null);
-	const mode = useStore(plotView, (state) => state.legendCrosshairMode);
+	const axes = useStore(appStore, (state) => state.plotModel.axes);
+	const addable = useStore(appStore, canAddAxis);
+	const hasC1 = useStore(appStore, (state) => crosshairById(state.crosshairs, 1) !== null);
+	const hasC2 = useStore(appStore, (state) => crosshairById(state.crosshairs, 2) !== null);
+	const mode = useStore(appStore, (state) => state.legendCrosshairMode);
 
 	const options: { value: LegendCrosshairMode; label: string }[] = [];
 	if (hasC1) options.push({ value: 'c1', label: 'Value at C1' });
@@ -112,12 +110,12 @@ export function SignalPlotLegend() {
 
 /** The crosshair time/value line; the only legend part that follows crosshair positions. */
 function LegendReadout({ multiAxis }: { multiAxis: boolean }) {
-	const crosshairs = useStore(plotView, (state) => state.crosshairs);
-	const mode = useStore(plotView, (state) => state.legendCrosshairMode);
-	const timestampMode = useStore(preferences, (state) => state.timestampMode);
+	const crosshairs = useStore(appStore, (state) => state.crosshairs);
+	const mode = useStore(appStore, (state) => state.legendCrosshairMode);
+	const timestampMode = useStore(appStore, (state) => state.timestampMode);
 	const measurementStartMs = useStore(
-		traceFile,
-		(state) => state.entry?.metadata.measurementStartMs
+		appStore,
+		(state) => state.trace?.metadata.measurementStartMs
 	);
 	const c1 = crosshairById(crosshairs, 1);
 	const c2 = crosshairById(crosshairs, 2);
@@ -141,7 +139,7 @@ function LegendReadout({ multiAxis }: { multiAxis: boolean }) {
 }
 
 function LegendAxisGroup({ axis, showHeader }: { axis: PlotAxisView; showHeader: boolean }) {
-	const cursorText = useStore(plotView, (state) =>
+	const cursorText = useStore(appStore, (state) =>
 		showHeader ? axisCursorText(state, axis.id) : null
 	);
 	const [dropActive, setDropActive] = useState(false);
@@ -213,11 +211,11 @@ function LegendAxisGroup({ axis, showHeader }: { axis: PlotAxisView; showHeader:
 }
 
 function LegendSignalRow({ view, axisId }: { view: SignalView; axisId: YAxisId }) {
-	// Neither store changes during a crosshair drag, so only `value` follows the drag.
-	const axes = useStore(plotModel, (state) => state.axes);
-	const addable = useStore(plotAxes, canAddAxis);
+	// Neither field changes during a crosshair drag, so only `value` follows the drag.
+	const axes = useStore(appStore, (state) => state.plotModel.axes);
+	const addable = useStore(appStore, canAddAxis);
 	const value = useStore(
-		plotView,
+		appStore,
 		useShallow((state) => legendValue(view, state.crosshairs, state.legendCrosshairMode))
 	);
 	const [menuOpen, setMenuOpen] = useState(false);
@@ -332,7 +330,7 @@ function legendValue(
 	return crosshair === null ? null : crosshairValue(view, crosshair.x);
 }
 
-function axisCursorText(state: PlotViewState, axisId: YAxisId) {
+function axisCursorText(state: AppState, axisId: YAxisId) {
 	const range = state.axisRanges.get(axisId);
 	const primaryRange = state.axisRanges.get(PRIMARY_Y_AXIS_ID);
 	if (range === undefined || primaryRange === undefined) return null;

@@ -1,19 +1,15 @@
 import { readFile } from 'node:fs/promises';
 import { afterAll, afterEach, expect, it, vi } from 'vitest';
-import { addDbcFiles, dbcFiles, resetDbcLibrary } from './stores/dbc-files.js';
-import { openTraceFile, traceFile } from './stores/trace-file.js';
-import {
-	clearSelectedSignals,
-	isSignalSelected,
-	plotData,
-	toggleSignal
-} from './stores/plot-data.js';
+import { addDbcFiles, resetDbcLibrary } from './stores/dbc-files.js';
+import { openTraceFile } from './stores/trace-file.js';
+import { clearSelectedSignals, isSignalSelected, toggleSignal } from './stores/plot-data.js';
 import { buildSelectorSearchIndexes, selectorRows, type SelectorListRow } from './selector-list.js';
 import { onTraceOpened } from './stores/session.js';
 import { mountWebMcp } from './webmcp.js';
 import type { WebMcpTool } from './webmcp-tools.js';
 import type { CanTraceClient } from 'cantraceviewer';
 import { closeTrace } from './wasm.js';
+import { appStore, update } from './stores/store.js';
 
 // Replace only the browser Worker transport; exercise the published package and app stores.
 const transport = vi.hoisted(() => ({ client: null as CanTraceClient | null }));
@@ -43,9 +39,9 @@ const unmount = mountWebMcp({
 });
 afterAll(async () => {
 	unmount();
-	const { entry } = traceFile.getState();
-	if (entry) await closeTrace(entry.handle);
-	traceFile.setState(traceFile.getInitialState());
+	const { trace } = appStore.getState();
+	if (trace) await closeTrace(trace.handle);
+	update({ trace: null, traceLoading: false, traceError: null });
 	await transport.client?.close();
 });
 afterEach(async () => {
@@ -71,11 +67,11 @@ async function search(query = '') {
 }
 
 it('keeps absent and transported definitions searchable, rejects additions, and updates after trace replacement', async () => {
-	traceFile.setState(traceFile.getInitialState());
+	update({ trace: null, traceLoading: false, traceError: null });
 	await addDbcFiles([
 		new File([await readFile('wasm/tests/fixtures/signal-availability.dbc')], 'availability.dbc')
 	]);
-	expect(dbcFiles.getState().error).toBeNull();
+	expect(appStore.getState().dbcError).toBeNull();
 	expect(
 		(await search()).results.filter((hit) => hit.available).map((hit) => hit.signalName)
 	).toEqual(['Value', 'ExtendedValue', 'MissingValue']);
@@ -114,12 +110,12 @@ it('keeps absent and transported definitions searchable, rejects additions, and 
 		unavailable: hits.slice(1).map((hit) => ({ key: hit.key, reason: hit.unavailableReason }))
 	});
 	for (const hit of hits.slice(1)) await toggleSignal(hit.key);
-	expect(plotData.getState().signals).toEqual([]);
+	expect(appStore.getState().signals).toEqual([]);
 	await toggleSignal(hits[0].key);
 	expect(isSignalSelected(hits[0].key)).toBe(true);
-	expect(plotData.getState().signals[0].series?.values.length).toBe(0); // ID present, payload too short.
-	const indexes = buildSelectorSearchIndexes(dbcFiles.getState().selectorFiles);
-	const dbcIds = dbcFiles.getState().files.map((file) => file.id);
+	expect(appStore.getState().signals[0].series?.values.length).toBe(0); // ID present, payload too short.
+	const indexes = buildSelectorSearchIndexes(appStore.getState().selectorFiles);
+	const dbcIds = appStore.getState().dbcFiles.map((file) => file.id);
 	const expanded = new Set([...dbcIds, ...indexes[0].dbc.messages.map((message) => message.key)]);
 	const filter = {
 		query: '',
@@ -129,7 +125,7 @@ it('keeps absent and transported definitions searchable, rejects additions, and 
 		isExpanded: (key: string) => expanded.has(key)
 	};
 	const rows = (overrides: Partial<typeof filter> = {}) =>
-		selectorRows(dbcFiles.getState().selectorSearchIndexes, { ...filter, ...overrides });
+		selectorRows(appStore.getState().selectorSearchIndexes, { ...filter, ...overrides });
 	const ofKind = <K extends SelectorListRow['kind']>(list: SelectorListRow[], kind: K) =>
 		list.filter((row): row is Extract<SelectorListRow, { kind: K }> => row.kind === kind);
 	expect(ofKind(rows(), 'message').map((row) => row.message.name)).toEqual(['Present']);
@@ -140,7 +136,7 @@ it('keeps absent and transported definitions searchable, rejects additions, and 
 	expect(ofKind(collapsed, 'signal')).toEqual([]);
 	expect((await search()).results).toHaveLength(4);
 	await loadTrace('signal-availability-extended.asc');
-	expect(plotData.getState().signals).toEqual([]);
+	expect(appStore.getState().signals).toEqual([]);
 	expect(
 		(await search()).results.filter((hit) => hit.available).map((hit) => hit.signalName)
 	).toEqual(['ExtendedValue']);
@@ -149,7 +145,7 @@ it('keeps absent and transported definitions searchable, rejects additions, and 
 	const native = (await search()).results.find((hit) => hit.available)!;
 	expect(native).toBeDefined();
 	await toggleSignal(native.key);
-	expect(plotData.getState().signals[0].series?.values.length).toBeGreaterThan(0);
+	expect(appStore.getState().signals[0].series?.values.length).toBeGreaterThan(0);
 	await loadTrace('mf4/hybrid-embedded-dbc.mf4');
 	expect((await search()).results.some((hit) => hit.available)).toBe(true);
 });
@@ -163,7 +159,7 @@ it('decodes extended ranges, nested selectors and declared classical/FD formats 
 			)
 		)
 	);
-	expect(dbcFiles.getState().error).toBeNull();
+	expect(appStore.getState().dbcError).toBeNull();
 	const cases = [
 		['ext_MUX_multiplexors.muxed_B_5', [5, 7], [20, 22]],
 		['ext_MUX_multiplexors.muxed_D_1', [5], [30]],
@@ -175,7 +171,7 @@ it('decodes extended ranges, nested selectors and declared classical/FD formats 
 		await tools
 			.get('set_signal_selection')!
 			.execute({ signals: [`${label} [Channel 1 · Rx]`], selected: true });
-		const plotted = plotData
+		const plotted = appStore
 			.getState()
 			.signals.find((signal) => signal.label === `${label} [Channel 1 · Rx]`)!;
 		expect(plotted).toBeDefined();

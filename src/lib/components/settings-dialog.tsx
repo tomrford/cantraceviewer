@@ -27,15 +27,11 @@ import {
 	SelectValue
 } from '#lib/components/ui/select.js';
 import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tooltip.js';
-import { appShell, openHelp } from '#lib/stores/app-shell.js';
-import {
-	preferences,
-	setPreference,
-	type LegendOrderMode,
-	type ThemePreference,
-	type TimestampMode
-} from '#lib/stores/preferences.js';
+import { openHelp } from '#lib/stores/app-shell.js';
+import { setPreference } from '#lib/stores/preferences.js';
 import { onResetPersistentData } from '#lib/stores/session.js';
+import { appStore, update, type ThemePreference, type TimestampMode } from '#lib/stores/store.js';
+import type { LegendOrderMode } from '#lib/plot-signal-order.js';
 
 // lucide-react 1.x dropped brand icons; this is the lucide `github` glyph the app used before.
 const Github = createLucideIcon('github', [
@@ -86,15 +82,15 @@ const legendOrderOptions: { value: LegendOrderMode; label: string; description: 
 /** Settings popover including its trigger. */
 export function SettingsDialog({ triggerClassName }: { triggerClassName?: string }) {
 	const panel = useRef<HTMLDivElement>(null);
-	const open = useStore(appShell, (s) => s.settingsOpen);
-	const theme = useStore(preferences, (s) => s.theme);
-	const timestampMode = useStore(preferences, (s) => s.timestampMode);
-	const legendOrder = useStore(preferences, (s) => s.legendOrder);
+	const open = useStore(appStore, (s) => s.settingsOpen);
+	const theme = useStore(appStore, (s) => s.theme);
+	const timestampMode = useStore(appStore, (s) => s.timestampMode);
+	const legendOrder = useStore(appStore, (s) => s.legendOrder);
 	const legendOrderOption =
 		legendOrderOptions.find((option) => option.value === legendOrder) ?? legendOrderOptions[0];
 
 	return (
-		<Popover open={open} onOpenChange={(settingsOpen) => appShell.setState({ settingsOpen })}>
+		<Popover open={open} onOpenChange={(settingsOpen) => update({ settingsOpen })}>
 			<Tooltip>
 				<TooltipTrigger
 					render={<PopoverTrigger className={triggerClassName} aria-label="Open settings" />}

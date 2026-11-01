@@ -12,25 +12,25 @@ import { crosshairById, type CrosshairId } from '#lib/plot-crosshair.js';
 import {
 	clearCrosshairs,
 	placeCrosshair,
-	plotView,
 	resetZoom,
 	setBoxZoomEnabled,
 	setLegendVisible,
 	zoomBy
 } from '#lib/stores/plot-view.js';
 import { cn } from '#lib/utils.js';
+import { appStore } from '#lib/stores/store.js';
 
 const toolbarIconButtonClass =
 	'border-input bg-transparent hover:bg-muted hover:text-foreground dark:bg-transparent dark:hover:bg-muted/50';
 
 // Only booleans are selected so panning, zooming and crosshair drags never re-render the toolbar.
 export function PlotToolbar({ disabled }: { disabled: boolean }) {
-	const isFitAll = useStore(plotView, (s) => s.isFitAll);
-	const boxZoomEnabled = useStore(plotView, (s) => s.boxZoomEnabled);
-	const legendVisible = useStore(plotView, (s) => s.legendVisible);
-	const canPlaceCrosshair = useStore(plotView, (s) => s.activeViewport !== null);
-	const hasC1 = useStore(plotView, (s) => crosshairById(s.crosshairs, 1) !== null);
-	const hasC2 = useStore(plotView, (s) => crosshairById(s.crosshairs, 2) !== null);
+	const isFitAll = useStore(appStore, (s) => s.isFitAll);
+	const boxZoomEnabled = useStore(appStore, (s) => s.boxZoomEnabled);
+	const legendVisible = useStore(appStore, (s) => s.legendVisible);
+	const canPlaceCrosshair = useStore(appStore, (s) => s.activeViewport !== null);
+	const hasC1 = useStore(appStore, (s) => crosshairById(s.crosshairs, 1) !== null);
+	const hasC2 = useStore(appStore, (s) => crosshairById(s.crosshairs, 2) !== null);
 	const hasCrosshairs = hasC1 || hasC2;
 	const [crosshairMenuOpen, setCrosshairMenuOpen] = useState(false);
 

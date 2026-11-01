@@ -7,7 +7,7 @@ import {
 	DialogTitle,
 	DialogTrigger
 } from '#lib/components/ui/dialog.js';
-import type { DbcFileEntry } from '#lib/stores/dbc-files.js';
+import type { DbcFileEntry } from '#lib/stores/derive.js';
 
 export function DbcInformation({ file }: { file: DbcFileEntry }) {
 	const signalCount = file.catalog.messages.reduce(

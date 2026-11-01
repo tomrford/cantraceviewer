@@ -42,7 +42,6 @@ import {
 	traceFileFromDrop
 } from '#lib/file-drop.js';
 import {
-	appShell,
 	handleDbcAdded,
 	handleSignalToggle,
 	openDemoTrace,
@@ -50,15 +49,14 @@ import {
 	setSignalSelectorOpen,
 	startWalkthrough
 } from '#lib/stores/app-shell.js';
-import { dbcFiles } from '#lib/stores/dbc-files.js';
-import { plotData } from '#lib/stores/plot-data.js';
-import { plotView } from '#lib/stores/plot-view.js';
-import { isDark, preferences } from '#lib/stores/preferences.js';
-import { clearTraceError, traceFile, type TraceFileEntry } from '#lib/stores/trace-file.js';
+import { isDark } from '#lib/stores/preferences.js';
+import { clearTraceError } from '#lib/stores/trace-file.js';
 import { TRACE_FILE_ACCEPT, TRACE_FILE_FORMAT_NAMES } from '#lib/trace-file-types.js';
 import { useAppShortcuts } from '#lib/use-app-shortcuts.js';
 import { useBrowserValue } from '#lib/utils.js';
 import { shouldShowWalkthrough } from '#lib/walkthrough.js';
+import { appStore } from '#lib/stores/store.js';
+import type { TraceFileEntry } from '#lib/stores/derive.js';
 
 const SITE_TITLE = 'CAN Trace Viewer';
 const LANDING_TITLE = 'Plot CAN bus logs in your browser';
@@ -70,11 +68,11 @@ const titleButtonClass =
 	'flex h-10 max-w-[min(28rem,calc(100vw-12rem))] items-center gap-2 rounded-lg border border-border/70 bg-muted px-4 text-sm font-medium text-foreground transition-[box-shadow,scale] hover:bg-muted/80 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.98] disabled:pointer-events-none disabled:opacity-60';
 
 export function App() {
-	const dark = useStore(preferences, isDark);
+	const dark = useStore(appStore, isDark);
 	// The prerender assumes support, so browsers with WebGPU never see the required screen.
 	const webgpuSupported = useBrowserValue(() => 'gpu' in navigator, true);
-	const title = useStore(traceFile, (s) =>
-		s.entry ? `${s.displayName} | ${SITE_TITLE}` : SITE_TITLE
+	const title = useStore(appStore, (s) =>
+		s.trace ? `${s.traceName} | ${SITE_TITLE}` : SITE_TITLE
 	);
 
 	useEffect(() => {
@@ -116,15 +114,15 @@ export function App() {
 function AppShell() {
 	const traceInput = useRef<HTMLInputElement>(null);
 	const signalSearchInput = useRef<HTMLInputElement>(null);
-	const traceBusy = useStore(appShell, (s) => s.openingTrace);
-	const hasTrace = useStore(traceFile, (s) => s.entry !== null);
+	const traceBusy = useStore(appStore, (s) => s.openingTrace);
+	const hasTrace = useStore(appStore, (s) => s.trace !== null);
 	const [dropActive, setDropActive] = useState(false);
-	const traceError = useStore(traceFile, (s) => s.error);
-	const signalSelectorOpen = useStore(appShell, (s) => s.signalSelectorOpen);
-	const hasPlottable = useStore(plotData, (s) => s.hasPlottableSignals);
-	const isFitAll = useStore(plotView, (s) => s.isFitAll);
-	const canPlaceCrosshair = useStore(plotView, (s) => s.activeViewport !== null);
-	const hasCrosshairs = useStore(plotView, (s) => s.crosshairs.length > 0);
+	const traceError = useStore(appStore, (s) => s.traceError);
+	const signalSelectorOpen = useStore(appStore, (s) => s.signalSelectorOpen);
+	const hasPlottable = useStore(appStore, (s) => s.hasPlottableSignals);
+	const isFitAll = useStore(appStore, (s) => s.isFitAll);
+	const canPlaceCrosshair = useStore(appStore, (s) => s.activeViewport !== null);
+	const hasCrosshairs = useStore(appStore, (s) => s.crosshairs.length > 0);
 	const shortcutState = {
 		traceLoading: traceBusy,
 		plotControlsDisabled: !hasPlottable || traceBusy,
@@ -259,8 +257,8 @@ function AppShell() {
 }
 
 function TraceButton({ traceBusy, onOpenTrace }: { traceBusy: boolean; onOpenTrace: () => void }) {
-	const displayName = useStore(traceFile, (s) => s.displayName);
-	const entry = useStore(traceFile, (s) => s.entry);
+	const displayName = useStore(appStore, (s) => s.traceName);
+	const entry = useStore(appStore, (s) => s.trace);
 	const metadata = entry ? formatTraceMetadata(entry) : null;
 
 	return (
@@ -304,9 +302,9 @@ function Landing({
 	dropActive: boolean;
 	onOpenTrace: () => void;
 }) {
-	const hasLoadedLibrary = useStore(dbcFiles, (s) => s.hasLoadedLibrary);
-	const walkthroughVersion = useStore(preferences, (s) => s.walkthroughVersion);
-	const stepId = useStore(appShell, (s) => s.walkthroughStepId);
+	const hasLoadedLibrary = useStore(appStore, (s) => s.hasLoadedLibrary);
+	const walkthroughVersion = useStore(appStore, (s) => s.walkthroughVersion);
+	const stepId = useStore(appStore, (s) => s.walkthroughStepId);
 	const invitationVisible =
 		hasLoadedLibrary && stepId === null && shouldShowWalkthrough(walkthroughVersion);
 

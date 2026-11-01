@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { addAxis, plotAxes, removeAxis, resetAxes } from './stores/plot-axes.js';
-import { plotModel } from './stores/plot-model.js';
-import { plotView, setViewport } from './stores/plot-view.js';
+import { addAxis, removeAxis, resetAxes } from './stores/plot-axes.js';
+import { setViewport } from './stores/plot-view.js';
 import { buildSelectorSearchIndexes, type SelectorDbcFile } from './selector-list.js';
 import { mountWebMcp, storeHost, type ModelContext } from './webmcp.js';
 import {
@@ -14,6 +13,7 @@ import {
 	type WebMcpHost,
 	type WebMcpPlottedSignal
 } from './webmcp-tools.js';
+import { appStore, update } from './stores/store.js';
 
 const engineKey = '["powertrain","standard:207:8","EngineSpeed"]';
 const wheelKey = '["chassis","extended:419361024:8","WheelBasedSpeed"]';
@@ -190,18 +190,23 @@ describe('WebMCP numerical analysis', () => {
 describe('WebMCP shared plot', () => {
 	afterEach(() => {
 		resetAxes();
-		plotView.setState(plotView.getInitialState());
+		update(appStore.getInitialState());
 	});
 
-	const axes = () => plotAxes.getState();
-	const viewport = () => plotView.getState();
+	const axes = () => appStore.getState();
+	const viewport = () => appStore.getState();
 	const state = () => ({
-		crosshairs: plotView.getState().crosshairs,
-		readout: plotView.getState().legendCrosshairMode
+		crosshairs: appStore.getState().crosshairs,
+		readout: appStore.getState().legendCrosshairMode
 	});
 
 	function plot() {
-		plotModel.setState({ fullDomain: { xMin: 0, xMax: 20, yMin: 0, yMax: 8000 } });
+		update({
+			plotModel: {
+				...appStore.getState().plotModel,
+				fullDomain: { xMin: 0, xMax: 20, yMin: 0, yMax: 8000 }
+			}
+		});
 		const host = fakeHost({
 			view: storeHost.view,
 			setTimeWindow: storeHost.setTimeWindow,
@@ -211,7 +216,7 @@ describe('WebMCP shared plot', () => {
 				...sessionSnapshot(),
 				plotted: sessionSnapshot().plotted.map((signal) => ({
 					...signal,
-					axis: axes().ids.indexOf(axes().assignment.get(signal.key) ?? 'y') + 1
+					axis: axes().axisIds.indexOf(axes().axisAssignment.get(signal.key) ?? 'y') + 1
 				}))
 			})
 		});
@@ -316,16 +321,16 @@ describe('WebMCP shared plot', () => {
 			plotted: [{ key: engineKey, axis: 2 }]
 		});
 		await tools.set_signal_axes.execute(input);
-		expect(axes().ids).toHaveLength(2);
-		expect(axes().assignment.get(engineKey)).toBe(axes().ids[1]);
+		expect(axes().axisIds).toHaveLength(2);
+		expect(axes().axisAssignment.get(engineKey)).toBe(axes().axisIds[1]);
 		await tools.set_signal_axes.execute({ assignments: [{ signal: 'EEC1.EngineSpeed', axis: 1 }] });
-		expect(axes().assignment.has(engineKey)).toBe(false);
-		expect(axes().ids).toHaveLength(2);
+		expect(axes().axisAssignment.has(engineKey)).toBe(false);
+		expect(axes().axisIds).toHaveLength(2);
 		addAxis();
-		removeAxis(axes().ids[1]);
+		removeAxis(axes().axisIds[1]);
 		await tools.set_signal_axes.execute(input);
-		expect(axes().assignment.get(engineKey)).toBe(axes().ids[1]);
-		expect(axes().ids).toHaveLength(2);
+		expect(axes().axisAssignment.get(engineKey)).toBe(axes().axisIds[1]);
+		expect(axes().axisIds).toHaveLength(2);
 	});
 
 	it('validates the entire axis batch before changing the layout', async () => {
@@ -342,8 +347,8 @@ describe('WebMCP shared plot', () => {
 			]
 		])
 			await expect(tools.set_signal_axes.execute({ assignments })).rejects.toThrow();
-		expect(axes().ids).toEqual(['y']);
-		expect(axes().assignment.size).toBe(0);
+		expect(axes().axisIds).toEqual(['y']);
+		expect(axes().axisAssignment.size).toBe(0);
 	});
 
 	it('enforces inspection limits for explicitly requested signals as well as defaults', async () => {

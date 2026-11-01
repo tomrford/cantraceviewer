@@ -8,8 +8,8 @@ import {
 } from '#lib/plot-crosshair.js';
 import { ratioInArea } from '#lib/plot-pointer.js';
 import { dataPointAtRatio, ratioAtDataPoint, type PlotPoint } from '#lib/plot-viewport.js';
-import { plotModel } from '#lib/stores/plot-model.js';
-import { plotView, upsertCrosshair } from '#lib/stores/plot-view.js';
+import { upsertCrosshair } from '#lib/stores/plot-view.js';
+import { appStore } from '#lib/stores/store.js';
 
 const HANDLES = [
 	{
@@ -34,13 +34,13 @@ export function PlotCrosshairOverlay({
 	id: CrosshairId;
 	onContextMenuPoint: (point: PlotPoint | null, id: CrosshairId) => void;
 }) {
-	const crosshair = useStore(plotView, (state) => crosshairById(state.crosshairs, id));
-	const viewport = useStore(plotView, (state) => state.activeViewport);
-	const grid = useStore(plotModel, (state) => state.grid);
+	const crosshair = useStore(appStore, (state) => crosshairById(state.crosshairs, id));
+	const viewport = useStore(appStore, (state) => state.activeViewport);
+	const grid = useStore(appStore, (state) => state.plotModel.grid);
 	const track = useRef<HTMLDivElement>(null);
 
 	function pointAt(event: { clientX: number; clientY: number }): PlotPoint | null {
-		const activeViewport = plotView.getState().activeViewport;
+		const activeViewport = appStore.getState().activeViewport;
 		const rect = track.current?.getBoundingClientRect();
 		const point = rect === undefined ? null : ratioInArea(rect, event);
 		return activeViewport === null || point === null
@@ -63,7 +63,7 @@ export function PlotCrosshairOverlay({
 	}
 
 	function moveTo(axis: CrosshairDragAxis, event: PointerEvent) {
-		const current = crosshairById(plotView.getState().crosshairs, id);
+		const current = crosshairById(appStore.getState().crosshairs, id);
 		const point = pointAt(event);
 		if (current !== null && point !== null) upsertCrosshair(moveCrosshair(current, point, axis));
 	}

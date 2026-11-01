@@ -15,10 +15,8 @@ import {
 	type SelectorListRow,
 	type SelectorListSignal
 } from '#lib/selector-list.js';
-import { dbcFiles } from '#lib/stores/dbc-files.js';
-import { plotData } from '#lib/stores/plot-data.js';
-import { traceFile } from '#lib/stores/trace-file.js';
 import { cn } from '#lib/utils.js';
+import { appStore } from '#lib/stores/store.js';
 
 const ROW_GAP_PX = 4;
 const ROW_OVERSCAN = 8;
@@ -51,11 +49,11 @@ export function SelectorTree({
 	hideUnavailable: boolean;
 	isExpanded: (key: string) => boolean;
 }) {
-	const dbcIndexes = useStore(dbcFiles, (s) => s.selectorSearchIndexes);
-	const mf4Indexes = useStore(traceFile, (s) => s.mf4SelectorIndexes);
+	const dbcIndexes = useStore(appStore, (s) => s.selectorSearchIndexes);
+	const mf4Indexes = useStore(appStore, (s) => s.mf4SelectorIndexes);
 	// Decode status only affects individual rows; filtering needs membership in selected-only mode.
 	const selectedKeys = useStore(
-		plotData,
+		appStore,
 		useShallow((s) => (activeOnly ? new Set(s.selected.keys()) : null))
 	);
 	const rows = selectorRows([...dbcIndexes, ...mf4Indexes], {
@@ -146,7 +144,7 @@ function DbcRow({
 	onExpandedChange,
 	onRemoveDbc
 }: RowHandlers & { dbc: SelectorDbcFile; expanded: boolean }) {
-	const file = useStore(dbcFiles, (s) => s.files.find((entry) => entry.id === dbc.id));
+	const file = useStore(appStore, (s) => s.dbcFiles.find((entry) => entry.id === dbc.id));
 	const Chevron = expanded ? ChevronDown : ChevronRight;
 
 	return (
@@ -216,7 +214,7 @@ function SignalRow({
 }: RowHandlers & {
 	signal: SelectorListSignal;
 }) {
-	const selected = useStore(plotData, (s) => s.selected.get(signal.key));
+	const selected = useStore(appStore, (s) => s.selected.get(signal.key));
 	const isSelected = selected !== undefined;
 	const decodeError = selected?.error ?? null;
 	const reason = signal.unavailableReason;
