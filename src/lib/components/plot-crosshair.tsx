@@ -47,23 +47,19 @@ export function PlotCrosshairOverlay({
 	const track = useRef<HTMLDivElement>(null);
 	const gesture = useRef<Gesture>({ drag: null, frame: null, pending: null });
 
-	// Drop an in-flight drag when a legend menu opens or the crosshair is removed (C key, Clear
-	// all, WebMCP), so a pending frame cannot re-create it.
+	// Drop an in-flight drag when the crosshair is removed (C key, Clear all, WebMCP), so a pending
+	// frame cannot re-create it.
 	useEffect(() => {
 		const current = gesture.current;
 		const unsubscribe = plotView.subscribe(
-			(state) => state.legendSelectOpen || crosshairById(state.crosshairs, id) === null,
-			(cancel) => cancel && cancelGesture(current)
+			(state) => crosshairById(state.crosshairs, id) === null,
+			(removed) => removed && cancelGesture(current)
 		);
 		return () => {
 			unsubscribe();
 			cancelGesture(current);
 		};
 	}, [id]);
-
-	function suspended() {
-		return plotView.getState().legendSelectOpen;
-	}
 
 	function pointAt(event: { clientX: number; clientY: number }): PlotPoint | null {
 		const activeViewport = plotView.getState().activeViewport;
@@ -75,7 +71,7 @@ export function PlotCrosshairOverlay({
 	}
 
 	function startDrag(axis: CrosshairDragAxis, event: PointerEvent<HTMLElement>) {
-		if (suspended() || event.button !== 0) return;
+		if (event.button !== 0) return;
 		event.preventDefault();
 		event.stopPropagation();
 		const target = event.currentTarget;
@@ -107,7 +103,7 @@ export function PlotCrosshairOverlay({
 	}
 
 	function rememberContextMenuPoint(event: MouseEvent) {
-		if (!suspended()) onContextMenuPoint(pointAt(event), id);
+		onContextMenuPoint(pointAt(event), id);
 	}
 
 	if (crosshair === null || viewport === null) return null;
@@ -117,7 +113,6 @@ export function PlotCrosshairOverlay({
 		y: ratio.yRatio >= 0 && ratio.yRatio <= 1 ? `${ratio.yRatio * 100}%` : null
 	};
 	const handlers = {
-		'data-plot-wheel-target': true,
 		onContextMenu: rememberContextMenuPoint,
 		onPointerMove: moveDrag,
 		onPointerUp: stopDrag,

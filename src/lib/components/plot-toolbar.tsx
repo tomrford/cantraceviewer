@@ -15,7 +15,6 @@ import {
 	plotView,
 	resetZoom,
 	setBoxZoomEnabled,
-	setLegendSelectOpen,
 	setLegendVisible,
 	zoomBy
 } from '#lib/stores/plot-view.js';
@@ -71,13 +70,7 @@ export function PlotToolbar({ disabled }: { disabled: boolean }) {
 				>
 					<SquareDashed className="size-3.5" />
 				</DisplayToggle>
-				<Popover
-					open={crosshairMenuOpen}
-					onOpenChange={(open) => {
-						setCrosshairMenuOpen(open);
-						if (open) setLegendSelectOpen(false);
-					}}
-				>
+				<Popover open={crosshairMenuOpen} onOpenChange={setCrosshairMenuOpen}>
 					<ToolbarTooltip label="Crosshairs">
 						<PopoverTrigger
 							className={cn(
