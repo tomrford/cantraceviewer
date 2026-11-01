@@ -392,6 +392,8 @@ describe('published package app integration', () => {
 	it('finishes an import write before a queued reset and can persist and reload a later import', async () => {
 		clearSelectedSignals();
 		await clearDbcFiles();
+		expect(await openTraceFile(await fixture('source-selection.asc'))).toBe(true);
+		await onTraceOpened();
 		const writeStarted = Promise.withResolvers<void>();
 		const releaseWrite = Promise.withResolvers<void>();
 		let stored: library.StoredDbc[] = [];
