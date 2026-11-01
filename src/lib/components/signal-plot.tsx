@@ -71,7 +71,8 @@ const EMPTY_MESSAGE = 'Select signals from the signal selector to view them.';
 type ContextTarget = { point: PlotPoint | null; crosshairId: CrosshairId | null };
 type ImageDestination = 'copy' | 'save';
 type RendererState =
-	| { status: 'loading' | 'ready' | 'unsupported' }
+	| { status: 'loading' | 'unsupported' }
+	| { status: 'ready'; generateTicks: AxisTickGenerator }
 	| { status: 'error'; message: string };
 
 /**
@@ -86,7 +87,6 @@ export function SignalPlot({
 }: ComponentProps<'section'> & { dropActive?: boolean; shortcutPlatform: ShortcutPlatform }) {
 	const rootRef = useRef<HTMLElement>(null);
 	const surfaceRef = useRef<HTMLDivElement>(null);
-	const [generateTicks, setGenerateTicks] = useState<AxisTickGenerator | null>(null);
 	const [renderer, setRenderer] = useState<RendererState>({ status: 'loading' });
 	const [contextTarget, setContextTarget] = useState<ContextTarget | null>(null);
 	const [imageExportBusy, setImageExportBusy] = useState(false);
@@ -102,9 +102,12 @@ export function SignalPlot({
 	// A remembered point is meaningless once nothing is plotted.
 	const contextMenu = hasPlottableSignals ? contextTarget : null;
 	const removableCrosshair = contextMenu?.crosshairId ?? null;
+	const hasData = hasPlottableSignals && dataReady;
 	const rendererMessage =
 		renderer.status === 'loading'
-			? 'Starting plot renderer…'
+			? hasData
+				? 'Starting plot renderer…'
+				: null
 			: renderer.status === 'unsupported'
 				? 'WebGPU is unavailable. Use a browser with WebGPU enabled to view the plot.'
 				: renderer.status === 'error'
@@ -115,10 +118,7 @@ export function SignalPlot({
 		const root = rootRef.current;
 		const surface = surfaceRef.current;
 		if (root === null || surface === null) return;
-		return mountChart(root, surface, {
-			onTicks: (generate) => setGenerateTicks(() => generate),
-			onStatus: setRenderer
-		});
+		return mountChart(root, surface, setRenderer);
 	}, []);
 
 	function rememberContextMenuPoint(
@@ -267,14 +267,13 @@ export function SignalPlot({
 				/>
 			)}
 
-			{hasPlottableSignals &&
-				dataReady &&
-				renderer.status === 'ready' &&
-				generateTicks !== null && <SignalPlotAxes generateTicks={generateTicks} />}
+			{hasData && renderer.status === 'ready' && (
+				<SignalPlotAxes generateTicks={renderer.generateTicks} />
+			)}
 
 			{hasPlottableSignals && legendVisible && <SignalPlotLegend />}
 
-			{(rendererMessage !== null || !dataReady || !hasPlottableSignals) && (
+			{(rendererMessage !== null || !hasData) && (
 				<div
 					role={renderer.status === 'error' ? 'alert' : 'status'}
 					className="absolute inset-0 z-30 flex items-center justify-center px-6 text-center text-sm text-muted-foreground"
@@ -293,10 +292,7 @@ export function SignalPlot({
 function mountChart(
 	root: HTMLElement,
 	surface: HTMLElement,
-	callbacks: {
-		onTicks: (generate: AxisTickGenerator) => void;
-		onStatus: (state: RendererState) => void;
-	}
+	onStatus: (state: RendererState) => void
 ): () => void {
 	let disposed = false;
 	let chart: ChartGPUInstance | null = null;
@@ -334,10 +330,6 @@ function mountChart(
 		});
 	}
 
-	function settle() {
-		plotWindow.settleAfter(plotModel.getState().views, plotView.getState().activeViewport);
-	}
-
 	function schedule() {
 		if (frame !== null) return;
 		frame = requestAnimationFrame(() => {
@@ -346,7 +338,7 @@ function mountChart(
 			const start = performance.now();
 			chart.setOption(currentOptions());
 			perfStats?.record(performance.now() - start);
-			settle();
+			plotWindow.settleAfter(plotModel.getState().views, plotView.getState().activeViewport);
 		});
 	}
 
@@ -361,17 +353,13 @@ function mountChart(
 			}
 			chart = created;
 			// Store/theme updates may have consumed their frames while create was pending.
-			chart.setOption(currentOptions());
-			settle();
-			callbacks.onTicks(mod.generateValueAxisTicks);
+			schedule();
 			resizeObserver = new ResizeObserver(() => chart?.resize());
 			resizeObserver.observe(surface);
-			callbacks.onStatus({ status: 'ready' });
+			onStatus({ status: 'ready', generateTicks: mod.generateValueAxisTicks });
 		} catch (error) {
 			if (!disposed) {
-				chart?.dispose();
-				chart = null;
-				callbacks.onStatus({
+				onStatus({
 					status: 'error',
 					message: error instanceof Error ? error.message : 'ChartGPU failed to start.'
 				});
@@ -390,12 +378,8 @@ function mountChart(
 		plotView.subscribe((state) => state.axisRanges, schedule),
 		preferences.subscribe(schedule)
 	];
-	if (navigator.gpu) {
-		callbacks.onStatus({ status: 'loading' });
-		void start();
-	} else {
-		callbacks.onStatus({ status: 'unsupported' });
-	}
+	if (navigator.gpu) void start();
+	else onStatus({ status: 'unsupported' });
 
 	return () => {
 		disposed = true;
