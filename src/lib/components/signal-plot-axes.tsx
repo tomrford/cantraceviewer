@@ -38,10 +38,6 @@ export function SignalPlotAxes({ generateTicks }: { generateTicks: AxisTickGener
 							top: grid.top,
 							bottom: grid.bottom
 						}}
-						role="presentation"
-						// role=presentation with a label keeps the accessibility tree unchanged.
-						// oxlint-disable-next-line jsx-a11y/role-supports-aria-props
-						aria-label={axis.label}
 					>
 						<span className="absolute inset-y-0 right-0 border-r border-border" />
 						{ticks.map((tick) => {

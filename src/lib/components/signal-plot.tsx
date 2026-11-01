@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ComponentProps } from 'react';
+import { useEffect, useRef, useState, useTransition, type ComponentProps } from 'react';
 import { useStore } from 'zustand';
 import { toast } from 'sonner';
 import type { ChartGPUInstance, ChartGPUOptions, ThemeConfig } from 'chartgpu';
@@ -53,7 +53,7 @@ import {
 	zoomBy,
 	type PlotViewState
 } from '#lib/stores/plot-view.js';
-import { preferences, type TimestampMode } from '#lib/stores/preferences.js';
+import { isDark, preferences, type TimestampMode } from '#lib/stores/preferences.js';
 import { traceFile } from '#lib/stores/trace-file.js';
 import { cn } from '#lib/utils.js';
 import { PlotCrosshairOverlay } from './plot-crosshair.js';
@@ -68,7 +68,7 @@ const EMPTY_MESSAGE = 'Select signals from the signal selector to view them.';
 type ContextTarget = { point: PlotPoint | null; crosshairId: CrosshairId | null };
 type ImageDestination = 'copy' | 'save';
 type RendererState =
-	| { status: 'loading' | 'unsupported' }
+	| { status: 'loading' }
 	| { status: 'ready'; generateTicks: AxisTickGenerator }
 	| { status: 'error'; message: string };
 
@@ -85,7 +85,7 @@ export function SignalPlot({
 	const surfaceRef = useRef<HTMLDivElement>(null);
 	const [renderer, setRenderer] = useState<RendererState>({ status: 'loading' });
 	const [contextTarget, setContextTarget] = useState<ContextTarget | null>(null);
-	const [imageExportBusy, setImageExportBusy] = useState(false);
+	const [imageExportBusy, startImageExport] = useTransition();
 
 	const hasPlottableSignals = useStore(plotData, (state) => state.hasPlottableSignals);
 	const hasSelectedSignals = useStore(plotData, (state) => state.selected.size > 0);
@@ -104,11 +104,9 @@ export function SignalPlot({
 			? hasData
 				? 'Starting plot renderer…'
 				: null
-			: renderer.status === 'unsupported'
-				? 'WebGPU is unavailable. Use a browser with WebGPU enabled to view the plot.'
-				: renderer.status === 'error'
-					? renderer.message
-					: null;
+			: renderer.status === 'error'
+				? renderer.message
+				: null;
 
 	useEffect(() => {
 		const root = rootRef.current;
@@ -128,19 +126,10 @@ export function SignalPlot({
 		if (contextMenu?.point) upsertCrosshair({ id, ...contextMenu.point });
 	}
 
-	async function exportCurrentView(destination: ImageDestination) {
+	function exportCurrentView(destination: ImageDestination) {
 		const root = rootRef.current;
-		if (imageExportBusy || root === null) return;
-		setImageExportBusy(true);
-		await exportPlotImage(root, destination);
-		setImageExportBusy(false);
+		if (root !== null) startImageExport(() => exportPlotImage(root, destination));
 	}
-
-	const shortcut = (action: ShortcutAction) => (
-		<ContextMenuShortcut>
-			<ShortcutKey action={action} />
-		</ContextMenuShortcut>
-	);
 
 	return (
 		<section
@@ -177,17 +166,17 @@ export function SignalPlot({
 						<ContextMenuItem onClick={() => zoomBy(0.5)}>
 							<Plus />
 							Zoom in
-							{shortcut('zoomIn')}
+							<MenuShortcut action="zoomIn" />
 						</ContextMenuItem>
 						<ContextMenuItem onClick={() => zoomBy(2)}>
 							<Minus />
 							Zoom out
-							{shortcut('zoomOut')}
+							<MenuShortcut action="zoomOut" />
 						</ContextMenuItem>
 						<ContextMenuItem disabled={isFitAll} onClick={resetZoom}>
 							<Expand />
 							Zoom to full extent
-							{shortcut('resetZoom')}
+							<MenuShortcut action="resetZoom" />
 						</ContextMenuItem>
 						<ContextMenuSeparator />
 						<ContextMenuSub>
@@ -204,13 +193,13 @@ export function SignalPlot({
 									>
 										<Crosshair />
 										Place C{id}
-										{shortcut(id === 1 ? 'placeC1' : 'placeC2')}
+										<MenuShortcut action={id === 1 ? 'placeC1' : 'placeC2'} />
 									</ContextMenuItem>
 								))}
 								<ContextMenuItem disabled={!hasCrosshairs} onClick={clearCrosshairs}>
 									<X />
 									Clear all
-									{shortcut('clearCrosshairs')}
+									<MenuShortcut action="clearCrosshairs" />
 								</ContextMenuItem>
 							</ContextMenuSubContent>
 						</ContextMenuSub>
@@ -223,28 +212,21 @@ export function SignalPlot({
 						<ContextMenuItem onClick={toggleBoxZoom}>
 							<BoxSelect />
 							{boxZoomEnabled ? 'Use drag pan' : 'Use box zoom'}
-							{shortcut('toggleBoxZoom')}
+							<MenuShortcut action="toggleBoxZoom" />
 						</ContextMenuItem>
 						<ContextMenuSeparator />
-						<ContextMenuItem
-							disabled={imageExportBusy}
-							onClick={() => void exportCurrentView('copy')}
-						>
+						<ContextMenuItem disabled={imageExportBusy} onClick={() => exportCurrentView('copy')}>
 							<Copy />
 							Copy image
 						</ContextMenuItem>
-						<ContextMenuItem
-							disabled={imageExportBusy}
-							onClick={() => void exportCurrentView('save')}
-						>
+						<ContextMenuItem disabled={imageExportBusy} onClick={() => exportCurrentView('save')}>
 							<Download />
 							Save image
 						</ContextMenuItem>
 						<ContextMenuSeparator />
 						<ContextMenuItem
 							disabled={!hasSelectedSignals}
-							variant="destructive"
-							className="text-destructive! focus:bg-destructive/10! focus:text-destructive! data-highlighted:text-destructive! dark:focus:bg-destructive/20! [&_svg]:text-destructive!"
+							className="text-accent-foreground dark:focus:bg-destructive/20!"
 							onClick={clearSelectedSignals}
 						>
 							<RotateCcw />
@@ -283,9 +265,17 @@ export function SignalPlot({
 	);
 }
 
+function MenuShortcut({ action }: { action: ShortcutAction }) {
+	return (
+		<ContextMenuShortcut>
+			<ShortcutKey action={action} />
+		</ContextMenuShortcut>
+	);
+}
+
 /**
- * Starts ChartGPU on `surface` (when WebGPU exists) and pushes options from store subscriptions,
- * coalesced to one `setOption` per animation frame. Returns the teardown.
+ * Starts ChartGPU on `surface` and pushes options from store subscriptions, coalesced to one
+ * `setOption` per animation frame. Returns the teardown.
  */
 function mountChart(
 	root: HTMLElement,
@@ -296,6 +286,7 @@ function mountChart(
 	let chart: ChartGPUInstance | null = null;
 	let resizeObserver: ResizeObserver | null = null;
 	let frame: number | null = null;
+	let themeDark = isDark(preferences.getState());
 	let theme = chartTheme(resolvePlotTheme(getComputedStyle(root)));
 	// ChartGPU reuses per-series state only for identical series objects, so rebuild them only
 	// when the windowed views or the axis assignment change.
@@ -308,6 +299,12 @@ function mountChart(
 	const plotWindow = new PlotWindow(schedule);
 
 	function currentOptions(): ChartGPUOptions {
+		// connectPreferences toggles the dark class in the same store update that scheduled this frame.
+		const dark = isDark(preferences.getState());
+		if (dark !== themeDark) {
+			themeDark = dark;
+			theme = chartTheme(resolvePlotTheme(getComputedStyle(root)));
+		}
 		const model = plotModel.getState();
 		const view = plotView.getState();
 		const views = plotWindow.viewsFor(model.views, view.activeViewport);
@@ -372,25 +369,18 @@ function mountChart(
 		}
 	}
 
-	const themeObserver = new MutationObserver(() => {
-		theme = chartTheme(resolvePlotTheme(getComputedStyle(root)));
-		schedule();
-	});
-	themeObserver.observe(document.documentElement, { attributeFilter: ['class'] });
 	// Every viewport write replaces `axisRanges`, so it alone tracks viewport changes.
 	const unsubscribes = [
 		plotModel.subscribe(schedule),
 		plotView.subscribe((state) => state.axisRanges, schedule),
 		preferences.subscribe(schedule)
 	];
-	if (navigator.gpu) void start();
-	else onStatus({ status: 'unsupported' });
+	void start();
 
 	return () => {
 		disposed = true;
 		if (frame !== null) cancelAnimationFrame(frame);
 		for (const unsubscribe of unsubscribes) unsubscribe();
-		themeObserver.disconnect();
 		plotWindow.dispose();
 		resizeObserver?.disconnect();
 		chart?.dispose();

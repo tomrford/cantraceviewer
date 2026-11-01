@@ -40,103 +40,37 @@ export function PlotToolbar({ disabled }: { disabled: boolean }) {
 		action();
 	}
 
-	function tooltipButton(trigger: ReactElement, label: string, action?: ShortcutAction) {
-		return (
-			<Tooltip>
-				<TooltipTrigger render={trigger} />
-				<TooltipContent sideOffset={6}>
-					{label}
-					{action && <ShortcutKey action={action} />}
-				</TooltipContent>
-			</Tooltip>
-		);
-	}
-
-	function zoomButton(
-		label: string,
-		action: ShortcutAction,
-		icon: ReactElement,
-		onClick: () => void,
-		isDisabled = disabled
-	) {
-		return tooltipButton(
-			<Button
-				variant="outline"
-				size="icon"
-				className={toolbarIconButtonClass}
-				aria-label={label}
-				disabled={isDisabled}
-				onClick={onClick}
-			>
-				{icon}
-			</Button>,
-			label,
-			action
-		);
-	}
-
-	function displayToggle(
-		pressed: boolean,
-		onPressedChange: (pressed: boolean) => void,
-		icon: ReactElement,
-		label: string,
-		action: ShortcutAction
-	) {
-		return tooltipButton(
-			<Toggle
-				pressed={pressed}
-				onPressedChange={onPressedChange}
-				disabled={disabled}
-				variant="outline"
-				size="default"
-				aria-label={label}
-			>
-				{icon}
-			</Toggle>,
-			label,
-			action
-		);
-	}
-
-	function crosshairItem(id: CrosshairId, placed: boolean) {
-		return (
-			<Button
-				variant="ghost"
-				className="w-full justify-start"
-				disabled={!canPlaceCrosshair}
-				onClick={() => closeMenuAfter(() => placeCrosshair(id, 'center'))}
-			>
-				<Crosshair />
-				{placed ? `Center C${id}` : `Place C${id}`}
-				<ShortcutKey action={id === 1 ? 'placeC1' : 'placeC2'} className="ml-auto" />
-			</Button>
-		);
-	}
-
 	const boxZoomLabel = boxZoomEnabled ? 'Use drag pan' : 'Use box zoom';
 	const legendLabel = legendVisible ? 'Hide legend' : 'Show legend';
 
 	return (
 		<>
 			<ButtonGroup aria-label="Plot zoom controls">
-				{zoomButton('Zoom in', 'zoomIn', <Plus className="size-3.5" />, () => zoomBy(0.5))}
-				{zoomButton('Zoom out', 'zoomOut', <Minus className="size-3.5" />, () => zoomBy(2))}
-				{zoomButton(
-					'Zoom to full extent',
-					'resetZoom',
-					<Expand className="size-3.5" />,
-					resetZoom,
-					disabled || isFitAll
-				)}
+				<ZoomButton label="Zoom in" action="zoomIn" disabled={disabled} onClick={() => zoomBy(0.5)}>
+					<Plus className="size-3.5" />
+				</ZoomButton>
+				<ZoomButton label="Zoom out" action="zoomOut" disabled={disabled} onClick={() => zoomBy(2)}>
+					<Minus className="size-3.5" />
+				</ZoomButton>
+				<ZoomButton
+					label="Zoom to full extent"
+					action="resetZoom"
+					disabled={disabled || isFitAll}
+					onClick={resetZoom}
+				>
+					<Expand className="size-3.5" />
+				</ZoomButton>
 			</ButtonGroup>
 			<ButtonGroup aria-label="Plot display controls">
-				{displayToggle(
-					boxZoomEnabled,
-					setBoxZoomEnabled,
-					<SquareDashed className="size-3.5" />,
-					boxZoomLabel,
-					'toggleBoxZoom'
-				)}
+				<DisplayToggle
+					label={boxZoomLabel}
+					action="toggleBoxZoom"
+					pressed={boxZoomEnabled}
+					onPressedChange={setBoxZoomEnabled}
+					disabled={disabled}
+				>
+					<SquareDashed className="size-3.5" />
+				</DisplayToggle>
 				<Popover
 					open={crosshairMenuOpen}
 					onOpenChange={(open) => {
@@ -144,7 +78,7 @@ export function PlotToolbar({ disabled }: { disabled: boolean }) {
 						if (open) setLegendSelectOpen(false);
 					}}
 				>
-					{tooltipButton(
+					<ToolbarTooltip label="Crosshairs">
 						<PopoverTrigger
 							className={cn(
 								buttonVariants({ variant: 'outline', size: 'default' }),
@@ -155,12 +89,21 @@ export function PlotToolbar({ disabled }: { disabled: boolean }) {
 							aria-label="Manage crosshairs"
 						>
 							<Crosshair className="size-3.5" />
-						</PopoverTrigger>,
-						'Crosshairs'
-					)}
+						</PopoverTrigger>
+					</ToolbarTooltip>
 					<PopoverContent align="end" className="w-52 gap-1 p-1.5">
-						{crosshairItem(1, hasC1)}
-						{crosshairItem(2, hasC2)}
+						<CrosshairMenuItem
+							id={1}
+							placed={hasC1}
+							disabled={!canPlaceCrosshair}
+							onClick={() => closeMenuAfter(() => placeCrosshair(1, 'center'))}
+						/>
+						<CrosshairMenuItem
+							id={2}
+							placed={hasC2}
+							disabled={!canPlaceCrosshair}
+							onClick={() => closeMenuAfter(() => placeCrosshair(2, 'center'))}
+						/>
 						<Button
 							variant="ghost"
 							className="w-full justify-start text-destructive hover:bg-destructive/10 hover:text-destructive"
@@ -173,14 +116,116 @@ export function PlotToolbar({ disabled }: { disabled: boolean }) {
 						</Button>
 					</PopoverContent>
 				</Popover>
-				{displayToggle(
-					legendVisible,
-					setLegendVisible,
-					<List className="size-3.5" />,
-					legendLabel,
-					'toggleLegend'
-				)}
+				<DisplayToggle
+					label={legendLabel}
+					action="toggleLegend"
+					pressed={legendVisible}
+					onPressedChange={setLegendVisible}
+					disabled={disabled}
+				>
+					<List className="size-3.5" />
+				</DisplayToggle>
 			</ButtonGroup>
 		</>
+	);
+}
+
+function ToolbarTooltip({
+	label,
+	action,
+	children
+}: {
+	label: string;
+	action?: ShortcutAction;
+	children: ReactElement;
+}) {
+	return (
+		<Tooltip>
+			<TooltipTrigger render={children} />
+			<TooltipContent sideOffset={6}>
+				{label}
+				{action && <ShortcutKey action={action} />}
+			</TooltipContent>
+		</Tooltip>
+	);
+}
+
+function ZoomButton({
+	label,
+	action,
+	disabled,
+	onClick,
+	children
+}: {
+	label: string;
+	action: ShortcutAction;
+	disabled: boolean;
+	onClick: () => void;
+	children: ReactElement;
+}) {
+	return (
+		<ToolbarTooltip label={label} action={action}>
+			<Button
+				variant="outline"
+				size="icon"
+				className={toolbarIconButtonClass}
+				aria-label={label}
+				disabled={disabled}
+				onClick={onClick}
+			>
+				{children}
+			</Button>
+		</ToolbarTooltip>
+	);
+}
+
+function DisplayToggle({
+	label,
+	action,
+	pressed,
+	onPressedChange,
+	disabled,
+	children
+}: {
+	label: string;
+	action: ShortcutAction;
+	pressed: boolean;
+	onPressedChange: (pressed: boolean) => void;
+	disabled: boolean;
+	children: ReactElement;
+}) {
+	return (
+		<ToolbarTooltip label={label} action={action}>
+			<Toggle
+				pressed={pressed}
+				onPressedChange={onPressedChange}
+				disabled={disabled}
+				variant="outline"
+				size="default"
+				aria-label={label}
+			>
+				{children}
+			</Toggle>
+		</ToolbarTooltip>
+	);
+}
+
+function CrosshairMenuItem({
+	id,
+	placed,
+	disabled,
+	onClick
+}: {
+	id: CrosshairId;
+	placed: boolean;
+	disabled: boolean;
+	onClick: () => void;
+}) {
+	return (
+		<Button variant="ghost" className="w-full justify-start" disabled={disabled} onClick={onClick}>
+			<Crosshair />
+			{placed ? `Center C${id}` : `Place C${id}`}
+			<ShortcutKey action={id === 1 ? 'placeC1' : 'placeC2'} className="ml-auto" />
+		</Button>
 	);
 }

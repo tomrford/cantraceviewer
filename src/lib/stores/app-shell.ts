@@ -43,7 +43,6 @@ export const appShell = createStore(() => ({
 	shortcutPlatform: 'other' as ShortcutPlatform,
 	webgpuSupported: null as boolean | null,
 	openingTrace: false,
-	traceDropActive: false,
 	signalSelectorOpen: false,
 	settingsOpen: false,
 	helpOpen: false,
@@ -207,6 +206,8 @@ export async function openTrace(
 ): Promise<void> {
 	if (!source || appShell.getState().openingTrace) return;
 	appShell.setState({ openingTrace: true });
+	// ChartGPU is the one lazy chunk: fetch it as a trace opens rather than once the plot mounts.
+	void import('chartgpu').catch(() => undefined);
 	try {
 		const file = typeof source === 'function' ? await source() : source;
 		if (!(await openTraceFile(file))) return;

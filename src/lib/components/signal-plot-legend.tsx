@@ -2,7 +2,7 @@ import { useEffect, useState, type DragEvent } from 'react';
 import { useStore } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import { GripVertical, Plus, Trash2 } from 'lucide-react';
-import { Badge } from '#lib/components/ui/badge.js';
+import { SourceBadge } from '#lib/components/source-badge.js';
 import { Button, buttonVariants } from '#lib/components/ui/button.js';
 import { Popover, PopoverContent, PopoverTrigger } from '#lib/components/ui/popover.js';
 import {
@@ -314,7 +314,7 @@ function LegendSignalRow({ view, axisId }: { view: SignalView; axisId: YAxisId }
 				</span>
 				<span className="text-muted-foreground">)</span>
 				{view.sourceBadges?.map((badge) => (
-					<Badge key={badge}>{badge}</Badge>
+					<SourceBadge key={badge}>{badge}</SourceBadge>
 				))}
 			</span>
 			{value !== null && (
