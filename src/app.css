@@ -107,25 +107,3 @@
 		-moz-osx-font-smoothing: grayscale;
 	}
 }
-
-@layer utilities {
-	.scroll-fade {
-		--scroll-fade-t: var(--scroll-fade-size);
-		--scroll-fade-b: var(--scroll-fade-size);
-		mask-image: linear-gradient(
-			to bottom,
-			transparent 0,
-			#000 var(--scroll-fade-t),
-			#000 calc(100% - var(--scroll-fade-b)),
-			transparent 100%
-		);
-		animation:
-			1ms ease-in-out scroll-fade-reveal-t,
-			1ms ease-in-out scroll-fade-reveal-b;
-		animation-timeline: scroll(self y), scroll(self y);
-		animation-range:
-			0 calc(var(--spacing) * 24),
-			calc(100% - var(--spacing) * 24) 100%;
-		animation-fill-mode: both;
-	}
-}
