@@ -39,7 +39,10 @@ const ALLOWED: { [K in keyof PersistedPreferences]: (value: unknown) => boolean 
 
 const PREFERENCE_NAMES = Object.keys(DEFAULTS) as (keyof PersistedPreferences)[];
 
-/** Holds defaults until `connectPreferences()` runs after mount, so prerendered markup matches. */
+/**
+ * Holds defaults until `connectPreferences()` runs. Hydration still matches the prerendered markup
+ * after it has run, because `useStore` reads the initial state for its server snapshot.
+ */
 export const preferences = createStore<PreferencesState>()(() => ({
 	...DEFAULTS,
 	systemDark: false
@@ -66,9 +69,9 @@ export function resetPreferences(): void {
 
 /**
  * Loads stored preferences, follows the system colour scheme and theme changes from other tabs,
- * and keeps the `dark` class on <html> in sync. Call once after mount; returns a disconnect.
+ * and keeps the `dark` class on <html> in sync. Call once at startup.
  */
-export function connectPreferences(): () => void {
+export function connectPreferences(): void {
 	const media = matchMedia('(prefers-color-scheme: dark)');
 	const stored: Partial<PersistedPreferences> = {};
 	for (const name of PREFERENCE_NAMES) {
@@ -80,23 +83,14 @@ export function connectPreferences(): () => void {
 	const applyTheme = () =>
 		document.documentElement.classList.toggle('dark', isDark(preferences.getState()));
 	applyTheme();
-	const unsubscribe = preferences.subscribe(applyTheme);
+	preferences.subscribe(applyTheme);
 
-	const onSchemeChange = (event: MediaQueryListEvent) =>
-		preferences.setState({ systemDark: event.matches });
-	const onStorage = (event: StorageEvent) => {
+	media.addEventListener('change', (event) => preferences.setState({ systemDark: event.matches }));
+	window.addEventListener('storage', (event) => {
 		if (event.key !== STORAGE_KEYS.theme) return;
 		const theme = readStored('theme', event.newValue);
 		if (theme !== undefined) preferences.setState({ theme });
-	};
-	media.addEventListener('change', onSchemeChange);
-	window.addEventListener('storage', onStorage);
-
-	return () => {
-		unsubscribe();
-		media.removeEventListener('change', onSchemeChange);
-		window.removeEventListener('storage', onStorage);
-	};
+	});
 }
 
 function localStorageItem(key: string): string | null {

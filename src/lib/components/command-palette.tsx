@@ -17,19 +17,25 @@ import {
 	type ShortcutAction,
 	type ShortcutState
 } from '#lib/keyboard-shortcuts.js';
-import { appShell, runShortcut } from '#lib/stores/app-shell.js';
+import { appShell } from '#lib/stores/app-shell.js';
 
 const groups = groupedShortcuts().map(({ group, actions }) => ({
 	group,
 	actions: actions.filter((action) => action !== 'showPalette')
 }));
 
-export function CommandPalette({ state }: { state: ShortcutState }) {
+export function CommandPalette({
+	state,
+	onRun
+}: {
+	state: ShortcutState;
+	onRun: (action: ShortcutAction) => void;
+}) {
 	const open = useStore(appShell, (s) => s.paletteOpen);
 
 	function run(action: ShortcutAction): void {
 		appShell.setState({ paletteOpen: false });
-		runShortcut(action);
+		onRun(action);
 	}
 
 	return (

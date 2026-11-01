@@ -67,6 +67,10 @@ export function detectShortcutPlatform(platform: string): ShortcutPlatform {
 	return /Mac|iPhone|iPad|iPod/i.test(platform) ? 'mac' : 'other';
 }
 
+export function browserShortcutPlatform(): ShortcutPlatform {
+	return detectShortcutPlatform(`${navigator.platform} ${navigator.userAgent}`);
+}
+
 const PRIMARY_KEY_LABEL = { mac: '⌘', other: 'Ctrl' } satisfies Record<ShortcutPlatform, string>;
 
 export function shortcutKeys(action: ShortcutAction, platform: ShortcutPlatform): string[] {
