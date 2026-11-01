@@ -1,6 +1,6 @@
 import { Checkbox as CheckboxPrimitive } from '@base-ui/react/checkbox';
 import { cn } from '#lib/utils.js';
-import { RiCheckLine } from '@remixicon/react';
+import { Check } from 'lucide-react';
 
 function Checkbox({ className, ...props }: CheckboxPrimitive.Root.Props) {
 	return (
@@ -16,7 +16,7 @@ function Checkbox({ className, ...props }: CheckboxPrimitive.Root.Props) {
 				data-slot="checkbox-indicator"
 				className="grid place-content-center text-current transition-none [&>svg]:size-3.5"
 			>
-				<RiCheckLine />
+				<Check />
 			</CheckboxPrimitive.Indicator>
 		</CheckboxPrimitive.Root>
 	);

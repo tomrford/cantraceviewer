@@ -57,7 +57,6 @@
 	},
 	"dependencies": {
 		"@base-ui/react": "^1.9.0",
-		"@remixicon/react": "^4.9.0",
 		"@tanstack/react-virtual": "3.14.23",
 		"cantraceviewer": "0.3.0",
 		"chartgpu": "0.4.0",
