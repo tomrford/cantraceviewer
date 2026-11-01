@@ -1,5 +1,6 @@
 import { subscribeWithSelector } from 'zustand/middleware';
 import { createStore } from 'zustand/vanilla';
+import { ownHmrSubscriptions } from './hmr-subscriptions.js';
 import type { YAxisId } from '#lib/plot-axes.js';
 import {
 	crosshairById,
@@ -65,7 +66,7 @@ export const plotView = createStore<PlotViewState>()(
 // only `placeCrosshair` reads it.
 let pointerRatio: PlotRatioPoint | null = null;
 
-plotModel.subscribe((model, previous) => {
+const unsubscribeModel = plotModel.subscribe((model, previous) => {
 	if (
 		model.fullDomain === previous.fullDomain &&
 		model.secondaryFitRanges === previous.secondaryFitRanges &&
@@ -78,7 +79,7 @@ plotModel.subscribe((model, previous) => {
 });
 
 // Nothing plottable: drop crosshairs and box zoom and return to the full extent.
-plotData.subscribe(({ hasPlottableSignals }, previous) => {
+const unsubscribeData = plotData.subscribe(({ hasPlottableSignals }, previous) => {
 	if (hasPlottableSignals || !previous.hasPlottableSignals) return;
 	plotView.setState({
 		...crosshairState([]),
@@ -86,6 +87,8 @@ plotData.subscribe(({ hasPlottableSignals }, previous) => {
 		...viewportState(FIT, FULL_Y_WINDOW)
 	});
 });
+
+if (import.meta.hot) ownHmrSubscriptions(import.meta.hot, [unsubscribeModel, unsubscribeData]);
 
 export function zoomBy(
 	factor: number,

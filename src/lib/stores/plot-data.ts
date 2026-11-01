@@ -1,4 +1,5 @@
 import { createStore } from 'zustand/vanilla';
+import { ownHmrSubscriptions } from './hmr-subscriptions.js';
 import { createSignalColorAssigner } from '#lib/plot-colors.js';
 import { orderPlotSignals } from '#lib/plot-signal-order.js';
 import {
@@ -55,12 +56,16 @@ let derivedFrom: unknown[] = [];
 export const plotData = createStore<PlotDataState>()(() => signalsState(new Map()));
 
 // Re-derive when a catalogue or the legend order changes; `signalsState` skips unchanged inputs.
+const unsubscribes: (() => void)[] = [];
 for (const store of [dbcFiles, traceFile, preferences] as const) {
-	store.subscribe(() => {
+	const unsubscribe = store.subscribe(() => {
 		const next = signalsState(plotData.getState().selected);
 		if (next.signals !== plotData.getState().signals) plotData.setState(next);
 	});
+	if (import.meta.hot) unsubscribes.push(unsubscribe);
 }
+
+if (import.meta.hot) ownHmrSubscriptions(import.meta.hot, unsubscribes);
 
 export function isSignalSelected(key: string): boolean {
 	return plotData.getState().selected.has(key);

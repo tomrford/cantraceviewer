@@ -1,4 +1,5 @@
 import { createStore } from 'zustand/vanilla';
+import { ownHmrSubscriptions } from './hmr-subscriptions.js';
 import { traceFile, type TraceFileEntry } from './trace-file.js';
 import {
 	closeDbc,
@@ -68,9 +69,11 @@ export const dbcFiles = createStore<DbcFilesState>()(() => ({
 	hasLoadedLibrary: false
 }));
 
-traceFile.subscribe(({ entry }, previous) => {
+const unsubscribeTrace = traceFile.subscribe(({ entry }, previous) => {
 	if (entry !== previous.entry) dbcFiles.setState(catalogState(dbcFiles.getState().files, entry));
 });
+
+if (import.meta.hot) ownHmrSubscriptions(import.meta.hot, [unsubscribeTrace]);
 
 let libraryOperation = Promise.resolve();
 

@@ -1,4 +1,5 @@
 import { createStore } from 'zustand/vanilla';
+import { ownHmrSubscriptions } from './hmr-subscriptions.js';
 import { plotGrid, type PlotGrid } from '#lib/plot-axis-layout.js';
 import {
 	groupSignalsByYAxis,
@@ -43,12 +44,16 @@ let derivedFrom: unknown[] = [];
 
 export const plotModel = createStore<PlotModelState>()(() => modelState(null));
 
+const unsubscribes: (() => void)[] = [];
 for (const store of [plotData, plotAxes, traceFile] as const) {
-	store.subscribe(() => {
+	const unsubscribe = store.subscribe(() => {
 		const next = modelState(plotModel.getState());
 		if (next !== plotModel.getState()) plotModel.setState(next);
 	});
+	if (import.meta.hot) unsubscribes.push(unsubscribe);
 }
+
+if (import.meta.hot) ownHmrSubscriptions(import.meta.hot, unsubscribes);
 
 function modelState(previous: PlotModelState | null): PlotModelState {
 	const { signals } = plotData.getState();
