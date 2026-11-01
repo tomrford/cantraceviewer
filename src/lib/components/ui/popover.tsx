@@ -33,7 +33,7 @@ function PopoverContent({
 				collisionPadding={collisionPadding}
 				className="isolate z-50"
 			>
-				{/* Non-modal: keeps global shortcuts working inside (see isTransientSurfaceTarget). */}
+				{/* Non-modal: keeps global shortcuts working inside (see shortcutSuppressedBySurface). */}
 				<PopoverPrimitive.Popup
 					data-slot="popover-content"
 					aria-modal={false}

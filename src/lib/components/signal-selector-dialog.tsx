@@ -71,7 +71,7 @@ export function SignalSelectorDialog({
 }) {
 	const dbcInput = useRef<HTMLInputElement>(null);
 	const scrollTop = useRef(0);
-	const [searchInput, setSearchInput] = useState<HTMLInputElement | null>(null);
+	const searchInput = useRef<HTMLInputElement>(null);
 	const [search, setSearch] = useState('');
 	const [activeOnly, setActiveOnly] = useState(false);
 	const [hideUnavailable, setHideUnavailable] = useState(false);
@@ -95,11 +95,10 @@ export function SignalSelectorDialog({
 		return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
 	}, [filtering]);
 
+	// The shortcut refocuses search when the panel is already open; `initialFocus` covers opening.
 	useEffect(() => {
-		if (focusSearchRequest === 0 || searchInput === null) return;
-		const frame = requestAnimationFrame(() => searchInput.focus());
-		return () => cancelAnimationFrame(frame);
-	}, [focusSearchRequest, searchInput]);
+		if (focusSearchRequest > 0) searchInput.current?.focus();
+	}, [focusSearchRequest]);
 
 	function handleOpenChange(next: boolean, details: PopoverPrimitive.Root.ChangeEventDetails) {
 		if (!next && (details.reason === 'outside-press' || details.reason === 'focus-out')) {
@@ -179,9 +178,8 @@ export function SignalSelectorDialog({
 					sideOffset={-32}
 					// The panel is viewport-tall and overlays its trigger; the default padding shifts it up.
 					collisionPadding={0}
-					initialFocus={false}
-					// Focus returned to the trigger opens its tooltip, which then takes the next Escape.
-					finalFocus={false}
+					// Touch keeps the default so opening the panel does not raise the on-screen keyboard.
+					initialFocus={(type) => (type === 'touch' ? true : searchInput.current)}
 					className="relative grid h-[calc(100vh-1rem)] w-[min(26rem,calc(100vw-1rem))] -translate-x-2 -translate-y-2 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden rounded-lg border border-border/70 bg-popover/90 p-4 pt-14 text-popover-foreground backdrop-blur-md"
 					style={{ boxShadow: '0 1px 2px rgb(0 0 0 / 0.08)' }}
 					onDragEnter={handleDrag}
@@ -242,7 +240,7 @@ export function SignalSelectorDialog({
 									Search
 								</Label>
 								<Input
-									ref={setSearchInput}
+									ref={searchInput}
 									id="search"
 									value={search}
 									onChange={(event) => changeSearch(event.currentTarget.value)}
