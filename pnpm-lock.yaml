@@ -14,9 +14,6 @@ importers:
       '@base-ui/react':
         specifier: ^1.9.0
         version: 1.9.0(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
-      '@remixicon/react':
-        specifier: ^4.9.0
-        version: 4.9.0(react@19.3.1)
       '@tanstack/react-virtual':
         specifier: 3.14.23
         version: 3.14.23(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -1137,11 +1134,6 @@ packages:
     peerDependenciesMeta:
       '@types/react':
         optional: true
-
-  '@remixicon/react@4.9.0':
-    resolution: {integrity: sha512-5/jLDD4DtKxH2B4QVXTobvV1C2uL8ab9D5yAYNtFt+w80O0Ys1xFOrspqROL3fjrZi+7ElFUWE37hBfaAl6U+Q==}
-    peerDependencies:
-      react: '>=18.2.0'
 
   '@rolldown/binding-android-arm-eabi@1.2.12':
     resolution: {integrity: sha512-dB/a1214qKfHMXCpgqR4OZT+jS4kTyEXbQGJPqzobt5EwH5rX080pxE37alt3RzvR1bf1Yz/yGqRfrYAxuPw0A==}
@@ -3668,10 +3660,6 @@ snapshots:
       react: 19.3.1
     optionalDependencies:
       '@types/react': 19.3.0
-
-  '@remixicon/react@4.9.0(react@19.3.1)':
-    dependencies:
-      react: 19.3.1
 
   '@rolldown/binding-android-arm-eabi@1.2.12':
     optional: true
