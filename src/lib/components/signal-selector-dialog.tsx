@@ -11,12 +11,11 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle
 } from '#lib/components/ui/alert-dialog.js';
-import { DeferredFallback } from '#lib/components/deferred-fallback.js';
+import { SelectorTree } from '#lib/components/selector-tree.js';
 import { Input } from '#lib/components/ui/input.js';
 import { Label } from '#lib/components/ui/label.js';
 import { Popover, PopoverContent, PopoverTitle } from '#lib/components/ui/popover.js';
 import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tooltip.js';
-import { deferredComponent } from '#lib/deferred-component.js';
 import {
 	dbcFilesFromDrop,
 	dragLeftCurrentTarget,
@@ -28,12 +27,6 @@ import { toggleSignal } from '#lib/stores/plot-data.js';
 import { onDbcRemoved } from '#lib/stores/session.js';
 import { traceFile } from '#lib/stores/trace-file.js';
 import { cn } from '#lib/utils.js';
-
-// The list (virtualiser, rows, DBC details) loads when the panel first opens.
-const SelectorTree = deferredComponent(
-	() => import('./selector-tree.js').then((m) => m.SelectorTree),
-	(_props, failed) => <DeferredFallback label="Signal list" failed={failed} inline />
-);
 
 const iconButtonClass =
 	'flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color,box-shadow,scale] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96] disabled:pointer-events-none disabled:opacity-50';

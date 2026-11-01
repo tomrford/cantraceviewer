@@ -1,8 +1,8 @@
+import { domToBlob } from 'modern-screenshot';
+
 const EXPORT_BRAND = 'cantraceviewer.com';
 
 export async function capturePlotImage(root: HTMLElement): Promise<Blob> {
-	const { domToBlob } = await import('modern-screenshot');
-
 	return domToBlob(root, {
 		scale: window.devicePixelRatio || 1,
 		filter: (node) => !(node instanceof Element && node.hasAttribute('data-export-ignore')),
