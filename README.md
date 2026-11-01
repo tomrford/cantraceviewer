@@ -16,6 +16,8 @@ Trace files and decoded series stay in memory for the current browser session. S
 
 The UI uses React 19 with the React Compiler, Vite, zustand, Tailwind, and shadcn/ui components on Base UI, built with Node.js and pnpm. `pnpm run build` prerenders the app shell into `build/index.html`, which the client hydrates. Rust code under `wasm/` compiles through wasm-bindgen for DBC parsing, trace parsing, and signal decoding. The published `cantraceviewer` package exposes asynchronous browser and Node clients plus a synchronous direct entry. This app uses an exact registry version of the browser client, which runs its WASM work in a dedicated Worker.
 
+See the [core package README](packages/core/README.md) for its API, supported formats, parsing limits and lifecycle contracts.
+
 Chrome 149+ and Edge 150+ can analyse a loaded trace through WebMCP (`document.modelContext`) when `chrome://flags/#enable-webmcp-testing` is enabled, or when an origin trial is active. HTTPS or localhost is required. Users load trace and DBC files with the visible browser controls. The page tools search and select signals, arrange up to five Y axes, set or reset the time window, place C1/C2 crosshairs and choose their legend readout. Numerical inspection reads a capped set of nearest decoded samples at explicit times or the current crosshairs without moving the plot. Use screenshots for signal shape and tool results for precise values and timestamps. Decoded sample arrays stay in the tab.
 
 ```sh
@@ -32,3 +34,5 @@ nix develop -c pnpm run validate
 `package:validate` runs the release checks: Rust formatting, lint and tests, package packing, installed-package checks, and app checks, tests and build against the tarball. `validate` also runs repository lint, type checks and tests against the pinned registry dependency. `check` and `test` build the package before running independently; `check:types` and `test:run` reuse existing build outputs.
 
 Set `CI=true` for noninteractive dependency installation. Run build-generating commands serially within a checkout because they share generated WASM and package output directories.
+
+For browser checks, use the [verification skill](.agents/skills/verify-cantraceviewer/SKILL.md) and its feature recipes. They cover real fixture loading, plot interactions and bounded WebMCP inspection, with repeatable evidence. Automated validation does not establish browser rendering or interaction correctness.

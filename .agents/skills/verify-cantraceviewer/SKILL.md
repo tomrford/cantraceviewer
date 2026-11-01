@@ -23,7 +23,7 @@ Different origins isolate browser storage. Tabs at the same origin share the sav
 
 On opening a target and whenever identity/health looks wrong, perform one read-only browser health check: capture the current URL, page title, DOM/accessibility snapshot and recent console warnings/errors using your browser harness.
 
-Require the intended origin, `CAN Trace Viewer`, `Load trace`, `Open signal selector` and no unexplained page/Worker errors. Verify preview SHA externally: page title does not identify a revision. Locally record `git rev-parse HEAD`, dirty state and the retained server session. No account or seed service is required.
+Require the intended origin, a title of `CAN Trace Viewer` (or `<trace name> | CAN Trace Viewer` with a trace loaded), `Load trace`, `Open signal selector` and no unexplained page/Worker errors. Verify preview SHA externally: page title does not identify a revision. Locally record `git rev-parse HEAD`, dirty state and the retained server session. No account or seed service is required.
 
 **GPU scope:** browsers without GPU acceleration, particularly cloud agents, can likely test only a subset. Load/select a known signal, then inspect screenshot and logs for ChartGPU startup failure. A canvas, available tools or successful decoding does not prove rendering. If startup fails, record the actual error and mark plot shape, gutters/axes, gestures, marker rendering and image export blocked pending a GPU-capable browser. Imports, library/search, help/settings, DOM legend ordering and bounded numerical tools may still work; verify each independently. Do not mock the canvas, patch ChartGPU or silently use software rendering to claim equivalent visual proof.
 
@@ -34,7 +34,7 @@ Use supported browser controls grounded in fresh snapshots; inspect state after 
 1. Activate the button named `Load trace` and choose `wasm/tests/fixtures/agentic-demo.asc` through the harness's file chooser or file-input support. Where file choosers are event-based, start listening before activating the button.
 2. Wait for loading to finish and the toolbar to show `agentic-demo`.
 3. Activate `Open signal selector`, then `Add DBC`, and choose `wasm/tests/fixtures/agentic-demo.dbc`.
-4. Fill the input with placeholder `Filter signals...` with `vehicle_speed`; activate the checkbox named `Plot PowertrainStatus.vehicle_speed`.
+4. Fill the input with placeholder `Filter signals...` with `vehicle_speed`; inspect the resulting rows and activate the `Plot PowertrainStatus.vehicle_speed` checkbox using its observed full name, including any channel/direction suffix.
 5. Wait for decoding to finish, activate `Close signal selector`, and capture the legend and plot outcome.
 
 The feature map specifies alternate entry points and observable outcomes. These accessible names can be used directly with role/name locators in harnesses that support them.
@@ -50,6 +50,8 @@ Store each run outside disposable state at `/tmp/cantraceviewer-verification/<un
 Capture before snapshot/screenshot, action and resulting snapshot/screenshot. Save relevant logs and public tool results. Save screenshots in their actual returned format with a matching extension. Use the harness's export facilities or ordinary file I/O to preserve artifacts. Report real artifact paths.
 
 Exercise actual user paths; do not seed IndexedDB/local storage or invoke internal stores. Mocks only belong at an existing isolated production boundary. Prove persistence by reload and reopening library/settings: traces/selections clear while saved DBCs/preferences remain. Inspect actual downloads/clipboard image as well as toasts. Capture errors/warnings before dismissal.
+
+For frame timing, keep the application window and browser pane visible and confirm the measured animation-frame cadence before collecting results. Record display refresh rate, browser, fixture size and whether input was real or synthetic. Treat background/throttled runs as inconclusive; they cannot establish interactive frame time. Use matching conditions for baseline and candidate.
 
 For comparisons use `baseline/` and `candidate/` directories plus paired expected/actual results with identical actions and inputs. Derive numerical expectations independently from fixture bytes/contracts: demo PowertrainStatus at 10 ms has vehicle_speed 100 km/h and engine_rpm 4488 rpm; at 110 ms they are 123.4 km/h and 5379 rpm. Record nearest-sample timestamps/distances. Formatting can differ between revisions.
 
