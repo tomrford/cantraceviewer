@@ -29,8 +29,8 @@ type SelectorFilter = {
 	query: string;
 	activeOnly: boolean;
 	isSignalSelected: (key: string) => boolean;
-	/** DBC ids and message keys. They cannot collide: message keys are JSON arrays. */
-	expanded: ReadonlySet<string>;
+	/** Takes DBC ids and message keys. They cannot collide: message keys are JSON arrays. */
+	isExpanded: (key: string) => boolean;
 };
 
 type SelectorSearchEntry = {
@@ -84,7 +84,7 @@ export function selectorRows(
 		// Only filtering hides a DBC with nothing to show; unfiltered, an empty DBC keeps its row.
 		if (matches?.size === 0) continue;
 
-		const dbcExpanded = filter.expanded.has(dbc.id);
+		const dbcExpanded = filter.isExpanded(dbc.id);
 		rows.push({ kind: 'dbc', key: `dbc:${dbc.id}`, dbc, expanded: dbcExpanded });
 		if (!dbcExpanded) continue;
 
@@ -92,7 +92,7 @@ export function selectorRows(
 			const visible = matches ? matches.get(message.key) : message.signals;
 			if (!visible?.length) continue;
 
-			const expanded = filter.expanded.has(message.key);
+			const expanded = filter.isExpanded(message.key);
 			rows.push({ kind: 'message', key: `message:${message.key}`, message, expanded });
 			if (!expanded) continue;
 

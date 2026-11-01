@@ -120,12 +120,13 @@ it('keeps absent and transported definitions searchable, rejects additions, and 
 	expect(plotData.getState().signals[0].series?.values.length).toBe(0); // ID present, payload too short.
 	const indexes = buildSelectorSearchIndexes(dbcFiles.getState().selectorFiles);
 	const dbcIds = dbcFiles.getState().files.map((file) => file.id);
+	const expanded = new Set([...dbcIds, ...indexes[0].dbc.messages.map((message) => message.key)]);
 	const filter = {
 		query: '',
 		activeOnly: false,
 		hideUnavailable: true,
 		isSignalSelected,
-		expanded: new Set([...dbcIds, ...indexes[0].dbc.messages.map((message) => message.key)])
+		isExpanded: (key: string) => expanded.has(key)
 	};
 	const rows = (overrides: Partial<typeof filter> = {}) =>
 		selectorRows(dbcFiles.getState().selectorSearchIndexes, { ...filter, ...overrides });
@@ -134,7 +135,7 @@ it('keeps absent and transported definitions searchable, rejects additions, and 
 	expect(ofKind(rows(), 'message').map((row) => row.message.name)).toEqual(['Present']);
 	expect(rows({ query: 'Missing' })).toEqual([]);
 	expect(ofKind(rows({ activeOnly: true }), 'signal')).toHaveLength(1);
-	const collapsed = rows({ expanded: new Set(dbcIds) });
+	const collapsed = rows({ isExpanded: (key) => dbcIds.includes(key) });
 	expect(ofKind(collapsed, 'message')[0]).toMatchObject({ expanded: false });
 	expect(ofKind(collapsed, 'signal')).toEqual([]);
 	expect((await search()).results).toHaveLength(4);

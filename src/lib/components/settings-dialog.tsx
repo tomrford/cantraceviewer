@@ -26,7 +26,12 @@ import {
 	SelectTrigger,
 	SelectValue
 } from '#lib/components/ui/select.js';
-import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tooltip.js';
+import {
+	ignoreFocusOpen,
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger
+} from '#lib/components/ui/tooltip.js';
 import { appShell, openHelp } from '#lib/stores/app-shell.js';
 import {
 	preferences,
@@ -83,10 +88,7 @@ const legendOrderOptions: { value: LegendOrderMode; label: string; description: 
 	}
 ];
 
-/**
- * Settings popover including its trigger. Outside presses and focus moving away do not
- * close it; Escape, the trigger and the close button do.
- */
+/** Settings popover including its trigger. */
 export function SettingsDialog({ triggerClassName }: { triggerClassName?: string }) {
 	const panel = useRef<HTMLDivElement>(null);
 	const open = useStore(appShell, (s) => s.settingsOpen);
@@ -97,14 +99,8 @@ export function SettingsDialog({ triggerClassName }: { triggerClassName?: string
 		legendOrderOptions.find((option) => option.value === legendOrder) ?? legendOrderOptions[0];
 
 	return (
-		<Popover
-			open={open}
-			onOpenChange={(next, details) => {
-				if (!next && (details.reason === 'outside-press' || details.reason === 'focus-out')) return;
-				appShell.setState({ settingsOpen: next });
-			}}
-		>
-			<Tooltip>
+		<Popover open={open} onOpenChange={(settingsOpen) => appShell.setState({ settingsOpen })}>
+			<Tooltip onOpenChange={ignoreFocusOpen}>
 				<TooltipTrigger
 					render={<PopoverTrigger className={triggerClassName} aria-label="Open settings" />}
 				>

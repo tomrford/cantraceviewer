@@ -22,10 +22,11 @@ import {
 	AlertDialogTitle
 } from '#lib/components/ui/alert-dialog.js';
 import { Button } from '#lib/components/ui/button.js';
+import { DialogTrigger } from '#lib/components/ui/dialog.js';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader } from '#lib/components/ui/empty.js';
-import { PopoverTrigger } from '#lib/components/ui/popover.js';
 import { Toaster } from '#lib/components/ui/sonner.js';
 import {
+	ignoreFocusOpen,
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
@@ -179,10 +180,10 @@ function AppShell() {
 						onDbcAdded={handleDbcAdded}
 						onSignalToggle={handleSignalToggle}
 					>
-						<Tooltip>
+						<Tooltip onOpenChange={ignoreFocusOpen}>
 							<TooltipTrigger
 								render={
-									<PopoverTrigger
+									<DialogTrigger
 										className={squircleButtonClass}
 										data-walkthrough-target="signal-selector"
 										aria-label="Open signal selector"

@@ -1,4 +1,4 @@
-import { useDeferredValue, useRef } from 'react';
+import { useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useStore } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
@@ -43,15 +43,14 @@ export function SelectorTree({
 	query,
 	activeOnly,
 	hideUnavailable,
-	expansion,
+	isExpanded,
 	...listProps
 }: ListProps & {
 	query: string;
 	activeOnly: boolean;
 	hideUnavailable: boolean;
-	expansion: ReadonlySet<string>;
+	isExpanded: (key: string) => boolean;
 }) {
-	const deferredQuery = useDeferredValue(query);
 	const dbcIndexes = useStore(dbcFiles, (s) => s.selectorSearchIndexes);
 	const mf4Indexes = useStore(traceFile, (s) => s.mf4SelectorIndexes);
 	// Decode status only affects individual rows; filtering needs membership in selected-only mode.
@@ -60,11 +59,11 @@ export function SelectorTree({
 		useShallow((s) => (activeOnly ? new Set(s.selected.keys()) : null))
 	);
 	const rows = selectorRows([...dbcIndexes, ...mf4Indexes], {
-		query: deferredQuery,
+		query,
 		activeOnly,
 		hideUnavailable,
 		isSignalSelected: (key) => selectedKeys?.has(key) ?? false,
-		expanded: expansion
+		isExpanded
 	});
 
 	return <VirtualRows rows={rows} {...listProps} />;
