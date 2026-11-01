@@ -1,16 +1,8 @@
 import { PRIMARY_Y_AXIS_ID } from '#lib/plot-axes.js';
 import type { LegendCrosshairMode } from '#lib/plot-crosshair.js';
-import { dbcFiles } from '#lib/stores/dbc-files.js';
-import { addAxis, assignAxis, plotAxes } from '#lib/stores/plot-axes.js';
-import {
-	isSignalSelected,
-	plotData,
-	signalDecodeStatus,
-	toggleSignal
-} from '#lib/stores/plot-data.js';
-import { plotModel } from '#lib/stores/plot-model.js';
-import { plotView, resetZoom, setCrosshairs, setViewport } from '#lib/stores/plot-view.js';
-import { traceFile } from '#lib/stores/trace-file.js';
+import { addAxis, assignAxis } from '#lib/stores/plot-axes.js';
+import { isSignalSelected, signalDecodeStatus, toggleSignal } from '#lib/stores/plot-data.js';
+import { resetZoom, setCrosshairs, setViewport } from '#lib/stores/plot-view.js';
 import {
 	createWebMcpTools,
 	type WebMcpCrosshairInput,
@@ -18,6 +10,7 @@ import {
 	type WebMcpTimeRange,
 	type WebMcpTool
 } from '#lib/webmcp-tools.js';
+import { appStore } from '#lib/stores/store.js';
 
 export type ModelContext = {
 	registerTool: (tool: WebMcpTool, options?: { signal?: AbortSignal }) => Promise<void>;
@@ -56,19 +49,19 @@ async function registerTools(
 /** WebMCP host backed directly by the app stores, so tools see the same plot as the page. */
 export const storeHost = {
 	view: () => {
-		const domain = plotModel.getState().fullDomain;
+		const domain = appStore.getState().plotModel.fullDomain;
 		const {
 			activeViewport: active,
 			axisRanges,
 			crosshairs,
 			legendCrosshairMode
-		} = plotView.getState();
+		} = appStore.getState();
 		return {
 			timeDomainMs: domain === null ? null : { startMs: domain.xMin, endMs: domain.xMax },
 			timeWindowMs: active === null ? null : { startMs: active.xMin, endMs: active.xMax },
 			isFullTimeRange:
 				domain !== null && active?.xMin === domain.xMin && active.xMax === domain.xMax,
-			axes: plotAxes.getState().ids.map((id, index) => ({
+			axes: appStore.getState().axisIds.map((id, index) => ({
 				axis: index + 1,
 				range: axisRanges.get(id) ?? null
 			})),
@@ -77,15 +70,15 @@ export const storeHost = {
 		};
 	},
 	setTimeWindow: (range: WebMcpTimeRange | null) => {
-		const active = plotView.getState().activeViewport;
+		const active = appStore.getState().activeViewport;
 		if (active === null) return null;
 		if (range === null) resetZoom();
 		else setViewport({ ...active, xMin: range.startMs, xMax: range.endMs });
-		const applied = plotView.getState().activeViewport;
+		const applied = appStore.getState().activeViewport;
 		return applied === null ? null : { startMs: applied.xMin, endMs: applied.xMax };
 	},
 	setCrosshairs: (markers: WebMcpCrosshairInput[], readout?: LegendCrosshairMode) => {
-		const { activeViewport: active, crosshairs, legendCrosshairMode } = plotView.getState();
+		const { activeViewport: active, crosshairs, legendCrosshairMode } = appStore.getState();
 		const centreY = active === null ? 0 : (active.yMin + active.yMax) / 2;
 		const has = (id: number) => markers.some((marker) => marker.id === id);
 		const previousValid =
@@ -105,16 +98,16 @@ export const storeHost = {
 	},
 	setSignalAxes: (assignments: Array<{ key: string; axis: number }>) => {
 		for (const { key, axis } of assignments) {
-			while (plotAxes.getState().ids.length < axis) addAxis();
-			assignAxis(key, plotAxes.getState().ids[axis - 1]);
+			while (appStore.getState().axisIds.length < axis) addAxis();
+			assignAxis(key, appStore.getState().axisIds[axis - 1]);
 		}
 	},
 	signalCatalog: () => [
-		...dbcFiles.getState().selectorSearchIndexes,
-		...traceFile.getState().mf4SelectorIndexes
+		...appStore.getState().selectorSearchIndexes,
+		...appStore.getState().mf4SelectorIndexes
 	],
 	plottedSignals: (): WebMcpPlottedSignal[] =>
-		plotData
+		appStore
 			.getState()
 			.signals.flatMap((signal) =>
 				signal.series === null ? [] : [{ ...signal, series: signal.series }]
@@ -122,9 +115,17 @@ export const storeHost = {
 	isSignalSelected,
 	toggleSignal,
 	session: () => {
-		const { entry: trace, displayName, warning, isLoading } = traceFile.getState();
-		const { files, hasLoadedLibrary, isLoading: dbcLoading } = dbcFiles.getState();
-		const { ids, assignment } = plotAxes.getState();
+		const {
+			trace,
+			traceName: displayName,
+			traceWarning: warning,
+			traceLoading: isLoading,
+			dbcFiles: files,
+			hasLoadedLibrary,
+			dbcLoading,
+			axisIds: ids,
+			axisAssignment: assignment
+		} = appStore.getState();
 		const nativeCount =
 			trace?.mf4Catalog?.groups.reduce((count, group) => count + group.signals.length, 0) ?? 0;
 		return {
@@ -155,7 +156,7 @@ export const storeHost = {
 					0
 				)
 			})),
-			plotted: plotData.getState().signals.map((signal) => {
+			plotted: appStore.getState().signals.map((signal) => {
 				const decode = signalDecodeStatus(signal.key);
 				return {
 					key: signal.key,

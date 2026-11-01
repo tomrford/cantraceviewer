@@ -29,10 +29,11 @@ import {
 	filesFromDrop,
 	hasDraggedFiles
 } from '#lib/file-drop.js';
-import { addDbcFiles, clearDbcError, dbcFiles } from '#lib/stores/dbc-files.js';
+import { addDbcFiles, clearDbcError } from '#lib/stores/dbc-files.js';
 import { toggleSignal } from '#lib/stores/plot-data.js';
 import { onDbcRemoved } from '#lib/stores/session.js';
 import { cn } from '#lib/utils.js';
+import { appStore } from '#lib/stores/store.js';
 
 const iconButtonClass =
 	'flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color,box-shadow,scale] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96] disabled:pointer-events-none disabled:opacity-50';
@@ -76,8 +77,8 @@ export function SignalSelectorDialog({
 	const [collapsedWhileFiltering, setCollapsedWhileFiltering] = useState<ReadonlySet<string>>(
 		() => new Set()
 	);
-	const isLoading = useStore(dbcFiles, (s) => s.isLoading);
-	const dbcError = useStore(dbcFiles, (s) => s.error);
+	const isLoading = useStore(appStore, (s) => s.dbcLoading);
+	const dbcError = useStore(appStore, (s) => s.dbcError);
 	// The list follows the deferred query, so typing stays responsive on large catalogues.
 	const query = useDeferredValue(search);
 	const filtering = query.trim().length > 0 || activeOnly;
@@ -97,9 +98,9 @@ export function SignalSelectorDialog({
 
 	async function addFiles(files: File[]) {
 		if (files.length === 0) return;
-		const previousCount = dbcFiles.getState().files.length;
+		const previousCount = appStore.getState().dbcFiles.length;
 		await addDbcFiles(files);
-		if (dbcFiles.getState().files.length > previousCount) onDbcAdded?.();
+		if (appStore.getState().dbcFiles.length > previousCount) onDbcAdded?.();
 	}
 
 	function handleDrag(event: DragEvent<HTMLDivElement>) {
@@ -124,7 +125,7 @@ export function SignalSelectorDialog({
 	}
 
 	async function removeDbc(dbcId: string) {
-		const dbc = dbcFiles.getState().selectorFiles.find((file) => file.id === dbcId);
+		const dbc = appStore.getState().selectorFiles.find((file) => file.id === dbcId);
 		const removed = new Set([dbcId, ...(dbc?.messages ?? []).map((message) => message.key)]);
 		const withoutRemoved = (current: ReadonlySet<string>) =>
 			new Set([...current].filter((key) => !removed.has(key)));

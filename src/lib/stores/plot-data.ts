@@ -1,86 +1,32 @@
-import { createStore } from 'zustand/vanilla';
-import { createSignalColorAssigner } from '#lib/plot-colors.js';
-import { orderPlotSignals } from '#lib/plot-signal-order.js';
+import type { YAxisId } from '#lib/plot-axes.js';
+import { getMf4SignalValues, getSignalValues } from '#lib/wasm.js';
 import {
-	getMf4SignalValues,
-	getSignalValues,
-	type DbcValueDescription,
-	type DbcValueType,
-	type DecodedSignalSeries
-} from '#lib/wasm.js';
-import { releaseAllAxes, releaseAxes } from './plot-axes.js';
-import { dbcFiles, sourceLabel, type DbcSignalTarget } from './dbc-files.js';
-import { preferences } from './preferences.js';
-import { traceFile, type TraceFileEntry } from './trace-file.js';
-
-type SelectedSignalState = {
-	isDecoding: boolean;
-	series: DecodedSignalSeries | null;
-	error: string | null;
-};
-
-export type PlotSignal = {
-	key: string;
-	color: string;
-	label: string;
-	messageName: string;
-	sourceBadges?: string[];
-	signalName: string;
-	valueType: DbcValueType;
-	factor: number;
-	offset: number;
-	minimum: number | null;
-	maximum: number | null;
-	unit: string;
-	valueDescriptions: DbcValueDescription[];
-	series: DecodedSignalSeries | null;
-};
-
-export type PlotDataState = {
-	selected: ReadonlyMap<string, SelectedSignalState>;
-	/** Derived on every write from `selected`, the signal catalogues and the legend order. */
-	signals: PlotSignal[];
-	hasPlottableSignals: boolean;
-};
-
-const NO_VALUE_DESCRIPTIONS: DbcValueDescription[] = [];
-const signalColors = createSignalColorAssigner();
-
-export function isPlottableSignal(signal: PlotSignal): boolean {
-	return Boolean(signal.series && signal.series.timesMs.length > 0);
-}
-
-let derivedFrom: unknown[] = [];
-
-export const plotData = createStore<PlotDataState>()(() => signalsState(new Map()));
-
-// Re-derive when a catalogue or the legend order changes; `signalsState` skips unchanged inputs.
-for (const store of [dbcFiles, traceFile, preferences] as const) {
-	store.subscribe(() => {
-		const next = signalsState(plotData.getState().selected);
-		if (next.signals !== plotData.getState().signals) plotData.setState(next);
-	});
-}
+	signalColors,
+	type DbcSignalTarget,
+	type SelectedSignalState,
+	type TraceFileEntry
+} from './derive.js';
+import { appStore, update } from './store.js';
 
 export function isSignalSelected(key: string): boolean {
-	return plotData.getState().selected.has(key);
+	return appStore.getState().selected.has(key);
 }
 
 export function signalDecodeStatus(key: string): {
 	isDecoding: boolean;
 	decodeError: string | null;
 } {
-	const state = plotData.getState().selected.get(key);
+	const state = appStore.getState().selected.get(key);
 	return { isDecoding: state?.isDecoding ?? false, decodeError: state?.error ?? null };
 }
 
 export async function toggleSignal(key: string): Promise<void> {
 	if (isSignalSelected(key)) {
-		const selected = new Map(plotData.getState().selected);
+		const state = appStore.getState();
+		const selected = new Map(state.selected);
 		selected.delete(key);
 		signalColors.release(key);
-		releaseAxes([key]);
-		plotData.setState(signalsState(selected));
+		update({ selected, axisAssignment: withoutSignals(state.axisAssignment, [key]) });
 		return;
 	}
 
@@ -92,36 +38,35 @@ export async function toggleSignal(key: string): Promise<void> {
 }
 
 export function deselectDbcFile(dbcFileId: string): void {
-	const selected = new Map(plotData.getState().selected);
+	const state = appStore.getState();
+	const selected = new Map(state.selected);
 	const released: string[] = [];
-	for (const [key, target] of Object.entries(dbcFiles.getState().signalTargetByKey)) {
+	for (const [key, target] of Object.entries(state.signalTargetByKey)) {
 		if (target.file.id !== dbcFileId || !selected.delete(key)) continue;
 		signalColors.release(key);
 		released.push(key);
 	}
 	if (released.length === 0) return;
-	releaseAxes(released);
-	plotData.setState(signalsState(selected));
+	update({ selected, axisAssignment: withoutSignals(state.axisAssignment, released) });
 }
 
 export function clearSelectedSignals(): void {
 	signalColors.clear();
-	releaseAllAxes();
-	plotData.setState(signalsState(new Map()));
+	update({ selected: new Map(), axisAssignment: new Map() });
 }
 
 async function decodeSignal(
 	key: string,
 	target: NonNullable<ReturnType<typeof findSignalTarget>>
 ): Promise<void> {
-	const trace = traceFile.getState().entry;
+	const { trace } = appStore.getState();
 	if (!trace) return;
 
 	const decoding: SelectedSignalState = { isDecoding: true, series: null, error: null };
 	setSignalState(key, decoding);
 	const isCurrent = () =>
-		plotData.getState().selected.get(key) === decoding &&
-		traceFile.getState().entry === trace &&
+		appStore.getState().selected.get(key) === decoding &&
+		appStore.getState().trace === trace &&
 		findSignalTarget(key) !== null;
 
 	try {
@@ -140,7 +85,7 @@ async function decodeSignal(
 			});
 		}
 	} finally {
-		if (plotData.getState().selected.get(key) === decoding) {
+		if (appStore.getState().selected.get(key) === decoding) {
 			setSignalState(key, { ...decoding, isDecoding: false });
 		}
 	}
@@ -164,66 +109,22 @@ function decodeDbcSignal(trace: TraceFileEntry, target: DbcSignalTarget) {
 }
 
 function setSignalState(key: string, state: SelectedSignalState): void {
-	plotData.setState(signalsState(new Map(plotData.getState().selected).set(key, state)));
+	update({ selected: new Map(appStore.getState().selected).set(key, state) });
 }
 
 function findSignalTarget(key: string) {
-	const dbc = dbcFiles.getState().signalTargetByKey[key];
+	const { signalTargetByKey, mf4SignalTargetByKey } = appStore.getState();
+	const dbc = signalTargetByKey[key];
 	if (dbc) return { kind: 'dbc' as const, value: dbc };
-	const mf4 = traceFile.getState().mf4SignalTargetByKey.get(key);
+	const mf4 = mf4SignalTargetByKey.get(key);
 	return mf4 ? { kind: 'mf4' as const, value: mf4 } : null;
 }
 
-function signalsState(selected: PlotDataState['selected']): PlotDataState {
-	const dbcTargets = dbcFiles.getState().signalTargetByKey;
-	const mf4Targets = traceFile.getState().mf4SignalTargetByKey;
-	const order = preferences.getState().legendOrder;
-	const inputs = [selected, dbcTargets, mf4Targets, order];
-	if (inputs.every((input, index) => input === derivedFrom[index])) return plotData.getState();
-	derivedFrom = inputs;
-
-	const signals: PlotSignal[] = [];
-	for (const [key, state] of selected) {
-		const dbc = dbcTargets[key];
-		if (dbc) {
-			signals.push({
-				key,
-				color: signalColors.colorFor(key),
-				label: `${dbc.message.name}.${dbc.signal.name}${sourceLabel(dbc.source)}`,
-				messageName: dbc.message.name,
-				sourceBadges: dbc.sourceBadges,
-				signalName: dbc.signal.name,
-				unit: dbc.signal.unit,
-				valueType: dbc.signal.valueType,
-				factor: dbc.signal.factor,
-				offset: dbc.signal.offset,
-				minimum: dbc.signal.minimum,
-				maximum: dbc.signal.maximum,
-				valueDescriptions: dbc.signal.valueDescriptions,
-				series: state.series
-			});
-			continue;
-		}
-
-		const mf4 = mf4Targets.get(key);
-		if (!mf4) continue;
-		signals.push({
-			key,
-			color: signalColors.colorFor(key),
-			label: `${mf4.group.name}.${mf4.signal.name}`,
-			messageName: mf4.group.name,
-			signalName: mf4.signal.name,
-			unit: mf4.signal.unit,
-			valueType: 'float64',
-			factor: 1,
-			offset: 0,
-			minimum: null,
-			maximum: null,
-			valueDescriptions: NO_VALUE_DESCRIPTIONS,
-			series: state.series
-		});
-	}
-
-	const ordered = orderPlotSignals(signals, order);
-	return { selected, signals: ordered, hasPlottableSignals: ordered.some(isPlottableSignal) };
+function withoutSignals(
+	assignment: ReadonlyMap<string, YAxisId>,
+	signalKeys: string[]
+): ReadonlyMap<string, YAxisId> {
+	const next = new Map(assignment);
+	for (const key of signalKeys) next.delete(key);
+	return next.size === assignment.size ? assignment : next;
 }

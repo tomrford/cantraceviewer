@@ -19,8 +19,8 @@ import {
 	type PlotPoint,
 	type PlotViewport
 } from '#lib/plot-viewport.js';
-import { plotModel } from '#lib/stores/plot-model.js';
-import { panBy, plotView, setPointerRatio, setViewport, zoomBy } from '#lib/stores/plot-view.js';
+import { panBy, setPointerRatio, setViewport, zoomBy } from '#lib/stores/plot-view.js';
+import { appStore } from '#lib/stores/store.js';
 
 const WHEEL_ZOOM_SPEED = 0.002;
 
@@ -43,8 +43,8 @@ export function PlotInteraction({
 	onContextMenuPoint: (point: PlotPoint | null) => void;
 	children: ReactNode;
 }) {
-	const boxZoomEnabled = useStore(plotView, (state) => state.boxZoomEnabled);
-	const grid = useStore(plotModel, (state) => state.grid);
+	const boxZoomEnabled = useStore(appStore, (state) => state.boxZoomEnabled);
+	const grid = useStore(appStore, (state) => state.plotModel.grid);
 	const [panning, setPanning] = useState(false);
 	const wrapperRef = useRef<HTMLDivElement>(null);
 	const buttonRef = useRef<HTMLButtonElement>(null);
@@ -74,7 +74,7 @@ export function PlotInteraction({
 	}
 
 	function startDrag(event: PointerEvent, type: 'pan' | 'box') {
-		const startViewport = plotView.getState().activeViewport;
+		const startViewport = appStore.getState().activeViewport;
 		const point = ratioAt(event);
 		const button = buttonRef.current;
 		if (startViewport === null || point === null || button === null) return;
@@ -135,7 +135,7 @@ export function PlotInteraction({
 		const drag = dragRef.current;
 		if (drag?.pointerId !== event.pointerId) return;
 		cancelDrag();
-		const viewport = plotView.getState().activeViewport;
+		const viewport = appStore.getState().activeViewport;
 		if (drag.type !== 'box' || viewport === null) return;
 		const next = boxViewport(viewport, drag.start, drag.current);
 		if (next !== null) setViewport(next);
@@ -146,7 +146,7 @@ export function PlotInteraction({
 	}
 
 	function rememberContextMenuPoint(event: MouseEvent) {
-		const { activeViewport } = plotView.getState();
+		const { activeViewport } = appStore.getState();
 		const point = ratioAt(event);
 		onContextMenuPoint(
 			activeViewport === null || point === null ? null : dataPointAtRatio(activeViewport, point)
@@ -155,7 +155,7 @@ export function PlotInteraction({
 
 	const zoomOnWheel = useEffectEvent((event: WheelEvent) => {
 		const area = plotArea();
-		if (area === null || plotView.getState().activeViewport === null) return;
+		if (area === null || appStore.getState().activeViewport === null) return;
 		const point = ratioInArea(area, event);
 		if (point === null) return;
 		const delta = normalizedWheelDelta(event, area.height);

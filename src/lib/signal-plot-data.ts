@@ -1,6 +1,6 @@
 import { paddedXRange, paddedYRange, type PlotAxisRange, type PlotViewport } from './plot-viewport';
-import type { PlotSignal } from './stores/plot-data.js';
-import type { TimestampMode } from './stores/preferences.js';
+import type { PlotSignal } from './stores/derive.js';
+import type { TimestampMode } from './stores/store.js';
 
 type DecodedValueFormatContext = Pick<
 	PlotSignal,
