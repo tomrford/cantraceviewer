@@ -1,22 +1,15 @@
-import { useEffect, useRef, type MouseEvent, type PointerEvent } from 'react';
+import { useRef, type MouseEvent, type PointerEvent } from 'react';
 import { useStore } from 'zustand';
 import {
 	crosshairById,
 	moveCrosshair,
 	type CrosshairDragAxis,
-	type CrosshairId,
-	type PlotCrosshair
+	type CrosshairId
 } from '#lib/plot-crosshair.js';
 import { ratioInArea } from '#lib/plot-pointer.js';
 import { dataPointAtRatio, ratioAtDataPoint, type PlotPoint } from '#lib/plot-viewport.js';
 import { plotModel } from '#lib/stores/plot-model.js';
 import { plotView, upsertCrosshair } from '#lib/stores/plot-view.js';
-
-type Gesture = {
-	drag: { pointerId: number; axis: CrosshairDragAxis; target: HTMLElement } | null;
-	frame: number | null;
-	pending: PlotCrosshair | null;
-};
 
 const HANDLES = [
 	{
@@ -45,21 +38,6 @@ export function PlotCrosshairOverlay({
 	const viewport = useStore(plotView, (state) => state.activeViewport);
 	const grid = useStore(plotModel, (state) => state.grid);
 	const track = useRef<HTMLDivElement>(null);
-	const gesture = useRef<Gesture>({ drag: null, frame: null, pending: null });
-
-	// Drop an in-flight drag when the crosshair is removed (C key, Clear all, WebMCP), so a pending
-	// frame cannot re-create it.
-	useEffect(() => {
-		const current = gesture.current;
-		const unsubscribe = plotView.subscribe(
-			(state) => crosshairById(state.crosshairs, id) === null,
-			(removed) => removed && cancelGesture(current)
-		);
-		return () => {
-			unsubscribe();
-			cancelGesture(current);
-		};
-	}, [id]);
 
 	function pointAt(event: { clientX: number; clientY: number }): PlotPoint | null {
 		const activeViewport = plotView.getState().activeViewport;
@@ -74,32 +52,20 @@ export function PlotCrosshairOverlay({
 		if (event.button !== 0) return;
 		event.preventDefault();
 		event.stopPropagation();
-		const target = event.currentTarget;
-		gesture.current.drag = { pointerId: event.pointerId, axis, target };
-		target.setPointerCapture(event.pointerId);
-		updateFromPointer(event);
+		event.currentTarget.setPointerCapture(event.pointerId);
+		moveTo(axis, event);
 	}
 
-	function moveDrag(event: PointerEvent) {
-		if (gesture.current.drag?.pointerId !== event.pointerId) return;
+	function moveDrag(axis: CrosshairDragAxis, event: PointerEvent<HTMLElement>) {
+		if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
 		event.preventDefault();
-		updateFromPointer(event);
+		moveTo(axis, event);
 	}
 
-	function stopDrag(event: PointerEvent) {
-		if (gesture.current.drag?.pointerId !== event.pointerId) return;
-		flushGesture(gesture.current);
-		cancelGesture(gesture.current);
-	}
-
-	// Coalesce drag updates to one store write per frame.
-	function updateFromPointer(event: PointerEvent) {
-		const state = gesture.current;
+	function moveTo(axis: CrosshairDragAxis, event: PointerEvent) {
 		const current = crosshairById(plotView.getState().crosshairs, id);
 		const point = pointAt(event);
-		if (current === null || point === null || state.drag === null) return;
-		state.pending = moveCrosshair(state.pending ?? current, point, state.drag.axis);
-		if (state.frame === null) state.frame = requestAnimationFrame(() => flushGesture(state));
+		if (current !== null && point !== null) upsertCrosshair(moveCrosshair(current, point, axis));
 	}
 
 	function rememberContextMenuPoint(event: MouseEvent) {
@@ -111,12 +77,6 @@ export function PlotCrosshairOverlay({
 	const percent = {
 		x: ratio.xRatio >= 0 && ratio.xRatio <= 1 ? `${ratio.xRatio * 100}%` : null,
 		y: ratio.yRatio >= 0 && ratio.yRatio <= 1 ? `${ratio.yRatio * 100}%` : null
-	};
-	const handlers = {
-		onContextMenu: rememberContextMenuPoint,
-		onPointerMove: moveDrag,
-		onPointerUp: stopDrag,
-		onPointerCancel: stopDrag
 	};
 
 	return (
@@ -135,8 +95,9 @@ export function PlotCrosshairOverlay({
 						className={`pointer-events-auto absolute border-0 bg-transparent p-0 ${handle.className}`}
 						style={handle.axis === 'x' ? { left: position } : { top: position }}
 						aria-label={`Crosshair ${id} ${handle.label}`}
+						onContextMenu={rememberContextMenuPoint}
 						onPointerDown={(event) => startDrag(handle.axis, event)}
-						{...handlers}
+						onPointerMove={(event) => moveDrag(handle.axis, event)}
 					>
 						<span className={`absolute border-current ${handle.line}`} />
 					</button>
@@ -149,8 +110,9 @@ export function PlotCrosshairOverlay({
 					className="pointer-events-auto absolute z-10 size-6 -translate-1/2 cursor-move border-0 bg-transparent p-0"
 					style={{ left: percent.x, top: percent.y }}
 					aria-label={`Move crosshair ${id}`}
+					onContextMenu={rememberContextMenuPoint}
 					onPointerDown={(event) => startDrag('both', event)}
-					{...handlers}
+					onPointerMove={(event) => moveDrag('both', event)}
 				>
 					<span className="absolute top-1/2 left-1/2 size-3 -translate-1/2 rounded-full border-2 border-current bg-background" />
 					<span className="absolute top-full left-full -mt-1 -ml-1 rounded-sm bg-foreground px-1 font-mono text-[0.625rem] leading-4 font-semibold text-background shadow-sm">
@@ -160,20 +122,4 @@ export function PlotCrosshairOverlay({
 			)}
 		</div>
 	);
-}
-
-function flushGesture(gesture: Gesture): void {
-	if (gesture.frame !== null) cancelAnimationFrame(gesture.frame);
-	gesture.frame = null;
-	if (gesture.pending !== null) upsertCrosshair(gesture.pending);
-	gesture.pending = null;
-}
-
-function cancelGesture(gesture: Gesture): void {
-	const { drag } = gesture;
-	gesture.drag = null;
-	gesture.pending = null;
-	flushGesture(gesture);
-	if (drag?.target.hasPointerCapture(drag.pointerId))
-		drag.target.releasePointerCapture(drag.pointerId);
 }
