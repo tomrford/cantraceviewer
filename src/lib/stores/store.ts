@@ -6,12 +6,7 @@ import { createStore, type StoreApi } from 'zustand/vanilla';
 import { PRIMARY_Y_AXIS_ID, type YAxisId } from '#lib/plot-axes.js';
 import type { LegendCrosshairMode, PlotCrosshair } from '#lib/plot-crosshair.js';
 import type { LegendOrderMode } from '#lib/plot-signal-order.js';
-import {
-	FULL_Y_WINDOW,
-	type PlotAxisRange,
-	type PlotViewport,
-	type PlotYWindow
-} from '#lib/plot-viewport.js';
+import { FULL_Y_WINDOW, type PlotYWindow } from '#lib/plot-viewport.js';
 import type { WalkthroughStep } from '#lib/walkthrough.js';
 import {
 	catalogState,
@@ -37,7 +32,8 @@ export type PersistedPreferences = {
 	walkthroughVersion: number;
 };
 
-export type AppState = PersistedPreferences & {
+/** What actions write, through `update`. */
+type SourceState = PersistedPreferences & {
 	// Page UI
 	systemDark: boolean;
 	openingTrace: boolean;
@@ -51,48 +47,37 @@ export type AppState = PersistedPreferences & {
 	trace: TraceFileEntry | null;
 	traceLoading: boolean;
 	traceError: string | null;
-	/** Derived from `trace`. */
-	traceName: string;
-	traceWarning: string | null;
-	mf4SignalTargetByKey: ReturnType<typeof traceState>['mf4SignalTargetByKey'];
-	mf4SelectorIndexes: ReturnType<typeof traceState>['mf4SelectorIndexes'];
 
 	// DBC library
 	dbcFiles: DbcFileEntry[];
 	dbcLoading: boolean;
 	dbcError: string | null;
 	hasLoadedLibrary: boolean;
-	/** Derived from `dbcFiles` and `trace`. */
-	signalTargetByKey: ReturnType<typeof catalogState>['signalTargetByKey'];
-	selectorFiles: ReturnType<typeof catalogState>['selectorFiles'];
-	selectorSearchIndexes: ReturnType<typeof catalogState>['selectorSearchIndexes'];
 
 	// Plotted signals
 	selected: ReadonlyMap<string, SelectedSignalState>;
-	/** Derived from `selected`, the catalogues and `legendOrder`. */
-	signals: ReturnType<typeof signalsState>['signals'];
-	hasPlottableSignals: boolean;
 
 	// Axes
 	axisIds: readonly YAxisId[];
 	/** Signal key -> non-primary axis; unassigned signals sit on the primary axis. */
 	axisAssignment: ReadonlyMap<string, YAxisId>;
-	/** Derived from `signals`, the axes and `trace`. */
-	plotModel: PlotModelState;
 
 	// Plot view
 	viewportMode: ViewportMode;
 	yWindow: PlotYWindow;
-	/** Derived from the mode, Y window and plot model. */
-	activeViewport: PlotViewport | null;
-	isFitAll: boolean;
-	/** Non-primary fit ranges with the Y window applied, plus the primary from `activeViewport`. */
-	axisRanges: ReadonlyMap<YAxisId, PlotAxisRange>;
 	crosshairs: PlotCrosshair[];
 	legendCrosshairMode: LegendCrosshairMode;
 	boxZoomEnabled: boolean;
 	legendVisible: boolean;
 };
+
+/** Computed by `withDerived` on each write. */
+type DerivedState = ReturnType<typeof traceState> &
+	ReturnType<typeof catalogState> &
+	ReturnType<typeof signalsState> &
+	ReturnType<typeof viewportState> & { plotModel: PlotModelState };
+
+export type AppState = SourceState & DerivedState;
 
 export const FIT: ViewportMode = { mode: 'fit' };
 
@@ -107,7 +92,7 @@ export const DEFAULT_PREFERENCES: PersistedPreferences = {
 	walkthroughVersion: 0
 };
 
-function withDerived(prev: AppState, patch: Partial<AppState>): AppState {
+function withDerived(prev: AppState, patch: Partial<SourceState>): AppState {
 	const next = { ...prev, ...patch };
 
 	if (next.trace !== prev.trace) Object.assign(next, traceState(next.trace));
@@ -226,6 +211,6 @@ const store = createStore<AppState>()(initialState);
 
 export const appStore: Omit<StoreApi<AppState>, 'setState'> = store;
 
-export function update(patch: Partial<AppState>): void {
+export function update(patch: Partial<SourceState>): void {
 	store.setState(withDerived(store.getState(), patch), true);
 }

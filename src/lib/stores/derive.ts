@@ -180,7 +180,7 @@ export function catalogState(files: DbcFileEntry[], trace: TraceFileEntry | null
 	};
 }
 
-export function sourceLabel(source?: RawSource): string {
+function sourceLabel(source?: RawSource): string {
 	if (!source) return '';
 	const channel = source.channel === null ? 'Unknown channel' : `Channel ${source.channel}`;
 	const direction = { unknown: 'unknown direction', rx: 'Rx', tx: 'Tx' }[source.direction];
@@ -356,6 +356,7 @@ function sameViewport(a: PlotViewport, b: PlotViewport): boolean {
 	return a.xMin === b.xMin && a.xMax === b.xMax && a.yMin === b.yMin && a.yMax === b.yMax;
 }
 
+/** `axisRanges` holds the non-primary fit ranges with the Y window applied, plus the primary axis. */
 export function viewportState(
 	viewportMode: ViewportMode,
 	yWindow: PlotYWindow,

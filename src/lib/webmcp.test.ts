@@ -13,11 +13,19 @@ import {
 	type WebMcpHost,
 	type WebMcpPlottedSignal
 } from './webmcp-tools.js';
+import type { TraceFileEntry } from './stores/derive.js';
 import { appStore, update } from './stores/store.js';
 
 const engineKey = '["powertrain","standard:207:8","EngineSpeed"]';
 const wheelKey = '["chassis","extended:419361024:8","WheelBasedSpeed"]';
 const rpmKey = '["engine","standard:256:8","EngineRpm"]';
+
+const PLOT_TRACE = {
+	id: 1,
+	file: new File([], 'drive.mf4'),
+	metadata: { skippedLineCount: 0 },
+	mf4Catalog: { groups: [{ name: 'Engine', signals: [{ id: 1, name: 'Speed', unit: 'rpm' }] }] }
+} as unknown as TraceFileEntry;
 
 describe('WebMCP tool contract', () => {
 	it('summarises plain session state without decoded arrays', () => {
@@ -201,12 +209,11 @@ describe('WebMCP shared plot', () => {
 	});
 
 	function plot() {
-		update({
-			plotModel: {
-				...appStore.getState().plotModel,
-				fullDomain: { xMin: 0, xMax: 20, yMin: 0, yMax: 8000 }
-			}
-		});
+		// One plotted signal gives a full extent of 0-20 ms and, with Y padding, 0-8800.
+		update({ trace: PLOT_TRACE });
+		const [key] = appStore.getState().mf4SignalTargetByKey.keys();
+		const series = { timesMs: Float64Array.of(0, 20), values: Float64Array.of(400, 8400) };
+		update({ selected: new Map([[key, { isDecoding: false, error: null, series }]]) });
 		const host = fakeHost({
 			view: storeHost.view,
 			setTimeWindow: storeHost.setTimeWindow,
@@ -236,7 +243,7 @@ describe('WebMCP shared plot', () => {
 		expect(state()).toEqual({
 			crosshairs: [
 				{ id: 1, x: 4, y: 1000 },
-				{ id: 2, x: 16, y: 4000 }
+				{ id: 2, x: 16, y: 4400 }
 			],
 			readout: 'delta'
 		});
@@ -256,7 +263,7 @@ describe('WebMCP shared plot', () => {
 		const before = structuredClone(state());
 		await tools.inspect_at_times.execute({ timesMs: [-5, 10, 25] });
 		expect(state()).toEqual(before);
-		expect(viewport().activeViewport).toEqual({ xMin: 2, xMax: 18, yMin: 0, yMax: 8000 });
+		expect(viewport().activeViewport).toEqual({ xMin: 2, xMax: 18, yMin: 0, yMax: 8800 });
 	});
 
 	it('reports clamping, keeps marker heights on moves and normalises the readout on removal', async () => {
@@ -311,7 +318,7 @@ describe('WebMCP shared plot', () => {
 		await expect(tools.set_time_window.execute({ startMs: 10 })).rejects.toThrow();
 		await tools.set_time_window.execute({});
 		expect(viewport().isFitAll).toBe(true);
-		expect(viewport().activeViewport).toEqual({ xMin: 0, xMax: 20, yMin: 0, yMax: 8000 });
+		expect(viewport().activeViewport).toEqual({ xMin: 0, xMax: 20, yMin: 0, yMax: 8800 });
 	});
 
 	it('uses real legend axis assignments, repeats without creating extra axes and preserves empty axes', async () => {
