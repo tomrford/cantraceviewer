@@ -9,5 +9,6 @@ This map is the maintained verification source. Cover every affected sub-feature
 - [Plot navigation and axes](plot-navigation.md): zoom/pan, legend and five Y axes.
 - [Crosshairs and inspection](inspection.md): markers, nearest samples and deltas.
 - [Settings, help and export](settings-help-export.md): preferences, shortcuts, tour and image outputs.
+- [Deferred loading](deferred-loading.md): loading, missing chunks and explicit reload recovery.
 
 This seed map covers the main surfaces, not every parser variant. Add regression fixtures and independent expectations for formats, multiplexing, source choices and limits. Core checks use `nix develop -c pnpm run package:validate`; they cannot substitute for deployed browser proof. The app consumes the exact published core version in `package.json`; local Rust edits are not automatically exercised by the app.

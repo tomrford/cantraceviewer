@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore, type ComponentType } from 'react';
+import { useEffect, useSyncExternalStore, type ComponentType, type ReactNode } from 'react';
 
 export type DeferredComponent<P extends object> = ComponentType<P> & {
 	/** Fetches the component's chunk; later calls share the first fetch. */
@@ -6,15 +6,16 @@ export type DeferredComponent<P extends object> = ComponentType<P> & {
 };
 
 /**
- * A code-split component that renders nothing until its chunk has loaded, then renders the real
+ * A code-split component that renders a fallback until its chunk has loaded, then renders the real
  * component in place. Unlike `lazy`, it never suspends: React throttles a suspended boundary's
  * reveal on a timer (300 ms, longer in background tabs), which delayed a trace's first plot and a
  * dialog's first open. `preload` early so the chunk is usually ready by first render.
  */
 export function deferredComponent<P extends object>(
-	importComponent: () => Promise<ComponentType<P>>
+	importComponent: () => Promise<ComponentType<P>>,
+	fallback: (props: P, failed: boolean) => ReactNode
 ): DeferredComponent<P> {
-	let loaded: ComponentType<P> | null = null;
+	let loaded: ComponentType<P> | 'failed' | null = null;
 	let pending: Promise<void> | null = null;
 	const listeners = new Set<() => void>();
 
@@ -25,8 +26,11 @@ export function deferredComponent<P extends object>(
 				for (const listener of listeners) listener();
 			},
 			(error: unknown) => {
-				// A later mount or preload retries the fetch.
-				pending = null;
+				// Failed ESM imports can be cached by the browser. Keep the failure visible until
+				// an explicit page reload obtains fresh HTML and a fresh module map.
+				loaded = 'failed';
+				for (const listener of listeners) listener();
+				console.error('Component failed to load.', error);
 				throw error;
 			}
 		);
@@ -45,9 +49,10 @@ export function deferredComponent<P extends object>(
 			() => null
 		);
 		useEffect(() => {
-			preload().catch((error: unknown) => console.error('Component failed to load.', error));
+			void preload().catch(() => undefined);
 		}, []);
-		if (Component === null) return null;
+		if (Component === null || Component === 'failed')
+			return fallback(props, Component === 'failed');
 		// `Component` is the chunk's export: set once, so its identity never changes between renders.
 		// oxlint-disable-next-line react/static-components
 		return <Component {...props} />;
