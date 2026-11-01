@@ -1,6 +1,7 @@
 import { useDeferredValue, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useStore } from 'zustand';
+import { useShallow } from 'zustand/react/shallow';
 import { ChevronDown, ChevronRight, CircleAlert, LoaderCircle, Trash2 } from 'lucide-react';
 import { Badge } from '#lib/components/ui/badge.js';
 import { Checkbox } from '#lib/components/ui/checkbox.js';
@@ -16,7 +17,7 @@ import {
 	type SelectorListSignal
 } from '#lib/selector-list.js';
 import { dbcFiles } from '#lib/stores/dbc-files.js';
-import { plotData, signalDecodeStatus, type PlotDataState } from '#lib/stores/plot-data.js';
+import { plotData } from '#lib/stores/plot-data.js';
 import { traceFile } from '#lib/stores/trace-file.js';
 import { cn } from '#lib/utils.js';
 
@@ -56,31 +57,33 @@ export function SelectorTree({
 	const deferredQuery = useDeferredValue(query);
 	const dbcIndexes = useStore(dbcFiles, (s) => s.selectorSearchIndexes);
 	const mf4Indexes = useStore(traceFile, (s) => s.mf4SelectorIndexes);
-	const selected = useStore(plotData, (s) => s.selected);
+	// Decode status only affects individual rows; filtering needs membership in selected-only mode.
+	const selectedKeys = useStore(
+		plotData,
+		useShallow((s) => (activeOnly ? new Set(s.selected.keys()) : null))
+	);
 	const rows = flattenSelectorTree(
 		visibleSelectorTree([...dbcIndexes, ...mf4Indexes], {
 			query: deferredQuery,
 			activeOnly,
 			hideUnavailable,
-			isSignalSelected: (key) => selected.has(key),
+			isSignalSelected: (key) => selectedKeys?.has(key) ?? false,
 			expandedDbcIds: expansion.dbcIds,
 			expandedMessageKeys: expansion.messageKeys
 		})
 	);
 
-	return <VirtualRows rows={rows} selected={selected} {...listProps} />;
+	return <VirtualRows rows={rows} {...listProps} />;
 }
 
 /** Re-renders on scroll; only the rows in the virtual window are rendered. */
 function VirtualRows({
 	rows,
-	selected,
 	getInitialScrollTop,
 	onScrollTopChange,
 	...handlers
 }: ListProps & {
 	rows: SelectorListRow[];
-	selected: PlotDataState['selected'];
 }) {
 	'use no memo';
 	const scroller = useRef<HTMLDivElement>(null);
@@ -132,12 +135,7 @@ function VirtualRows({
 									) : row.kind === 'message' ? (
 										<MessageRow message={row.message} {...handlers} />
 									) : (
-										<SignalRow
-											signal={row.signal}
-											isSelected={selected.has(row.signal.key)}
-											{...signalDecodeStatus(row.signal.key, selected)}
-											{...handlers}
-										/>
+										<SignalRow signal={row.signal} {...handlers} />
 									)}
 								</li>
 							);
@@ -214,16 +212,14 @@ function MessageRow({ message, onExpandedChange }: RowHandlers & { message: Sele
 
 function SignalRow({
 	signal,
-	isSelected,
-	isDecoding,
-	decodeError,
 	onToggleSignal
 }: RowHandlers & {
 	signal: SelectorListSignal;
-	isSelected: boolean;
-	isDecoding: boolean;
-	decodeError: string | null;
 }) {
+	const selected = useStore(plotData, (s) => s.selected.get(signal.key));
+	const isSelected = selected !== undefined;
+	const isDecoding = selected?.status === 'decoding';
+	const decodeError = selected?.error ?? null;
 	const reason = signal.unavailableReason;
 	const toggleId = `signal-toggle-${signal.key}`;
 	const showDecodeError = isSelected && decodeError !== null;
