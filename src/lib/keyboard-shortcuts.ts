@@ -119,16 +119,14 @@ type ShortcutTarget = {
 };
 
 export function shortcutSuppressedBySurface(target: ShortcutTarget | null): boolean {
+	if (isEditableShortcutTarget(target)) return true;
 	const surface = target?.closest?.(TRANSIENT_SURFACE_SELECTOR) ?? null;
 	// A closing popup keeps focus until its exit animation unmounts it; keys belong to the page.
 	if (surface?.getAttribute?.('data-closed') != null) return false;
-	// Popovers, the signal selector and the walkthrough panel do not trap focus, so global shortcuts
-	// keep working inside.
-	const modal =
-		surface !== null &&
-		surface.getAttribute?.('data-slot') !== 'popover-content' &&
-		surface.getAttribute?.('aria-modal') !== 'false';
-	return isEditableShortcutTarget(target) || modal;
+	// Menus and listboxes own their keys, including inside a non-modal panel.
+	const role = surface?.getAttribute?.('role');
+	if (role === 'menu' || role === 'listbox') return true;
+	return surface !== null && surface.getAttribute?.('aria-modal') !== 'false';
 }
 
 export function shortcutEnabled(action: ShortcutAction, state: ShortcutState): boolean {

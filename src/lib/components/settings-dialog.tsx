@@ -103,6 +103,7 @@ export function SettingsDialog({ triggerClassName }: { triggerClassName?: string
 				</TooltipContent>
 			</Tooltip>
 			<PopoverContent
+				aria-modal="false"
 				align="end"
 				sideOffset={-32}
 				ref={panel}
