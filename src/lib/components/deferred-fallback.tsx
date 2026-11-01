@@ -16,7 +16,6 @@ export function DeferredFallback({
 	failed: boolean;
 	dialog?: { open: boolean; onOpenChange: (open: boolean) => void };
 }) {
-	const title = failed ? `${label} failed to load` : `Loading ${label}…`;
 	const recovery = failed && (
 		<>
 			<p className="text-muted-foreground">
@@ -27,19 +26,17 @@ export function DeferredFallback({
 		</>
 	);
 	if (dialog) {
+		// The chunk usually lands within a few frames of opening; a stub dialog would flash first.
+		if (!failed) return null;
 		return (
 			<Dialog open={dialog.open} onOpenChange={dialog.onOpenChange}>
 				<DialogContent>
 					<DialogHeader>
-						<DialogTitle>{title}</DialogTitle>
-						<DialogDescription>
-							{failed
-								? 'This part of the app could not be downloaded.'
-								: 'Downloading this part of the app.'}
-						</DialogDescription>
+						<DialogTitle>{label} failed to load</DialogTitle>
+						<DialogDescription>This part of the app could not be downloaded.</DialogDescription>
 					</DialogHeader>
-					<div role={failed ? 'alert' : 'status'} className="grid justify-items-start gap-4">
-						{failed ? recovery : title}
+					<div role="alert" className="grid justify-items-start gap-4">
+						{recovery}
 					</div>
 				</DialogContent>
 			</Dialog>
@@ -51,7 +48,7 @@ export function DeferredFallback({
 				role={failed ? 'alert' : 'status'}
 				className="grid max-w-md justify-items-start gap-4 text-sm"
 			>
-				<p className="font-medium">{title}</p>
+				<p className="font-medium">{failed ? `${label} failed to load` : `Loading ${label}…`}</p>
 				{recovery}
 			</div>
 		</main>

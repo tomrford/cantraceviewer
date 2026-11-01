@@ -10,8 +10,9 @@ For each of Help, Command palette and Plot, start a fresh document with cache di
 DevTools Network request blocking. Activate Help through settings, Cmd/Ctrl+K, or Load trace with
 `wasm/tests/fixtures/agentic-demo.asc`.
 
-1. While the request is pending (use request interception to pause it), require `Loading Help…`,
-   `Loading Command palette…` or `Loading Plot…`. A dialog fallback must close with Escape.
+1. While the request is pending (use request interception to pause it), require `Loading Plot…`
+   for the plot and no stub dialog for Help or the palette: a chunk usually lands within a few
+   frames, and a stub would flash before the real dialog.
 2. Fail the request. Require a visible named failure, a `Reload page` button and an explanation
    that reloading clears the current trace and selection while retaining saved DBCs/preferences.
 3. For dialogs, close with Escape and reopen through the same entry point. Require the failure
