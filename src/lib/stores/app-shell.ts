@@ -1,146 +1,29 @@
-// Page-level UI state and its orchestration: trace opening (file, drop, demo preset), keyboard
-// shortcuts, the walkthrough and which overlay is open.
+// Page-level UI state and its orchestration: trace opening (file, drop, demo preset), the
+// walkthrough and which overlay is open.
 // Handlers run outside React render, so they read current state with getState().
 import { toast } from 'sonner';
 import { createStore } from 'zustand/vanilla';
-import {
-	detectShortcutPlatform,
-	overridesBrowserShortcut,
-	shortcutEnabled,
-	shortcutFromEvent,
-	shortcutSuppressedBySurface,
-	type ShortcutAction,
-	type ShortcutPlatform,
-	type ShortcutState
-} from '../keyboard-shortcuts.js';
 import {
 	adjacentWalkthroughStep,
 	WALKTHROUGH_VERSION,
 	type WalkthroughStep
 } from '../walkthrough.js';
-import { mountWebMcp } from '../webmcp.js';
-import { loadDbcLibrary } from './dbc-files.js';
 import { assignToNewAxis } from './plot-axes.js';
-import { isSignalSelected, plotData, signalDecodeStatus, toggleSignal } from './plot-data.js';
-import {
-	clearCrosshairs,
-	placeCrosshair,
-	plotView,
-	resetZoom,
-	toggleBoxZoom,
-	toggleLegend,
-	zoomBy
-} from './plot-view.js';
-import { connectPreferences, setPreference } from './preferences.js';
+import { isSignalSelected, signalDecodeStatus, toggleSignal } from './plot-data.js';
+import { setPreference } from './preferences.js';
 import { onTraceOpened } from './session.js';
 import { openTraceFile, traceFile } from './trace-file.js';
 
 type WalkthroughStepId = WalkthroughStep['id'];
 
-export const TRACE_INPUT_ID = 'trace-file-input';
-
 export const appShell = createStore(() => ({
-	shortcutPlatform: 'other' as ShortcutPlatform,
-	webgpuSupported: null as boolean | null,
 	openingTrace: false,
 	signalSelectorOpen: false,
 	settingsOpen: false,
 	helpOpen: false,
 	paletteOpen: false,
-	signalSearchFocusRequest: 0,
 	walkthroughStepId: null as WalkthroughStepId | null
 }));
-
-/** Called once from the App mount effect; returns the teardown. */
-export function connectAppShell(): () => void {
-	appShell.setState({
-		webgpuSupported: 'gpu' in navigator,
-		shortcutPlatform: detectShortcutPlatform(`${navigator.platform} ${navigator.userAgent}`)
-	});
-	const disconnectPreferences = connectPreferences();
-	void loadDbcLibrary();
-	const unmountWebMcp = mountWebMcp();
-	window.addEventListener('keydown', handleShortcutKey);
-	return () => {
-		window.removeEventListener('keydown', handleShortcutKey);
-		unmountWebMcp();
-		disconnectPreferences();
-	};
-}
-
-type ShortcutInputs = {
-	traceBusy: boolean;
-	hasPlottable: boolean;
-	isFitAll: boolean;
-	canPlaceCrosshair: boolean;
-	hasCrosshairs: boolean;
-};
-
-export function deriveShortcutState(inputs: ShortcutInputs): ShortcutState {
-	return {
-		traceLoading: inputs.traceBusy,
-		plotControlsDisabled: !inputs.hasPlottable || inputs.traceBusy,
-		canResetZoom: inputs.hasPlottable && !inputs.isFitAll,
-		canPlaceCrosshair: inputs.canPlaceCrosshair,
-		hasCrosshairs: inputs.hasCrosshairs
-	};
-}
-
-function handleShortcutKey(event: KeyboardEvent): void {
-	const action = shortcutFromEvent(event, appShell.getState().shortcutPlatform);
-	if (action === null) return;
-
-	if (overridesBrowserShortcut(action)) event.preventDefault();
-
-	if (shortcutSuppressedBySurface(event.target instanceof Element ? event.target : null)) return;
-	const view = plotView.getState();
-	const state = deriveShortcutState({
-		traceBusy: appShell.getState().openingTrace,
-		hasPlottable: plotData.getState().hasPlottableSignals,
-		isFitAll: view.isFitAll,
-		canPlaceCrosshair: view.activeViewport !== null,
-		hasCrosshairs: view.crosshairs.length > 0
-	});
-	if (!shortcutEnabled(action, state)) return;
-
-	runShortcut(action);
-	event.preventDefault();
-}
-
-const SHORTCUT_RUNNERS: Record<ShortcutAction, () => void> = {
-	openTrace: chooseTraceFile,
-	selectSignals: () => {
-		appShell.setState({ settingsOpen: false });
-		setSignalSelectorOpen(true);
-		appShell.setState((s) => ({ signalSearchFocusRequest: s.signalSearchFocusRequest + 1 }));
-	},
-	showPalette: () => {
-		appShell.setState({ settingsOpen: false });
-		setSignalSelectorOpen(false);
-		appShell.setState({ paletteOpen: true });
-	},
-	openSettings: () => {
-		setSignalSelectorOpen(false);
-		appShell.setState({ settingsOpen: true });
-	},
-	showHelp: openHelp,
-	zoomIn: () => zoomBy(0.5),
-	zoomOut: () => zoomBy(2),
-	resetZoom,
-	toggleBoxZoom,
-	toggleLegend,
-	placeC1: () => placeCrosshair(1),
-	placeC2: () => placeCrosshair(2),
-	clearCrosshairs
-};
-
-export function runShortcut(action: ShortcutAction): void {
-	SHORTCUT_RUNNERS[action]();
-}
-
-export function chooseTraceFile(): void {
-	document.getElementById(TRACE_INPUT_ID)?.click();
-}
 
 export function openHelp(): void {
 	appShell.setState({ settingsOpen: false, helpOpen: true });

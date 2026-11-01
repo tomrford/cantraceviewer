@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type DragEvent, type ReactNode, type RefObject } from 'react';
 import { Popover as PopoverPrimitive } from '@base-ui/react/popover';
 import { useStore } from 'zustand';
 import { Check, ListFilter, Plus, Search, X } from 'lucide-react';
@@ -57,21 +57,20 @@ function expandAllCatalogues(expansion: ReadonlySet<string>) {
 export function SignalSelectorDialog({
 	open,
 	onOpenChange,
-	focusSearchRequest = 0,
+	searchInputRef,
 	onDbcAdded,
 	onSignalToggle,
 	children
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
-	focusSearchRequest?: number;
+	searchInputRef: RefObject<HTMLInputElement | null>;
 	onDbcAdded?: () => void;
 	onSignalToggle?: () => void;
 	children: ReactNode;
 }) {
 	const dbcInput = useRef<HTMLInputElement>(null);
 	const scrollTop = useRef(0);
-	const searchInput = useRef<HTMLInputElement>(null);
 	const [search, setSearch] = useState('');
 	const [activeOnly, setActiveOnly] = useState(false);
 	const [hideUnavailable, setHideUnavailable] = useState(false);
@@ -94,11 +93,6 @@ export function SignalSelectorDialog({
 		const unsubscribes = [dbcFiles.subscribe(expandUnseen), traceFile.subscribe(expandUnseen)];
 		return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
 	}, [filtering]);
-
-	// The shortcut refocuses search when the panel is already open; `initialFocus` covers opening.
-	useEffect(() => {
-		if (focusSearchRequest > 0) searchInput.current?.focus();
-	}, [focusSearchRequest]);
 
 	function handleOpenChange(next: boolean, details: PopoverPrimitive.Root.ChangeEventDetails) {
 		if (!next && (details.reason === 'outside-press' || details.reason === 'focus-out')) {
@@ -179,7 +173,7 @@ export function SignalSelectorDialog({
 					// The panel is viewport-tall and overlays its trigger; the default padding shifts it up.
 					collisionPadding={0}
 					// Touch keeps the default so opening the panel does not raise the on-screen keyboard.
-					initialFocus={(type) => (type === 'touch' ? true : searchInput.current)}
+					initialFocus={(type) => (type === 'touch' ? true : searchInputRef.current)}
 					className="relative grid h-[calc(100vh-1rem)] w-[min(26rem,calc(100vw-1rem))] -translate-x-2 -translate-y-2 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden rounded-lg border border-border/70 bg-popover/90 p-4 pt-14 text-popover-foreground backdrop-blur-md"
 					style={{ boxShadow: '0 1px 2px rgb(0 0 0 / 0.08)' }}
 					onDragEnter={handleDrag}
@@ -240,7 +234,7 @@ export function SignalSelectorDialog({
 									Search
 								</Label>
 								<Input
-									ref={searchInput}
+									ref={searchInputRef}
 									id="search"
 									value={search}
 									onChange={(event) => changeSearch(event.currentTarget.value)}

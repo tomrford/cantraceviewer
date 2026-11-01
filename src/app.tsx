@@ -1,5 +1,12 @@
 import { AudioWaveform, CircleQuestionMark, Database, LoaderCircle } from 'lucide-react';
-import { useEffect, useState, type ChangeEvent, type ComponentProps, type DragEvent } from 'react';
+import {
+	useEffect,
+	useRef,
+	useState,
+	type ChangeEvent,
+	type ComponentProps,
+	type DragEvent
+} from 'react';
 import { useStore } from 'zustand';
 import { PlotToolbar } from '#lib/components/plot-toolbar.js';
 import { SettingsDialog } from '#lib/components/settings-dialog.js';
@@ -36,16 +43,12 @@ import {
 } from '#lib/file-drop.js';
 import {
 	appShell,
-	chooseTraceFile,
-	connectAppShell,
-	deriveShortcutState,
 	handleDbcAdded,
 	handleSignalToggle,
 	openDemoTrace,
 	openTrace,
 	setSignalSelectorOpen,
-	startWalkthrough,
-	TRACE_INPUT_ID
+	startWalkthrough
 } from '#lib/stores/app-shell.js';
 import { dbcFiles } from '#lib/stores/dbc-files.js';
 import { plotData } from '#lib/stores/plot-data.js';
@@ -53,6 +56,8 @@ import { plotView } from '#lib/stores/plot-view.js';
 import { isDark, preferences } from '#lib/stores/preferences.js';
 import { clearTraceError, traceFile, type TraceFileEntry } from '#lib/stores/trace-file.js';
 import { TRACE_FILE_ACCEPT, TRACE_FILE_FORMAT_NAMES } from '#lib/trace-file-types.js';
+import { useAppShortcuts } from '#lib/use-app-shortcuts.js';
+import { useBrowserValue } from '#lib/utils.js';
 import { shouldShowWalkthrough } from '#lib/walkthrough.js';
 
 const SITE_TITLE = 'CAN Trace Viewer';
@@ -66,12 +71,12 @@ const titleButtonClass =
 
 export function App() {
 	const dark = useStore(preferences, isDark);
-	const webgpuSupported = useStore(appShell, (s) => s.webgpuSupported);
+	// The prerender assumes support, so browsers with WebGPU never see the required screen.
+	const webgpuSupported = useBrowserValue(() => 'gpu' in navigator, true);
 	const title = useStore(traceFile, (s) =>
 		s.entry ? `${s.displayName} | ${SITE_TITLE}` : SITE_TITLE
 	);
 
-	useEffect(() => connectAppShell(), []);
 	useEffect(() => {
 		document.title = title;
 	}, [title]);
@@ -89,7 +94,9 @@ export function App() {
 						</p>
 					</div>
 				</main>
-				{webgpuSupported === false ? (
+				{webgpuSupported ? (
+					<AppShell />
+				) : (
 					<main className="flex min-h-screen items-center justify-center bg-background px-6 text-center too-small:hidden">
 						<div className="max-w-sm space-y-2">
 							<h1 className="text-base font-medium text-foreground">WebGPU required</h1>
@@ -99,8 +106,6 @@ export function App() {
 							</p>
 						</div>
 					</main>
-				) : (
-					<AppShell />
 				)}
 			</TooltipProvider>
 			<Toaster position="bottom-center" theme={dark ? 'dark' : 'light'} />
@@ -109,22 +114,32 @@ export function App() {
 }
 
 function AppShell() {
+	const traceInput = useRef<HTMLInputElement>(null);
+	const signalSearchInput = useRef<HTMLInputElement>(null);
 	const traceBusy = useStore(appShell, (s) => s.openingTrace);
 	const hasTrace = useStore(traceFile, (s) => s.entry !== null);
 	const [dropActive, setDropActive] = useState(false);
 	const traceError = useStore(traceFile, (s) => s.error);
 	const signalSelectorOpen = useStore(appShell, (s) => s.signalSelectorOpen);
-	const signalSearchFocusRequest = useStore(appShell, (s) => s.signalSearchFocusRequest);
 	const hasPlottable = useStore(plotData, (s) => s.hasPlottableSignals);
 	const isFitAll = useStore(plotView, (s) => s.isFitAll);
 	const canPlaceCrosshair = useStore(plotView, (s) => s.activeViewport !== null);
 	const hasCrosshairs = useStore(plotView, (s) => s.crosshairs.length > 0);
-	const shortcutState = deriveShortcutState({
-		traceBusy,
-		hasPlottable,
-		isFitAll,
+	const shortcutState = {
+		traceLoading: traceBusy,
+		plotControlsDisabled: !hasPlottable || traceBusy,
+		canResetZoom: hasPlottable && !isFitAll,
 		canPlaceCrosshair,
 		hasCrosshairs
+	};
+
+	function chooseTraceFile() {
+		traceInput.current?.click();
+	}
+
+	const runShortcut = useAppShortcuts(shortcutState, {
+		openTrace: chooseTraceFile,
+		focusSignalSearch: () => signalSearchInput.current?.focus()
 	});
 
 	function handleTraceDrag(event: DragEvent) {
@@ -160,7 +175,7 @@ function AppShell() {
 					<SignalSelectorDialog
 						open={signalSelectorOpen}
 						onOpenChange={setSignalSelectorOpen}
-						focusSearchRequest={signalSearchFocusRequest}
+						searchInputRef={signalSearchInput}
 						onDbcAdded={handleDbcAdded}
 						onSignalToggle={handleSignalToggle}
 					>
@@ -185,11 +200,11 @@ function AppShell() {
 				</div>
 
 				<div className="pointer-events-none flex min-w-0 flex-1 items-center justify-center lg:absolute lg:inset-0 lg:px-20">
-					<TraceButton traceBusy={traceBusy} />
+					<TraceButton traceBusy={traceBusy} onOpenTrace={chooseTraceFile} />
 				</div>
 
 				<input
-					id={TRACE_INPUT_ID}
+					ref={traceInput}
 					className="hidden"
 					type="file"
 					accept={TRACE_FILE_ACCEPT}
@@ -208,7 +223,12 @@ function AppShell() {
 			{hasTrace ? (
 				<SignalPlot dropActive={dropActive} {...traceDragHandlers} />
 			) : (
-				<Landing traceBusy={traceBusy} dropActive={dropActive} {...traceDragHandlers} />
+				<Landing
+					traceBusy={traceBusy}
+					dropActive={dropActive}
+					onOpenTrace={chooseTraceFile}
+					{...traceDragHandlers}
+				/>
 			)}
 
 			<AlertDialog
@@ -233,12 +253,12 @@ function AppShell() {
 			<Walkthrough />
 
 			<HelpDialog />
-			<CommandPalette state={shortcutState} />
+			<CommandPalette state={shortcutState} onRun={runShortcut} />
 		</div>
 	);
 }
 
-function TraceButton({ traceBusy }: { traceBusy: boolean }) {
+function TraceButton({ traceBusy, onOpenTrace }: { traceBusy: boolean; onOpenTrace: () => void }) {
 	const displayName = useStore(traceFile, (s) => s.displayName);
 	const entry = useStore(traceFile, (s) => s.entry);
 	const metadata = entry ? formatTraceMetadata(entry) : null;
@@ -253,7 +273,7 @@ function TraceButton({ traceBusy }: { traceBusy: boolean }) {
 						data-walkthrough-target="trace"
 						disabled={traceBusy}
 						aria-label={traceBusy ? 'Loading trace' : 'Load trace'}
-						onClick={chooseTraceFile}
+						onClick={onOpenTrace}
 					/>
 				}
 			>
@@ -277,8 +297,13 @@ function TraceButton({ traceBusy }: { traceBusy: boolean }) {
 function Landing({
 	traceBusy,
 	dropActive,
+	onOpenTrace,
 	...props
-}: ComponentProps<'section'> & { traceBusy: boolean; dropActive: boolean }) {
+}: ComponentProps<'section'> & {
+	traceBusy: boolean;
+	dropActive: boolean;
+	onOpenTrace: () => void;
+}) {
 	const hasLoadedLibrary = useStore(dbcFiles, (s) => s.hasLoadedLibrary);
 	const walkthroughVersion = useStore(preferences, (s) => s.walkthroughVersion);
 	const stepId = useStore(appShell, (s) => s.walkthroughStepId);
@@ -305,7 +330,7 @@ function Landing({
 					<EmptyDescription>{LANDING_DESCRIPTION}</EmptyDescription>
 				</EmptyHeader>
 				<EmptyContent className="max-w-none flex-row flex-wrap justify-center">
-					<Button size="lg" disabled={traceBusy} onClick={chooseTraceFile}>
+					<Button size="lg" disabled={traceBusy} onClick={onOpenTrace}>
 						{traceBusy ? (
 							<>
 								<LoaderCircle data-icon="inline-start" className="size-4 animate-spin" />

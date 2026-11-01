@@ -1,10 +1,13 @@
-import { useStore } from 'zustand';
-import { shortcutKeys, type ShortcutAction } from '#lib/keyboard-shortcuts.js';
-import { appShell } from '#lib/stores/app-shell.js';
-import { cn } from '#lib/utils.js';
+import {
+	browserShortcutPlatform,
+	shortcutKeys,
+	type ShortcutAction,
+	type ShortcutPlatform
+} from '#lib/keyboard-shortcuts.js';
+import { cn, useBrowserValue } from '#lib/utils.js';
 
 export function ShortcutKey({ action, className }: { action: ShortcutAction; className?: string }) {
-	const platform = useStore(appShell, (s) => s.shortcutPlatform);
+	const platform = useBrowserValue<ShortcutPlatform>(browserShortcutPlatform, 'other');
 
 	return (
 		<span
