@@ -140,7 +140,10 @@ export type ShortcutTarget = {
 };
 
 export function shortcutSuppressedBySurface(target: ShortcutTarget | null): boolean {
-	return isEditableShortcutTarget(target) || isTransientSurfaceTarget(target);
+	const surface = target?.closest?.(TRANSIENT_SURFACE_SELECTOR) ?? null;
+	// A closing popup keeps focus until its exit animation unmounts it; keys belong to the page.
+	if (surface?.getAttribute?.('data-closed') != null) return false;
+	return isEditableShortcutTarget(target) || isModalSurface(surface);
 }
 
 export function shortcutEnabled(action: ShortcutAction, state: ShortcutState): boolean {
@@ -188,8 +191,7 @@ export function isEditableShortcutTarget(target: ShortcutTarget | null): boolean
 const TRANSIENT_SURFACE_SELECTOR =
 	'[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-slot="context-menu-content"], [data-slot="context-menu-sub-content"], [data-slot="select-content"], [data-slot="alert-dialog-content"]';
 
-function isTransientSurfaceTarget(target: ShortcutTarget | null): boolean {
-	const surface = target?.closest?.(TRANSIENT_SURFACE_SELECTOR);
+function isModalSurface(surface: ShortcutTarget | null): boolean {
 	if (!surface) return false;
 
 	return surface.getAttribute?.('aria-modal') !== 'false';

@@ -1,5 +1,5 @@
 import { AudioWaveform, CircleQuestionMark, Database, LoaderCircle } from 'lucide-react';
-import { lazy, Suspense, useEffect, useState, type ChangeEvent, type DragEvent } from 'react';
+import { useEffect, useState, type ChangeEvent, type DragEvent } from 'react';
 import { useStore } from 'zustand';
 import { PlotToolbar } from '#lib/components/plot-toolbar.js';
 import { SettingsDialog } from '#lib/components/settings-dialog.js';
@@ -25,6 +25,7 @@ import {
 	TooltipTrigger
 } from '#lib/components/ui/tooltip.js';
 import { Walkthrough } from '#lib/components/walkthrough.js';
+import { deferredComponent } from '#lib/deferred-component.js';
 import {
 	dragLeftCurrentTarget,
 	filesFromDrop,
@@ -59,13 +60,17 @@ import { shouldShowWalkthrough, WALKTHROUGH_STEPS } from '#lib/walkthrough.js';
 
 // Not needed for first paint (or the prerendered shell): loaded when a trace opens or a dialog
 // first opens.
-const loadSignalPlot = () => import('#lib/components/signal-plot.js');
-const SignalPlot = lazy(() => loadSignalPlot().then((m) => ({ default: m.SignalPlot })));
-const HelpDialog = lazy(() =>
-	import('#lib/components/help-dialog.js').then((m) => ({ default: m.HelpDialog }))
+const SignalPlot = deferredComponent(() => {
+	// SignalPlot imports ChartGPU only once mounted; fetch both now so the first plot waits on one
+	// download hop, not two.
+	void import('chartgpu').catch(() => undefined);
+	return import('#lib/components/signal-plot.js').then((m) => m.SignalPlot);
+});
+const HelpDialog = deferredComponent(() =>
+	import('#lib/components/help-dialog.js').then((m) => m.HelpDialog)
 );
-const CommandPalette = lazy(() =>
-	import('#lib/components/command-palette.js').then((m) => ({ default: m.CommandPalette }))
+const CommandPalette = deferredComponent(() =>
+	import('#lib/components/command-palette.js').then((m) => m.CommandPalette)
 );
 
 const SITE_TITLE = 'CAN Trace Viewer';
@@ -152,7 +157,7 @@ function AppShell() {
 	const paletteMounted = useOpenedOnce(paletteOpen);
 
 	useEffect(() => {
-		if (traceBusy) void loadSignalPlot();
+		if (traceBusy) void SignalPlot.preload().catch(() => undefined);
 	}, [traceBusy]);
 
 	const dragHandlers = {
@@ -227,9 +232,7 @@ function AppShell() {
 			</header>
 
 			{hasTrace ? (
-				<Suspense>
-					<SignalPlot shortcutPlatform={platform} dropActive={dropActive} {...dragHandlers} />
-				</Suspense>
+				<SignalPlot shortcutPlatform={platform} dropActive={dropActive} {...dragHandlers} />
 			) : (
 				<Landing traceBusy={traceBusy} dropActive={dropActive} {...dragHandlers} />
 			)}
@@ -262,25 +265,23 @@ function AppShell() {
 				/>
 			)}
 
-			<Suspense>
-				{helpMounted && (
-					<HelpDialog
-						open={helpOpen}
-						onOpenChange={(helpOpen) => appShell.setState({ helpOpen })}
-						shortcutPlatform={platform}
-						onStartWalkthrough={startWalkthrough}
-					/>
-				)}
-				{paletteMounted && (
-					<CommandPalette
-						open={paletteOpen}
-						onOpenChange={(paletteOpen) => appShell.setState({ paletteOpen })}
-						shortcutPlatform={platform}
-						state={shortcutState}
-						onRun={runShortcut}
-					/>
-				)}
-			</Suspense>
+			{helpMounted && (
+				<HelpDialog
+					open={helpOpen}
+					onOpenChange={(helpOpen) => appShell.setState({ helpOpen })}
+					shortcutPlatform={platform}
+					onStartWalkthrough={startWalkthrough}
+				/>
+			)}
+			{paletteMounted && (
+				<CommandPalette
+					open={paletteOpen}
+					onOpenChange={(paletteOpen) => appShell.setState({ paletteOpen })}
+					shortcutPlatform={platform}
+					state={shortcutState}
+					onRun={runShortcut}
+				/>
+			)}
 		</div>
 	);
 }
