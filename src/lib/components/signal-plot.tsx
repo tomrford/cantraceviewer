@@ -226,7 +226,7 @@ export function SignalPlot({
 						<ContextMenuSeparator />
 						<ContextMenuItem
 							disabled={!hasSelectedSignals}
-							className="text-accent-foreground dark:focus:bg-destructive/20!"
+							variant="destructive"
 							onClick={clearSelectedSignals}
 						>
 							<RotateCcw />
