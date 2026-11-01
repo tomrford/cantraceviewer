@@ -25,7 +25,6 @@ import { DBC_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '#lib/file-limits.
 import {
 	buildSelectorSearchIndexes,
 	type SelectorDbcFile,
-	type SelectorListSignal,
 	type SelectorSearchIndex
 } from '#lib/selector-list.js';
 
@@ -47,7 +46,7 @@ export type DbcSignalTarget = {
 	signal: DbcSignal;
 };
 
-export type DbcFilesState = {
+type DbcFilesState = {
 	files: DbcFileEntry[];
 	isLoading: boolean;
 	error: string | null;
@@ -57,9 +56,6 @@ export type DbcFilesState = {
 	selectorFiles: SelectorDbcFile[];
 	selectorSearchIndexes: SelectorSearchIndex[];
 };
-
-type RawMessagesById = Map<string, RawMessage[]>;
-type DbcCandidate = { entry: DbcFileEntry; stored: StoredDbc };
 
 export const dbcFiles = createStore<DbcFilesState>()(() => ({
 	...catalogState([], null),
@@ -92,14 +88,6 @@ export function addTransientDbcs(ownerTraceId: number, dbcs: EmbeddedDbc[]): Pro
 	return runLibraryOperation(() => importTransientDbcs(ownerTraceId, dbcs));
 }
 
-export async function clearTransientDbcs(): Promise<void> {
-	const { files } = dbcFiles.getState();
-	const removed = files.filter((file) => file.origin === 'mf4');
-	if (removed.length === 0) return;
-	setFiles(files.filter((file) => file.origin !== 'mf4'));
-	await closeEntries(removed);
-}
-
 export async function clearDbcFiles(): Promise<void> {
 	const removed = dbcFiles.getState().files;
 	setFiles([]);
@@ -124,7 +112,7 @@ export function loadDbcLibrary(): Promise<void> {
 	return runLibraryOperation(readLibrary);
 }
 
-export function signalIdentityKey(
+function signalIdentityKey(
 	dbcFileId: string,
 	message: DbcMessageIdentity,
 	signalName: string,
@@ -152,30 +140,50 @@ function setFiles(files: DbcFileEntry[], patch: Partial<DbcFilesState> = {}): vo
 function catalogState(files: DbcFileEntry[], trace: TraceFileEntry | null) {
 	const rawMessages = Map.groupBy(trace?.metadata.rawMessages ?? [], rawMessageIdentityKey);
 	const traceLoaded = trace !== null;
-	const selectorFiles = files.map<SelectorDbcFile>((entry) => ({
-		id: entry.id,
-		name: entry.name.replace(/\.dbc$/i, ''),
-		kind: 'dbc',
-		transient: entry.origin === 'mf4',
-		messages: entry.catalog.messages.flatMap((message) => {
-			const sources = sourceOptions(message, rawMessages);
+	const signalTargetByKey: Record<string, DbcSignalTarget> = {};
+	const selectorFiles = files.map<SelectorDbcFile>((file) => ({
+		id: file.id,
+		name: file.name.replace(/\.dbc$/i, ''),
+		transient: file.origin === 'mf4',
+		messages: file.catalog.messages.flatMap((message) => {
+			const sources: (RawSource | undefined)[] = rawMessages
+				.get(rawMessageIdentityKey(message))
+				?.map((raw) => raw.source) ?? [undefined];
 			const unavailableReason = messageUnavailableReason(message, rawMessages, traceLoaded);
-			return sources.map((source) => ({
-				key: selectorMessageKey(entry.id, message, source),
-				name: message.name,
-				sourceLabel: sourceLabel(source),
-				sourceBadges: sourceBadges(source, sources),
-				signals: message.signals.map((signal) => ({
-					...selectorSignal(entry.id, message, signal, source),
-					unavailableReason
-				}))
-			}));
+			return sources.map((source) => {
+				const badges = sourceBadges(source, sources);
+				return {
+					key: selectorMessageKey(file.id, message, source),
+					name: message.name,
+					sourceLabel: sourceLabel(source),
+					sourceBadges: badges,
+					signals: message.signals.map((signal) => {
+						const key = signalIdentityKey(file.id, message, signal.name, source);
+						signalTargetByKey[key] = {
+							unavailableReason,
+							file,
+							message,
+							signal,
+							source,
+							sourceBadges: badges
+						};
+						return {
+							key,
+							label: `${message.name}.${signal.name}${sourceLabel(source)}`,
+							messageName: message.name,
+							signalName: signal.name,
+							arbitrationId: message.canId.toString(16),
+							unavailableReason
+						};
+					})
+				};
+			});
 		})
 	}));
 
 	return {
 		files,
-		signalTargetByKey: buildSignalTargetIndex(files, rawMessages, traceLoaded),
+		signalTargetByKey,
 		selectorFiles,
 		selectorSearchIndexes: buildSelectorSearchIndexes(selectorFiles)
 	};
@@ -183,36 +191,43 @@ function catalogState(files: DbcFileEntry[], trace: TraceFileEntry | null) {
 
 async function importFiles(files: Iterable<File>): Promise<void> {
 	dbcFiles.setState({ error: null });
-	const candidates: DbcCandidate[] = [];
+	const stored: StoredDbc[] = [];
+	const entries: DbcFileEntry[] = [];
 	const seenIds = new Set(dbcFiles.getState().files.map((file) => file.id));
 
 	try {
 		for (const file of files) {
-			const stored = await storedFile(file);
-			if (seenIds.has(stored.id)) continue;
+			const dbc = await storedFile(file);
+			if (seenIds.has(dbc.id)) continue;
 
-			seenIds.add(stored.id);
-			candidates.push(await openStoredDbc(stored));
+			seenIds.add(dbc.id);
+			entries.push(await openStoredDbc(dbc));
+			stored.push(dbc);
 		}
 
-		if (candidates.length > 0) {
-			await putStoredDbcs(candidates.map((candidate) => candidate.stored));
-			setFiles([...dbcFiles.getState().files, ...candidates.map((candidate) => candidate.entry)]);
+		if (entries.length > 0) {
+			await putStoredDbcs(stored);
+			setFiles([...dbcFiles.getState().files, ...entries]);
 		}
 	} catch (error) {
-		await closeEntries(candidates.map((candidate) => candidate.entry));
+		await closeEntries(entries);
 		dbcFiles.setState({ error: error instanceof Error ? error.message : 'DBC load failed' });
 	}
 }
 
 async function importTransientDbcs(ownerTraceId: number, dbcs: EmbeddedDbc[]): Promise<void> {
 	dbcFiles.setState({ error: null });
-	await clearTransientDbcs();
+	const { files } = dbcFiles.getState();
+	const removed = files.filter((file) => file.origin === 'mf4');
+	if (removed.length > 0) {
+		setFiles(files.filter((file) => file.origin !== 'mf4'));
+		await closeEntries(removed);
+	}
 	const entries: DbcFileEntry[] = [];
 	try {
 		for (const [index, dbc] of dbcs.entries()) {
 			const stored = { id: `mf4:${ownerTraceId}:${index}`, name: dbc.name, bytes: dbc.bytes };
-			entries.push((await openStoredDbc(stored, 'mf4')).entry);
+			entries.push(await openStoredDbc(stored, 'mf4'));
 		}
 		setFiles([...dbcFiles.getState().files, ...entries]);
 	} catch (error) {
@@ -232,7 +247,7 @@ async function readLibrary(): Promise<void> {
 	try {
 		for (const dbc of await listStoredDbcs()) {
 			try {
-				candidates.push((await openStoredDbc(dbc)).entry);
+				candidates.push(await openStoredDbc(dbc));
 			} catch (error) {
 				failures.push(error instanceof Error ? error.message : `${dbc.name}: DBC load failed`);
 			}
@@ -271,12 +286,12 @@ async function storedFile(file: File): Promise<StoredDbc> {
 async function openStoredDbc(
 	dbc: StoredDbc,
 	origin: DbcFileEntry['origin'] = 'library'
-): Promise<DbcCandidate> {
+): Promise<DbcFileEntry> {
 	const { handle, catalog, warnings } = await openDbc(dbc.bytes ?? dbc.text).catch((error) => {
 		throw new Error(`${dbc.name}: ${error instanceof Error ? error.message : 'DBC load failed'}`);
 	});
 
-	return { entry: { id: dbc.id, name: dbc.name, handle, catalog, warnings, origin }, stored: dbc };
+	return { id: dbc.id, name: dbc.name, handle, catalog, warnings, origin };
 }
 
 async function closeEntries(entries: DbcFileEntry[]): Promise<void> {
@@ -291,35 +306,6 @@ function rawMessageIdentityKey(message: Pick<DbcMessageIdentity, 'canId' | 'isEx
 	return `${message.canId}:${message.isExtended}`;
 }
 
-function buildSignalTargetIndex(
-	files: DbcFileEntry[],
-	rawMessages: RawMessagesById,
-	traceLoaded: boolean
-): Record<string, DbcSignalTarget> {
-	const index: Record<string, DbcSignalTarget> = {};
-
-	for (const file of files) {
-		for (const message of file.catalog.messages) {
-			const sources = sourceOptions(message, rawMessages);
-			const unavailableReason = messageUnavailableReason(message, rawMessages, traceLoaded);
-			for (const source of sources) {
-				for (const signal of message.signals) {
-					index[signalIdentityKey(file.id, message, signal.name, source)] = {
-						unavailableReason,
-						file,
-						message,
-						signal,
-						source,
-						sourceBadges: sourceBadges(source, sources)
-					};
-				}
-			}
-		}
-	}
-
-	return index;
-}
-
 function selectorMessageKey(dbcFileId: string, message: DbcMessage, source?: RawSource): string {
 	return JSON.stringify([
 		dbcFileId,
@@ -328,32 +314,9 @@ function selectorMessageKey(dbcFileId: string, message: DbcMessage, source?: Raw
 	]);
 }
 
-function selectorSignal(
-	dbcFileId: string,
-	message: DbcMessage,
-	signal: DbcSignal,
-	source?: RawSource
-): SelectorListSignal {
-	return {
-		key: signalIdentityKey(dbcFileId, message, signal.name, source),
-		label: `${message.name}.${signal.name}${sourceLabel(source)}`,
-		messageName: message.name,
-		signalName: signal.name,
-		arbitrationId: message.canId.toString(16)
-	};
-}
-
-function sourceOptions(
-	message: DbcMessage,
-	rawMessages: RawMessagesById
-): (RawSource | undefined)[] {
-	const matches = rawMessages.get(rawMessageIdentityKey(message)) ?? [];
-	return matches.length ? matches.map((raw) => raw.source) : [undefined];
-}
-
 function messageUnavailableReason(
 	message: DbcMessage,
-	rawMessages: RawMessagesById,
+	rawMessages: Map<string, RawMessage[]>,
 	traceLoaded: boolean
 ): string | undefined {
 	if (message.rawFrameDecodable === false) return 'Plotting not yet supported';

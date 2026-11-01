@@ -10,11 +10,14 @@ import {
 export function DeferredFallback({
 	label,
 	failed,
-	dialog
+	dialog,
+	inline
 }: {
 	label: string;
 	failed: boolean;
 	dialog?: { open: boolean; onOpenChange: (open: boolean) => void };
+	/** Sits inside an existing panel: no page landmark, and nothing while the chunk loads. */
+	inline?: boolean;
 }) {
 	const recovery = failed && (
 		<>
@@ -42,15 +45,15 @@ export function DeferredFallback({
 			</Dialog>
 		);
 	}
-	return (
-		<main className="flex flex-1 items-center justify-center p-8">
-			<div
-				role={failed ? 'alert' : 'status'}
-				className="grid max-w-md justify-items-start gap-4 text-sm"
-			>
-				<p className="font-medium">{failed ? `${label} failed to load` : `Loading ${label}…`}</p>
-				{recovery}
-			</div>
-		</main>
+	const status = (
+		<div
+			role={failed ? 'alert' : 'status'}
+			className="grid max-w-md content-start justify-items-start gap-4 text-sm"
+		>
+			<p className="font-medium">{failed ? `${label} failed to load` : `Loading ${label}…`}</p>
+			{recovery}
+		</div>
 	);
+	if (inline) return failed ? status : null;
+	return <main className="flex flex-1 items-center justify-center p-8">{status}</main>;
 }

@@ -1,79 +1,33 @@
 import { createCanTraceClient, type CanTraceClient } from 'cantraceviewer';
 import { APP_PARSING_LIMITS } from './file-limits.js';
-import type {
-	DbcHandle,
-	DbcMessageIdentity,
-	RawSource,
-	DecodedSignalSeries,
-	OpenTraceResult,
-	OpenDbcResult,
-	TraceHandle,
-	TraceType
-} from 'cantraceviewer';
 
 export type * from 'cantraceviewer';
 
 let clientPromise: Promise<CanTraceClient> | null = null;
 
 function client(): Promise<CanTraceClient> {
-	if (clientPromise) return clientPromise;
-
-	const pending = createCanTraceClient(APP_PARSING_LIMITS);
-	clientPromise = pending;
-	void pending.catch(() => {
+	return (clientPromise ??= createCanTraceClient(APP_PARSING_LIMITS).catch((error: unknown) => {
 		// A rejected factory produced no client. Let a later user operation retry startup without
 		// restarting a client that had already become fatal during normal operation.
-		if (clientPromise === pending) clientPromise = null;
-	});
-	return pending;
+		clientPromise = null;
+		throw error;
+	}));
 }
 
-export async function openDbc(input: Uint8Array | string): Promise<OpenDbcResult> {
-	return (await client()).openDbc(input);
-}
+export const openDbc: CanTraceClient['openDbc'] = async (...args) =>
+	(await client()).openDbc(...args);
 
-export async function closeDbc(handle: DbcHandle): Promise<void> {
-	return (await client()).closeDbc(handle);
-}
+export const closeDbc: CanTraceClient['closeDbc'] = async (...args) =>
+	(await client()).closeDbc(...args);
 
-export async function openTrace(traceType: TraceType, bytes: Uint8Array): Promise<OpenTraceResult> {
-	const buffer = bytes.buffer;
-	if (
-		!(buffer instanceof ArrayBuffer) ||
-		bytes.byteOffset !== 0 ||
-		bytes.byteLength !== buffer.byteLength
-	) {
-		throw new Error(
-			'openTrace requires a Uint8Array over one exact ordinary ArrayBuffer; subviews and SharedArrayBuffer-backed views are not supported'
-		);
-	}
+export const openTrace: CanTraceClient['openTrace'] = async (...args) =>
+	(await client()).openTrace(...args);
 
-	return (await client()).openTrace(traceType, buffer);
-}
+export const closeTrace: CanTraceClient['closeTrace'] = async (...args) =>
+	(await client()).closeTrace(...args);
 
-export async function closeTrace(handle: TraceHandle): Promise<void> {
-	return (await client()).closeTrace(handle);
-}
+export const getSignalValues: CanTraceClient['getSignalValues'] = async (...args) =>
+	(await client()).getSignalValues(...args);
 
-export async function getSignalValues(
-	dbcHandle: DbcHandle,
-	traceHandle: TraceHandle,
-	messageIdentity: DbcMessageIdentity,
-	signalName: string,
-	source?: RawSource
-): Promise<DecodedSignalSeries> {
-	return (await client()).getSignalValues(
-		dbcHandle,
-		traceHandle,
-		messageIdentity,
-		signalName,
-		source
-	);
-}
-
-export async function getMf4SignalValues(
-	traceHandle: TraceHandle,
-	signalId: number
-): Promise<DecodedSignalSeries> {
-	return (await client()).getMf4SignalValues(traceHandle, signalId);
-}
+export const getMf4SignalValues: CanTraceClient['getMf4SignalValues'] = async (...args) =>
+	(await client()).getMf4SignalValues(...args);

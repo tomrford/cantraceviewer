@@ -29,8 +29,7 @@ export async function openTraceFile(file: File): Promise<boolean> {
 		}
 		assertFileSizeWithinLimit(file, TRACE_MAX_FILE_BYTES, 'Trace');
 
-		const bytes = new Uint8Array(await file.arrayBuffer());
-		next = { ...(await openTrace(traceType, bytes)), id: nextTraceId++, file };
+		next = { ...(await openTrace(traceType, await file.arrayBuffer())), id: nextTraceId++, file };
 
 		const previous = traceFile.getState().entry;
 		traceFile.setState(entryState(next));

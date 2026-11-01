@@ -1,7 +1,7 @@
-import { lazy, Suspense, useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
 import { Popover as PopoverPrimitive } from '@base-ui/react/popover';
 import { useStore } from 'zustand';
-import { Check, ListFilter, Plus, X } from 'lucide-react';
+import { Check, ListFilter, Plus, Search, X } from 'lucide-react';
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -11,26 +11,28 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle
 } from '#lib/components/ui/alert-dialog.js';
+import { DeferredFallback } from '#lib/components/deferred-fallback.js';
+import { Input } from '#lib/components/ui/input.js';
+import { Label } from '#lib/components/ui/label.js';
 import { Popover, PopoverContent, PopoverTitle } from '#lib/components/ui/popover.js';
 import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tooltip.js';
-import { SearchForm } from '#lib/components/search-form.js';
+import { deferredComponent } from '#lib/deferred-component.js';
 import {
 	dbcFilesFromDrop,
 	dragLeftCurrentTarget,
 	filesFromDrop,
 	hasDraggedFiles
 } from '#lib/file-drop.js';
-import type { SelectorDbcFile } from '#lib/selector-list.js';
 import { addDbcFiles, clearDbcError, dbcFiles } from '#lib/stores/dbc-files.js';
 import { toggleSignal } from '#lib/stores/plot-data.js';
 import { onDbcRemoved } from '#lib/stores/session.js';
 import { traceFile } from '#lib/stores/trace-file.js';
 import { cn } from '#lib/utils.js';
-import type { Expansion } from './selector-tree.js';
 
 // The list (virtualiser, rows, DBC details) loads when the panel first opens.
-const SelectorTree = lazy(() =>
-	import('./selector-tree.js').then((m) => ({ default: m.SelectorTree }))
+const SelectorTree = deferredComponent(
+	() => import('./selector-tree.js').then((m) => m.SelectorTree),
+	(_props, failed) => <DeferredFallback label="Signal list" failed={failed} inline />
 );
 
 const iconButtonClass =
@@ -38,39 +40,20 @@ const iconButtonClass =
 const filterButtonClass =
 	'flex size-8 shrink-0 items-center justify-center rounded-lg border border-border/70 text-muted-foreground transition-[background-color,border-color,color,box-shadow,scale] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96] data-[active=true]:border-sidebar-primary/60 data-[active=true]:bg-sidebar-primary/15 data-[active=true]:text-sidebar-primary';
 
-function selectorCatalogues(): SelectorDbcFile[] {
+/** Every DBC id and message key across the open catalogues. */
+function selectorKeys(): string[] {
 	return [
 		...dbcFiles.getState().selectorFiles,
 		...traceFile.getState().mf4SelectorIndexes.map((index) => index.dbc)
-	];
+	].flatMap((dbc) => [dbc.id, ...dbc.messages.map((message) => message.key)]);
 }
 
-function withExpanded(
-	expansion: Expansion,
-	dbcIds: readonly string[],
-	messageKeys: readonly string[]
-): Expansion {
-	if (dbcIds.length === 0 && messageKeys.length === 0) return expansion;
-	return {
-		dbcIds: new Set([...expansion.dbcIds, ...dbcIds]),
-		messageKeys: new Set([...expansion.messageKeys, ...messageKeys])
-	};
+function withExpanded(expansion: ReadonlySet<string>, keys: readonly string[]) {
+	return keys.length === 0 ? expansion : new Set([...expansion, ...keys]);
 }
 
-function toggled(set: ReadonlySet<string>, key: string, open: boolean): ReadonlySet<string> {
-	const next = new Set(set);
-	if (open) next.add(key);
-	else next.delete(key);
-	return next;
-}
-
-function expandAllCatalogues(expansion: Expansion): Expansion {
-	const catalogues = selectorCatalogues();
-	return withExpanded(
-		expansion,
-		catalogues.map((dbc) => dbc.id),
-		catalogues.flatMap((dbc) => dbc.messages.map((message) => message.key))
-	);
+function expandAllCatalogues(expansion: ReadonlySet<string>) {
+	return withExpanded(expansion, selectorKeys());
 }
 
 /**
@@ -95,15 +78,12 @@ export function SignalSelectorDialog({
 }) {
 	const dbcInput = useRef<HTMLInputElement>(null);
 	const scrollTop = useRef(0);
-	const [searchForm, setSearchForm] = useState<HTMLFormElement | null>(null);
+	const [searchInput, setSearchInput] = useState<HTMLInputElement | null>(null);
 	const [search, setSearch] = useState('');
 	const [activeOnly, setActiveOnly] = useState(false);
 	const [hideUnavailable, setHideUnavailable] = useState(false);
 	const [dropActive, setDropActive] = useState(false);
-	const [expansion, setExpansion] = useState<Expansion>(() => ({
-		dbcIds: new Set(),
-		messageKeys: new Set()
-	}));
+	const [expansion, setExpansion] = useState<ReadonlySet<string>>(() => new Set());
 	const isLoading = useStore(dbcFiles, (s) => s.isLoading);
 	const dbcError = useStore(dbcFiles, (s) => s.error);
 	const filtering = search.trim().length > 0 || activeOnly;
@@ -111,33 +91,22 @@ export function SignalSelectorDialog({
 	// While filtering, catalogues that appear (e.g. a DBC added mid-search) open expanded.
 	useEffect(() => {
 		if (!filtering) return;
-		let seenDbcIds = new Set<string>();
-		let seenMessageKeys = new Set<string>();
-		const expandUnseen = (initial: boolean) => {
-			const catalogues = selectorCatalogues();
-			const dbcIds = catalogues.map((dbc) => dbc.id);
-			const messageKeys = catalogues.flatMap((dbc) => dbc.messages.map((message) => message.key));
-			if (!initial) {
-				const newDbcIds = dbcIds.filter((id) => !seenDbcIds.has(id));
-				const newMessageKeys = messageKeys.filter((key) => !seenMessageKeys.has(key));
-				setExpansion((current) => withExpanded(current, newDbcIds, newMessageKeys));
-			}
-			seenDbcIds = new Set(dbcIds);
-			seenMessageKeys = new Set(messageKeys);
+		let seen = new Set(selectorKeys());
+		const expandUnseen = () => {
+			const keys = selectorKeys();
+			const unseen = keys.filter((key) => !seen.has(key));
+			setExpansion((current) => withExpanded(current, unseen));
+			seen = new Set(keys);
 		};
-		expandUnseen(true);
-		const unsubscribes = [
-			dbcFiles.subscribe(() => expandUnseen(false)),
-			traceFile.subscribe(() => expandUnseen(false))
-		];
+		const unsubscribes = [dbcFiles.subscribe(expandUnseen), traceFile.subscribe(expandUnseen)];
 		return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
 	}, [filtering]);
 
 	useEffect(() => {
-		if (focusSearchRequest === 0 || searchForm === null) return;
-		const frame = requestAnimationFrame(() => searchForm.querySelector('input')?.focus());
+		if (focusSearchRequest === 0 || searchInput === null) return;
+		const frame = requestAnimationFrame(() => searchInput.focus());
 		return () => cancelAnimationFrame(frame);
-	}, [focusSearchRequest, searchForm]);
+	}, [focusSearchRequest, searchInput]);
 
 	function handleOpenChange(next: boolean, details: PopoverPrimitive.Root.ChangeEventDetails) {
 		if (!next && (details.reason === 'outside-press' || details.reason === 'focus-out')) {
@@ -180,21 +149,19 @@ export function SignalSelectorDialog({
 		void addFiles(dbcFilesFromDrop(filesFromDrop(event)));
 	}
 
-	function setExpanded(kind: keyof Expansion, key: string, isOpen: boolean) {
-		setExpansion((current) => ({ ...current, [kind]: toggled(current[kind], key, isOpen) }));
+	function setExpanded(key: string, isOpen: boolean) {
+		setExpansion((current) => {
+			const next = new Set(current);
+			if (isOpen) next.add(key);
+			else next.delete(key);
+			return next;
+		});
 	}
 
 	async function removeDbc(dbcId: string) {
-		const messageKeys = new Set(
-			dbcFiles
-				.getState()
-				.selectorFiles.find((dbc) => dbc.id === dbcId)
-				?.messages.map((message) => message.key)
-		);
-		setExpansion((current) => ({
-			dbcIds: toggled(current.dbcIds, dbcId, false),
-			messageKeys: new Set([...current.messageKeys].filter((key) => !messageKeys.has(key)))
-		}));
+		const dbc = dbcFiles.getState().selectorFiles.find((file) => file.id === dbcId);
+		const removed = new Set([dbcId, ...(dbc?.messages ?? []).map((message) => message.key)]);
+		setExpansion((current) => new Set([...current].filter((key) => !removed.has(key))));
 		await onDbcRemoved(dbcId);
 	}
 
@@ -272,13 +239,22 @@ export function SignalSelectorDialog({
 					</div>
 
 					<div className="flex items-center gap-2">
-						<SearchForm
-							ref={setSearchForm}
-							className="min-w-0 flex-1"
-							value={search}
-							onValueChange={changeSearch}
-							placeholder="Filter signals..."
-						/>
+						<form className="min-w-0 flex-1" onSubmit={(event) => event.preventDefault()}>
+							<div className="relative">
+								<Label htmlFor="search" className="sr-only">
+									Search
+								</Label>
+								<Input
+									ref={setSearchInput}
+									id="search"
+									value={search}
+									onChange={(event) => changeSearch(event.currentTarget.value)}
+									placeholder="Filter signals..."
+									className="ps-8"
+								/>
+								<Search className="pointer-events-none absolute inset-s-2 top-1/2 size-4 -translate-y-1/2 opacity-50 select-none" />
+							</div>
+						</form>
 						<Tooltip>
 							<TooltipTrigger
 								render={
@@ -315,19 +291,17 @@ export function SignalSelectorDialog({
 						</Tooltip>
 					</div>
 
-					<Suspense>
-						<SelectorTree
-							query={search}
-							activeOnly={activeOnly}
-							hideUnavailable={hideUnavailable}
-							expansion={expansion}
-							getInitialScrollTop={() => scrollTop.current}
-							onScrollTopChange={(top) => (scrollTop.current = top)}
-							onExpandedChange={setExpanded}
-							onRemoveDbc={(id) => void removeDbc(id)}
-							onToggleSignal={handleToggleSignal}
-						/>
-					</Suspense>
+					<SelectorTree
+						query={search}
+						activeOnly={activeOnly}
+						hideUnavailable={hideUnavailable}
+						expansion={expansion}
+						getInitialScrollTop={() => scrollTop.current}
+						onScrollTopChange={(top) => (scrollTop.current = top)}
+						onExpandedChange={setExpanded}
+						onRemoveDbc={(id) => void removeDbc(id)}
+						onToggleSignal={handleToggleSignal}
+					/>
 				</PopoverContent>
 			</Popover>
 

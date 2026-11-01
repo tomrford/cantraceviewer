@@ -23,7 +23,7 @@ export async function listStoredDbcs(): Promise<StoredDbc[]> {
 }
 
 export async function putStoredDbcs(dbcs: StoredDbc[]): Promise<void> {
-	if (!isIndexedDbAvailable() || dbcs.length === 0) return;
+	if (!isIndexedDbAvailable()) return;
 	const database = await openDatabase();
 	const transaction = database.transaction(DBC_STORE_NAME, 'readwrite');
 	const store = transaction.objectStore(DBC_STORE_NAME);
@@ -36,9 +36,7 @@ export async function putStoredDbcs(dbcs: StoredDbc[]): Promise<void> {
 export async function deleteStoredDbc(id: string): Promise<void> {
 	if (!isIndexedDbAvailable()) return;
 	const database = await openDatabase();
-	const transaction = database.transaction(DBC_STORE_NAME, 'readwrite');
-	transaction.objectStore(DBC_STORE_NAME).delete(id);
-	await transaction.done;
+	await database.delete(DBC_STORE_NAME, id);
 }
 
 export async function resetStoredDbcs(): Promise<void> {
@@ -54,9 +52,7 @@ function isIndexedDbAvailable(): boolean {
 	return typeof indexedDB !== 'undefined' && typeof globalThis.crypto?.subtle !== 'undefined';
 }
 
-export async function storedDbcId(input: string | Uint8Array): Promise<string> {
-	const bytes =
-		typeof input === 'string' ? new TextEncoder().encode(input) : Uint8Array.from(input);
+export async function storedDbcId(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
 	const digest = await crypto.subtle.digest('SHA-256', bytes);
 	return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
@@ -66,9 +62,6 @@ let databasePromise: Promise<IDBPDatabase<CanTraceViewerDatabase>> | null = null
 function openDatabase(): Promise<IDBPDatabase<CanTraceViewerDatabase>> {
 	databasePromise ??= openDB<CanTraceViewerDatabase>(DATABASE_NAME, DATABASE_VERSION, {
 		upgrade(database) {
-			if (database.objectStoreNames.contains(DBC_STORE_NAME)) {
-				database.deleteObjectStore(DBC_STORE_NAME);
-			}
 			database.createObjectStore(DBC_STORE_NAME, { keyPath: 'id' });
 		},
 		blocking() {

@@ -9,10 +9,9 @@ import { Label } from '#lib/components/ui/label.js';
 import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tooltip.js';
 import { DbcInformation } from '#lib/components/dbc-information.js';
 import {
-	flattenSelectorTree,
-	visibleSelectorTree,
-	type SelectorListDbc,
-	type SelectorListMessage,
+	selectorRows,
+	type SelectorDbcFile,
+	type SelectorDbcMessage,
 	type SelectorListRow,
 	type SelectorListSignal
 } from '#lib/selector-list.js';
@@ -20,8 +19,6 @@ import { dbcFiles } from '#lib/stores/dbc-files.js';
 import { plotData } from '#lib/stores/plot-data.js';
 import { traceFile } from '#lib/stores/trace-file.js';
 import { cn } from '#lib/utils.js';
-
-export type Expansion = { dbcIds: ReadonlySet<string>; messageKeys: ReadonlySet<string> };
 
 const ROW_GAP_PX = 4;
 const ROW_OVERSCAN = 8;
@@ -31,7 +28,7 @@ const rowButtonClass =
 	'flex w-full min-w-0 items-center gap-2 text-left text-xs text-popover-foreground transition-[background-color,color,box-shadow] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden';
 
 type RowHandlers = {
-	onExpandedChange: (kind: keyof Expansion, key: string, open: boolean) => void;
+	onExpandedChange: (key: string, open: boolean) => void;
 	onRemoveDbc: (dbcId: string) => void;
 	onToggleSignal: (key: string) => void;
 };
@@ -52,7 +49,7 @@ export function SelectorTree({
 	query: string;
 	activeOnly: boolean;
 	hideUnavailable: boolean;
-	expansion: Expansion;
+	expansion: ReadonlySet<string>;
 }) {
 	const deferredQuery = useDeferredValue(query);
 	const dbcIndexes = useStore(dbcFiles, (s) => s.selectorSearchIndexes);
@@ -62,16 +59,13 @@ export function SelectorTree({
 		plotData,
 		useShallow((s) => (activeOnly ? new Set(s.selected.keys()) : null))
 	);
-	const rows = flattenSelectorTree(
-		visibleSelectorTree([...dbcIndexes, ...mf4Indexes], {
-			query: deferredQuery,
-			activeOnly,
-			hideUnavailable,
-			isSignalSelected: (key) => selectedKeys?.has(key) ?? false,
-			expandedDbcIds: expansion.dbcIds,
-			expandedMessageKeys: expansion.messageKeys
-		})
-	);
+	const rows = selectorRows([...dbcIndexes, ...mf4Indexes], {
+		query: deferredQuery,
+		activeOnly,
+		hideUnavailable,
+		isSignalSelected: (key) => selectedKeys?.has(key) ?? false,
+		expanded: expansion
+	});
 
 	return <VirtualRows rows={rows} {...listProps} />;
 }
@@ -131,9 +125,9 @@ function VirtualRows({
 									style={{ transform: `translateY(${item.start}px)` }}
 								>
 									{row.kind === 'dbc' ? (
-										<DbcRow dbc={row.dbc} {...handlers} />
+										<DbcRow dbc={row.dbc} expanded={row.expanded} {...handlers} />
 									) : row.kind === 'message' ? (
-										<MessageRow message={row.message} {...handlers} />
+										<MessageRow message={row.message} expanded={row.expanded} {...handlers} />
 									) : (
 										<SignalRow signal={row.signal} {...handlers} />
 									)}
@@ -147,11 +141,14 @@ function VirtualRows({
 	);
 }
 
-function DbcRow({ dbc, onExpandedChange, onRemoveDbc }: RowHandlers & { dbc: SelectorListDbc }) {
-	const file = useStore(dbcFiles, (s) =>
-		dbc.kind === 'dbc' ? s.files.find((entry) => entry.id === dbc.id) : undefined
-	);
-	const Chevron = dbc.expanded ? ChevronDown : ChevronRight;
+function DbcRow({
+	dbc,
+	expanded,
+	onExpandedChange,
+	onRemoveDbc
+}: RowHandlers & { dbc: SelectorDbcFile; expanded: boolean }) {
+	const file = useStore(dbcFiles, (s) => s.files.find((entry) => entry.id === dbc.id));
+	const Chevron = expanded ? ChevronDown : ChevronRight;
 
 	return (
 		<>
@@ -161,9 +158,9 @@ function DbcRow({ dbc, onExpandedChange, onRemoveDbc }: RowHandlers & { dbc: Sel
 					rowButtonClass,
 					'h-full flex-1 overflow-hidden rounded-[calc(var(--radius-sm)+2px)] p-2 py-0'
 				)}
-				aria-expanded={dbc.expanded}
-				aria-label={`${dbc.expanded ? 'Collapse' : 'Expand'} ${dbc.name}`}
-				onClick={() => onExpandedChange('dbcIds', dbc.id, !dbc.expanded)}
+				aria-expanded={expanded}
+				aria-label={`${expanded ? 'Collapse' : 'Expand'} ${dbc.name}`}
+				onClick={() => onExpandedChange(dbc.id, !expanded)}
 			>
 				<Chevron className="size-4 shrink-0 text-muted-foreground" />
 				<span className={cn('min-w-0 truncate', dbc.transient && 'italic')}>{dbc.name}</span>
@@ -174,7 +171,7 @@ function DbcRow({ dbc, onExpandedChange, onRemoveDbc }: RowHandlers & { dbc: Sel
 				)}
 			</button>
 			{file && <DbcInformation file={file} />}
-			{!dbc.transient && dbc.kind === 'dbc' && (
+			{!dbc.transient && (
 				<button
 					type="button"
 					className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-70 transition-[background-color,color,box-shadow,opacity,scale] hover:bg-accent hover:text-destructive hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96]"
@@ -188,16 +185,20 @@ function DbcRow({ dbc, onExpandedChange, onRemoveDbc }: RowHandlers & { dbc: Sel
 	);
 }
 
-function MessageRow({ message, onExpandedChange }: RowHandlers & { message: SelectorListMessage }) {
-	const Chevron = message.expanded ? ChevronDown : ChevronRight;
+function MessageRow({
+	message,
+	expanded,
+	onExpandedChange
+}: RowHandlers & { message: SelectorDbcMessage; expanded: boolean }) {
+	const Chevron = expanded ? ChevronDown : ChevronRight;
 
 	return (
 		<button
 			type="button"
 			className={cn(rowButtonClass, 'h-7 rounded-md px-2')}
-			aria-expanded={message.expanded}
-			aria-label={`${message.expanded ? 'Collapse' : 'Expand'} ${message.name}${message.sourceLabel ?? ''}`}
-			onClick={() => onExpandedChange('messageKeys', message.key, !message.expanded)}
+			aria-expanded={expanded}
+			aria-label={`${expanded ? 'Collapse' : 'Expand'} ${message.name}${message.sourceLabel ?? ''}`}
+			onClick={() => onExpandedChange(message.key, !expanded)}
 		>
 			<span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
 				<Chevron className="size-4" />
@@ -218,11 +219,10 @@ function SignalRow({
 }) {
 	const selected = useStore(plotData, (s) => s.selected.get(signal.key));
 	const isSelected = selected !== undefined;
-	const isDecoding = selected?.status === 'decoding';
 	const decodeError = selected?.error ?? null;
 	const reason = signal.unavailableReason;
 	const toggleId = `signal-toggle-${signal.key}`;
-	const showDecodeError = isSelected && decodeError !== null;
+	const showDecodeError = decodeError !== null;
 	const labelProps = {
 		tabIndex: reason ? 0 : undefined,
 		'aria-label': reason ? `${signal.label}: ${reason}` : undefined,
@@ -252,8 +252,7 @@ function SignalRow({
 				{showDecodeError ? (
 					<CircleAlert className="size-3 shrink-0 text-destructive" aria-label={decodeError} />
 				) : (
-					isSelected &&
-					isDecoding && (
+					selected?.isDecoding && (
 						<LoaderCircle
 							className="size-3 shrink-0 animate-spin text-muted-foreground"
 							aria-label="Decoding signal"
