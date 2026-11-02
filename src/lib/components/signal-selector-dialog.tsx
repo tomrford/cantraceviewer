@@ -1,27 +1,28 @@
-import { useDeferredValue, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { Check, ListFilter, Plus, Search, X } from 'lucide-react';
-import { Button } from '#lib/components/ui/button.js';
+import { useDeferredValue, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
+
 import { DropOverlay } from '#lib/components/drop-overlay.js';
 import { ErrorDialog } from '#lib/components/error-dialog.js';
 import { PanelHeader } from '#lib/components/panel-header.js';
 import { SelectorTree } from '#lib/components/selector-tree.js';
+import { Button } from '#lib/components/ui/button.js';
 import { Dialog, DialogClose, DialogPortal, DialogTitle } from '#lib/components/ui/dialog.js';
 import { Input } from '#lib/components/ui/input.js';
 import { Label } from '#lib/components/ui/label.js';
-import { Toggle } from '#lib/components/ui/toggle.js';
 import { ToggleGroup } from '#lib/components/ui/toggle-group.js';
+import { Toggle } from '#lib/components/ui/toggle.js';
 import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tooltip.js';
 import { dbcFilesFromDrop } from '#lib/file-drop.js';
 import { panelShadow } from '#lib/panel-shadow.js';
 import {
-	handleDbcAdded,
-	handleSignalToggle,
+	advanceWalkthroughAfterDbcAdded,
+	advanceWalkthroughAfterSignalToggle,
 	setSignalSelectorOpen
 } from '#lib/stores/app-shell.js';
 import { addDbcFiles, clearDbcError } from '#lib/stores/dbc-files.js';
 import { toggleSignal } from '#lib/stores/plot-data.js';
-import { onDbcRemoved } from '#lib/stores/session.js';
+import { deleteDbc } from '#lib/stores/session.js';
 import { appStore, useAppStore } from '#lib/stores/store.js';
 import { useFileDrop } from '#lib/use-file-drop.js';
 
@@ -78,7 +79,7 @@ export function SignalSelectorDialog({
 		if (files.length === 0) return;
 		const previousCount = appStore.getState().dbcFiles.length;
 		await addDbcFiles(files);
-		if (appStore.getState().dbcFiles.length > previousCount) handleDbcAdded();
+		if (appStore.getState().dbcFiles.length > previousCount) advanceWalkthroughAfterDbcAdded();
 	}
 
 	const { dropActive, dropHandlers } = useFileDrop((files) => {
@@ -97,12 +98,12 @@ export function SignalSelectorDialog({
 			new Set([...current].filter((key) => !removed.has(key)));
 		setExpansion(withoutRemoved);
 		setCollapsedWhileFiltering(withoutRemoved);
-		await onDbcRemoved(dbcId);
+		await deleteDbc(dbcId);
 	}
 
 	function handleToggleSignal(key: string) {
 		void toggleSignal(key);
-		handleSignalToggle();
+		advanceWalkthroughAfterSignalToggle();
 	}
 
 	const addDbcLabel = isLoading ? 'Loading DBC' : 'Add DBC';

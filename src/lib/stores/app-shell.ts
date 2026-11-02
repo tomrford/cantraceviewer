@@ -2,6 +2,7 @@
 // walkthrough and which overlay is open.
 // Handlers run outside React render, so they read current state with getState().
 import { toast } from 'sonner';
+
 import {
 	adjacentWalkthroughStep,
 	WALKTHROUGH_VERSION,
@@ -11,7 +12,7 @@ import type { TraceFileEntry } from './derive.js';
 import { assignToNewAxis } from './plot-axes.js';
 import { isSignalSelected, signalDecodeStatus, toggleSignal } from './plot-data.js';
 import { setPreference } from './preferences.js';
-import { onTraceOpened } from './session.js';
+import { startTraceSession } from './session.js';
 import { appStore, update, type AppState } from './store.js';
 import { openTraceFile } from './trace-file.js';
 
@@ -63,11 +64,11 @@ function writeSelectorOpen(signalSelectorOpen: boolean, overlays: OverlayPatch =
 	}
 }
 
-export function handleDbcAdded(): void {
+export function advanceWalkthroughAfterDbcAdded(): void {
 	if (appStore.getState().walkthroughStepId === 'add-dbc') void showWalkthroughStep('signals');
 }
 
-export function handleSignalToggle(): void {
+export function advanceWalkthroughAfterSignalToggle(): void {
 	if (appStore.getState().walkthroughStepId === 'signals') void showWalkthroughStep('controls');
 }
 
@@ -140,7 +141,7 @@ async function loadTrace(file: File): Promise<TraceFileEntry | null> {
 	const { trace: opened, traceWarning } = appStore.getState();
 	const stillOpen = () => appStore.getState().trace === opened;
 	if (traceWarning) toast.warning(traceWarning);
-	await onTraceOpened();
+	await startTraceSession();
 	if (!stillOpen()) return null;
 	if (appStore.getState().walkthroughStepId === 'trace') await showWalkthroughStep('library');
 	return stillOpen() ? opened : null;

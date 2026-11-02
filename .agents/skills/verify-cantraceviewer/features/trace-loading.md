@@ -13,7 +13,7 @@ Open one CAN log or MF4 file. Replacing it changes the active trace without pers
 ## How to get to it (user POV)
 
 - Empty-screen `Open trace` or toolbar `Load trace`.
-- Empty-screen `Open demo trace` loads the bundled `static/example.mf4` and selects its preset signals.
+- Empty-screen `Open demo trace` loads the bundled `public/example.mf4` and selects its preset signals.
 - Cmd/Ctrl+O, palette `Open trace`, or drop a file onto the page.
 
 ## Driving it with Browser

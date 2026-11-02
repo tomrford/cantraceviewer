@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest';
+
 import {
 	createCanTraceClientForWorker,
 	type ClientWorker,
 	type ClientWorkerEvent
 } from './client.ts';
 import type { DirectClient } from './direct.ts';
-import type { WorkerRequest } from './protocol.ts';
-import { startWorkerRuntime, type WorkerRuntimeEndpoint } from './worker-runtime.ts';
 import { DEFAULT_PARSING_LIMITS, type ParsingLimits } from './limits.ts';
+import type { WorkerRequest } from './protocol.ts';
 import type { DbcHandle, DecodedSignalSeries, TraceHandle } from './types.ts';
+import { startWorkerRuntime, type WorkerRuntimeEndpoint } from './worker-runtime.ts';
 
 const identity = { canId: 288, isExtended: false, sizeBytes: 8 };
 

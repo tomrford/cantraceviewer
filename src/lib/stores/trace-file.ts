@@ -1,6 +1,7 @@
-import { closeTrace, openTrace } from '#lib/wasm.js';
 import { TRACE_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '#lib/file-limits.js';
 import { TRACE_FILE_DESCRIPTION, traceTypeForFileName } from '#lib/trace-file-types.js';
+import { closeTrace, openTrace } from '#lib/wasm.js';
+
 import type { TraceFileEntry } from './derive.js';
 import { appStore, update } from './store.js';
 

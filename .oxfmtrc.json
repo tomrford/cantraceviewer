@@ -8,5 +8,6 @@
 		"stylesheet": "./src/app.css"
 	},
 	"sortPackageJson": false,
-	"ignorePatterns": ["pnpm-lock.yaml", "/static/", "/wasm/", "/packages/core/src/wasm-bindgen/"]
+	"sortImports": true,
+	"ignorePatterns": ["pnpm-lock.yaml", "/public/", "/wasm/", "/packages/core/src/wasm-bindgen/"]
 }

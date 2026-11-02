@@ -1,3 +1,4 @@
+import { ShortcutKey } from '#lib/components/shortcut-key.js';
 import {
 	Command,
 	CommandDialog,
@@ -8,7 +9,6 @@ import {
 	CommandList,
 	CommandShortcut
 } from '#lib/components/ui/command.js';
-import { ShortcutKey } from '#lib/components/shortcut-key.js';
 import {
 	groupedShortcuts,
 	shortcutEnabled,

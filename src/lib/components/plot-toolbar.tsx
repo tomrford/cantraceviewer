@@ -1,8 +1,9 @@
-import type { ReactElement } from 'react';
 import { Crosshair, Expand, List, Minus, Plus, SquareDashed, X } from 'lucide-react';
+import type { ReactElement } from 'react';
+
 import { ShortcutKey } from '#lib/components/shortcut-key.js';
-import { Button, buttonVariants } from '#lib/components/ui/button.js';
 import { ButtonGroup } from '#lib/components/ui/button-group.js';
+import { Button, buttonVariants } from '#lib/components/ui/button.js';
 import { Menu, MenuContent, MenuItem, MenuTrigger } from '#lib/components/ui/menu.js';
 import { Toggle } from '#lib/components/ui/toggle.js';
 import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tooltip.js';
@@ -17,8 +18,8 @@ import {
 	zoomIn,
 	zoomOut
 } from '#lib/stores/plot-view.js';
-import { cn } from '#lib/utils.js';
 import { useAppStore } from '#lib/stores/store.js';
+import { cn } from '#lib/utils.js';
 
 const toolbarIconButtonClass =
 	'border-input bg-transparent hover:bg-muted hover:text-foreground dark:bg-transparent dark:hover:bg-muted/50';

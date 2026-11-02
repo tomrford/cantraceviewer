@@ -4,6 +4,8 @@ import type { LegendCrosshairMode } from '#lib/plot-crosshair.js';
 import { addAxis, assignAxis } from '#lib/stores/plot-axes.js';
 import { isSignalSelected, signalDecodeStatus, toggleSignal } from '#lib/stores/plot-data.js';
 import { resetZoom, setCrosshairs, setViewport } from '#lib/stores/plot-view.js';
+import { appStore } from '#lib/stores/store.js';
+import { countSignals } from '#lib/utils.js';
 import {
 	createWebMcpTools,
 	type WebMcpCrosshairInput,
@@ -11,8 +13,6 @@ import {
 	type WebMcpTimeRange,
 	type WebMcpTool
 } from '#lib/webmcp-tools.js';
-import { appStore } from '#lib/stores/store.js';
-import { countSignals } from '#lib/utils.js';
 
 export type ModelContext = {
 	registerTool: (tool: WebMcpTool, options?: { signal?: AbortSignal }) => Promise<void>;

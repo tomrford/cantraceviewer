@@ -4,7 +4,7 @@ node_modules
 
 # Output
 .wrangler
-/build
+/dist
 /packages/core/dist/
 /packages/core/src/wasm-bindgen/
 /artifacts/

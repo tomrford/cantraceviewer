@@ -18,7 +18,7 @@ try {
 	for (const path of [
 		'src',
 		'wasm/tests/fixtures',
-		'static',
+		'public',
 		'scripts/prerender.mjs',
 		'index.html',
 		'tsconfig.json',
@@ -49,8 +49,8 @@ try {
 	assert.equal(installed.name, packageManifest.name);
 	assert.equal(installed.version, packageManifest.version);
 	execFileSync('pnpm', ['run', 'build'], { cwd: root, stdio: 'inherit' });
-	assert.equal(await readFile(join(root, 'build/index.html'), 'utf8').then(Boolean), true);
-	const output = await readdir(join(root, 'build'), { recursive: true });
+	assert.equal(await readFile(join(root, 'dist/index.html'), 'utf8').then(Boolean), true);
+	const output = await readdir(join(root, 'dist'), { recursive: true });
 	assert(
 		output.some((name) => /(^|\/)worker-[^/]*\.js$/.test(name)),
 		'app omitted Worker'

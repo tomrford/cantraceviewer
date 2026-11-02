@@ -1,4 +1,9 @@
-import { paddedXRange, paddedYRange, type PlotAxisRange, type PlotViewport } from './plot-viewport';
+import {
+	paddedXRange,
+	paddedYRange,
+	type PlotAxisRange,
+	type PlotViewport
+} from './plot-viewport.js';
 import type { PlotSignal } from './stores/derive.js';
 import type { TimestampMode } from './stores/store.js';
 

@@ -1,4 +1,5 @@
 import { useRef, type MouseEvent, type PointerEvent } from 'react';
+
 import {
 	crosshairById,
 	moveCrosshair,

@@ -1,13 +1,14 @@
-import { useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useShallow } from 'zustand/react/shallow';
 import { ChevronDown, ChevronRight, CircleAlert, LoaderCircle, Trash2 } from 'lucide-react';
+import { useRef } from 'react';
+import { useShallow } from 'zustand/react/shallow';
+
+import { DbcInformation } from '#lib/components/dbc-information.js';
+import { SourceBadge } from '#lib/components/source-badge.js';
 import { Button } from '#lib/components/ui/button.js';
 import { Checkbox } from '#lib/components/ui/checkbox.js';
 import { Label } from '#lib/components/ui/label.js';
 import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tooltip.js';
-import { DbcInformation } from '#lib/components/dbc-information.js';
-import { SourceBadge } from '#lib/components/source-badge.js';
 import {
 	selectorRows,
 	type SelectorDbcFile,
@@ -15,8 +16,8 @@ import {
 	type SelectorListRow,
 	type SelectorListSignal
 } from '#lib/selector-list.js';
-import { cn } from '#lib/utils.js';
 import { useAppStore } from '#lib/stores/store.js';
+import { cn } from '#lib/utils.js';
 
 const ROW_GAP_PX = 4;
 const ROW_OVERSCAN = 8;

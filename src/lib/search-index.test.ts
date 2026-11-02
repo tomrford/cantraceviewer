@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createSearchIndex, searchIndex } from './search-index';
+
+import { createSearchIndex, searchIndex } from './search-index.js';
 
 const signals = [
 	{ messageName: 'Message', signalName: 'Signal' },

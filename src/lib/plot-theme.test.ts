@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+
 import { resolvePlotTheme, toChartColor } from './plot-theme.js';
 
 function styles(values: Record<string, string>) {

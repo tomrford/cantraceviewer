@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { lttbSample } from './lttb';
+
+import { lttbSample } from './lttb.js';
 
 function ramp(length: number): Float64Array {
 	return Float64Array.from({ length }, (_, i) => i);

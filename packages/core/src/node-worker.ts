@@ -1,8 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import { parentPort } from 'node:worker_threads';
+
 import { createDirectClient } from './direct.ts';
-import { startWorkerRuntime, type WorkerRuntimeEndpoint } from './worker-runtime.ts';
 import type { WorkerRequest, WorkerResponse } from './protocol.ts';
+import { startWorkerRuntime, type WorkerRuntimeEndpoint } from './worker-runtime.ts';
 
 const port = parentPort;
 if (!port) {

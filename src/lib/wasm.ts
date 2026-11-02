@@ -1,4 +1,5 @@
 import { createCanTraceClient, type CanTraceClient } from 'cantraceviewer';
+
 import { APP_PARSING_LIMITS } from './file-limits.js';
 
 export type * from 'cantraceviewer';

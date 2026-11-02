@@ -1,6 +1,7 @@
+import { GripVertical, Plus, Trash2 } from 'lucide-react';
 import { useState, type DragEvent, type KeyboardEvent } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { GripVertical, Plus, Trash2 } from 'lucide-react';
+
 import { SourceBadge } from '#lib/components/source-badge.js';
 import { Button, buttonVariants } from '#lib/components/ui/button.js';
 import {
@@ -32,6 +33,7 @@ import {
 	type LegendSignalValue,
 	type SignalView
 } from '#lib/signal-plot-data.js';
+import type { PlotAxisView } from '#lib/stores/derive.js';
 import {
 	addAxis,
 	assignAxis,
@@ -40,9 +42,8 @@ import {
 	removeAxis
 } from '#lib/stores/plot-axes.js';
 import { setLegendCrosshairMode } from '#lib/stores/plot-view.js';
-import { cn } from '#lib/utils.js';
-import type { PlotAxisView } from '#lib/stores/derive.js';
 import { useAppStore, type AppState } from '#lib/stores/store.js';
+import { cn } from '#lib/utils.js';
 
 /**
  * Plot legend: signals grouped by Y axis with crosshair readouts and axis management. Readouts

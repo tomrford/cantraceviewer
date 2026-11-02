@@ -1,17 +1,19 @@
 import { readFile } from 'node:fs/promises';
-import { afterAll, afterEach, expect, it, vi } from 'vitest';
+
 import type { CanTraceClient } from 'cantraceviewer';
-import { addDbcFiles, clearDbcFiles } from './stores/dbc-files.js';
-import { openTraceFile } from './stores/trace-file.js';
-import { clearSelectedSignals, toggleSignal } from './stores/plot-data.js';
-import { addAxis, assignAxis, removeAxis } from './stores/plot-axes.js';
-import { panBy, resetZoom, setViewport, zoomBy } from './stores/plot-view.js';
-import { onTraceOpened } from './stores/session.js';
-import { appStore, update } from './stores/store.js';
-import { closeTrace } from './wasm.js';
-import { PlotWindow } from './plot-window.js';
+import { afterAll, afterEach, expect, it, vi } from 'vitest';
+
 import { plotSeriesForViews } from './plot-series.js';
+import { PlotWindow } from './plot-window.js';
 import type { WindowedSignalView } from './signal-plot-data.js';
+import { addDbcFiles, clearDbcFiles } from './stores/dbc-files.js';
+import { addAxis, assignAxis, removeAxis } from './stores/plot-axes.js';
+import { clearSelectedSignals, toggleSignal } from './stores/plot-data.js';
+import { panBy, resetZoom, setViewport, zoomBy } from './stores/plot-view.js';
+import { startTraceSession } from './stores/session.js';
+import { appStore, update } from './stores/store.js';
+import { openTraceFile } from './stores/trace-file.js';
+import { closeTrace } from './wasm.js';
 
 // Use the same published Worker/WASM boundary as the app, with Node's transport.
 const transport = vi.hoisted(() => ({ client: null as CanTraceClient | null }));
@@ -44,7 +46,7 @@ async function load(trace?: string) {
 			new File([trace ?? (await readFile('wasm/tests/fixtures/source-selection.asc'))], 'drive.asc')
 		)
 	).toBe(true);
-	await onTraceOpened();
+	await startTraceSession();
 	await addDbcFiles([
 		new File([await readFile('wasm/tests/fixtures/source-selection.dbc')], 'network.dbc')
 	]);

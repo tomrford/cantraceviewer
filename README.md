@@ -14,7 +14,7 @@ Trace files and decoded series stay in memory for the current browser session. S
 
 ## Development
 
-The UI uses React 19 with the React Compiler, Vite, zustand, Tailwind, and shadcn/ui components on Base UI, built with Node.js and pnpm. `pnpm run build` prerenders the app shell into `build/index.html`, which the client hydrates. Rust code under `wasm/` compiles through wasm-bindgen for DBC parsing, trace parsing, and signal decoding. The published `cantraceviewer` package exposes asynchronous browser and Node clients plus a synchronous direct entry. This app uses an exact registry version of the browser client, which runs its WASM work in a dedicated Worker.
+The UI uses React 19 with the React Compiler, Vite, zustand, Tailwind, and shadcn/ui components on Base UI, built with Node.js and pnpm. `pnpm run build` prerenders the app shell into `dist/index.html`, which the client hydrates. Rust code under `wasm/` compiles through wasm-bindgen for DBC parsing, trace parsing, and signal decoding. The published `cantraceviewer` package exposes asynchronous browser and Node clients plus a synchronous direct entry. This app uses an exact registry version of the browser client, which runs its WASM work in a dedicated Worker.
 
 See the [core package README](packages/core/README.md) for its API, supported formats, parsing limits and lifecycle contracts.
 

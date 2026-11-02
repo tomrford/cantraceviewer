@@ -1,3 +1,4 @@
+import type { ParsingLimits } from './limits.ts';
 import type {
 	DbcDiagnostic,
 	DbcMessageIdentity,
@@ -8,7 +9,6 @@ import type {
 	TraceMetadata,
 	TraceType
 } from './types.ts';
-import type { ParsingLimits } from './limits.ts';
 
 export type WireError = { name: string; message: string };
 

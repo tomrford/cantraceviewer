@@ -1,7 +1,8 @@
 import { Worker } from 'node:worker_threads';
+
+import type { ParsingLimits } from './limits.ts';
 import { createNodeClientForWorker } from './node-transport.ts';
 import type { CanTraceClient } from './rpc-client.ts';
-import type { ParsingLimits } from './limits.ts';
 
 export { DEFAULT_PARSING_LIMITS, type ParsingLimits } from './limits.ts';
 

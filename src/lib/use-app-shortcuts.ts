@@ -1,4 +1,5 @@
 import { useEffect, useEffectEvent } from 'react';
+
 import {
 	browserShortcutPlatform,
 	overridesBrowserShortcut,
