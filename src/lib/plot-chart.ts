@@ -2,7 +2,6 @@ import type { ChartGPUInstance, ChartGPUOptions, ThemeConfig } from 'chartgpu';
 import { PRIMARY_Y_AXIS_ID } from '#lib/plot-axes.js';
 import { Y_TICK_COUNT, type AxisTickGenerator } from '#lib/plot-axis-layout.js';
 import { SIGNAL_COLORS } from '#lib/plot-colors.js';
-import { createPlotPerfStats } from '#lib/plot-perf.js';
 import { emptyAxisSeries, plotSeriesForViews, type PlotSeriesConfig } from '#lib/plot-series.js';
 import { resolvePlotTheme, type PlotTheme } from '#lib/plot-theme.js';
 import { PlotWindow } from '#lib/plot-window.js';
@@ -40,7 +39,6 @@ export function mountChart(
 		model: PlotModelState;
 		series: PlotSeriesConfig[];
 	} | null = null;
-	const perfStats = createPlotPerfStats();
 	const plotWindow = new PlotWindow(schedule);
 
 	function currentOptions(): ChartGPUOptions {
@@ -72,9 +70,7 @@ export function mountChart(
 		frame = requestAnimationFrame(() => {
 			frame = null;
 			if (chart === null) return;
-			const start = performance.now();
 			chart.setOption(currentOptions());
-			perfStats?.record(performance.now() - start);
 			plotWindow.settleAfter(
 				appStore.getState().plotModel.views,
 				appStore.getState().activeViewport
