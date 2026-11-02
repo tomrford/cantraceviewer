@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useStore } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import { ChevronDown, ChevronRight, CircleAlert, LoaderCircle, Trash2 } from 'lucide-react';
+import { Button } from '#lib/components/ui/button.js';
 import { Checkbox } from '#lib/components/ui/checkbox.js';
 import { Label } from '#lib/components/ui/label.js';
 import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tooltip.js';
@@ -21,9 +22,6 @@ import { appStore } from '#lib/stores/store.js';
 const ROW_GAP_PX = 4;
 const ROW_OVERSCAN = 8;
 const LIST_PADDING_BOTTOM_PX = 16;
-
-const rowButtonClass =
-	'flex w-full min-w-0 items-center gap-2 text-left text-xs text-popover-foreground transition-[background-color,color,box-shadow] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden';
 
 type RowHandlers = {
 	onExpandedChange: (key: string, open: boolean) => void;
@@ -149,12 +147,9 @@ function DbcRow({
 
 	return (
 		<>
-			<button
-				type="button"
-				className={cn(
-					rowButtonClass,
-					'h-full flex-1 overflow-hidden rounded-[calc(var(--radius-sm)+2px)] p-2 py-0'
-				)}
+			<Button
+				variant="ghost"
+				className="h-full min-w-0 flex-1 justify-start overflow-hidden"
 				aria-expanded={expanded}
 				aria-label={`${expanded ? 'Collapse' : 'Expand'} ${dbc.name}`}
 				onClick={() => onExpandedChange(dbc.id, !expanded)}
@@ -166,17 +161,17 @@ function DbcRow({
 						MF4
 					</span>
 				)}
-			</button>
+			</Button>
 			{file && <DbcInformation file={file} />}
 			{!dbc.transient && (
-				<button
-					type="button"
-					className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-70 transition-[background-color,color,box-shadow,opacity,scale] hover:bg-accent hover:text-destructive hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96]"
+				<Button
+					variant="ghost"
+					size="icon"
 					aria-label={`Delete ${dbc.name}`}
 					onClick={() => onRemoveDbc(dbc.id)}
 				>
-					<Trash2 className="size-4" />
-				</button>
+					<Trash2 />
+				</Button>
 			)}
 		</>
 	);
@@ -190,9 +185,9 @@ function MessageRow({
 	const Chevron = expanded ? ChevronDown : ChevronRight;
 
 	return (
-		<button
-			type="button"
-			className={cn(rowButtonClass, 'h-7 rounded-md px-2')}
+		<Button
+			variant="ghost"
+			className="w-full min-w-0 shrink justify-start"
 			aria-expanded={expanded}
 			aria-label={`${expanded ? 'Collapse' : 'Expand'} ${message.name}${message.sourceLabel ?? ''}`}
 			onClick={() => onExpandedChange(message.key, !expanded)}
@@ -204,7 +199,7 @@ function MessageRow({
 			{message.sourceBadges?.map((badge) => (
 				<SourceBadge key={badge}>{badge}</SourceBadge>
 			))}
-		</button>
+		</Button>
 	);
 }
 

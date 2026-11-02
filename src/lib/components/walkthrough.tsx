@@ -56,7 +56,7 @@ function WalkthroughPanel({ step, stepIndex }: { step: WalkthroughStep; stepInde
 						</div>
 
 						<div className="flex justify-end">
-							<Button className="h-10 px-3" onClick={advanceWalkthrough}>
+							<Button size="lg" onClick={advanceWalkthrough}>
 								{stepIndex === WALKTHROUGH_STEPS.length - 1 ? 'Finish' : 'Next'}
 							</Button>
 						</div>

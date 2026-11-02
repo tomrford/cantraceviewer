@@ -55,11 +55,6 @@ const SITE_TITLE = 'CAN Trace Viewer';
 const LANDING_TITLE = 'Plot CAN bus logs in your browser';
 const LANDING_DESCRIPTION = `Open an ${TRACE_FILE_FORMAT_NAMES} trace. Decode raw CAN with a DBC or plot native MF4 signals. Files stay on this device.`;
 
-const squircleButtonClass =
-	'flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground transition-[background-color,border-color,color,box-shadow,opacity,scale] hover:bg-sidebar-primary/90 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden active:scale-[0.96] disabled:pointer-events-none disabled:opacity-50';
-const titleButtonClass =
-	'flex h-10 max-w-[min(28rem,calc(100vw-12rem))] items-center gap-2 rounded-lg border border-border/70 bg-muted px-4 text-sm font-medium text-foreground transition-[box-shadow,scale] hover:bg-muted/80 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.98] disabled:pointer-events-none disabled:opacity-60';
-
 export function App() {
 	const dark = useStore(appStore, isDark);
 	// The prerender assumes support, so browsers with WebGPU never see the required screen.
@@ -167,7 +162,7 @@ function AppShell() {
 							<TooltipTrigger
 								render={
 									<DialogTrigger
-										className={squircleButtonClass}
+										render={<Button size="icon-lg" />}
 										data-walkthrough-target="signal-selector"
 										aria-label="Open signal selector"
 									/>
@@ -200,7 +195,7 @@ function AppShell() {
 					<div className="flex items-center">
 						<PlotToolbar disabled={shortcutState.plotControlsDisabled} />
 					</div>
-					<SettingsDialog triggerClassName={squircleButtonClass} />
+					<SettingsDialog />
 				</div>
 			</header>
 
@@ -257,9 +252,10 @@ function TraceButton({
 		<Tooltip>
 			<TooltipTrigger
 				render={
-					<button
-						type="button"
-						className={`${titleButtonClass} pointer-events-auto w-full lg:w-auto`}
+					<Button
+						variant="secondary"
+						size="lg"
+						className="pointer-events-auto w-full max-w-[min(28rem,calc(100vw-12rem))] shrink justify-start lg:w-auto"
 						data-walkthrough-target="trace"
 						disabled={openingTrace}
 						aria-label={openingTrace ? 'Loading trace' : 'Load trace'}
@@ -268,7 +264,7 @@ function TraceButton({
 				}
 			>
 				<AudioWaveform className="size-4 shrink-0 text-sidebar-primary" />
-				<span className="min-w-0 truncate text-sm font-medium">{displayName}</span>
+				<span className="min-w-0 truncate">{displayName}</span>
 				{openingTrace && (
 					<LoaderCircle className="size-4 shrink-0 animate-spin text-muted-foreground" />
 				)}

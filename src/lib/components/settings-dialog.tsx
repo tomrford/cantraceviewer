@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useStore } from 'zustand';
 import { ShortcutKey } from '#lib/components/shortcut-key.js';
+import { Button, buttonVariants } from '#lib/components/ui/button.js';
 import {
 	Popover,
 	PopoverContent,
@@ -45,11 +46,6 @@ const Github = createLucideIcon('github', [
 	['path', { d: 'M9 18c-4.51 2-5-2-7-2', key: '9comsn' }]
 ]);
 
-const iconButtonClass =
-	'flex size-8 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color,box-shadow,scale] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96]';
-const closeButtonClass =
-	'flex size-8 items-center justify-center justify-self-end rounded-md text-destructive transition-[background-color,color,box-shadow,scale] hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96]';
-
 const themeOptions: { value: ThemePreference; label: string; icon: LucideIcon }[] = [
 	{ value: 'light', label: 'Light', icon: Sun },
 	{ value: 'dark', label: 'Dark', icon: Moon },
@@ -80,7 +76,7 @@ const legendOrderOptions: { value: LegendOrderMode; label: string; description: 
 ];
 
 /** Settings popover including its trigger. */
-export function SettingsDialog({ triggerClassName }: { triggerClassName?: string }) {
+export function SettingsDialog() {
 	const panel = useRef<HTMLDivElement>(null);
 	const open = useStore(appStore, (s) => s.settingsOpen);
 	const theme = useStore(appStore, (s) => s.theme);
@@ -93,7 +89,7 @@ export function SettingsDialog({ triggerClassName }: { triggerClassName?: string
 		<Popover open={open} onOpenChange={setSettingsOpen}>
 			<Tooltip>
 				<TooltipTrigger
-					render={<PopoverTrigger className={triggerClassName} aria-label="Open settings" />}
+					render={<PopoverTrigger render={<Button size="icon-lg" />} aria-label="Open settings" />}
 				>
 					<Cog className="size-4" />
 				</TooltipTrigger>
@@ -117,9 +113,9 @@ export function SettingsDialog({ triggerClassName }: { triggerClassName?: string
 						<Tooltip>
 							<TooltipTrigger
 								render={
-									<button
-										type="button"
-										className={iconButtonClass}
+									<Button
+										variant="ghost"
+										size="icon-lg"
 										aria-label="Open help"
 										onClick={openHelp}
 									/>
@@ -140,7 +136,7 @@ export function SettingsDialog({ triggerClassName }: { triggerClassName?: string
 										href="https://github.com/tomrford/cantraceviewer"
 										target="_blank"
 										rel="noreferrer"
-										className={iconButtonClass}
+										className={buttonVariants({ variant: 'ghost', size: 'icon-lg' })}
 										aria-label="Open source code on GitHub"
 									/>
 								}
@@ -151,7 +147,10 @@ export function SettingsDialog({ triggerClassName }: { triggerClassName?: string
 						</Tooltip>
 					</div>
 					<PopoverTitle className="text-center">Settings</PopoverTitle>
-					<PopoverPrimitive.Close className={closeButtonClass} aria-label="Close settings">
+					<PopoverPrimitive.Close
+						render={<Button variant="ghost" size="icon-lg" className="justify-self-end" />}
+						aria-label="Close settings"
+					>
 						<X className="size-4" />
 					</PopoverPrimitive.Close>
 				</div>
@@ -160,17 +159,16 @@ export function SettingsDialog({ triggerClassName }: { triggerClassName?: string
 					<div className="text-xs font-medium text-muted-foreground">Theme</div>
 					<div className="grid grid-cols-3 gap-2">
 						{themeOptions.map(({ value, label, icon: Icon }) => (
-							<button
+							<Button
 								key={value}
-								type="button"
-								className="flex h-16 flex-col items-center justify-center gap-1 rounded-md border border-border/70 text-xs transition-[background-color,border-color,color,box-shadow,scale] hover:bg-accent hover:text-accent-foreground active:scale-[0.96] data-[selected=true]:border-sidebar-primary/60 data-[selected=true]:bg-sidebar-primary/15 data-[selected=true]:text-sidebar-primary"
-								data-selected={theme === value}
+								variant={theme === value ? 'default' : 'outline'}
+								size="lg"
 								aria-pressed={theme === value}
 								onClick={() => setPreference('theme', value)}
 							>
-								<Icon className="size-4" />
-								<span>{label}</span>
-							</button>
+								<Icon data-icon="inline-start" className="size-4" />
+								{label}
+							</Button>
 						))}
 					</div>
 				</div>
@@ -222,14 +220,10 @@ export function SettingsDialog({ triggerClassName }: { triggerClassName?: string
 						Clears saved DBC files and browser preferences. Loaded traces stay in memory until you
 						close the tab.
 					</p>
-					<button
-						type="button"
-						className="flex h-10 items-center justify-center gap-2 rounded-md border border-destructive/40 px-3 text-sm text-destructive transition-[background-color,border-color,color,box-shadow,scale] hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-hidden active:scale-[0.96]"
-						onClick={() => void onResetPersistentData()}
-					>
-						<RotateCcw className="size-4" />
-						<span>Reset persistent data</span>
-					</button>
+					<Button variant="destructive" size="lg" onClick={() => void onResetPersistentData()}>
+						<RotateCcw data-icon="inline-start" className="size-4" />
+						Reset persistent data
+					</Button>
 				</div>
 			</PopoverContent>
 		</Popover>

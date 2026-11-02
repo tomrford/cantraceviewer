@@ -1,4 +1,5 @@
 import { Info } from 'lucide-react';
+import { Button } from '#lib/components/ui/button.js';
 import {
 	Dialog,
 	DialogContent,
@@ -20,10 +21,10 @@ export function DbcInformation({ file }: { file: DbcFileEntry }) {
 	return (
 		<Dialog>
 			<DialogTrigger
-				className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-70 hover:bg-accent hover:text-accent-foreground hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
+				render={<Button variant="ghost" size="icon" />}
 				aria-label={`Information about ${file.name}`}
 			>
-				<Info className="size-4" />
+				<Info />
 			</DialogTrigger>
 			<DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
 				<DialogHeader>

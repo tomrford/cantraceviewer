@@ -9,6 +9,7 @@ import {
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { useStore } from 'zustand';
 import { Check, ListFilter, Plus, Search, X } from 'lucide-react';
+import { Button } from '#lib/components/ui/button.js';
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -37,13 +38,7 @@ import {
 import { addDbcFiles, clearDbcError } from '#lib/stores/dbc-files.js';
 import { toggleSignal } from '#lib/stores/plot-data.js';
 import { onDbcRemoved } from '#lib/stores/session.js';
-import { cn } from '#lib/utils.js';
 import { appStore } from '#lib/stores/store.js';
-
-const iconButtonClass =
-	'flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color,box-shadow,scale] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96] disabled:pointer-events-none disabled:opacity-50';
-const filterButtonClass =
-	'flex size-8 shrink-0 items-center justify-center rounded-lg border border-border/70 text-muted-foreground transition-[background-color,border-color,color,box-shadow,scale] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96] data-[active=true]:border-sidebar-primary/60 data-[active=true]:bg-sidebar-primary/15 data-[active=true]:text-sidebar-primary';
 
 function withKey(keys: ReadonlySet<string>, key: string, present: boolean): ReadonlySet<string> {
 	const next = new Set(keys);
@@ -187,7 +182,7 @@ export function SignalSelectorDialog({
 
 						<div className="absolute top-[6.5px] right-[7px] left-[7px] grid h-8 grid-cols-[1fr_auto_1fr] items-center">
 							<DialogClose
-								className="flex size-8 shrink-0 items-center justify-center rounded-md text-destructive transition-[background-color,color,box-shadow,scale] hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96]"
+								render={<Button variant="ghost" size="icon-lg" />}
 								aria-label="Close signal selector"
 							>
 								<X className="size-4" />
@@ -196,10 +191,11 @@ export function SignalSelectorDialog({
 							<Tooltip>
 								<TooltipTrigger
 									render={
-										<button
-											type="button"
+										<Button
 											data-walkthrough-target="add-dbc"
-											className={cn(iconButtonClass, 'justify-self-end')}
+											variant="ghost"
+											size="icon-lg"
+											className="justify-self-end"
 											disabled={isLoading}
 											aria-label={addDbcLabel}
 											onClick={() => dbcInput.current?.click()}
@@ -232,10 +228,9 @@ export function SignalSelectorDialog({
 							<Tooltip>
 								<TooltipTrigger
 									render={
-										<button
-											type="button"
-											className={filterButtonClass}
-											data-active={activeOnly}
+										<Button
+											variant={activeOnly ? 'default' : 'outline'}
+											size="icon-lg"
 											aria-pressed={activeOnly}
 											aria-label={activeOnlyLabel}
 											onClick={toggleActiveOnly}
@@ -249,10 +244,9 @@ export function SignalSelectorDialog({
 							<Tooltip>
 								<TooltipTrigger
 									render={
-										<button
-											type="button"
-											className={filterButtonClass}
-											data-active={hideUnavailable}
+										<Button
+											variant={hideUnavailable ? 'default' : 'outline'}
+											size="icon-lg"
 											aria-pressed={hideUnavailable}
 											aria-label={unavailableLabel}
 											onClick={() => setHideUnavailable(!hideUnavailable)}
