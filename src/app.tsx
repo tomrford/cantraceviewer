@@ -28,7 +28,7 @@ import { clearTraceError } from '#lib/stores/trace-file.js';
 import { TRACE_FILE_ACCEPT, TRACE_FILE_FORMAT_NAMES } from '#lib/trace-file-types.js';
 import { useAppShortcuts } from '#lib/use-app-shortcuts.js';
 import { useFileDrop } from '#lib/use-file-drop.js';
-import { useBrowserValue } from '#lib/utils.js';
+import { countSignals, useBrowserValue } from '#lib/utils.js';
 import { shouldShowWalkthrough } from '#lib/walkthrough.js';
 import { appStore } from '#lib/stores/store.js';
 import type { TraceFileEntry } from '#lib/stores/derive.js';
@@ -134,7 +134,7 @@ function AppShell() {
 							>
 								<Database className="size-4" />
 							</TooltipTrigger>
-							<TooltipContent sideOffset={6}>
+							<TooltipContent>
 								Signal selector
 								<ShortcutKey action="selectSignals" />
 							</TooltipContent>
@@ -216,7 +216,7 @@ function TraceButton({
 					<LoaderCircle className="size-4 shrink-0 animate-spin text-muted-foreground" />
 				)}
 			</TooltipTrigger>
-			<TooltipContent sideOffset={6} className="flex-col items-stretch gap-1 pr-3">
+			<TooltipContent className="flex-col items-stretch gap-1 pr-3">
 				<span className="flex items-center gap-3">
 					{openingTrace ? 'Loading trace' : 'Open trace'}
 					{!openingTrace && <ShortcutKey action="openTrace" className="ml-auto" />}
@@ -307,8 +307,7 @@ function formatTraceMetadata(trace: TraceFileEntry): string {
 	const duration =
 		metadata.durationNs === null ? 'Not available' : formatDuration(metadata.durationNs);
 
-	const nativeSignalCount =
-		trace.mf4Catalog?.groups.reduce((count, group) => count + group.signals.length, 0) ?? 0;
+	const nativeSignalCount = countSignals(trace.mf4Catalog?.groups ?? []);
 	const details = [`Start: ${start}`];
 	if (trace.hasRawFrames || nativeSignalCount === 0) {
 		details.push(`Valid CAN messages: ${metadata.validMessageCount.toLocaleString()}`);

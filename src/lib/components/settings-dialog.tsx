@@ -96,7 +96,7 @@ export function SettingsDialog() {
 				>
 					<Cog className="size-4" />
 				</TooltipTrigger>
-				<TooltipContent sideOffset={6}>
+				<TooltipContent>
 					Settings
 					<ShortcutKey action="openSettings" />
 				</TooltipContent>
@@ -126,7 +126,7 @@ export function SettingsDialog() {
 							>
 								<CircleQuestionMark className="size-4" />
 							</TooltipTrigger>
-							<TooltipContent sideOffset={6}>
+							<TooltipContent>
 								Help
 								<ShortcutKey action="showHelp" />
 							</TooltipContent>
@@ -146,7 +146,7 @@ export function SettingsDialog() {
 							>
 								<Github className="size-4" />
 							</TooltipTrigger>
-							<TooltipContent sideOffset={6}>Source code</TooltipContent>
+							<TooltipContent>Source code</TooltipContent>
 						</Tooltip>
 					</div>
 					<PopoverTitle className="text-center">Settings</PopoverTitle>
@@ -213,7 +213,7 @@ export function SettingsDialog() {
 							))}
 						</SelectContent>
 					</Select>
-					<p className="text-xs text-muted-foreground">{legendOrderOption.description}</p>
+					<span className="text-xs text-muted-foreground">{legendOrderOption.description}</span>
 				</label>
 
 				<div className="grid gap-2 border-t pt-4">

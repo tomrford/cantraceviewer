@@ -1,4 +1,4 @@
-import { useDeferredValue, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useDeferredValue, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { useStore } from 'zustand';
 import { Check, ListFilter, Plus, Search, X } from 'lucide-react';
@@ -45,6 +45,7 @@ export function SignalSelectorDialog({
 	children: ReactNode;
 }) {
 	const open = useStore(appStore, (s) => s.signalSelectorOpen);
+	const searchId = useId();
 	const dbcInput = useRef<HTMLInputElement>(null);
 	const scrollTop = useRef(0);
 	const [search, setSearch] = useState('');
@@ -181,27 +182,25 @@ export function SignalSelectorDialog({
 								>
 									<Plus className="size-4" />
 								</TooltipTrigger>
-								<TooltipContent sideOffset={6}>{addDbcLabel}</TooltipContent>
+								<TooltipContent>{addDbcLabel}</TooltipContent>
 							</Tooltip>
 						</PanelHeader>
 
 						<div className="flex items-center gap-2">
-							<form className="min-w-0 flex-1" onSubmit={(event) => event.preventDefault()}>
-								<div className="relative">
-									<Label htmlFor="search" className="sr-only">
-										Search
-									</Label>
-									<Input
-										ref={searchInputRef}
-										id="search"
-										value={search}
-										onChange={(event) => changeSearch(event.currentTarget.value)}
-										placeholder="Filter signals..."
-										className="ps-8"
-									/>
-									<Search className="pointer-events-none absolute inset-s-2 top-1/2 size-4 -translate-y-1/2 opacity-50 select-none" />
-								</div>
-							</form>
+							<div className="relative min-w-0 flex-1">
+								<Label htmlFor={searchId} className="sr-only">
+									Search
+								</Label>
+								<Input
+									ref={searchInputRef}
+									id={searchId}
+									value={search}
+									onChange={(event) => changeSearch(event.currentTarget.value)}
+									placeholder="Filter signals..."
+									className="ps-8"
+								/>
+								<Search className="pointer-events-none absolute inset-s-2 top-1/2 size-4 -translate-y-1/2 opacity-50 select-none" />
+							</div>
 							<ToggleGroup
 								multiple
 								aria-label="Signal filters"
@@ -222,7 +221,7 @@ export function SignalSelectorDialog({
 									>
 										<Check className="size-4" />
 									</TooltipTrigger>
-									<TooltipContent sideOffset={6}>{activeOnlyLabel}</TooltipContent>
+									<TooltipContent>{activeOnlyLabel}</TooltipContent>
 								</Tooltip>
 								<Tooltip>
 									<TooltipTrigger
@@ -238,7 +237,7 @@ export function SignalSelectorDialog({
 									>
 										<ListFilter className="size-4" />
 									</TooltipTrigger>
-									<TooltipContent sideOffset={6}>{unavailableLabel}</TooltipContent>
+									<TooltipContent>{unavailableLabel}</TooltipContent>
 								</Tooltip>
 							</ToggleGroup>
 						</div>

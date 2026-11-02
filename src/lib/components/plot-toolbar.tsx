@@ -128,7 +128,7 @@ function ToolbarTooltip({
 	return (
 		<Tooltip>
 			<TooltipTrigger render={children} />
-			<TooltipContent sideOffset={6}>
+			<TooltipContent>
 				{label}
 				{action && <ShortcutKey action={action} />}
 			</TooltipContent>
