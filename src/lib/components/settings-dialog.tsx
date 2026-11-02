@@ -33,7 +33,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tool
 import { panelShadow } from '#lib/panel-shadow.js';
 import { openHelp, setSettingsOpen } from '#lib/stores/app-shell.js';
 import { setPreference } from '#lib/stores/preferences.js';
-import { onResetPersistentData } from '#lib/stores/session.js';
+import { resetPersistentData } from '#lib/stores/session.js';
 import { useAppStore, type ThemePreference, type TimestampMode } from '#lib/stores/store.js';
 import type { LegendOrderMode } from '#lib/plot-signal-order.js';
 
@@ -222,7 +222,7 @@ export function SettingsDialog() {
 						Clears saved DBC files and browser preferences. Loaded traces stay in memory until you
 						close the tab.
 					</p>
-					<Button variant="destructive" size="lg" onClick={() => void onResetPersistentData()}>
+					<Button variant="destructive" size="lg" onClick={() => void resetPersistentData()}>
 						<RotateCcw data-icon="inline-start" className="size-4" />
 						Reset persistent data
 					</Button>

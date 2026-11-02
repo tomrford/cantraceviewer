@@ -6,7 +6,7 @@ import { openTraceFile } from './stores/trace-file.js';
 import { clearSelectedSignals, toggleSignal } from './stores/plot-data.js';
 import { addAxis, assignAxis, removeAxis } from './stores/plot-axes.js';
 import { panBy, resetZoom, setViewport, zoomBy } from './stores/plot-view.js';
-import { onTraceOpened } from './stores/session.js';
+import { startTraceSession } from './stores/session.js';
 import { appStore, update } from './stores/store.js';
 import { closeTrace } from './wasm.js';
 import { PlotWindow } from './plot-window.js';
@@ -44,7 +44,7 @@ async function load(trace?: string) {
 			new File([trace ?? (await readFile('wasm/tests/fixtures/source-selection.asc'))], 'drive.asc')
 		)
 	).toBe(true);
-	await onTraceOpened();
+	await startTraceSession();
 	await addDbcFiles([
 		new File([await readFile('wasm/tests/fixtures/source-selection.dbc')], 'network.dbc')
 	]);

@@ -15,13 +15,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tool
 import { dbcFilesFromDrop } from '#lib/file-drop.js';
 import { panelShadow } from '#lib/panel-shadow.js';
 import {
-	handleDbcAdded,
-	handleSignalToggle,
+	advanceWalkthroughAfterDbcAdded,
+	advanceWalkthroughAfterSignalToggle,
 	setSignalSelectorOpen
 } from '#lib/stores/app-shell.js';
 import { addDbcFiles, clearDbcError } from '#lib/stores/dbc-files.js';
 import { toggleSignal } from '#lib/stores/plot-data.js';
-import { onDbcRemoved } from '#lib/stores/session.js';
+import { deleteDbc } from '#lib/stores/session.js';
 import { appStore, useAppStore } from '#lib/stores/store.js';
 import { useFileDrop } from '#lib/use-file-drop.js';
 
@@ -78,7 +78,7 @@ export function SignalSelectorDialog({
 		if (files.length === 0) return;
 		const previousCount = appStore.getState().dbcFiles.length;
 		await addDbcFiles(files);
-		if (appStore.getState().dbcFiles.length > previousCount) handleDbcAdded();
+		if (appStore.getState().dbcFiles.length > previousCount) advanceWalkthroughAfterDbcAdded();
 	}
 
 	const { dropActive, dropHandlers } = useFileDrop((files) => {
@@ -97,12 +97,12 @@ export function SignalSelectorDialog({
 			new Set([...current].filter((key) => !removed.has(key)));
 		setExpansion(withoutRemoved);
 		setCollapsedWhileFiltering(withoutRemoved);
-		await onDbcRemoved(dbcId);
+		await deleteDbc(dbcId);
 	}
 
 	function handleToggleSignal(key: string) {
 		void toggleSignal(key);
-		handleSignalToggle();
+		advanceWalkthroughAfterSignalToggle();
 	}
 
 	const addDbcLabel = isLoading ? 'Loading DBC' : 'Add DBC';

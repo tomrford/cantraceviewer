@@ -4,7 +4,7 @@ import { addDbcFiles, resetDbcLibrary } from './stores/dbc-files.js';
 import { openTraceFile } from './stores/trace-file.js';
 import { clearSelectedSignals, isSignalSelected, toggleSignal } from './stores/plot-data.js';
 import { buildSelectorSearchIndexes, selectorRows, type SelectorListRow } from './selector-list.js';
-import { onTraceOpened } from './stores/session.js';
+import { startTraceSession } from './stores/session.js';
 import { mountWebMcp } from './webmcp.js';
 import type { WebMcpTool } from './webmcp-tools.js';
 import type { CanTraceClient } from 'cantraceviewer';
@@ -52,7 +52,7 @@ afterEach(async () => {
 async function loadTrace(name: string, text?: string) {
 	const bytes = text ?? (await readFile(`wasm/tests/fixtures/${name}`));
 	expect(await openTraceFile(new File([bytes], name))).toBe(true);
-	await onTraceOpened();
+	await startTraceSession();
 }
 
 async function search(query = '') {

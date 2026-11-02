@@ -31,7 +31,7 @@ import {
 	toggleSignal
 } from './stores/plot-data.js';
 import { buildSelectorSearchIndexes } from './selector-list.js';
-import { onTraceOpened } from './stores/session.js';
+import { startTraceSession } from './stores/session.js';
 import { searchCatalogSignals } from './webmcp-tools.js';
 import { closeTrace } from './wasm.js';
 import * as library from './stores/dbc-library.js';
@@ -173,7 +173,7 @@ describe('published package app integration', () => {
 		clearSelectedSignals();
 		await clearDbcFiles();
 		expect(await openTraceFile(await fixture('source-selection.asc'))).toBe(true);
-		await onTraceOpened();
+		await startTraceSession();
 		const names = ['source-selection.dbc', 'malformed-source.dbc', 'partial-load.dbc'];
 		let stored = await Promise.all(
 			names.map(async (name) => ({
@@ -278,9 +278,9 @@ describe('published package app integration', () => {
 		const persist = vi.spyOn(library, 'putStoredDbcs');
 		try {
 			expect(
-				await openTraceFile(new File([await readFile('static/example.mf4')], 'example.mf4'))
+				await openTraceFile(new File([await readFile('public/example.mf4')], 'example.mf4'))
 			).toBe(true);
-			await onTraceOpened();
+			await startTraceSession();
 			expect(appStore.getState().trace?.hasRawFrames).toBe(false);
 			expect(appStore.getState().trace?.embeddedDbcs).toEqual([]);
 			expect(appStore.getState().trace?.metadata.durationNs).toBe(90_000_000_000);
@@ -310,7 +310,7 @@ describe('published package app integration', () => {
 			expect(appStore.getState().dbcFiles).toEqual([saved]);
 			expect(saved.catalog).toEqual(catalog);
 			expect(await openTraceFile(await fixture('source-selection.asc'))).toBe(true);
-			await onTraceOpened();
+			await startTraceSession();
 			expect(appStore.getState().signals).toEqual([]);
 			expect(appStore.getState().mf4SignalTargetByKey.size).toBe(0);
 			expect(appStore.getState().dbcFiles).toEqual([saved]);
@@ -330,7 +330,7 @@ describe('published package app integration', () => {
 				clearSelectedSignals();
 				await clearDbcFiles();
 				expect(await openTraceFile(await fixture('source-selection.asc'))).toBe(true);
-				await onTraceOpened();
+				await startTraceSession();
 				await addDbcFiles([await fixture('source-selection.dbc')]);
 				const key = appStore.getState().selectorFiles[0].messages[0].signals[0].key;
 				const oldDecoded = Promise.withResolvers<void>();
@@ -363,7 +363,7 @@ describe('published package app integration', () => {
 						.replace('d 1 0b', 'd 1 64');
 					if (change === 'replacement') {
 						expect(await openTraceFile(new File([replacement], 'replacement.asc'))).toBe(true);
-						await onTraceOpened();
+						await startTraceSession();
 					} else {
 						await toggleSignal(key);
 					}
@@ -393,7 +393,7 @@ describe('published package app integration', () => {
 		clearSelectedSignals();
 		await clearDbcFiles();
 		expect(await openTraceFile(await fixture('source-selection.asc'))).toBe(true);
-		await onTraceOpened();
+		await startTraceSession();
 		const writeStarted = Promise.withResolvers<void>();
 		const releaseWrite = Promise.withResolvers<void>();
 		let stored: library.StoredDbc[] = [];
@@ -443,7 +443,7 @@ describe('published package app integration', () => {
 			expect(appStore.getState().dbcError).toBeNull();
 			expect(appStore.getState().dbcFiles.map((file) => file.name)).toEqual([input.name]);
 			expect(await openTraceFile(await fixture('source-selection.asc'))).toBe(true);
-			await onTraceOpened();
+			await startTraceSession();
 			await toggleSignal(appStore.getState().selectorFiles[0].messages[0].signals[0].key);
 			expect(Array.from(appStore.getState().signals[0].series!.values)).toEqual([10, 11]);
 		} finally {
