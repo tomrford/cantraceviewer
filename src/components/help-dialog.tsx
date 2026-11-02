@@ -11,8 +11,8 @@ import {
 } from '@/components/ui/dialog';
 import { groupedShortcuts, shortcutLabel } from '@/lib/keyboard-shortcuts';
 import { TRACE_FILE_FORMAT_NAMES } from '@/lib/trace-file-types';
-import { setHelpOpen, startWalkthrough } from '@/stores/app-shell';
-import { useAppStore } from '@/stores/store';
+import { setHelpOpen, startWalkthrough } from '@/store/app-shell';
+import { useAppStore } from '@/store/store';
 
 const groups = groupedShortcuts();
 

@@ -3,8 +3,8 @@ import { useRef } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { WALKTHROUGH_STEPS, type WalkthroughStep } from '@/lib/walkthrough';
-import { advanceWalkthrough } from '@/stores/app-shell';
-import { useAppStore } from '@/stores/store';
+import { advanceWalkthrough } from '@/store/app-shell';
+import { useAppStore } from '@/store/store';
 
 export function Walkthrough() {
 	const stepId = useAppStore((s) => s.walkthroughStepId);

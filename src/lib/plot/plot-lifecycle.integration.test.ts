@@ -7,13 +7,13 @@ import { plotSeriesForViews } from '@/lib/plot/plot-series';
 import { PlotWindow } from '@/lib/plot/plot-window';
 import type { WindowedSignalView } from '@/lib/plot/signal-plot-data';
 import { closeTrace } from '@/lib/wasm';
-import { addDbcFiles, clearDbcFiles } from '@/stores/dbc-files';
-import { addAxis, assignAxis, removeAxis } from '@/stores/plot-axes';
-import { clearSelectedSignals, toggleSignal } from '@/stores/plot-data';
-import { panBy, resetZoom, setViewport, zoomBy } from '@/stores/plot-view';
-import { startTraceSession } from '@/stores/session';
-import { appStore, update } from '@/stores/store';
-import { openTraceFile } from '@/stores/trace-file';
+import { startTraceSession } from '@/store/app-shell';
+import { addDbcFiles, clearDbcFiles } from '@/store/dbc-files';
+import { addAxis, assignAxis, removeAxis } from '@/store/plot-axes';
+import { clearSelectedSignals, toggleSignal } from '@/store/plot-data';
+import { panBy, resetZoom, setViewport, zoomBy } from '@/store/plot-view';
+import { appStore, update } from '@/store/store';
+import { loadTraceFile } from '@/store/trace-file';
 
 // Use the same published Worker/WASM boundary as the app, with Node's transport.
 const transport = vi.hoisted(() => ({ client: null as CanTraceClient | null }));
@@ -42,7 +42,7 @@ afterAll(async () => {
 
 async function load(trace?: string) {
 	expect(
-		await openTraceFile(
+		await loadTraceFile(
 			new File([trace ?? (await readFile('wasm/tests/fixtures/source-selection.asc'))], 'drive.asc')
 		)
 	).toBe(true);

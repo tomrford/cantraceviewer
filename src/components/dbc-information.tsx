@@ -10,7 +10,7 @@ import {
 	DialogTrigger
 } from '@/components/ui/dialog';
 import { countSignals } from '@/lib/utils';
-import type { DbcFileEntry } from '@/stores/derive';
+import type { DbcFileEntry } from '@/store/derive';
 
 export function DbcInformation({ file }: { file: DbcFileEntry }) {
 	const signalCount = countSignals(file.catalog.messages);

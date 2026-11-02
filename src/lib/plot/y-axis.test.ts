@@ -6,7 +6,7 @@ import {
 	PRIMARY_Y_AXIS_ID,
 	yAxisLabel,
 	yAxisUnit
-} from '@/lib/plot/plot-axes';
+} from '@/lib/plot/y-axis';
 
 function signal(key: string, unit = '') {
 	return { key, unit };

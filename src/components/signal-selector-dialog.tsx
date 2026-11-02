@@ -19,12 +19,12 @@ import { panelShadow } from '@/lib/panel-shadow';
 import {
 	advanceWalkthroughAfterDbcAdded,
 	advanceWalkthroughAfterSignalToggle,
+	deleteDbc,
 	setSignalSelectorOpen
-} from '@/stores/app-shell';
-import { addDbcFiles, clearDbcError } from '@/stores/dbc-files';
-import { toggleSignal } from '@/stores/plot-data';
-import { deleteDbc } from '@/stores/session';
-import { appStore, useAppStore } from '@/stores/store';
+} from '@/store/app-shell';
+import { addDbcFiles, clearDbcError } from '@/store/dbc-files';
+import { toggleSignal } from '@/store/plot-data';
+import { appStore, useAppStore } from '@/store/store';
 
 function withKey(keys: ReadonlySet<string>, key: string, present: boolean): ReadonlySet<string> {
 	const next = new Set(keys);

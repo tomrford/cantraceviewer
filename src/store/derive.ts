@@ -2,14 +2,6 @@
 // decides when, and in what order. Nothing here reads the store.
 import { displayDbcName } from '@/lib/dbc-file-types';
 import { buildMf4SignalTargetIndex, mf4SelectorSearchIndexes } from '@/lib/mf4-signals';
-import {
-	groupSignalsByYAxis,
-	PRIMARY_Y_AXIS_ID,
-	yAxisLabel,
-	yAxisUnit,
-	type YAxisGroup,
-	type YAxisId
-} from '@/lib/plot/plot-axes';
 import { plotGrid, type PlotGrid } from '@/lib/plot/plot-axis-layout';
 import { signalColor } from '@/lib/plot/plot-colors';
 import {
@@ -31,6 +23,14 @@ import {
 	signalYRange,
 	type SignalView
 } from '@/lib/plot/signal-plot-data';
+import {
+	groupSignalsByYAxis,
+	PRIMARY_Y_AXIS_ID,
+	yAxisLabel,
+	yAxisUnit,
+	type YAxisGroup,
+	type YAxisId
+} from '@/lib/plot/y-axis';
 import { buildSelectorSearchIndexes, type SelectorDbcFile } from '@/lib/selector-list';
 import { displayTraceName } from '@/lib/trace-file-types';
 import type {

@@ -11,11 +11,11 @@ import {
 import { closeTrace } from '@/lib/wasm';
 import { mountWebMcp } from '@/lib/webmcp';
 import type { WebMcpTool } from '@/lib/webmcp-tools';
-import { addDbcFiles, resetDbcLibrary } from '@/stores/dbc-files';
-import { clearSelectedSignals, isSignalSelected, toggleSignal } from '@/stores/plot-data';
-import { startTraceSession } from '@/stores/session';
-import { appStore, update } from '@/stores/store';
-import { openTraceFile } from '@/stores/trace-file';
+import { startTraceSession } from '@/store/app-shell';
+import { addDbcFiles, resetDbcLibrary } from '@/store/dbc-files';
+import { clearSelectedSignals, isSignalSelected, toggleSignal } from '@/store/plot-data';
+import { appStore, update } from '@/store/store';
+import { loadTraceFile } from '@/store/trace-file';
 
 // Replace only the browser Worker transport; exercise the published package and app stores.
 const transport = vi.hoisted(() => ({ client: null as CanTraceClient | null }));
@@ -57,7 +57,7 @@ afterEach(async () => {
 
 async function loadTrace(name: string, text?: string) {
 	const bytes = text ?? (await readFile(`wasm/tests/fixtures/${name}`));
-	expect(await openTraceFile(new File([bytes], name))).toBe(true);
+	expect(await loadTraceFile(new File([bytes], name))).toBe(true);
 	await startTraceSession();
 }
 

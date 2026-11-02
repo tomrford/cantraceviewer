@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { orderPlotSignals, type LegendOrderMode } from '@/lib/plot/plot-signal-order';
-import type { PlotSignal } from '@/stores/derive';
+import type { PlotSignal } from '@/store/derive';
 
 describe('orderPlotSignals', () => {
 	it('preserves selection order by default', () => {

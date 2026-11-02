@@ -18,8 +18,8 @@ import {
 	setLegendVisible,
 	zoomIn,
 	zoomOut
-} from '@/stores/plot-view';
-import { useAppStore } from '@/stores/store';
+} from '@/store/plot-view';
+import { useAppStore } from '@/store/store';
 
 const toolbarIconButtonClass =
 	'border-input bg-transparent hover:bg-muted hover:text-foreground dark:bg-transparent dark:hover:bg-muted/50';

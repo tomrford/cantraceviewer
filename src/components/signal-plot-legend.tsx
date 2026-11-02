@@ -17,7 +17,6 @@ import {
 	SelectTrigger,
 	SelectValue
 } from '@/components/ui/select';
-import { PRIMARY_Y_AXIS_ID, type YAxisId } from '@/lib/plot/plot-axes';
 import {
 	crosshairById,
 	type LegendCrosshairMode,
@@ -33,11 +32,12 @@ import {
 	type LegendSignalValue,
 	type SignalView
 } from '@/lib/plot/signal-plot-data';
+import { PRIMARY_Y_AXIS_ID, type YAxisId } from '@/lib/plot/y-axis';
 import { cn } from '@/lib/utils';
-import type { PlotAxisView } from '@/stores/derive';
-import { addAxis, assignAxis, assignToNewAxis, canAddAxis, removeAxis } from '@/stores/plot-axes';
-import { setLegendCrosshairMode } from '@/stores/plot-view';
-import { useAppStore, type AppState } from '@/stores/store';
+import type { PlotAxisView } from '@/store/derive';
+import { addAxis, assignAxis, assignToNewAxis, canAddAxis, removeAxis } from '@/store/plot-axes';
+import { setLegendCrosshairMode } from '@/store/plot-view';
+import { useAppStore, type AppState } from '@/store/store';
 
 /**
  * Plot legend: signals grouped by Y axis with crosshair readouts and axis management. Readouts

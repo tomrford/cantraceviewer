@@ -17,7 +17,7 @@ import {
 	type SelectorListSignal
 } from '@/lib/selector-list';
 import { cn } from '@/lib/utils';
-import { useAppStore } from '@/stores/store';
+import { useAppStore } from '@/store/store';
 
 const ROW_GAP_PX = 4;
 const ROW_OVERSCAN = 8;

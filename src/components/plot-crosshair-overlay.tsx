@@ -8,8 +8,8 @@ import {
 } from '@/lib/plot/plot-crosshair';
 import { ratioInArea } from '@/lib/plot/plot-pointer';
 import { dataPointAtRatio, ratioAtDataPoint, type PlotPoint } from '@/lib/plot/plot-viewport';
-import { upsertCrosshair } from '@/stores/plot-view';
-import { appStore, useAppStore } from '@/stores/store';
+import { upsertCrosshair } from '@/store/plot-view';
+import { appStore, useAppStore } from '@/store/store';
 
 const HANDLES = [
 	{

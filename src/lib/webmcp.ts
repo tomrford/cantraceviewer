@@ -1,6 +1,6 @@
 import { displayDbcName } from '@/lib/dbc-file-types';
-import { PRIMARY_Y_AXIS_ID } from '@/lib/plot/plot-axes';
 import type { LegendCrosshairMode } from '@/lib/plot/plot-crosshair';
+import { PRIMARY_Y_AXIS_ID } from '@/lib/plot/y-axis';
 import { countSignals } from '@/lib/utils';
 import {
 	createWebMcpTools,
@@ -9,10 +9,10 @@ import {
 	type WebMcpTimeRange,
 	type WebMcpTool
 } from '@/lib/webmcp-tools';
-import { addAxis, assignAxis } from '@/stores/plot-axes';
-import { isSignalSelected, signalDecodeStatus, toggleSignal } from '@/stores/plot-data';
-import { resetZoom, setCrosshairs, setViewport } from '@/stores/plot-view';
-import { appStore } from '@/stores/store';
+import { addAxis, assignAxis } from '@/store/plot-axes';
+import { isSignalSelected, signalDecodeStatus, toggleSignal } from '@/store/plot-data';
+import { resetZoom, setCrosshairs, setViewport } from '@/store/plot-view';
+import { appStore } from '@/store/store';
 
 export type ModelContext = {
 	registerTool: (tool: WebMcpTool, options?: { signal?: AbortSignal }) => Promise<void>;

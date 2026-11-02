@@ -9,7 +9,7 @@ import {
 	type ShortcutAction,
 	type ShortcutState
 } from '@/lib/keyboard-shortcuts';
-import { openHelp, openPalette, openSettings, openSignalSelector } from '@/stores/app-shell';
+import { openHelp, openPalette, openSettings, openSignalSelector } from '@/store/app-shell';
 import {
 	clearCrosshairs,
 	placeCrosshair,
@@ -18,7 +18,7 @@ import {
 	toggleLegend,
 	zoomIn,
 	zoomOut
-} from '@/stores/plot-view';
+} from '@/store/plot-view';
 
 /** Binds the global keyboard shortcuts and returns the runner the command palette shares. */
 export function useAppShortcuts(

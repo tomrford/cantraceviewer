@@ -4,8 +4,8 @@ import {
 	type PlotAxisRange,
 	type PlotViewport
 } from '@/lib/plot/plot-viewport';
-import type { PlotSignal } from '@/stores/derive';
-import type { TimestampMode } from '@/stores/store';
+import type { PlotSignal } from '@/store/derive';
+import type { TimestampMode } from '@/store/store';
 
 type DecodedValueFormatContext = Pick<
 	PlotSignal,

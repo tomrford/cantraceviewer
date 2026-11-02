@@ -12,7 +12,7 @@ import {
 import { useEffect, useRef, useState, useTransition, type ComponentProps } from 'react';
 
 import { DropOverlay } from '@/components/drop-overlay';
-import { PlotCrosshairOverlay } from '@/components/plot-crosshair';
+import { PlotCrosshairOverlay } from '@/components/plot-crosshair-overlay';
 import { PlotInteraction } from '@/components/plot-interaction';
 import { ShortcutKey } from '@/components/shortcut-key';
 import { SignalPlotAxes } from '@/components/signal-plot-axes';
@@ -33,7 +33,7 @@ import type { CrosshairId } from '@/lib/plot/plot-crosshair';
 import { exportPlotImage, type ImageDestination } from '@/lib/plot/plot-image-export';
 import type { PlotPoint } from '@/lib/plot/plot-viewport';
 import { cn } from '@/lib/utils';
-import { clearSelectedSignals } from '@/stores/plot-data';
+import { clearSelectedSignals } from '@/store/plot-data';
 import {
 	clearCrosshairs,
 	deleteCrosshair,
@@ -42,8 +42,8 @@ import {
 	upsertCrosshair,
 	zoomIn,
 	zoomOut
-} from '@/stores/plot-view';
-import { useAppStore } from '@/stores/store';
+} from '@/store/plot-view';
+import { useAppStore } from '@/store/store';
 
 const EMPTY_MESSAGE = 'Select signals from the signal selector to view them.';
 

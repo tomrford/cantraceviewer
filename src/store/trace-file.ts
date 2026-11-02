@@ -1,12 +1,12 @@
 import { TRACE_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '@/lib/file-limits';
 import { TRACE_FILE_DESCRIPTION, traceTypeForFileName } from '@/lib/trace-file-types';
 import { closeTrace, openTrace } from '@/lib/wasm';
-import type { TraceFileEntry } from '@/stores/derive';
-import { appStore, update } from '@/stores/store';
+import type { TraceFileEntry } from '@/store/derive';
+import { appStore, update } from '@/store/store';
 
 let nextTraceId = 1;
 
-export async function openTraceFile(file: File): Promise<boolean> {
+export async function loadTraceFile(file: File): Promise<boolean> {
 	update({ traceError: null });
 
 	let next: TraceFileEntry | null = null;

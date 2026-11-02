@@ -2,14 +2,14 @@
 // elsewhere; write with `update(patch)`, which recomputes whatever the patch invalidated before
 // anyone is notified.
 // Actions live beside it by domain: trace-file, dbc-files, plot-data, plot-axes, plot-view,
-// preferences, app-shell and session.
+// preferences and app-shell.
 import { useStore } from 'zustand';
 import { createStore, type StoreApi } from 'zustand/vanilla';
 
-import { PRIMARY_Y_AXIS_ID, type YAxisId } from '@/lib/plot/plot-axes';
 import type { LegendCrosshairMode, PlotCrosshair } from '@/lib/plot/plot-crosshair';
 import type { LegendOrderMode } from '@/lib/plot/plot-signal-order';
 import { FULL_Y_WINDOW, type PlotYWindow } from '@/lib/plot/plot-viewport';
+import { PRIMARY_Y_AXIS_ID, type YAxisId } from '@/lib/plot/y-axis';
 import type { WalkthroughStep } from '@/lib/walkthrough';
 import {
 	catalogState,
@@ -23,7 +23,7 @@ import {
 	type SelectedSignalState,
 	type TraceFileEntry,
 	type ViewportMode
-} from '@/stores/derive';
+} from '@/store/derive';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 export type TimestampMode = 'relative' | 'absolute';

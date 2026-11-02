@@ -11,7 +11,7 @@ import {
 	zoomViewport,
 	type PlotViewport
 } from '@/lib/plot/plot-viewport';
-import { appStore, FIT, update } from '@/stores/store';
+import { appStore, FIT, update } from '@/store/store';
 
 const CENTER: PlotRatioPoint = { xRatio: 0.5, yRatio: 0.5 };
 

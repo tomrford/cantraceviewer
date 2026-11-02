@@ -1,8 +1,8 @@
-import type { YAxisId } from '@/lib/plot/plot-axes';
 import { nextSignalColorIndex } from '@/lib/plot/plot-colors';
+import type { YAxisId } from '@/lib/plot/y-axis';
 import { getMf4SignalValues, getSignalValues } from '@/lib/wasm';
-import type { DbcSignalTarget, SelectedSignalState, TraceFileEntry } from '@/stores/derive';
-import { appStore, update } from '@/stores/store';
+import type { DbcSignalTarget, SelectedSignalState, TraceFileEntry } from '@/store/derive';
+import { appStore, update } from '@/store/store';
 
 export function isSignalSelected(key: string): boolean {
 	return appStore.getState().selected.has(key);

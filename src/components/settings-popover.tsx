@@ -28,10 +28,9 @@ import { ToggleGroup } from '@/components/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { panelShadow } from '@/lib/panel-shadow';
 import type { LegendOrderMode } from '@/lib/plot/plot-signal-order';
-import { openHelp, setSettingsOpen } from '@/stores/app-shell';
-import { setPreference } from '@/stores/preferences';
-import { resetPersistentData } from '@/stores/session';
-import { useAppStore, type ThemePreference, type TimestampMode } from '@/stores/store';
+import { openHelp, resetPersistentData, setSettingsOpen } from '@/store/app-shell';
+import { setPreference } from '@/store/preferences';
+import { useAppStore, type ThemePreference, type TimestampMode } from '@/store/store';
 
 // lucide-react 1.x dropped brand icons; this is the lucide `github` glyph the app used before.
 const Github = createLucideIcon('github', [
@@ -75,7 +74,7 @@ const legendOrderOptions: { value: LegendOrderMode; label: string; description: 
 ];
 
 /** Settings popover including its trigger. */
-export function SettingsDialog() {
+export function SettingsPopover() {
 	const panel = useRef<HTMLDivElement>(null);
 	const open = useAppStore((s) => s.settingsOpen);
 	const theme = useAppStore((s) => s.theme);

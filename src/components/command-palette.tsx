@@ -16,8 +16,8 @@ import {
 	type ShortcutAction,
 	type ShortcutState
 } from '@/lib/keyboard-shortcuts';
-import { setPaletteOpen } from '@/stores/app-shell';
-import { useAppStore } from '@/stores/store';
+import { setPaletteOpen } from '@/store/app-shell';
+import { useAppStore } from '@/store/store';
 
 const groups = groupedShortcuts().map(({ group, actions }) => ({
 	group,

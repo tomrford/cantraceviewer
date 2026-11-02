@@ -9,8 +9,8 @@ import {
 } from '@/lib/dbc-library';
 import { DBC_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '@/lib/file-limits';
 import { closeDbc, openDbc, type EmbeddedDbc } from '@/lib/wasm';
-import type { DbcFileEntry } from '@/stores/derive';
-import { appStore, update } from '@/stores/store';
+import type { DbcFileEntry } from '@/store/derive';
+import { appStore, update } from '@/store/store';
 
 let libraryOperation = Promise.resolve();
 

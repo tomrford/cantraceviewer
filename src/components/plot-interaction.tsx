@@ -19,8 +19,8 @@ import {
 	type PlotPoint,
 	type PlotViewport
 } from '@/lib/plot/plot-viewport';
-import { panBy, setPointerRatio, setViewport, zoomBy } from '@/stores/plot-view';
-import { appStore, useAppStore } from '@/stores/store';
+import { panBy, setPointerRatio, setViewport, zoomBy } from '@/store/plot-view';
+import { appStore, useAppStore } from '@/store/store';
 
 const WHEEL_ZOOM_SPEED = 0.002;
 

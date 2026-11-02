@@ -1,15 +1,15 @@
 import type { ChartGPUInstance, ChartGPUOptions, ThemeConfig } from 'chartgpu';
 
-import { PRIMARY_Y_AXIS_ID } from '@/lib/plot/plot-axes';
 import { Y_TICK_COUNT, type AxisTickGenerator } from '@/lib/plot/plot-axis-layout';
 import { SIGNAL_COLORS } from '@/lib/plot/plot-colors';
 import { emptyAxisSeries, plotSeriesForViews, type PlotSeriesConfig } from '@/lib/plot/plot-series';
 import { resolvePlotTheme, type PlotTheme } from '@/lib/plot/plot-theme';
 import { PlotWindow } from '@/lib/plot/plot-window';
 import { formatAxisTime, type WindowedSignalView } from '@/lib/plot/signal-plot-data';
-import type { PlotModelState } from '@/stores/derive';
-import { isDark } from '@/stores/preferences';
-import { appStore, type AppState } from '@/stores/store';
+import { PRIMARY_Y_AXIS_ID } from '@/lib/plot/y-axis';
+import type { PlotModelState } from '@/store/derive';
+import { isDark } from '@/store/preferences';
+import { appStore, type AppState } from '@/store/store';
 
 const AXIS_FONT_SIZE = 12;
 

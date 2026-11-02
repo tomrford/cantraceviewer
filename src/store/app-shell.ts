@@ -1,5 +1,5 @@
-// Page-level UI orchestration: trace opening (file, drop, demo preset), the
-// walkthrough and which overlay is open.
+// Page-level UI orchestration: trace opening (file, drop, demo preset), trace
+// session setup, the walkthrough and which overlay is open.
 // Handlers run outside React render, so they read current state with getState().
 import { toast } from 'sonner';
 
@@ -8,13 +8,19 @@ import {
 	WALKTHROUGH_VERSION,
 	type WalkthroughStep
 } from '@/lib/walkthrough';
-import type { TraceFileEntry } from '@/stores/derive';
-import { assignToNewAxis } from '@/stores/plot-axes';
-import { isSignalSelected, signalDecodeStatus, toggleSignal } from '@/stores/plot-data';
-import { setPreference } from '@/stores/preferences';
-import { startTraceSession } from '@/stores/session';
-import { appStore, update, type AppState } from '@/stores/store';
-import { openTraceFile } from '@/stores/trace-file';
+import { addTransientDbcs, removeDbcFile, resetDbcLibrary } from '@/store/dbc-files';
+import type { TraceFileEntry } from '@/store/derive';
+import { assignToNewAxis, resetAxes } from '@/store/plot-axes';
+import {
+	clearSelectedSignals,
+	deselectDbcFile,
+	isSignalSelected,
+	signalDecodeStatus,
+	toggleSignal
+} from '@/store/plot-data';
+import { resetPreferences, setPreference } from '@/store/preferences';
+import { appStore, update, type AppState } from '@/store/store';
+import { loadTraceFile } from '@/store/trace-file';
 
 type WalkthroughStepId = WalkthroughStep['id'];
 
@@ -103,12 +109,31 @@ export function advanceWalkthrough(): void {
 	update({ walkthroughStepId: null, signalSelectorOpen: false });
 }
 
+export async function startTraceSession(): Promise<void> {
+	clearSelectedSignals();
+	resetAxes();
+	const { trace } = appStore.getState();
+	await addTransientDbcs(trace?.id ?? 0, trace?.embeddedDbcs ?? []);
+}
+
+export async function deleteDbc(dbcFileId: string): Promise<void> {
+	deselectDbcFile(dbcFileId);
+	await removeDbcFile(dbcFileId);
+}
+
+export async function resetPersistentData(): Promise<void> {
+	clearSelectedSignals();
+	resetAxes();
+	resetPreferences();
+	await resetDbcLibrary();
+}
+
 const DEMO_PRESET = [
 	{ group: 'Decoded powertrain', signal: 'VehicleSpeed', unit: 'km/h', axis: 'primary' },
 	{ group: 'Decoded powertrain', signal: 'EngineSpeed', unit: 'rpm', axis: 'new' }
 ] as const;
 
-export async function openTrace(file: File | null): Promise<void> {
+export async function openTraceFile(file: File | null): Promise<void> {
 	if (!file) return;
 	await withTraceLock(() => loadTrace(file));
 }
@@ -137,7 +162,7 @@ async function withTraceLock(open: () => Promise<unknown>): Promise<void> {
 
 /** Resolves to the opened trace, or null if it failed or has since been replaced. */
 async function loadTrace(file: File): Promise<TraceFileEntry | null> {
-	if (!(await openTraceFile(file))) return null;
+	if (!(await loadTraceFile(file))) return null;
 	const { trace: opened, traceWarning } = appStore.getState();
 	const stillOpen = () => appStore.getState().trace === opened;
 	if (traceWarning) toast.warning(traceWarning);

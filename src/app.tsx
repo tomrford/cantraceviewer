@@ -6,7 +6,7 @@ import { DropOverlay } from '@/components/drop-overlay';
 import { ErrorDialog } from '@/components/error-dialog';
 import { HelpDialog } from '@/components/help-dialog';
 import { PlotToolbar } from '@/components/plot-toolbar';
-import { SettingsDialog } from '@/components/settings-dialog';
+import { SettingsPopover } from '@/components/settings-popover';
 import { ShortcutKey } from '@/components/shortcut-key';
 import { SignalPlot } from '@/components/signal-plot';
 import { SignalSelectorDialog } from '@/components/signal-selector-dialog';
@@ -22,11 +22,11 @@ import { traceFileFromDrop } from '@/lib/file-drop';
 import { TRACE_FILE_ACCEPT, TRACE_FILE_FORMAT_NAMES } from '@/lib/trace-file-types';
 import { countSignals, useBrowserValue } from '@/lib/utils';
 import { shouldShowWalkthrough } from '@/lib/walkthrough';
-import { openDemoTrace, openTrace, startWalkthrough } from '@/stores/app-shell';
-import type { TraceFileEntry } from '@/stores/derive';
-import { isDark } from '@/stores/preferences';
-import { useAppStore } from '@/stores/store';
-import { clearTraceError } from '@/stores/trace-file';
+import { openDemoTrace, openTraceFile, startWalkthrough } from '@/store/app-shell';
+import type { TraceFileEntry } from '@/store/derive';
+import { isDark } from '@/store/preferences';
+import { useAppStore } from '@/store/store';
+import { clearTraceError } from '@/store/trace-file';
 
 const SITE_TITLE = 'CAN Trace Viewer';
 const LANDING_TITLE = 'Plot CAN bus logs in your browser';
@@ -102,7 +102,7 @@ function AppShell() {
 	});
 
 	const { dropActive: traceDragged, dropHandlers } = useFileDrop((files) => {
-		void openTrace(traceFileFromDrop(files));
+		void openTraceFile(traceFileFromDrop(files));
 	});
 	// A drop while a trace opens is still handled, but does not advertise itself.
 	const dropActive = traceDragged && !openingTrace;
@@ -152,7 +152,7 @@ function AppShell() {
 					<div className="flex items-center">
 						<PlotToolbar disabled={shortcutState.plotControlsDisabled} />
 					</div>
-					<SettingsDialog />
+					<SettingsPopover />
 				</div>
 			</header>
 
@@ -289,7 +289,7 @@ function selectTrace(event: ChangeEvent<HTMLInputElement>): void {
 	const input = event.currentTarget;
 	const file = input.files?.[0] ?? null;
 	input.value = '';
-	void openTrace(file);
+	void openTraceFile(file);
 }
 
 function formatTraceMetadata(trace: TraceFileEntry): string {
