@@ -270,6 +270,11 @@ function LegendSignalRow({
 		if (!movable) return;
 		event.dataTransfer.setData('text/plain', view.key);
 		event.dataTransfer.effectAllowed = 'move';
+		// Only the grip starts a drag, but what follows the pointer is the whole row.
+		const row = event.currentTarget.closest('li');
+		if (!row) return;
+		const { left, top } = row.getBoundingClientRect();
+		event.dataTransfer.setDragImage(row, event.clientX - left, event.clientY - top);
 	}
 
 	function openMoveMenuFromKey(event: KeyboardEvent<HTMLElement>) {
