@@ -245,7 +245,7 @@ const NO_VALUE_DESCRIPTIONS: DbcValueDescription[] = [];
 /** Colours stay with a signal key while it is selected; selection actions release them. */
 export const signalColors = createSignalColorAssigner();
 
-export function isPlottableSignal(signal: PlotSignal): boolean {
+function isPlottableSignal(signal: PlotSignal): boolean {
 	return Boolean(signal.series && signal.series.timesMs.length > 0);
 }
 

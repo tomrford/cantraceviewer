@@ -269,13 +269,12 @@ function LegendSignalRow({
 	view: SignalView;
 	onMoveMenu: (key: string) => void;
 }) {
-	// Neither field changes during a crosshair drag, so only `value` follows the drag.
-	const axes = useStore(appStore, (state) => state.plotModel.axes);
+	// Only `value` follows a crosshair drag; `movable` is a boolean, so axis edits elsewhere don't re-render the row.
+	const movable = useStore(appStore, (state) => state.plotModel.axes.length > 1);
 	const value = useStore(
 		appStore,
 		useShallow((state) => legendValue(view, state.crosshairs, state.legendCrosshairMode))
 	);
-	const movable = axes.length > 1;
 
 	function startDrag(event: DragEvent) {
 		if (!movable) return;

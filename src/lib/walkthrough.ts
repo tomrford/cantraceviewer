@@ -53,7 +53,7 @@ export const WALKTHROUGH_STEPS: WalkthroughStep[] = [
 		align: 'end',
 		title: 'Explore the plot',
 		description:
-			'Once signals are plotted, use the toolbar here to zoom, box-select, show a marker or hide the legend. Scroll to zoom, drag to pan and right-click the plot for more actions.'
+			'Once signals are plotted, use the toolbar here to zoom, box-select, place a crosshair or hide the legend. Scroll to zoom, drag to pan and right-click the plot for more actions.'
 	}
 ];
 
