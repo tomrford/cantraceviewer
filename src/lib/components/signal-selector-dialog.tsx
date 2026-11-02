@@ -1,6 +1,5 @@
 import { useDeferredValue, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
-import { useStore } from 'zustand';
 import { Check, ListFilter, Plus, Search, X } from 'lucide-react';
 import { Button } from '#lib/components/ui/button.js';
 import { DropOverlay } from '#lib/components/drop-overlay.js';
@@ -23,7 +22,7 @@ import {
 import { addDbcFiles, clearDbcError } from '#lib/stores/dbc-files.js';
 import { toggleSignal } from '#lib/stores/plot-data.js';
 import { onDbcRemoved } from '#lib/stores/session.js';
-import { appStore } from '#lib/stores/store.js';
+import { appStore, useAppStore } from '#lib/stores/store.js';
 import { useFileDrop } from '#lib/use-file-drop.js';
 
 function withKey(keys: ReadonlySet<string>, key: string, present: boolean): ReadonlySet<string> {
@@ -45,7 +44,7 @@ export function SignalSelectorDialog({
 	searchInputRef: RefObject<HTMLInputElement | null>;
 	children: ReactNode;
 }) {
-	const open = useStore(appStore, (s) => s.signalSelectorOpen);
+	const open = useAppStore((s) => s.signalSelectorOpen);
 	const searchId = useId();
 	const dbcInput = useRef<HTMLInputElement>(null);
 	const scrollTop = useRef(0);
@@ -56,8 +55,8 @@ export function SignalSelectorDialog({
 	const [collapsedWhileFiltering, setCollapsedWhileFiltering] = useState<ReadonlySet<string>>(
 		() => new Set()
 	);
-	const isLoading = useStore(appStore, (s) => s.dbcLoading);
-	const dbcError = useStore(appStore, (s) => s.dbcError);
+	const isLoading = useAppStore((s) => s.dbcLoading);
+	const dbcError = useAppStore((s) => s.dbcError);
 	// The list follows the deferred query, so typing stays responsive on large catalogues.
 	const query = useDeferredValue(search);
 	const filtering = query.trim().length > 0 || activeOnly;

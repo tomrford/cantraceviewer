@@ -1,5 +1,4 @@
 import { useState, type DragEvent, type KeyboardEvent } from 'react';
-import { useStore } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import { GripVertical, Plus, Trash2 } from 'lucide-react';
 import { SourceBadge } from '#lib/components/source-badge.js';
@@ -43,18 +42,18 @@ import {
 import { setLegendCrosshairMode } from '#lib/stores/plot-view.js';
 import { cn } from '#lib/utils.js';
 import type { PlotAxisView } from '#lib/stores/derive.js';
-import { appStore, type AppState } from '#lib/stores/store.js';
+import { useAppStore, type AppState } from '#lib/stores/store.js';
 
 /**
  * Plot legend: signals grouped by Y axis with crosshair readouts and axis management. Readouts
  * are selected per row and per axis header, so a crosshair drag re-renders only changed values.
  */
 export function SignalPlotLegend() {
-	const axes = useStore(appStore, (state) => state.plotModel.axes);
-	const addable = useStore(appStore, canAddAxis);
-	const hasC1 = useStore(appStore, (state) => crosshairById(state.crosshairs, 1) !== null);
-	const hasC2 = useStore(appStore, (state) => crosshairById(state.crosshairs, 2) !== null);
-	const mode = useStore(appStore, (state) => state.legendCrosshairMode);
+	const axes = useAppStore((s) => s.plotModel.axes);
+	const addable = useAppStore(canAddAxis);
+	const hasC1 = useAppStore((s) => crosshairById(s.crosshairs, 1) !== null);
+	const hasC2 = useAppStore((s) => crosshairById(s.crosshairs, 2) !== null);
+	const mode = useAppStore((s) => s.legendCrosshairMode);
 	const [moveSignalKey, setMoveSignalKey] = useState<string | null>(null);
 
 	const options: { value: LegendCrosshairMode; label: string }[] = [];
@@ -150,13 +149,10 @@ export function SignalPlotLegend() {
 
 /** The crosshair time/value line; the only legend part that follows crosshair positions. */
 function LegendReadout({ multiAxis }: { multiAxis: boolean }) {
-	const crosshairs = useStore(appStore, (state) => state.crosshairs);
-	const mode = useStore(appStore, (state) => state.legendCrosshairMode);
-	const timestampMode = useStore(appStore, (state) => state.timestampMode);
-	const measurementStartMs = useStore(
-		appStore,
-		(state) => state.trace?.metadata.measurementStartMs
-	);
+	const crosshairs = useAppStore((s) => s.crosshairs);
+	const mode = useAppStore((s) => s.legendCrosshairMode);
+	const timestampMode = useAppStore((s) => s.timestampMode);
+	const measurementStartMs = useAppStore((s) => s.trace?.metadata.measurementStartMs);
 	const c1 = crosshairById(crosshairs, 1);
 	const c2 = crosshairById(crosshairs, 2);
 
@@ -187,9 +183,7 @@ function LegendAxisGroup({
 	showHeader: boolean;
 	onMoveMenu: (key: string) => void;
 }) {
-	const cursorText = useStore(appStore, (state) =>
-		showHeader ? axisCursorText(state, axis.id) : null
-	);
+	const cursorText = useAppStore((s) => (showHeader ? axisCursorText(s, axis.id) : null));
 	const [dropActive, setDropActive] = useState(false);
 
 	function allowDrop(event: DragEvent) {
@@ -266,10 +260,9 @@ function LegendSignalRow({
 	onMoveMenu: (key: string) => void;
 }) {
 	// Only `value` follows a crosshair drag; `movable` is a boolean, so axis edits elsewhere don't re-render the row.
-	const movable = useStore(appStore, (state) => state.plotModel.axes.length > 1);
-	const value = useStore(
-		appStore,
-		useShallow((state) => legendValue(view, state.crosshairs, state.legendCrosshairMode))
+	const movable = useAppStore((s) => s.plotModel.axes.length > 1);
+	const value = useAppStore(
+		useShallow((s) => legendValue(view, s.crosshairs, s.legendCrosshairMode))
 	);
 
 	function startDrag(event: DragEvent) {

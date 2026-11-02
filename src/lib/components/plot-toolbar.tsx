@@ -1,6 +1,5 @@
 import type { ReactElement } from 'react';
 import { Crosshair, Expand, List, Minus, Plus, SquareDashed, X } from 'lucide-react';
-import { useStore } from 'zustand';
 import { ShortcutKey } from '#lib/components/shortcut-key.js';
 import { Button, buttonVariants } from '#lib/components/ui/button.js';
 import { ButtonGroup } from '#lib/components/ui/button-group.js';
@@ -19,19 +18,19 @@ import {
 	zoomOut
 } from '#lib/stores/plot-view.js';
 import { cn } from '#lib/utils.js';
-import { appStore } from '#lib/stores/store.js';
+import { useAppStore } from '#lib/stores/store.js';
 
 const toolbarIconButtonClass =
 	'border-input bg-transparent hover:bg-muted hover:text-foreground dark:bg-transparent dark:hover:bg-muted/50';
 
 // Only booleans are selected so panning, zooming and crosshair drags never re-render the toolbar.
 export function PlotToolbar({ disabled }: { disabled: boolean }) {
-	const isFitAll = useStore(appStore, (s) => s.isFitAll);
-	const boxZoomEnabled = useStore(appStore, (s) => s.boxZoomEnabled);
-	const legendVisible = useStore(appStore, (s) => s.legendVisible);
-	const canPlaceCrosshair = useStore(appStore, (s) => s.activeViewport !== null);
-	const hasC1 = useStore(appStore, (s) => crosshairById(s.crosshairs, 1) !== null);
-	const hasC2 = useStore(appStore, (s) => crosshairById(s.crosshairs, 2) !== null);
+	const isFitAll = useAppStore((s) => s.isFitAll);
+	const boxZoomEnabled = useAppStore((s) => s.boxZoomEnabled);
+	const legendVisible = useAppStore((s) => s.legendVisible);
+	const canPlaceCrosshair = useAppStore((s) => s.activeViewport !== null);
+	const hasC1 = useAppStore((s) => crosshairById(s.crosshairs, 1) !== null);
+	const hasC2 = useAppStore((s) => crosshairById(s.crosshairs, 2) !== null);
 	const hasCrosshairs = hasC1 || hasC2;
 	const boxZoomLabel = boxZoomEnabled ? 'Use drag pan' : 'Use box zoom';
 	const legendLabel = legendVisible ? 'Hide legend' : 'Show legend';

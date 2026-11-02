@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, useTransition, type ComponentProps } from 'react';
-import { useStore } from 'zustand';
 import {
 	BoxSelect,
 	Copy,
@@ -43,7 +42,7 @@ import { PlotInteraction } from './plot-interaction.js';
 import { ShortcutKey } from './shortcut-key.js';
 import { SignalPlotAxes } from './signal-plot-axes.js';
 import { SignalPlotLegend } from './signal-plot-legend.js';
-import { appStore } from '#lib/stores/store.js';
+import { useAppStore } from '#lib/stores/store.js';
 
 const EMPTY_MESSAGE = 'Select signals from the signal selector to view them.';
 
@@ -64,13 +63,13 @@ export function SignalPlot({
 	const [contextTarget, setContextTarget] = useState<ContextTarget | null>(null);
 	const [imageExportBusy, startImageExport] = useTransition();
 
-	const hasPlottableSignals = useStore(appStore, (state) => state.hasPlottableSignals);
-	const hasSelectedSignals = useStore(appStore, (state) => state.selected.size > 0);
-	const dataReady = useStore(appStore, (state) => state.plotModel.fullDomain !== null);
-	const isFitAll = useStore(appStore, (state) => state.isFitAll);
-	const hasCrosshairs = useStore(appStore, (state) => state.crosshairs.length > 0);
-	const boxZoomEnabled = useStore(appStore, (state) => state.boxZoomEnabled);
-	const legendVisible = useStore(appStore, (state) => state.legendVisible);
+	const hasPlottableSignals = useAppStore((s) => s.hasPlottableSignals);
+	const hasSelectedSignals = useAppStore((s) => s.selected.size > 0);
+	const dataReady = useAppStore((s) => s.plotModel.fullDomain !== null);
+	const isFitAll = useAppStore((s) => s.isFitAll);
+	const hasCrosshairs = useAppStore((s) => s.crosshairs.length > 0);
+	const boxZoomEnabled = useAppStore((s) => s.boxZoomEnabled);
+	const legendVisible = useAppStore((s) => s.legendVisible);
 	// A remembered point is meaningless once nothing is plotted.
 	const contextMenu = hasPlottableSignals ? contextTarget : null;
 	const removableCrosshair = contextMenu?.crosshairId ?? null;

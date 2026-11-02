@@ -1,6 +1,5 @@
 import { AudioWaveform, CircleQuestionMark, Database, LoaderCircle } from 'lucide-react';
 import { useEffect, useRef, type ChangeEvent, type ComponentProps } from 'react';
-import { useStore } from 'zustand';
 import { DropOverlay } from '#lib/components/drop-overlay.js';
 import { ErrorDialog } from '#lib/components/error-dialog.js';
 import { PlotToolbar } from '#lib/components/plot-toolbar.js';
@@ -30,7 +29,7 @@ import { useAppShortcuts } from '#lib/use-app-shortcuts.js';
 import { useFileDrop } from '#lib/use-file-drop.js';
 import { countSignals, useBrowserValue } from '#lib/utils.js';
 import { shouldShowWalkthrough } from '#lib/walkthrough.js';
-import { appStore } from '#lib/stores/store.js';
+import { useAppStore } from '#lib/stores/store.js';
 import type { TraceFileEntry } from '#lib/stores/derive.js';
 
 const SITE_TITLE = 'CAN Trace Viewer';
@@ -38,12 +37,10 @@ const LANDING_TITLE = 'Plot CAN bus logs in your browser';
 const LANDING_DESCRIPTION = `Open an ${TRACE_FILE_FORMAT_NAMES} trace. Decode raw CAN with a DBC or plot native MF4 signals. Files stay on this device.`;
 
 export function App() {
-	const dark = useStore(appStore, isDark);
+	const dark = useAppStore(isDark);
 	// The prerender assumes support, so browsers with WebGPU never see the required screen.
 	const webgpuSupported = useBrowserValue(() => 'gpu' in navigator, true);
-	const title = useStore(appStore, (s) =>
-		s.trace ? `${s.traceName} | ${SITE_TITLE}` : SITE_TITLE
-	);
+	const title = useAppStore((s) => (s.trace ? `${s.traceName} | ${SITE_TITLE}` : SITE_TITLE));
 
 	useEffect(() => {
 		document.title = title;
@@ -84,13 +81,13 @@ export function App() {
 function AppShell() {
 	const traceInput = useRef<HTMLInputElement>(null);
 	const signalSearchInput = useRef<HTMLInputElement>(null);
-	const openingTrace = useStore(appStore, (s) => s.openingTrace);
-	const hasTrace = useStore(appStore, (s) => s.trace !== null);
-	const traceError = useStore(appStore, (s) => s.traceError);
-	const hasPlottable = useStore(appStore, (s) => s.hasPlottableSignals);
-	const isFitAll = useStore(appStore, (s) => s.isFitAll);
-	const canPlaceCrosshair = useStore(appStore, (s) => s.activeViewport !== null);
-	const hasCrosshairs = useStore(appStore, (s) => s.crosshairs.length > 0);
+	const openingTrace = useAppStore((s) => s.openingTrace);
+	const hasTrace = useAppStore((s) => s.trace !== null);
+	const traceError = useAppStore((s) => s.traceError);
+	const hasPlottable = useAppStore((s) => s.hasPlottableSignals);
+	const isFitAll = useAppStore((s) => s.isFitAll);
+	const canPlaceCrosshair = useAppStore((s) => s.activeViewport !== null);
+	const hasCrosshairs = useAppStore((s) => s.crosshairs.length > 0);
 	const shortcutState = {
 		openingTrace,
 		plotControlsDisabled: !hasPlottable || openingTrace,
@@ -191,8 +188,8 @@ function TraceButton({
 	openingTrace: boolean;
 	onOpenTrace: () => void;
 }) {
-	const displayName = useStore(appStore, (s) => s.traceName);
-	const entry = useStore(appStore, (s) => s.trace);
+	const displayName = useAppStore((s) => s.traceName);
+	const entry = useAppStore((s) => s.trace);
 	const metadata = entry ? formatTraceMetadata(entry) : null;
 
 	return (
@@ -237,9 +234,9 @@ function Landing({
 	dropActive: boolean;
 	onOpenTrace: () => void;
 }) {
-	const hasLoadedLibrary = useStore(appStore, (s) => s.hasLoadedLibrary);
-	const walkthroughVersion = useStore(appStore, (s) => s.walkthroughVersion);
-	const stepId = useStore(appStore, (s) => s.walkthroughStepId);
+	const hasLoadedLibrary = useAppStore((s) => s.hasLoadedLibrary);
+	const walkthroughVersion = useAppStore((s) => s.walkthroughVersion);
+	const stepId = useAppStore((s) => s.walkthroughStepId);
 	const invitationVisible =
 		hasLoadedLibrary && stepId === null && shouldShowWalkthrough(walkthroughVersion);
 

@@ -1,6 +1,5 @@
 import { useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useStore } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import { ChevronDown, ChevronRight, CircleAlert, LoaderCircle, Trash2 } from 'lucide-react';
 import { Button } from '#lib/components/ui/button.js';
@@ -17,7 +16,7 @@ import {
 	type SelectorListSignal
 } from '#lib/selector-list.js';
 import { cn } from '#lib/utils.js';
-import { appStore } from '#lib/stores/store.js';
+import { useAppStore } from '#lib/stores/store.js';
 
 const ROW_GAP_PX = 4;
 const ROW_OVERSCAN = 8;
@@ -50,11 +49,10 @@ export function SelectorTree({
 	hideUnavailable: boolean;
 	isExpanded: (key: string) => boolean;
 }) {
-	const dbcIndexes = useStore(appStore, (s) => s.selectorSearchIndexes);
-	const mf4Indexes = useStore(appStore, (s) => s.mf4SelectorIndexes);
+	const dbcIndexes = useAppStore((s) => s.selectorSearchIndexes);
+	const mf4Indexes = useAppStore((s) => s.mf4SelectorIndexes);
 	// Decode status only affects individual rows; filtering needs membership in selected-only mode.
-	const selectedKeys = useStore(
-		appStore,
+	const selectedKeys = useAppStore(
 		useShallow((s) => (activeOnly ? new Set(s.selected.keys()) : null))
 	);
 	const rows = selectorRows([...dbcIndexes, ...mf4Indexes], {
@@ -146,7 +144,7 @@ function DbcRow({
 	onExpandedChange,
 	onRemoveDbc
 }: RowHandlers & { dbc: SelectorDbcFile; expanded: boolean }) {
-	const file = useStore(appStore, (s) => s.dbcFiles.find((entry) => entry.id === dbc.id));
+	const file = useAppStore((s) => s.dbcFiles.find((entry) => entry.id === dbc.id));
 	const Chevron = expanded ? ChevronDown : ChevronRight;
 
 	return (
@@ -216,7 +214,7 @@ function SignalRow({
 }: RowHandlers & {
 	signal: SelectorListSignal;
 }) {
-	const selected = useStore(appStore, (s) => s.selected.get(signal.key));
+	const selected = useAppStore((s) => s.selected.get(signal.key));
 	const isSelected = selected !== undefined;
 	const decodeError = selected?.error ?? null;
 	const reason = signal.unavailableReason;

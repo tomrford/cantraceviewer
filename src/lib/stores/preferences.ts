@@ -24,8 +24,8 @@ const ALLOWED: { [K in keyof PersistedPreferences]: (value: unknown) => boolean 
 
 const PREFERENCE_NAMES = Object.keys(DEFAULT_PREFERENCES) as (keyof PersistedPreferences)[];
 
-export const isDark = (state: Pick<AppState, 'theme' | 'systemDark'>): boolean =>
-	state.theme === 'dark' || (state.theme === 'system' && state.systemDark);
+export const isDark = (s: Pick<AppState, 'theme' | 'systemDark'>): boolean =>
+	s.theme === 'dark' || (s.theme === 'system' && s.systemDark);
 
 export function setPreference<K extends keyof PersistedPreferences>(
 	name: K,
