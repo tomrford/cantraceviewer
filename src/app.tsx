@@ -41,14 +41,7 @@ import {
 	hasDraggedFiles,
 	traceFileFromDrop
 } from '#lib/file-drop.js';
-import {
-	handleDbcAdded,
-	handleSignalToggle,
-	openDemoTrace,
-	openTrace,
-	setSignalSelectorOpen,
-	startWalkthrough
-} from '#lib/stores/app-shell.js';
+import { openDemoTrace, openTrace, startWalkthrough } from '#lib/stores/app-shell.js';
 import { isDark } from '#lib/stores/preferences.js';
 import { clearTraceError } from '#lib/stores/trace-file.js';
 import { TRACE_FILE_ACCEPT, TRACE_FILE_FORMAT_NAMES } from '#lib/trace-file-types.js';
@@ -118,7 +111,6 @@ function AppShell() {
 	const hasTrace = useStore(appStore, (s) => s.trace !== null);
 	const [dropActive, setDropActive] = useState(false);
 	const traceError = useStore(appStore, (s) => s.traceError);
-	const signalSelectorOpen = useStore(appStore, (s) => s.signalSelectorOpen);
 	const hasPlottable = useStore(appStore, (s) => s.hasPlottableSignals);
 	const isFitAll = useStore(appStore, (s) => s.isFitAll);
 	const canPlaceCrosshair = useStore(appStore, (s) => s.activeViewport !== null);
@@ -170,13 +162,7 @@ function AppShell() {
 				aria-busy={openingTrace}
 			>
 				<div className="flex items-center">
-					<SignalSelectorDialog
-						open={signalSelectorOpen}
-						onOpenChange={setSignalSelectorOpen}
-						searchInputRef={signalSearchInput}
-						onDbcAdded={handleDbcAdded}
-						onSignalToggle={handleSignalToggle}
-					>
+					<SignalSelectorDialog searchInputRef={signalSearchInput}>
 						<Tooltip>
 							<TooltipTrigger
 								render={
