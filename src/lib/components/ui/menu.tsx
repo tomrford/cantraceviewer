@@ -1,7 +1,7 @@
 import { Menu as MenuPrimitive } from '@base-ui/react/menu';
 import { cn } from '#lib/utils.js';
 
-function Menu<Payload>({ ...props }: MenuPrimitive.Root.Props<Payload>) {
+function Menu({ ...props }: MenuPrimitive.Root.Props) {
 	return <MenuPrimitive.Root {...props} />;
 }
 

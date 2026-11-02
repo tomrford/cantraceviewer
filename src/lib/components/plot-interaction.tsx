@@ -48,7 +48,7 @@ export function PlotInteraction({
 	const [panning, setPanning] = useState(false);
 	const wrapperRef = useRef<HTMLDivElement>(null);
 	const buttonRef = useRef<HTMLButtonElement>(null);
-	const boxRef = useRef<HTMLDivElement>(null);
+	const boxRef = useRef<HTMLSpanElement>(null);
 	const dragRef = useRef<DragState | null>(null);
 
 	function plotArea() {
@@ -215,16 +215,16 @@ export function PlotInteraction({
 				onPointerDown={startButtonDrag}
 				onContextMenu={rememberContextMenuPoint}
 			>
-				<div
+				<span
 					className="pointer-events-none absolute"
 					style={{ top: grid.top, bottom: grid.bottom, left: grid.left, right: grid.right }}
 				>
-					<div
+					<span
 						ref={boxRef}
 						className="absolute border border-current bg-current/10 text-foreground"
 						style={{ display: 'none' }}
 					/>
-				</div>
+				</span>
 			</button>
 			{children}
 		</ContextMenuTrigger>
