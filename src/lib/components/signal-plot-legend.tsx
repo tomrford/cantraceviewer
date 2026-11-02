@@ -137,14 +137,10 @@ export function SignalPlotLegend() {
 			</ContextMenu>
 
 			{addable && (
-				<button
-					type="button"
-					className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-border py-1.5 text-xs text-muted-foreground transition-colors hover:border-ring hover:text-foreground"
-					onClick={() => addAxis()}
-				>
-					<Plus className="size-3.5" />
+				<Button variant="outline" className="mt-2 w-full" onClick={() => addAxis()}>
+					<Plus data-icon="inline-start" />
 					Add Y axis
-				</button>
+				</Button>
 			)}
 
 			<LegendReadout multiAxis={multiAxis} />
@@ -237,9 +233,9 @@ function LegendAxisGroup({
 					)}
 					{axis.index !== 0 && (
 						<Button
-							variant="ghost"
-							size="icon"
-							className="-mr-1 size-5 text-muted-foreground hover:text-destructive"
+							variant="ghost-destructive"
+							size="icon-xs"
+							className="-mr-1"
 							aria-label={`Remove ${axis.label}`}
 							onClick={() => removeAxis(axis.id)}
 						>

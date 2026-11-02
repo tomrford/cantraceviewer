@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useStore } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import { ChevronDown, ChevronRight, CircleAlert, LoaderCircle, Trash2 } from 'lucide-react';
+import { Button } from '#lib/components/ui/button.js';
 import { Checkbox } from '#lib/components/ui/checkbox.js';
 import { Label } from '#lib/components/ui/label.js';
 import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tooltip.js';
@@ -23,7 +24,7 @@ const ROW_OVERSCAN = 8;
 const LIST_PADDING_BOTTOM_PX = 16;
 
 const rowButtonClass =
-	'flex w-full min-w-0 items-center gap-2 text-left text-xs text-popover-foreground transition-[background-color,color,box-shadow] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden';
+	'flex min-w-0 items-center gap-2 rounded-md text-left text-xs text-popover-foreground transition-[background-color,color,box-shadow] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden';
 
 type RowHandlers = {
 	onExpandedChange: (key: string, open: boolean) => void;
@@ -115,7 +116,8 @@ function VirtualRows({
 									ref={virtualizer.measureElement}
 									className={cn(
 										'absolute top-0 left-0 w-full',
-										row.kind === 'dbc' && 'flex h-8 items-center gap-1',
+										row.kind === 'dbc' &&
+											'group/row flex h-8 items-center gap-1 rounded-md transition-[background-color] hover:bg-accent',
 										row.kind === 'message' && 'h-7 pl-6',
 										row.kind === 'signal' && 'h-7 pl-12'
 									)}
@@ -151,10 +153,7 @@ function DbcRow({
 		<>
 			<button
 				type="button"
-				className={cn(
-					rowButtonClass,
-					'h-full flex-1 overflow-hidden rounded-[calc(var(--radius-sm)+2px)] p-2 py-0'
-				)}
+				className={cn(rowButtonClass, 'h-full flex-1 overflow-hidden px-2')}
 				aria-expanded={expanded}
 				aria-label={`${expanded ? 'Collapse' : 'Expand'} ${dbc.name}`}
 				onClick={() => onExpandedChange(dbc.id, !expanded)}
@@ -167,17 +166,20 @@ function DbcRow({
 					</span>
 				)}
 			</button>
-			{file && <DbcInformation file={file} />}
-			{!dbc.transient && (
-				<button
-					type="button"
-					className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-70 transition-[background-color,color,box-shadow,opacity,scale] hover:bg-accent hover:text-destructive hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96]"
-					aria-label={`Delete ${dbc.name}`}
-					onClick={() => onRemoveDbc(dbc.id)}
-				>
-					<Trash2 className="size-4" />
-				</button>
-			)}
+			{/* Hidden with opacity so keyboard users can still tab to them; always shown on touch. */}
+			<div className="flex shrink-0 items-center gap-0.5 pr-0.5 opacity-0 transition-opacity group-focus-within/row:opacity-100 group-hover/row:opacity-100 pointer-coarse:opacity-100">
+				{file && <DbcInformation file={file} />}
+				{!dbc.transient && (
+					<Button
+						variant="ghost-destructive"
+						size="icon"
+						aria-label={`Delete ${dbc.name}`}
+						onClick={() => onRemoveDbc(dbc.id)}
+					>
+						<Trash2 />
+					</Button>
+				)}
+			</div>
 		</>
 	);
 }
@@ -192,7 +194,7 @@ function MessageRow({
 	return (
 		<button
 			type="button"
-			className={cn(rowButtonClass, 'h-7 rounded-md px-2')}
+			className={cn(rowButtonClass, 'h-7 w-full px-2 hover:bg-accent hover:text-accent-foreground')}
 			aria-expanded={expanded}
 			aria-label={`${expanded ? 'Collapse' : 'Expand'} ${message.name}${message.sourceLabel ?? ''}`}
 			onClick={() => onExpandedChange(message.key, !expanded)}

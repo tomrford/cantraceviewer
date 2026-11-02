@@ -1,4 +1,5 @@
 import { useStore } from 'zustand';
+import { Button } from '#lib/components/ui/button.js';
 import {
 	Dialog,
 	DialogClose,
@@ -73,16 +74,10 @@ export function HelpDialog() {
 				</div>
 
 				<DialogFooter className="mt-6">
-					<DialogClose className="flex h-9 items-center justify-center rounded-md border border-border/70 px-4 text-sm transition-[background-color,color,scale] hover:bg-accent hover:text-accent-foreground active:scale-[0.98]">
-						Close
-					</DialogClose>
-					<button
-						type="button"
-						className="flex h-9 items-center justify-center rounded-md bg-sidebar-primary px-4 text-sm font-medium text-sidebar-primary-foreground transition-[background-color,scale] hover:bg-sidebar-primary/90 active:scale-[0.98]"
-						onClick={showTour}
-					>
+					<DialogClose render={<Button variant="outline" size="lg" />}>Close</DialogClose>
+					<Button size="lg" onClick={showTour}>
 						Show quick tour
-					</button>
+					</Button>
 				</DialogFooter>
 			</DialogContent>
 		</Dialog>

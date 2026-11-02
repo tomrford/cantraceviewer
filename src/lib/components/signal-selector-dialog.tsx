@@ -9,6 +9,7 @@ import {
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { useStore } from 'zustand';
 import { Check, ListFilter, Plus, Search, X } from 'lucide-react';
+import { Button } from '#lib/components/ui/button.js';
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -22,6 +23,8 @@ import { SelectorTree } from '#lib/components/selector-tree.js';
 import { Dialog, DialogClose, DialogPortal, DialogTitle } from '#lib/components/ui/dialog.js';
 import { Input } from '#lib/components/ui/input.js';
 import { Label } from '#lib/components/ui/label.js';
+import { Toggle } from '#lib/components/ui/toggle.js';
+import { ToggleGroup } from '#lib/components/ui/toggle-group.js';
 import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tooltip.js';
 import {
 	dbcFilesFromDrop,
@@ -37,13 +40,7 @@ import {
 import { addDbcFiles, clearDbcError } from '#lib/stores/dbc-files.js';
 import { toggleSignal } from '#lib/stores/plot-data.js';
 import { onDbcRemoved } from '#lib/stores/session.js';
-import { cn } from '#lib/utils.js';
 import { appStore } from '#lib/stores/store.js';
-
-const iconButtonClass =
-	'flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color,box-shadow,scale] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96] disabled:pointer-events-none disabled:opacity-50';
-const filterButtonClass =
-	'flex size-8 shrink-0 items-center justify-center rounded-lg border border-border/70 text-muted-foreground transition-[background-color,border-color,color,box-shadow,scale] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96] data-[active=true]:border-sidebar-primary/60 data-[active=true]:bg-sidebar-primary/15 data-[active=true]:text-sidebar-primary';
 
 function withKey(keys: ReadonlySet<string>, key: string, present: boolean): ReadonlySet<string> {
 	const next = new Set(keys);
@@ -138,6 +135,16 @@ export function SignalSelectorDialog({
 	}
 
 	const addDbcLabel = isLoading ? 'Loading DBC' : 'Add DBC';
+	const filterValues = [
+		...(activeOnly ? ['active'] : []),
+		...(hideUnavailable ? ['available'] : [])
+	];
+
+	function changeFilters(values: string[]) {
+		if (values.includes('active') !== activeOnly) toggleActiveOnly();
+		setHideUnavailable(values.includes('available'));
+	}
+
 	const activeOnlyLabel = activeOnly ? 'Show all DBC signals' : 'Show selected DBC signals only';
 	const unavailableLabel = hideUnavailable
 		? 'Show unavailable signals'
@@ -187,7 +194,7 @@ export function SignalSelectorDialog({
 
 						<div className="absolute top-[6.5px] right-[7px] left-[7px] grid h-8 grid-cols-[1fr_auto_1fr] items-center">
 							<DialogClose
-								className="flex size-8 shrink-0 items-center justify-center rounded-md text-destructive transition-[background-color,color,box-shadow,scale] hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden active:scale-[0.96]"
+								render={<Button variant="ghost" size="icon-lg" />}
 								aria-label="Close signal selector"
 							>
 								<X className="size-4" />
@@ -196,10 +203,11 @@ export function SignalSelectorDialog({
 							<Tooltip>
 								<TooltipTrigger
 									render={
-										<button
-											type="button"
+										<Button
 											data-walkthrough-target="add-dbc"
-											className={cn(iconButtonClass, 'justify-self-end')}
+											variant="ghost"
+											size="icon-lg"
+											className="justify-self-end"
 											disabled={isLoading}
 											aria-label={addDbcLabel}
 											onClick={() => dbcInput.current?.click()}
@@ -229,40 +237,45 @@ export function SignalSelectorDialog({
 									<Search className="pointer-events-none absolute inset-s-2 top-1/2 size-4 -translate-y-1/2 opacity-50 select-none" />
 								</div>
 							</form>
-							<Tooltip>
-								<TooltipTrigger
-									render={
-										<button
-											type="button"
-											className={filterButtonClass}
-											data-active={activeOnly}
-											aria-pressed={activeOnly}
-											aria-label={activeOnlyLabel}
-											onClick={toggleActiveOnly}
-										/>
-									}
-								>
-									<Check className="size-4" />
-								</TooltipTrigger>
-								<TooltipContent sideOffset={6}>{activeOnlyLabel}</TooltipContent>
-							</Tooltip>
-							<Tooltip>
-								<TooltipTrigger
-									render={
-										<button
-											type="button"
-											className={filterButtonClass}
-											data-active={hideUnavailable}
-											aria-pressed={hideUnavailable}
-											aria-label={unavailableLabel}
-											onClick={() => setHideUnavailable(!hideUnavailable)}
-										/>
-									}
-								>
-									<ListFilter className="size-4" />
-								</TooltipTrigger>
-								<TooltipContent sideOffset={6}>{unavailableLabel}</TooltipContent>
-							</Tooltip>
+							<ToggleGroup
+								multiple
+								aria-label="Signal filters"
+								value={filterValues}
+								onValueChange={changeFilters}
+							>
+								<Tooltip>
+									<TooltipTrigger
+										render={
+											<Toggle
+												value="active"
+												variant="outline"
+												size="lg"
+												className="size-8 px-0"
+												aria-label={activeOnlyLabel}
+											/>
+										}
+									>
+										<Check className="size-4" />
+									</TooltipTrigger>
+									<TooltipContent sideOffset={6}>{activeOnlyLabel}</TooltipContent>
+								</Tooltip>
+								<Tooltip>
+									<TooltipTrigger
+										render={
+											<Toggle
+												value="available"
+												variant="outline"
+												size="lg"
+												className="size-8 px-0"
+												aria-label={unavailableLabel}
+											/>
+										}
+									>
+										<ListFilter className="size-4" />
+									</TooltipTrigger>
+									<TooltipContent sideOffset={6}>{unavailableLabel}</TooltipContent>
+								</Tooltip>
+							</ToggleGroup>
 						</div>
 
 						<SelectorTree
