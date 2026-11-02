@@ -107,7 +107,7 @@ describe('keyboard shortcuts', () => {
 
 	it('leaves disabled actions unchanged', () => {
 		const disabled = {
-			traceLoading: true,
+			openingTrace: true,
 			plotControlsDisabled: true,
 			canResetZoom: false,
 			canPlaceCrosshair: false,
@@ -121,7 +121,7 @@ describe('keyboard shortcuts', () => {
 
 	it('requires a plot pointer position for crosshair shortcuts', () => {
 		const state = {
-			traceLoading: false,
+			openingTrace: false,
 			plotControlsDisabled: false,
 			canResetZoom: true,
 			canPlaceCrosshair: false,
@@ -133,7 +133,7 @@ describe('keyboard shortcuts', () => {
 
 	it('enables clearing crosshairs only once one is placed', () => {
 		const state = {
-			traceLoading: false,
+			openingTrace: false,
 			plotControlsDisabled: false,
 			canResetZoom: true,
 			canPlaceCrosshair: true,

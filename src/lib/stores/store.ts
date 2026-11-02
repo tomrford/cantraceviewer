@@ -45,7 +45,6 @@ type SourceState = PersistedPreferences & {
 
 	// Open trace
 	trace: TraceFileEntry | null;
-	traceLoading: boolean;
 	traceError: string | null;
 
 	// DBC library
@@ -179,7 +178,6 @@ function initialState(): AppState {
 		walkthroughStepId: null,
 
 		trace: null,
-		traceLoading: false,
 		traceError: null,
 		...traceState(null),
 

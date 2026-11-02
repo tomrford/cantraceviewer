@@ -44,7 +44,7 @@ afterAll(async () => {
 	await clearDbcFiles();
 	const { trace } = appStore.getState();
 	if (trace) await closeTrace(trace.handle);
-	update({ trace: null, traceLoading: false, traceError: null });
+	update({ trace: null, openingTrace: false, traceError: null });
 	await transport.client?.close();
 });
 
