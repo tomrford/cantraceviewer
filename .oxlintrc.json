@@ -38,7 +38,7 @@
 		]
 	},
 	"ignorePatterns": [
-		"build/",
+		"dist/",
 		"packages/core/dist/",
 		"packages/core/src/wasm-bindgen/",
 		"artifacts/",

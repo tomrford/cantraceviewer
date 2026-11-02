@@ -5,8 +5,6 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
 	plugins: [tailwindcss(), react(), babel({ presets: [reactCompilerPreset()] })],
-	publicDir: 'static',
-	build: { outDir: 'build' },
 	worker: { format: 'es' },
 	optimizeDeps: { exclude: ['cantraceviewer'] },
 	test: {
