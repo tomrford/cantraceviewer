@@ -78,13 +78,8 @@ export const storeHost = {
 		return applied === null ? null : { startMs: applied.xMin, endMs: applied.xMax };
 	},
 	setCrosshairs: (markers: WebMcpCrosshairInput[], readout?: LegendCrosshairMode) => {
-		const { activeViewport: active, crosshairs, legendCrosshairMode } = appStore.getState();
+		const { activeViewport: active, crosshairs } = appStore.getState();
 		const centreY = active === null ? 0 : (active.yMin + active.yMax) / 2;
-		const has = (id: number) => markers.some((marker) => marker.id === id);
-		const previousValid =
-			legendCrosshairMode === 'delta'
-				? markers.length === 2
-				: has(legendCrosshairMode === 'c1' ? 1 : 2);
 		setCrosshairs(
 			markers
 				.map(({ id, timeMs, value }) => ({
@@ -93,7 +88,7 @@ export const storeHost = {
 					y: value ?? crosshairs.find((marker) => marker.id === id)?.y ?? centreY
 				}))
 				.sort((a, b) => a.id - b.id),
-			readout ?? (previousValid ? legendCrosshairMode : has(1) ? 'c1' : has(2) ? 'c2' : 'c1')
+			readout
 		);
 	},
 	setSignalAxes: (assignments: Array<{ key: string; axis: number }>) => {

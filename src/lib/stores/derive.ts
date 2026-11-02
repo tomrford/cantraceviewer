@@ -374,15 +374,14 @@ export function viewportState(
 	return { activeViewport, isFitAll: viewportMode.mode === 'fit', axisRanges };
 }
 
-/** Keep the legend readout on a crosshair that exists. */
+/** Keep the legend readout on a crosshair that exists, or on C1 when there are none. */
 export function readoutMode(
 	crosshairs: PlotCrosshair[],
 	mode: LegendCrosshairMode
 ): LegendCrosshairMode {
 	const c1 = crosshairById(crosshairs, 1) !== null;
 	const c2 = crosshairById(crosshairs, 2) !== null;
-	if (mode === 'delta' && (!c1 || !c2)) return c1 ? 'c1' : c2 ? 'c2' : 'c1';
-	if (mode === 'c1' && !c1 && c2) return 'c2';
-	if (mode === 'c2' && !c2 && c1) return 'c1';
-	return mode;
+	const available = mode === 'delta' ? c1 && c2 : mode === 'c1' ? c1 : c2;
+	if (available) return mode;
+	return c2 && !c1 ? 'c2' : 'c1';
 }
