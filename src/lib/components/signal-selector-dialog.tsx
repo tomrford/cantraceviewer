@@ -5,6 +5,7 @@ import { Check, ListFilter, Plus, Search, X } from 'lucide-react';
 import { Button } from '#lib/components/ui/button.js';
 import { DropOverlay } from '#lib/components/drop-overlay.js';
 import { ErrorDialog } from '#lib/components/error-dialog.js';
+import { panelShadow, PanelHeader } from '#lib/components/panel-chrome.js';
 import { SelectorTree } from '#lib/components/selector-tree.js';
 import { Dialog, DialogClose, DialogPortal, DialogTitle } from '#lib/components/ui/dialog.js';
 import { Input } from '#lib/components/ui/input.js';
@@ -136,7 +137,7 @@ export function SignalSelectorDialog({
 						initialFocus={(type) => (type === 'touch' ? true : searchInputRef.current)}
 						// Overlays its trigger: the close button lands exactly where the trigger sits.
 						className="fixed top-2 left-2 z-50 grid h-[calc(100vh-1rem)] w-[min(26rem,calc(100vw-1rem))] origin-top-left grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden rounded-lg border border-border/70 bg-popover/90 p-4 pt-14 text-xs text-popover-foreground outline-hidden backdrop-blur-md duration-100 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
-						style={{ boxShadow: '0 1px 2px rgb(0 0 0 / 0.08)' }}
+						style={panelShadow}
 						{...dropHandlers}
 					>
 						{dropActive && (
@@ -156,7 +157,7 @@ export function SignalSelectorDialog({
 							}}
 						/>
 
-						<div className="absolute top-[6.5px] right-[7px] left-[7px] grid h-8 grid-cols-[1fr_auto_1fr] items-center">
+						<PanelHeader>
 							<DialogClose
 								render={<Button variant="ghost" size="icon-lg" />}
 								aria-label="Close signal selector"
@@ -182,7 +183,7 @@ export function SignalSelectorDialog({
 								</TooltipTrigger>
 								<TooltipContent sideOffset={6}>{addDbcLabel}</TooltipContent>
 							</Tooltip>
-						</div>
+						</PanelHeader>
 
 						<div className="flex items-center gap-2">
 							<form className="min-w-0 flex-1" onSubmit={(event) => event.preventDefault()}>

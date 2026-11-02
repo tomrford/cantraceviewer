@@ -12,6 +12,7 @@ import {
 	type LucideIcon
 } from 'lucide-react';
 import { useStore } from 'zustand';
+import { panelShadow, PanelHeader } from '#lib/components/panel-chrome.js';
 import { ShortcutKey } from '#lib/components/shortcut-key.js';
 import { Button, buttonVariants } from '#lib/components/ui/button.js';
 import {
@@ -108,9 +109,9 @@ export function SettingsDialog() {
 				// The panel rather than its first button, whose tooltip would open on focus.
 				initialFocus={panel}
 				className="relative grid w-[min(22rem,calc(100vw-1rem))] translate-x-2 -translate-y-2 gap-4 rounded-lg border border-border/70 bg-popover/90 p-4 pt-14 text-popover-foreground backdrop-blur-md"
-				style={{ boxShadow: '0 1px 2px rgb(0 0 0 / 0.08)' }}
+				style={panelShadow}
 			>
-				<div className="absolute top-[6.5px] right-[7px] left-[7px] grid h-8 grid-cols-[1fr_auto_1fr] items-center">
+				<PanelHeader>
 					<div className="flex items-center gap-1">
 						<Tooltip>
 							<TooltipTrigger
@@ -155,7 +156,7 @@ export function SettingsDialog() {
 					>
 						<X className="size-4" />
 					</PopoverPrimitive.Close>
-				</div>
+				</PanelHeader>
 
 				<div className="grid gap-2">
 					<div className="text-xs font-medium text-muted-foreground">Theme</div>
