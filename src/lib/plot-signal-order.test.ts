@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
+
 import { orderPlotSignals, type LegendOrderMode } from './plot-signal-order.js';
-import type { PlotSignal } from './stores/plot-data.svelte.js';
+import type { PlotSignal } from './stores/derive.js';
 
 describe('orderPlotSignals', () => {
 	it('preserves selection order by default', () => {

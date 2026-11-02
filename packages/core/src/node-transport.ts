@@ -1,12 +1,13 @@
 import { isMarkedAsUntransferable } from 'node:worker_threads';
+
+import type { ParsingLimits } from './limits.ts';
+import type { WorkerRequest, WorkerResponse } from './protocol.ts';
 import {
 	createRpcClient,
 	type CanTraceClient,
 	type RpcTransport,
 	type RpcTransportHandlers
 } from './rpc-client.ts';
-import type { WorkerRequest, WorkerResponse } from './protocol.ts';
-import type { ParsingLimits } from './limits.ts';
 
 export type NodeClientWorker = {
 	postMessage(message: WorkerRequest, transfer?: readonly ArrayBuffer[]): void;

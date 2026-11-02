@@ -13,6 +13,7 @@ Open one CAN log or MF4 file. Replacing it changes the active trace without pers
 ## How to get to it (user POV)
 
 - Empty-screen `Open trace` or toolbar `Load trace`.
+- Empty-screen `Open demo trace` loads the bundled `public/example.mf4` and selects its preset signals.
 - Cmd/Ctrl+O, palette `Open trace`, or drop a file onto the page.
 
 ## Driving it with Browser
@@ -20,6 +21,7 @@ Open one CAN log or MF4 file. Replacing it changes the active trace without pers
 Preconditions: doctor passed; record existing library/selection before replacement.
 
 - **Open:** use the skill's chooser recipe for the demo ASC. Require filename in toolbar and loading completion. Add demo DBC/select vehicle_speed to establish usable data, not merely a filename. Capture `describe_session` metadata when available.
+- **Bundled demo:** activate `Open demo trace`; require the `example` title, `Decoded powertrain.VehicleSpeed` and `Decoded powertrain.EngineSpeed` plotted on separate axes. This is a different fixture from `agentic-demo.asc`/`.dbc`; do not apply the ASC fixture's sample expectations to it. It does not prove the file-chooser path.
 - **Alternate paths:** start chooser wait before the empty-screen button, shortcut or palette command. Drop requires documented native/browser file-drag support; otherwise record not run. Chooser proof cannot stand in for drop.
 - **Replace:** load `wasm/tests/fixtures/mf4/decoded-channels.mf4`; inspect native catalogue, select a native signal and capture decode/render outcome. Restore demo ASC: obsolete native entries disappear, saved DBC remains.
 - **Embedded:** load `wasm/tests/fixtures/mf4/hybrid-embedded-dbc.mf4`; inspect temporary `MF4` DBC badge and its replacement/reload lifetime. Derive numerical expectations from fixture code before asserting values.

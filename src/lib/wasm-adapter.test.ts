@@ -1,5 +1,6 @@
 import { createCanTraceClient, type CanTraceClient } from 'cantraceviewer';
 import { describe, expect, it, vi } from 'vitest';
+
 import { openDbc } from './wasm.js';
 
 vi.mock('cantraceviewer', () => ({ createCanTraceClient: vi.fn() }));

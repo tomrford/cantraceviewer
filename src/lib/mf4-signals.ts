@@ -1,30 +1,24 @@
-import {
-	buildSelectorSearchIndexes,
-	type SelectorDbcFile,
-	type SelectorSearchIndex
-} from '#lib/stores/dbc-files.svelte.js';
+import { buildSelectorSearchIndexes, type SelectorSearchIndex } from '#lib/selector-list.js';
 import type { Mf4Signal, Mf4SignalGroup, OpenTraceResult } from '#lib/wasm.js';
 
 type Mf4Trace = OpenTraceResult & { id: number };
 
-export type Mf4SignalTarget = {
-	trace: Mf4Trace;
+type Mf4SignalTarget = {
 	group: Mf4SignalGroup;
 	signal: Mf4Signal;
 };
 
-export function mf4SignalIdentityKey(traceId: number, signalId: number): string {
+function mf4SignalIdentityKey(traceId: number, signalId: number): string {
 	return JSON.stringify(['mf4', traceId, signalId]);
 }
 
-export function mf4SelectorFiles(trace: Mf4Trace | null): SelectorDbcFile[] {
+export function mf4SelectorSearchIndexes(trace: Mf4Trace | null): SelectorSearchIndex[] {
 	if (!trace?.mf4Catalog || trace.mf4Catalog.groups.length === 0) return [];
 
-	return [
+	return buildSelectorSearchIndexes([
 		{
 			id: `mf4:${trace.id}:native`,
 			name: 'Decoded signals',
-			kind: 'mf4-native',
 			transient: true,
 			messages: trace.mf4Catalog.groups.map((group, groupIndex) => ({
 				key: JSON.stringify(['mf4', trace.id, 'group', groupIndex]),
@@ -37,11 +31,7 @@ export function mf4SelectorFiles(trace: Mf4Trace | null): SelectorDbcFile[] {
 				}))
 			}))
 		}
-	];
-}
-
-export function mf4SelectorSearchIndexes(trace: Mf4Trace | null): SelectorSearchIndex[] {
-	return buildSelectorSearchIndexes(mf4SelectorFiles(trace));
+	]);
 }
 
 export function buildMf4SignalTargetIndex(trace: Mf4Trace | null) {
@@ -50,7 +40,7 @@ export function buildMf4SignalTargetIndex(trace: Mf4Trace | null) {
 
 	for (const group of trace.mf4Catalog.groups) {
 		for (const signal of group.signals) {
-			index.set(mf4SignalIdentityKey(trace.id, signal.id), { trace, group, signal });
+			index.set(mf4SignalIdentityKey(trace.id, signal.id), { group, signal });
 		}
 	}
 	return index;

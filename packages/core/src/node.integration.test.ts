@@ -1,6 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import { createCanTraceClient, DEFAULT_PARSING_LIMITS, type CanTraceClient } from '../dist/node.js';
 
 const fixturesDir = resolve('wasm/tests/fixtures');

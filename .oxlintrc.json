@@ -1,0 +1,59 @@
+{
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"plugins": ["eslint", "typescript", "unicorn", "oxc", "react", "jsx-a11y"],
+	"categories": {
+		"correctness": "error"
+	},
+	"env": {
+		"browser": true,
+		"node": true,
+		"es2024": true
+	},
+	"settings": {
+		"react": {
+			"version": "19.3"
+		}
+	},
+	"rules": {
+		"react/rules-of-hooks": "error",
+		"react/exhaustive-deps": "error",
+		"react/purity": "error",
+		"react/refs": "error",
+		"react/immutability": "error",
+		"react/globals": "error",
+		"react/set-state-in-render": "error",
+		"react/set-state-in-effect": "error",
+		"react/static-components": "error",
+		"react/use-memo": "error",
+		"react/preserve-manual-memoization": "error",
+		"react/incompatible-library": "error",
+		"react/unsupported-syntax": "error",
+		"react/error-boundaries": "error",
+		"react/no-deriving-state-in-effects": "error",
+		"react/only-export-components": [
+			"warn",
+			{
+				"allowConstantExport": true
+			}
+		]
+	},
+	"ignorePatterns": [
+		"dist/",
+		"packages/core/dist/",
+		"packages/core/src/wasm-bindgen/",
+		"artifacts/",
+		"wasm/"
+	],
+	"overrides": [
+		{
+			"files": ["src/lib/components/ui/**"],
+			"rules": {
+				"jsx-a11y/label-has-associated-control": "off",
+				"jsx-a11y/prefer-tag-over-role": "off",
+				"jsx-a11y/click-events-have-key-events": "off",
+				"jsx-a11y/no-noninteractive-element-interactions": "off",
+				"react/only-export-components": "off"
+			}
+		}
+	]
+}

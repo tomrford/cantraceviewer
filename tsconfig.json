@@ -1,17 +1,15 @@
 {
-	"extends": "$app/tsconfig",
 	"compilerOptions": {
-		"rewriteRelativeImportExtensions": true,
-		"allowJs": true,
-		"checkJs": false,
-		"esModuleInterop": true,
-		"forceConsistentCasingInFileNames": true,
-		"resolveJsonModule": true,
-		"skipLibCheck": true,
-		"sourceMap": true,
-		"strict": true,
+		"target": "ES2022",
+		"lib": ["ES2024", "DOM", "DOM.Iterable"],
+		"module": "ESNext",
 		"moduleResolution": "bundler",
-		"plugins": [{ "name": "typescript-svelte-plugin" }]
+		"jsx": "react-jsx",
+		"types": ["vite/client", "node"],
+		"verbatimModuleSyntax": true,
+		"skipLibCheck": true,
+		"strict": true,
+		"noEmit": true
 	},
-	"include": ["src", "*"]
+	"include": ["src", "*.ts"]
 }

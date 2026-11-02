@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="text-scale" content="scale" />
+		<script>
+			(() => {
+				let theme = 'system';
+				try {
+					theme = JSON.parse(localStorage.getItem('cantraceviewer:theme') ?? '"system"');
+				} catch {}
+				document.documentElement.classList.toggle(
+					'dark',
+					theme === 'dark' ||
+						(theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
+				);
+			})();
+		</script>
+		<link rel="icon" href="/favicon.svg" />
+		<title>CAN Trace Viewer</title>
+		<meta
+			name="description"
+			content="Plot ASC, TRC, BLF, or MF4 vehicle data in your browser. Decode raw CAN with DBC files or plot native MF4 channels; files stay on your device."
+		/>
+		<meta name="theme-color" content="#09090b" />
+		<link rel="canonical" href="https://cantraceviewer.com/" />
+		<meta property="og:type" content="website" />
+		<meta property="og:site_name" content="CAN Trace Viewer" />
+		<meta
+			property="og:title"
+			content="CAN Trace Viewer — Plot and decode ASC, TRC, BLF, or MF4 logs"
+		/>
+		<meta
+			property="og:description"
+			content="Plot ASC, TRC, BLF, or MF4 vehicle data in your browser. Decode raw CAN with DBC files or plot native MF4 channels; files stay on your device."
+		/>
+		<meta property="og:url" content="https://cantraceviewer.com/" />
+		<meta property="og:image" content="https://cantraceviewer.com/og-image.png" />
+		<meta property="og:image:alt" content="CAN Trace Viewer plotting decoded CAN bus signals" />
+		<meta property="og:image:width" content="1200" />
+		<meta property="og:image:height" content="630" />
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta
+			name="twitter:title"
+			content="CAN Trace Viewer — Plot and decode ASC, TRC, BLF, or MF4 logs"
+		/>
+		<meta
+			name="twitter:description"
+			content="Plot ASC, TRC, BLF, or MF4 vehicle data in your browser. Decode raw CAN with DBC files or plot native MF4 channels; files stay on your device."
+		/>
+		<meta name="twitter:image" content="https://cantraceviewer.com/og-image.png" />
+		<meta name="twitter:image:alt" content="CAN Trace Viewer plotting decoded CAN bus signals" />
+		<script type="application/ld+json">
+			{
+				"@context": "https://schema.org",
+				"@graph": [
+					{
+						"@type": "WebSite",
+						"@id": "https://cantraceviewer.com/#website",
+						"url": "https://cantraceviewer.com/",
+						"name": "CAN Trace Viewer",
+						"description": "Plot ASC, TRC, BLF, or MF4 vehicle data in your browser. Decode raw CAN with DBC files or plot native MF4 channels; files stay on your device."
+					},
+					{
+						"@type": "WebApplication",
+						"@id": "https://cantraceviewer.com/#application",
+						"url": "https://cantraceviewer.com/",
+						"name": "CAN Trace Viewer",
+						"description": "Plot ASC, TRC, BLF, or MF4 vehicle data in your browser. Decode raw CAN with DBC files or plot native MF4 channels; files stay on your device.",
+						"applicationCategory": "UtilitiesApplication",
+						"operatingSystem": "Any operating system with a WebGPU-capable browser",
+						"browserRequirements": "WebGPU support and a viewport of at least 600 by 500 pixels",
+						"softwareRequirements": "WebGPU",
+						"isAccessibleForFree": true,
+						"offers": {
+							"@type": "Offer",
+							"price": 0
+						},
+						"codeRepository": "https://github.com/tomrford/cantraceviewer",
+						"license": "https://github.com/tomrford/cantraceviewer/blob/main/LICENSE.md",
+						"featureList": [
+							"Plot ASC, TRC, BLF, or MF4 data",
+							"Decode CAN signals with DBC files",
+							"Plot native decoded MF4 measurement channels",
+							"Process files locally in the browser"
+						]
+					}
+				]
+			}
+		</script>
+		<script type="module" src="/src/main.tsx"></script>
+	</head>
+	<body>
+		<div id="app" style="display: contents"><!--app-html--></div>
+	</body>
+</html>

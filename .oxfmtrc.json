@@ -4,17 +4,10 @@
 	"singleQuote": true,
 	"trailingComma": "none",
 	"printWidth": 100,
-	"svelte": true,
 	"sortTailwindcss": {
-		"stylesheet": "./src/routes/layout.css"
+		"stylesheet": "./src/app.css"
 	},
 	"sortPackageJson": false,
-	"ignorePatterns": [
-		"package-lock.json",
-		"pnpm-lock.yaml",
-		"yarn.lock",
-		"/static/",
-		"/wasm/",
-		"/packages/core/src/wasm-bindgen/"
-	]
+	"sortImports": true,
+	"ignorePatterns": ["pnpm-lock.yaml", "/public/", "/wasm/", "/packages/core/src/wasm-bindgen/"]
 }

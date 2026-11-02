@@ -1,3 +1,5 @@
+import type { PlotRatioPoint } from './plot-pointer.js';
+
 export type PlotViewport = {
 	xMin: number;
 	xMax: number;
@@ -27,11 +29,7 @@ const Y_PADDING = 0.05;
 const MIN_SPAN = 1e-9;
 const EQUAL_TOLERANCE = 1e-6;
 
-export function paddedRange(
-	min: number,
-	max: number,
-	paddingFraction: number
-): PlotAxisRange | null {
+function paddedRange(min: number, max: number, paddingFraction: number): PlotAxisRange | null {
 	if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
 	if (min === max) {
 		const padding = Math.max(1, Math.abs(min) * 0.05);
@@ -82,26 +80,17 @@ export function valueAtRatio(range: PlotAxisRange, ratio: number): number {
 	return range.max - ratio * (range.max - range.min);
 }
 
-function viewportCenterX(viewport: Pick<PlotViewport, 'xMin' | 'xMax'>): number {
-	return viewport.xMin + (viewport.xMax - viewport.xMin) / 2;
-}
-
 export function viewportCenter(viewport: PlotViewport): PlotPoint {
 	return {
-		x: viewportCenterX(viewport),
+		x: viewport.xMin + (viewport.xMax - viewport.xMin) / 2,
 		y: viewport.yMin + (viewport.yMax - viewport.yMin) / 2
 	};
 }
 
-export function dataPointAtRatio(
-	viewport: PlotViewport,
-	point: { xRatio: number; yRatio: number }
-): PlotPoint {
-	const xRatio = clamp(point.xRatio, 0, 1);
-	const yRatio = clamp(point.yRatio, 0, 1);
+export function dataPointAtRatio(viewport: PlotViewport, point: PlotRatioPoint): PlotPoint {
 	return {
-		x: viewport.xMin + xRatio * (viewport.xMax - viewport.xMin),
-		y: viewport.yMax - yRatio * (viewport.yMax - viewport.yMin)
+		x: viewport.xMin + point.xRatio * (viewport.xMax - viewport.xMin),
+		y: viewport.yMax - point.yRatio * (viewport.yMax - viewport.yMin)
 	};
 }
 
@@ -143,12 +132,10 @@ export function panViewport(
 export function zoomViewport(
 	viewport: PlotViewport,
 	factor: number,
-	anchor: { xRatio: number; yRatio: number },
+	{ xRatio, yRatio }: PlotRatioPoint,
 	axes: { x: boolean; y: boolean } = { x: true, y: true }
 ): PlotViewport {
 	if (!Number.isFinite(factor) || !(factor > 0)) return viewport;
-	const xRatio = clamp(anchor.xRatio, 0, 1);
-	const yRatio = clamp(anchor.yRatio, 0, 1);
 	const next = { ...viewport };
 
 	if (axes.x) {
@@ -170,13 +157,13 @@ export function zoomViewport(
 
 export function boxViewport(
 	viewport: PlotViewport,
-	start: { xRatio: number; yRatio: number },
-	end: { xRatio: number; yRatio: number }
+	start: PlotRatioPoint,
+	end: PlotRatioPoint
 ): PlotViewport | null {
-	const left = clamp(Math.min(start.xRatio, end.xRatio), 0, 1);
-	const right = clamp(Math.max(start.xRatio, end.xRatio), 0, 1);
-	const top = clamp(Math.min(start.yRatio, end.yRatio), 0, 1);
-	const bottom = clamp(Math.max(start.yRatio, end.yRatio), 0, 1);
+	const left = Math.min(start.xRatio, end.xRatio);
+	const right = Math.max(start.xRatio, end.xRatio);
+	const top = Math.min(start.yRatio, end.yRatio);
+	const bottom = Math.max(start.yRatio, end.yRatio);
 	if (right - left < 0.005 || bottom - top < 0.005) return null;
 
 	const xSpan = viewport.xMax - viewport.xMin;
@@ -192,8 +179,4 @@ export function boxViewport(
 function almostEqual(a: number, b: number): boolean {
 	const scale = Math.max(1, Math.abs(a), Math.abs(b));
 	return Math.abs(a - b) <= EQUAL_TOLERANCE * scale;
-}
-
-function clamp(value: number, min: number, max: number): number {
-	return Math.min(max, Math.max(min, value));
 }

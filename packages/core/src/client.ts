@@ -1,11 +1,11 @@
+import type { ParsingLimits } from './limits.ts';
+import type { WorkerRequest, WorkerResponse } from './protocol.ts';
 import {
 	createRpcClient,
 	type CanTraceClient,
 	type RpcTransport,
 	type RpcTransportHandlers
 } from './rpc-client.ts';
-import type { WorkerRequest, WorkerResponse } from './protocol.ts';
-import type { ParsingLimits } from './limits.ts';
 
 export type { CanTraceClient } from './rpc-client.ts';
 
