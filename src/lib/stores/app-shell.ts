@@ -11,7 +11,7 @@ import { assignToNewAxis } from './plot-axes.js';
 import { isSignalSelected, signalDecodeStatus, toggleSignal } from './plot-data.js';
 import { setPreference } from './preferences.js';
 import { onTraceOpened } from './session.js';
-import { appStore, update } from './store.js';
+import { appStore, update, type AppState } from './store.js';
 import { openTraceFile } from './trace-file.js';
 
 type WalkthroughStepId = WalkthroughStep['id'];
@@ -20,13 +20,45 @@ export function openHelp(): void {
 	update({ settingsOpen: false, helpOpen: true });
 }
 
+export function setHelpOpen(helpOpen: boolean): void {
+	update({ helpOpen });
+}
+
+export function setPaletteOpen(paletteOpen: boolean): void {
+	update({ paletteOpen });
+}
+
+export function setSettingsOpen(settingsOpen: boolean): void {
+	update({ settingsOpen });
+}
+
 export function setSignalSelectorOpen(open: boolean): void {
-	update({ signalSelectorOpen: open });
+	writeSelectorOpen(open);
+}
+
+export function openSignalSelector(): void {
+	writeSelectorOpen(true, { settingsOpen: false });
+}
+
+export function openPalette(): void {
+	writeSelectorOpen(false, { settingsOpen: false, paletteOpen: true });
+}
+
+export function openSettings(): void {
+	writeSelectorOpen(false, { settingsOpen: true });
+}
+
+type OverlayPatch = Partial<Pick<AppState, 'settingsOpen' | 'paletteOpen'>>;
+
+// The walkthrough follows the selector, so a step change carries the overlays in its own write.
+function writeSelectorOpen(signalSelectorOpen: boolean, overlays: OverlayPatch = {}): void {
 	const step = appStore.getState().walkthroughStepId;
-	if (open && step === 'library') {
-		void showWalkthroughStep('add-dbc');
-	} else if (!open && (step === 'add-dbc' || step === 'signals')) {
-		void showWalkthroughStep('library');
+	if (signalSelectorOpen && step === 'library') {
+		void showWalkthroughStep('add-dbc', overlays);
+	} else if (!signalSelectorOpen && (step === 'add-dbc' || step === 'signals')) {
+		void showWalkthroughStep('library', overlays);
+	} else {
+		update({ ...overlays, signalSelectorOpen });
 	}
 }
 
@@ -43,11 +75,15 @@ export function startWalkthrough(): void {
 }
 
 // The panel unmounts, the overlays settle for a frame, then the next step measures its target.
-async function showWalkthroughStep(stepId: WalkthroughStepId): Promise<void> {
+async function showWalkthroughStep(
+	stepId: WalkthroughStepId,
+	overlays: OverlayPatch = {}
+): Promise<void> {
 	update({
 		walkthroughStepId: null,
 		settingsOpen: false,
-		signalSelectorOpen: stepId === 'add-dbc' || stepId === 'signals'
+		signalSelectorOpen: stepId === 'add-dbc' || stepId === 'signals',
+		...overlays
 	});
 	await new Promise((resolve) => requestAnimationFrame(resolve));
 	update({ walkthroughStepId: stepId });

@@ -27,10 +27,10 @@ import {
 	SelectValue
 } from '#lib/components/ui/select.js';
 import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tooltip.js';
-import { openHelp } from '#lib/stores/app-shell.js';
+import { openHelp, setSettingsOpen } from '#lib/stores/app-shell.js';
 import { setPreference } from '#lib/stores/preferences.js';
 import { onResetPersistentData } from '#lib/stores/session.js';
-import { appStore, update, type ThemePreference, type TimestampMode } from '#lib/stores/store.js';
+import { appStore, type ThemePreference, type TimestampMode } from '#lib/stores/store.js';
 import type { LegendOrderMode } from '#lib/plot-signal-order.js';
 
 // lucide-react 1.x dropped brand icons; this is the lucide `github` glyph the app used before.
@@ -90,7 +90,7 @@ export function SettingsDialog({ triggerClassName }: { triggerClassName?: string
 		legendOrderOptions.find((option) => option.value === legendOrder) ?? legendOrderOptions[0];
 
 	return (
-		<Popover open={open} onOpenChange={(settingsOpen) => update({ settingsOpen })}>
+		<Popover open={open} onOpenChange={setSettingsOpen}>
 			<Tooltip>
 				<TooltipTrigger
 					render={<PopoverTrigger className={triggerClassName} aria-label="Open settings" />}
