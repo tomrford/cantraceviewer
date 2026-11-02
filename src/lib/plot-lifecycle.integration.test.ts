@@ -74,7 +74,9 @@ function expectViewport(xMin: number, xMax: number, yMin: number, yMax: number) 
 it('keeps proportional zoom and selection ownership through axis and signal changes', async () => {
 	const [first, second] = await load();
 	await toggleSignal(first);
+	const firstView = appStore.getState().plotModel.views[0];
 	await toggleSignal(second);
+	expect(appStore.getState().plotModel.views[0]).toBe(firstView);
 	const firstColor = appStore.getState().signals[0].color;
 	const secondColor = appStore.getState().signals[1].color;
 	expect(firstColor).not.toBe(secondColor);

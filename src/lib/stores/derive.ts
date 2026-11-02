@@ -9,7 +9,7 @@ import {
 	type YAxisGroup,
 	type YAxisId
 } from '#lib/plot-axes.js';
-import { createSignalColorAssigner } from '#lib/plot-colors.js';
+import { signalColor } from '#lib/plot-colors.js';
 import {
 	crosshairById,
 	type LegendCrosshairMode,
@@ -26,8 +26,8 @@ import { buildMf4SignalTargetIndex, mf4SelectorSearchIndexes } from '#lib/mf4-si
 import { buildSelectorSearchIndexes, type SelectorDbcFile } from '#lib/selector-list.js';
 import {
 	axisSplitDomain,
-	createSignalViewCache,
 	EMPTY_AXIS_RANGE,
+	signalViews,
 	signalYRange,
 	type SignalView
 } from '#lib/signal-plot-data.js';
@@ -68,6 +68,8 @@ export type DbcSignalTarget = {
 };
 
 export type SelectedSignalState = {
+	/** Held for as long as the signal stays selected, so deselecting releases it. */
+	colorIndex: number;
 	isDecoding: boolean;
 	series: DecodedSignalSeries | null;
 	error: string | null;
@@ -242,9 +244,6 @@ function sourceBadges(source: RawSource | undefined, sources: (RawSource | undef
 
 const NO_VALUE_DESCRIPTIONS: DbcValueDescription[] = [];
 
-/** Colours stay with a signal key while it is selected; selection actions release them. */
-export const signalColors = createSignalColorAssigner();
-
 function isPlottableSignal(signal: PlotSignal): boolean {
 	return Boolean(signal.series && signal.series.timesMs.length > 0);
 }
@@ -261,7 +260,7 @@ export function signalsState(
 		if (dbc) {
 			signals.push({
 				key,
-				color: signalColors.colorFor(key),
+				color: signalColor(state.colorIndex),
 				label: `${dbc.message.name}.${dbc.signal.name}${sourceLabel(dbc.source)}`,
 				messageName: dbc.message.name,
 				sourceBadges: dbc.sourceBadges,
@@ -282,7 +281,7 @@ export function signalsState(
 		if (!mf4) continue;
 		signals.push({
 			key,
-			color: signalColors.colorFor(key),
+			color: signalColor(state.colorIndex),
 			label: `${mf4.group.name}.${mf4.signal.name}`,
 			messageName: mf4.group.name,
 			signalName: mf4.signal.name,
@@ -301,8 +300,6 @@ export function signalsState(
 	return { signals: ordered, hasPlottableSignals: ordered.some(isPlottableSignal) };
 }
 
-const viewsForSignals = createSignalViewCache();
-
 export function modelState(
 	signals: PlotSignal[],
 	axisIds: readonly YAxisId[],
@@ -310,7 +307,7 @@ export function modelState(
 	trace: TraceFileEntry | null,
 	previous: PlotModelState | null
 ): PlotModelState {
-	const views = viewsForSignals(signals.filter(isPlottableSignal));
+	const views = signalViews(signals.filter(isPlottableSignal), previous?.views ?? []);
 	const groups = groupSignalsByYAxis(views, axisIds, axisAssignment);
 	const axes = groups.map((group) => {
 		const unit = yAxisUnit(group.signals);
