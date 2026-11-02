@@ -7,6 +7,7 @@ import {
 	WALKTHROUGH_VERSION,
 	type WalkthroughStep
 } from '../walkthrough.js';
+import type { TraceFileEntry } from './derive.js';
 import { assignToNewAxis } from './plot-axes.js';
 import { isSignalSelected, signalDecodeStatus, toggleSignal } from './plot-data.js';
 import { setPreference } from './preferences.js';
@@ -106,53 +107,66 @@ const DEMO_PRESET = [
 	{ group: 'Decoded powertrain', signal: 'EngineSpeed', unit: 'rpm', axis: 'new' }
 ] as const;
 
-export function openDemoTrace(): Promise<void> {
-	return openTrace(fetchDemoTrace, DEMO_PRESET);
+export async function openTrace(file: File | null): Promise<void> {
+	if (!file) return;
+	await withTraceLock(() => loadTrace(file));
 }
 
-export async function openTrace(
-	source: File | null | (() => Promise<File>),
-	preset?: typeof DEMO_PRESET
-): Promise<void> {
-	if (!source || appStore.getState().openingTrace) return;
+export function openDemoTrace(): Promise<void> {
+	return withTraceLock(async () => {
+		const opened = await loadTrace(await fetchDemoTrace());
+		if (opened) await plotDemoSignals(opened);
+	});
+}
+
+// One open at a time; `openingTrace` holds through the post-parse work as well as the parse.
+async function withTraceLock(open: () => Promise<unknown>): Promise<void> {
+	if (appStore.getState().openingTrace) return;
 	update({ openingTrace: true });
 	// ChartGPU is the one lazy chunk: fetch it as a trace opens rather than once the plot mounts.
 	void import('chartgpu').catch(() => undefined);
 	try {
-		const file = typeof source === 'function' ? await source() : source;
-		if (!(await openTraceFile(file))) return;
-		const { trace: opened, traceWarning } = appStore.getState();
-		const stillOpen = () => appStore.getState().trace === opened;
-		if (traceWarning) toast.warning(traceWarning);
-		await onTraceOpened();
-		if (!stillOpen()) return;
-		if (appStore.getState().walkthroughStepId === 'trace') await showWalkthroughStep('library');
-		if (!preset || !stillOpen()) return;
-
-		const targets = [...appStore.getState().mf4SignalTargetByKey];
-		const signals = preset.map((item) => {
-			const matches = targets.filter(
-				([, target]) =>
-					target.group.name === item.group &&
-					target.signal.name === item.signal &&
-					target.signal.unit === item.unit
-			);
-			if (matches.length !== 1) throw new Error(`Demo signal ${item.signal} is unavailable.`);
-			return { key: matches[0][0], axis: item.axis };
-		});
-		for (const { key, axis } of signals) {
-			if (!stillOpen()) return;
-			if (!isSignalSelected(key)) await toggleSignal(key);
-			if (!stillOpen()) return;
-			if (!isSignalSelected(key)) continue;
-			const { decodeError } = signalDecodeStatus(key);
-			if (decodeError) throw new Error(decodeError);
-			if (axis === 'new') assignToNewAxis(key);
-		}
+		await open();
 	} catch (error) {
 		toast.error(error instanceof Error ? error.message : 'Could not open the trace.');
 	} finally {
 		update({ openingTrace: false });
+	}
+}
+
+/** Resolves to the opened trace, or null if it failed or has since been replaced. */
+async function loadTrace(file: File): Promise<TraceFileEntry | null> {
+	if (!(await openTraceFile(file))) return null;
+	const { trace: opened, traceWarning } = appStore.getState();
+	const stillOpen = () => appStore.getState().trace === opened;
+	if (traceWarning) toast.warning(traceWarning);
+	await onTraceOpened();
+	if (!stillOpen()) return null;
+	if (appStore.getState().walkthroughStepId === 'trace') await showWalkthroughStep('library');
+	return stillOpen() ? opened : null;
+}
+
+async function plotDemoSignals(opened: TraceFileEntry): Promise<void> {
+	const stillOpen = () => appStore.getState().trace === opened;
+	const targets = [...appStore.getState().mf4SignalTargetByKey];
+	const signals = DEMO_PRESET.map((item) => {
+		const matches = targets.filter(
+			([, target]) =>
+				target.group.name === item.group &&
+				target.signal.name === item.signal &&
+				target.signal.unit === item.unit
+		);
+		if (matches.length !== 1) throw new Error(`Demo signal ${item.signal} is unavailable.`);
+		return { key: matches[0][0], axis: item.axis };
+	});
+	for (const { key, axis } of signals) {
+		if (!stillOpen()) return;
+		if (!isSignalSelected(key)) await toggleSignal(key);
+		if (!stillOpen()) return;
+		if (!isSignalSelected(key)) continue;
+		const { decodeError } = signalDecodeStatus(key);
+		if (decodeError) throw new Error(decodeError);
+		if (axis === 'new') assignToNewAxis(key);
 	}
 }
 
