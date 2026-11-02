@@ -1,10 +1,15 @@
-import { useState, type DragEvent } from 'react';
+import { useState, type DragEvent, type KeyboardEvent } from 'react';
 import { useStore } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import { GripVertical, Plus, Trash2 } from 'lucide-react';
 import { SourceBadge } from '#lib/components/source-badge.js';
 import { Button, buttonVariants } from '#lib/components/ui/button.js';
-import { Menu, MenuContent, MenuItem, MenuTrigger } from '#lib/components/ui/menu.js';
+import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuItem,
+	ContextMenuTrigger
+} from '#lib/components/ui/context-menu.js';
 import {
 	Select,
 	SelectContent,
@@ -50,6 +55,7 @@ export function SignalPlotLegend() {
 	const hasC1 = useStore(appStore, (state) => crosshairById(state.crosshairs, 1) !== null);
 	const hasC2 = useStore(appStore, (state) => crosshairById(state.crosshairs, 2) !== null);
 	const mode = useStore(appStore, (state) => state.legendCrosshairMode);
+	const [moveSignalKey, setMoveSignalKey] = useState<string | null>(null);
 
 	const options: { value: LegendCrosshairMode; label: string }[] = [];
 	if (hasC1) options.push({ value: 'c1', label: 'Value at C1' });
@@ -87,46 +93,48 @@ export function SignalPlotLegend() {
 			)}
 
 			{/* Keep the menu mounted while a move reparents its trigger into another axis. */}
-			<Menu<string>>
-				{({ payload }) => (
-					<>
-						<div className={multiAxis ? 'space-y-1' : 'space-y-2'}>
-							{axes.map((axis) => (
-								<LegendAxisGroup key={axis.id} axis={axis} showHeader={multiAxis} />
-							))}
-						</div>
-						{payload !== undefined && (
-							<MenuContent
-								align="start"
-								className="w-48"
-								// Moving axes remounts the row; let the menu restore focus to its new trigger.
-								finalFocus={() => document.getElementById(moveTriggerId(payload))}
+			<ContextMenu>
+				<div className={multiAxis ? 'space-y-1' : 'space-y-2'}>
+					{axes.map((axis) => (
+						<LegendAxisGroup
+							key={axis.id}
+							axis={axis}
+							showHeader={multiAxis}
+							onMoveMenu={setMoveSignalKey}
+						/>
+					))}
+				</div>
+				{moveSignalKey !== null && (
+					<ContextMenuContent
+						align="start"
+						className="w-48"
+						aria-label="Move signal to another Y axis"
+						// Moving axes remounts the row; let the menu restore focus to its new trigger.
+						finalFocus={() => document.getElementById(moveTriggerId(moveSignalKey))}
+					>
+						<div className="px-2 py-1 text-xs font-medium text-muted-foreground">Move to</div>
+						{axes.map((target) => (
+							<ContextMenuItem
+								key={target.id}
+								className="h-6 font-normal [&_svg]:size-3"
+								disabled={target.signals.some((signal) => signal.key === moveSignalKey)}
+								onClick={() => assignAxis(moveSignalKey, target.id)}
 							>
-								<div className="px-2 py-1 text-xs font-medium text-muted-foreground">Move to</div>
-								{axes.map((target) => (
-									<MenuItem
-										key={target.id}
-										className="h-6 font-normal [&_svg]:size-3"
-										disabled={target.signals.some((signal) => signal.key === payload)}
-										onClick={() => assignAxis(payload, target.id)}
-									>
-										{target.label}
-									</MenuItem>
-								))}
-								{addable && (
-									<MenuItem
-										className="h-6 font-normal [&_svg]:size-3"
-										onClick={() => assignToNewAxis(payload)}
-									>
-										<Plus />
-										New Y axis
-									</MenuItem>
-								)}
-							</MenuContent>
+								{target.label}
+							</ContextMenuItem>
+						))}
+						{addable && (
+							<ContextMenuItem
+								className="h-6 font-normal [&_svg]:size-3"
+								onClick={() => assignToNewAxis(moveSignalKey)}
+							>
+								<Plus />
+								New Y axis
+							</ContextMenuItem>
 						)}
-					</>
+					</ContextMenuContent>
 				)}
-			</Menu>
+			</ContextMenu>
 
 			{addable && (
 				<button
@@ -174,7 +182,15 @@ function LegendReadout({ multiAxis }: { multiAxis: boolean }) {
 	);
 }
 
-function LegendAxisGroup({ axis, showHeader }: { axis: PlotAxisView; showHeader: boolean }) {
+function LegendAxisGroup({
+	axis,
+	showHeader,
+	onMoveMenu
+}: {
+	axis: PlotAxisView;
+	showHeader: boolean;
+	onMoveMenu: (key: string) => void;
+}) {
 	const cursorText = useStore(appStore, (state) =>
 		showHeader ? axisCursorText(state, axis.id) : null
 	);
@@ -238,7 +254,7 @@ function LegendAxisGroup({ axis, showHeader }: { axis: PlotAxisView; showHeader:
 			) : (
 				<ul className="space-y-2">
 					{axis.signals.map((view) => (
-						<LegendSignalRow key={view.key} view={view} />
+						<LegendSignalRow key={view.key} view={view} onMoveMenu={onMoveMenu} />
 					))}
 				</ul>
 			)}
@@ -246,7 +262,13 @@ function LegendAxisGroup({ axis, showHeader }: { axis: PlotAxisView; showHeader:
 	);
 }
 
-function LegendSignalRow({ view }: { view: SignalView }) {
+function LegendSignalRow({
+	view,
+	onMoveMenu
+}: {
+	view: SignalView;
+	onMoveMenu: (key: string) => void;
+}) {
 	// Neither field changes during a crosshair drag, so only `value` follows the drag.
 	const axes = useStore(appStore, (state) => state.plotModel.axes);
 	const value = useStore(
@@ -261,9 +283,29 @@ function LegendSignalRow({ view }: { view: SignalView }) {
 		event.dataTransfer.effectAllowed = 'move';
 	}
 
+	function openMoveMenuFromKey(event: KeyboardEvent<HTMLElement>) {
+		if (
+			event.key !== 'Enter' &&
+			event.key !== ' ' &&
+			event.key !== 'ContextMenu' &&
+			!(event.shiftKey && event.key === 'F10')
+		)
+			return;
+		event.preventDefault();
+		// Base UI's context trigger handles pointer events only. Use the same path for keyboard
+		// activation, anchored to the grip instead of the last mouse position.
+		const rect = event.currentTarget.getBoundingClientRect();
+		event.currentTarget.dispatchEvent(
+			new MouseEvent('contextmenu', {
+				bubbles: true,
+				cancelable: true,
+				clientX: rect.left,
+				clientY: rect.bottom
+			})
+		);
+	}
+
 	return (
-		// Rows drag onto other axis groups; the move menu is the keyboard path.
-		// oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
 		<li
 			className={cn(
 				'grid min-w-0 items-center gap-2 rounded-sm text-xs',
@@ -275,21 +317,25 @@ function LegendSignalRow({ view }: { view: SignalView }) {
 						? 'grid-cols-[0.75rem_minmax(0,1fr)_auto]'
 						: 'grid-cols-[0.75rem_minmax(0,1fr)]'
 			)}
-			draggable={movable}
-			onDragStart={startDrag}
 		>
 			{movable && (
-				<MenuTrigger
+				<ContextMenuTrigger
+					render={<button type="button" aria-label={`Move ${view.label} to another Y axis`} />}
 					id={moveTriggerId(view.key)}
-					payload={view.key}
+					draggable
+					onDragStart={startDrag}
+					onContextMenu={() => onMoveMenu(view.key)}
+					onTouchStart={() => onMoveMenu(view.key)}
+					onKeyDown={openMoveMenuFromKey}
+					aria-haspopup="menu"
+					title="Drag to another Y axis; right-click or press Enter for move options"
 					className={cn(
 						buttonVariants({ variant: 'ghost', size: 'icon' }),
 						'size-5 cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing'
 					)}
-					aria-label={`Move ${view.label} to another Y axis`}
 				>
 					<GripVertical className="size-3.5" />
-				</MenuTrigger>
+				</ContextMenuTrigger>
 			)}
 
 			<span className="size-2 rounded-full" style={{ backgroundColor: view.color }} />
