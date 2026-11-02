@@ -167,7 +167,7 @@ function DbcRow({
 				)}
 			</button>
 			{/* Hidden with opacity so keyboard users can still tab to them; always shown on touch. */}
-			<div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-focus-within/row:opacity-100 group-hover/row:opacity-100 pointer-coarse:opacity-100">
+			<div className="flex shrink-0 items-center gap-0.5 pr-0.5 opacity-0 transition-opacity group-focus-within/row:opacity-100 group-hover/row:opacity-100 pointer-coarse:opacity-100">
 				{file && <DbcInformation file={file} />}
 				{!dbc.transient && (
 					<Button
