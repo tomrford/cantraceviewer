@@ -65,7 +65,9 @@ function openDatabase(): Promise<IDBPDatabase<CanTraceViewerDatabase>> {
 			database.createObjectStore(DBC_STORE_NAME, { keyPath: 'id' });
 		},
 		blocking() {
-			void databasePromise?.then((database) => database.close());
+			const closing = databasePromise;
+			databasePromise = null;
+			void closing?.then((database) => database.close());
 		},
 		terminated() {
 			databasePromise = null;
