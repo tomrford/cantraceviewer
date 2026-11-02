@@ -3,7 +3,7 @@ import type { Mf4Signal, Mf4SignalGroup, OpenTraceResult } from '#lib/wasm.js';
 
 type Mf4Trace = OpenTraceResult & { id: number };
 
-export type Mf4SignalTarget = {
+type Mf4SignalTarget = {
 	group: Mf4SignalGroup;
 	signal: Mf4Signal;
 };
