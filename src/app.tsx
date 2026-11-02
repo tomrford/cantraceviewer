@@ -2,19 +2,11 @@ import { AudioWaveform, CircleQuestionMark, Database, LoaderCircle } from 'lucid
 import { useEffect, useRef, type ChangeEvent, type ComponentProps } from 'react';
 import { useStore } from 'zustand';
 import { DropOverlay } from '#lib/components/drop-overlay.js';
+import { ErrorDialog } from '#lib/components/error-dialog.js';
 import { PlotToolbar } from '#lib/components/plot-toolbar.js';
 import { SettingsDialog } from '#lib/components/settings-dialog.js';
 import { ShortcutKey } from '#lib/components/shortcut-key.js';
 import { SignalSelectorDialog } from '#lib/components/signal-selector-dialog.js';
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle
-} from '#lib/components/ui/alert-dialog.js';
 import { Button } from '#lib/components/ui/button.js';
 import { DialogTrigger } from '#lib/components/ui/dialog.js';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader } from '#lib/components/ui/empty.js';
@@ -182,24 +174,7 @@ function AppShell() {
 				/>
 			)}
 
-			<AlertDialog
-				open={traceError !== null}
-				onOpenChange={(open) => {
-					if (!open) clearTraceError();
-				}}
-			>
-				{traceError && (
-					<AlertDialogContent>
-						<AlertDialogHeader>
-							<AlertDialogTitle>Trace failed to open</AlertDialogTitle>
-							<AlertDialogDescription>{traceError}</AlertDialogDescription>
-						</AlertDialogHeader>
-						<AlertDialogFooter>
-							<AlertDialogAction onClick={clearTraceError}>OK</AlertDialogAction>
-						</AlertDialogFooter>
-					</AlertDialogContent>
-				)}
-			</AlertDialog>
+			<ErrorDialog title="Trace failed to open" message={traceError} onDismiss={clearTraceError} />
 
 			<Walkthrough />
 

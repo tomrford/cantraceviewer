@@ -3,16 +3,8 @@ import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { useStore } from 'zustand';
 import { Check, ListFilter, Plus, Search, X } from 'lucide-react';
 import { Button } from '#lib/components/ui/button.js';
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle
-} from '#lib/components/ui/alert-dialog.js';
 import { DropOverlay } from '#lib/components/drop-overlay.js';
+import { ErrorDialog } from '#lib/components/error-dialog.js';
 import { SelectorTree } from '#lib/components/selector-tree.js';
 import { Dialog, DialogClose, DialogPortal, DialogTitle } from '#lib/components/ui/dialog.js';
 import { Input } from '#lib/components/ui/input.js';
@@ -265,24 +257,7 @@ export function SignalSelectorDialog({
 				</DialogPortal>
 			</Dialog>
 
-			<AlertDialog
-				open={dbcError !== null}
-				onOpenChange={(isOpen) => {
-					if (!isOpen) clearDbcError();
-				}}
-			>
-				{dbcError !== null && (
-					<AlertDialogContent>
-						<AlertDialogHeader>
-							<AlertDialogTitle>DBC failed to open</AlertDialogTitle>
-							<AlertDialogDescription>{dbcError}</AlertDialogDescription>
-						</AlertDialogHeader>
-						<AlertDialogFooter>
-							<AlertDialogAction onClick={clearDbcError}>OK</AlertDialogAction>
-						</AlertDialogFooter>
-					</AlertDialogContent>
-				)}
-			</AlertDialog>
+			<ErrorDialog title="DBC failed to open" message={dbcError} onDismiss={clearDbcError} />
 		</>
 	);
 }
