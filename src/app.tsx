@@ -41,14 +41,7 @@ import {
 	hasDraggedFiles,
 	traceFileFromDrop
 } from '#lib/file-drop.js';
-import {
-	handleDbcAdded,
-	handleSignalToggle,
-	openDemoTrace,
-	openTrace,
-	setSignalSelectorOpen,
-	startWalkthrough
-} from '#lib/stores/app-shell.js';
+import { openDemoTrace, openTrace, startWalkthrough } from '#lib/stores/app-shell.js';
 import { isDark } from '#lib/stores/preferences.js';
 import { clearTraceError } from '#lib/stores/trace-file.js';
 import { TRACE_FILE_ACCEPT, TRACE_FILE_FORMAT_NAMES } from '#lib/trace-file-types.js';
@@ -114,18 +107,17 @@ export function App() {
 function AppShell() {
 	const traceInput = useRef<HTMLInputElement>(null);
 	const signalSearchInput = useRef<HTMLInputElement>(null);
-	const traceBusy = useStore(appStore, (s) => s.openingTrace);
+	const openingTrace = useStore(appStore, (s) => s.openingTrace);
 	const hasTrace = useStore(appStore, (s) => s.trace !== null);
 	const [dropActive, setDropActive] = useState(false);
 	const traceError = useStore(appStore, (s) => s.traceError);
-	const signalSelectorOpen = useStore(appStore, (s) => s.signalSelectorOpen);
 	const hasPlottable = useStore(appStore, (s) => s.hasPlottableSignals);
 	const isFitAll = useStore(appStore, (s) => s.isFitAll);
 	const canPlaceCrosshair = useStore(appStore, (s) => s.activeViewport !== null);
 	const hasCrosshairs = useStore(appStore, (s) => s.crosshairs.length > 0);
 	const shortcutState = {
-		traceLoading: traceBusy,
-		plotControlsDisabled: !hasPlottable || traceBusy,
+		openingTrace,
+		plotControlsDisabled: !hasPlottable || openingTrace,
 		canResetZoom: hasPlottable && !isFitAll,
 		canPlaceCrosshair,
 		hasCrosshairs
@@ -143,7 +135,7 @@ function AppShell() {
 	function handleTraceDrag(event: DragEvent) {
 		if (!hasDraggedFiles(event)) return;
 		event.preventDefault();
-		if (!traceBusy) setDropActive(true);
+		if (!openingTrace) setDropActive(true);
 	}
 
 	function handleTraceDragLeave(event: DragEvent) {
@@ -167,16 +159,10 @@ function AppShell() {
 		<div className="flex min-h-screen flex-col bg-background too-small:hidden">
 			<header
 				className="relative flex h-16 shrink-0 items-center justify-between gap-2 border-b px-4"
-				aria-busy={traceBusy}
+				aria-busy={openingTrace}
 			>
 				<div className="flex items-center">
-					<SignalSelectorDialog
-						open={signalSelectorOpen}
-						onOpenChange={setSignalSelectorOpen}
-						searchInputRef={signalSearchInput}
-						onDbcAdded={handleDbcAdded}
-						onSignalToggle={handleSignalToggle}
-					>
+					<SignalSelectorDialog searchInputRef={signalSearchInput}>
 						<Tooltip>
 							<TooltipTrigger
 								render={
@@ -198,7 +184,7 @@ function AppShell() {
 				</div>
 
 				<div className="pointer-events-none flex min-w-0 flex-1 items-center justify-center lg:absolute lg:inset-0 lg:px-20">
-					<TraceButton traceBusy={traceBusy} onOpenTrace={chooseTraceFile} />
+					<TraceButton openingTrace={openingTrace} onOpenTrace={chooseTraceFile} />
 				</div>
 
 				<input
@@ -206,7 +192,7 @@ function AppShell() {
 					className="hidden"
 					type="file"
 					accept={TRACE_FILE_ACCEPT}
-					disabled={traceBusy}
+					disabled={openingTrace}
 					onChange={selectTrace}
 				/>
 
@@ -222,7 +208,7 @@ function AppShell() {
 				<SignalPlot dropActive={dropActive} {...traceDragHandlers} />
 			) : (
 				<Landing
-					traceBusy={traceBusy}
+					openingTrace={openingTrace}
 					dropActive={dropActive}
 					onOpenTrace={chooseTraceFile}
 					{...traceDragHandlers}
@@ -256,7 +242,13 @@ function AppShell() {
 	);
 }
 
-function TraceButton({ traceBusy, onOpenTrace }: { traceBusy: boolean; onOpenTrace: () => void }) {
+function TraceButton({
+	openingTrace,
+	onOpenTrace
+}: {
+	openingTrace: boolean;
+	onOpenTrace: () => void;
+}) {
 	const displayName = useStore(appStore, (s) => s.traceName);
 	const entry = useStore(appStore, (s) => s.trace);
 	const metadata = entry ? formatTraceMetadata(entry) : null;
@@ -269,22 +261,22 @@ function TraceButton({ traceBusy, onOpenTrace }: { traceBusy: boolean; onOpenTra
 						type="button"
 						className={`${titleButtonClass} pointer-events-auto w-full lg:w-auto`}
 						data-walkthrough-target="trace"
-						disabled={traceBusy}
-						aria-label={traceBusy ? 'Loading trace' : 'Load trace'}
+						disabled={openingTrace}
+						aria-label={openingTrace ? 'Loading trace' : 'Load trace'}
 						onClick={onOpenTrace}
 					/>
 				}
 			>
 				<AudioWaveform className="size-4 shrink-0 text-sidebar-primary" />
 				<span className="min-w-0 truncate text-sm font-medium">{displayName}</span>
-				{traceBusy && (
+				{openingTrace && (
 					<LoaderCircle className="size-4 shrink-0 animate-spin text-muted-foreground" />
 				)}
 			</TooltipTrigger>
 			<TooltipContent sideOffset={6} className="flex-col items-stretch gap-1 pr-3">
 				<span className="flex items-center gap-3">
-					{traceBusy ? 'Loading trace' : 'Open trace'}
-					{!traceBusy && <ShortcutKey action="openTrace" className="ml-auto" />}
+					{openingTrace ? 'Loading trace' : 'Open trace'}
+					{!openingTrace && <ShortcutKey action="openTrace" className="ml-auto" />}
 				</span>
 				{metadata && <span className="whitespace-pre-line text-muted-foreground">{metadata}</span>}
 			</TooltipContent>
@@ -293,12 +285,12 @@ function TraceButton({ traceBusy, onOpenTrace }: { traceBusy: boolean; onOpenTra
 }
 
 function Landing({
-	traceBusy,
+	openingTrace,
 	dropActive,
 	onOpenTrace,
 	...props
 }: ComponentProps<'section'> & {
-	traceBusy: boolean;
+	openingTrace: boolean;
 	dropActive: boolean;
 	onOpenTrace: () => void;
 }) {
@@ -314,7 +306,7 @@ function Landing({
 		<section
 			className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-background p-6"
 			aria-label="Trace loading"
-			aria-busy={traceBusy}
+			aria-busy={openingTrace}
 			{...props}
 		>
 			{dropActive && (
@@ -328,8 +320,8 @@ function Landing({
 					<EmptyDescription>{LANDING_DESCRIPTION}</EmptyDescription>
 				</EmptyHeader>
 				<EmptyContent className="max-w-none flex-row flex-wrap justify-center">
-					<Button size="lg" disabled={traceBusy} onClick={onOpenTrace}>
-						{traceBusy ? (
+					<Button size="lg" disabled={openingTrace} onClick={onOpenTrace}>
+						{openingTrace ? (
 							<>
 								<LoaderCircle data-icon="inline-start" className="size-4 animate-spin" />
 								Loading trace...
@@ -344,7 +336,7 @@ function Landing({
 					<Button
 						variant="outline"
 						size="lg"
-						disabled={traceBusy}
+						disabled={openingTrace}
 						onClick={() => void openDemoTrace()}
 					>
 						Open demo trace

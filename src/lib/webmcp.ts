@@ -119,7 +119,7 @@ export const storeHost = {
 			trace,
 			traceName: displayName,
 			traceWarning: warning,
-			traceLoading: isLoading,
+			openingTrace: isLoading,
 			dbcFiles: files,
 			hasLoadedLibrary,
 			dbcLoading,

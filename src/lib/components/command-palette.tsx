@@ -17,7 +17,8 @@ import {
 	type ShortcutAction,
 	type ShortcutState
 } from '#lib/keyboard-shortcuts.js';
-import { appStore, update } from '#lib/stores/store.js';
+import { setPaletteOpen } from '#lib/stores/app-shell.js';
+import { appStore } from '#lib/stores/store.js';
 
 const groups = groupedShortcuts().map(({ group, actions }) => ({
 	group,
@@ -34,12 +35,12 @@ export function CommandPalette({
 	const open = useStore(appStore, (s) => s.paletteOpen);
 
 	function run(action: ShortcutAction): void {
-		update({ paletteOpen: false });
+		setPaletteOpen(false);
 		onRun(action);
 	}
 
 	return (
-		<CommandDialog open={open} onOpenChange={(paletteOpen) => update({ paletteOpen })}>
+		<CommandDialog open={open} onOpenChange={setPaletteOpen}>
 			<Command>
 				<CommandInput placeholder="Search for a command..." />
 				<CommandList>

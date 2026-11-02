@@ -30,7 +30,7 @@ type ShortcutEvent = Pick<
 >;
 
 export type ShortcutState = {
-	traceLoading: boolean;
+	openingTrace: boolean;
 	plotControlsDisabled: boolean;
 	canResetZoom: boolean;
 	canPlaceCrosshair: boolean;
@@ -132,7 +132,7 @@ export function shortcutSuppressedBySurface(target: ShortcutTarget | null): bool
 export function shortcutEnabled(action: ShortcutAction, state: ShortcutState): boolean {
 	switch (action) {
 		case 'openTrace':
-			return !state.traceLoading;
+			return !state.openingTrace;
 		case 'zoomIn':
 		case 'zoomOut':
 		case 'toggleBoxZoom':

@@ -29,6 +29,11 @@ import {
 	filesFromDrop,
 	hasDraggedFiles
 } from '#lib/file-drop.js';
+import {
+	handleDbcAdded,
+	handleSignalToggle,
+	setSignalSelectorOpen
+} from '#lib/stores/app-shell.js';
 import { addDbcFiles, clearDbcError } from '#lib/stores/dbc-files.js';
 import { toggleSignal } from '#lib/stores/plot-data.js';
 import { onDbcRemoved } from '#lib/stores/session.js';
@@ -53,20 +58,13 @@ function withKey(keys: ReadonlySet<string>, key: string, present: boolean): Read
  * Filter, expansion and scroll state persist across open/close.
  */
 export function SignalSelectorDialog({
-	open,
-	onOpenChange,
 	searchInputRef,
-	onDbcAdded,
-	onSignalToggle,
 	children
 }: {
-	open: boolean;
-	onOpenChange: (open: boolean) => void;
 	searchInputRef: RefObject<HTMLInputElement | null>;
-	onDbcAdded?: () => void;
-	onSignalToggle?: () => void;
 	children: ReactNode;
 }) {
+	const open = useStore(appStore, (s) => s.signalSelectorOpen);
 	const dbcInput = useRef<HTMLInputElement>(null);
 	const scrollTop = useRef(0);
 	const [search, setSearch] = useState('');
@@ -100,7 +98,7 @@ export function SignalSelectorDialog({
 		if (files.length === 0) return;
 		const previousCount = appStore.getState().dbcFiles.length;
 		await addDbcFiles(files);
-		if (appStore.getState().dbcFiles.length > previousCount) onDbcAdded?.();
+		if (appStore.getState().dbcFiles.length > previousCount) handleDbcAdded();
 	}
 
 	function handleDrag(event: DragEvent<HTMLDivElement>) {
@@ -136,7 +134,7 @@ export function SignalSelectorDialog({
 
 	function handleToggleSignal(key: string) {
 		void toggleSignal(key);
-		onSignalToggle?.();
+		handleSignalToggle();
 	}
 
 	const addDbcLabel = isLoading ? 'Loading DBC' : 'Add DBC';
@@ -147,7 +145,12 @@ export function SignalSelectorDialog({
 
 	return (
 		<>
-			<Dialog open={open} onOpenChange={onOpenChange} modal={false} disablePointerDismissal>
+			<Dialog
+				open={open}
+				onOpenChange={setSignalSelectorOpen}
+				modal={false}
+				disablePointerDismissal
+			>
 				{children}
 				<DialogPortal>
 					<DialogPrimitive.Popup

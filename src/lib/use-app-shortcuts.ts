@@ -8,7 +8,7 @@ import {
 	type ShortcutAction,
 	type ShortcutState
 } from '#lib/keyboard-shortcuts.js';
-import { openHelp, setSignalSelectorOpen } from '#lib/stores/app-shell.js';
+import { openHelp, openPalette, openSettings, openSignalSelector } from '#lib/stores/app-shell.js';
 import {
 	clearCrosshairs,
 	placeCrosshair,
@@ -17,7 +17,6 @@ import {
 	toggleLegend,
 	zoomBy
 } from '#lib/stores/plot-view.js';
-import { update } from '#lib/stores/store.js';
 
 /** Binds the global keyboard shortcuts and returns the runner the command palette shares. */
 export function useAppShortcuts(
@@ -27,20 +26,12 @@ export function useAppShortcuts(
 	const runners: Record<ShortcutAction, () => void> = {
 		openTrace,
 		selectSignals: () => {
-			update({ settingsOpen: false });
-			setSignalSelectorOpen(true);
+			openSignalSelector();
 			// Refocuses search if the panel is already open; `initialFocus` covers opening it.
 			focusSignalSearch();
 		},
-		showPalette: () => {
-			update({ settingsOpen: false });
-			setSignalSelectorOpen(false);
-			update({ paletteOpen: true });
-		},
-		openSettings: () => {
-			setSignalSelectorOpen(false);
-			update({ settingsOpen: true });
-		},
+		showPalette: openPalette,
+		openSettings,
 		showHelp: openHelp,
 		zoomIn: () => zoomBy(0.5),
 		zoomOut: () => zoomBy(2),

@@ -7,7 +7,7 @@ import { appStore, update } from './store.js';
 let nextTraceId = 1;
 
 export async function openTraceFile(file: File): Promise<boolean> {
-	update({ traceError: null, traceLoading: true });
+	update({ traceError: null });
 
 	let next: TraceFileEntry | null = null;
 	try {
@@ -29,8 +29,6 @@ export async function openTraceFile(file: File): Promise<boolean> {
 		if (next) await closeTrace(next.handle);
 		update({ traceError: error instanceof Error ? error.message : 'Trace load failed' });
 		return false;
-	} finally {
-		update({ traceLoading: false });
 	}
 }
 
