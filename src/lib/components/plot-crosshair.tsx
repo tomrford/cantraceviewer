@@ -1,5 +1,4 @@
 import { useRef, type MouseEvent, type PointerEvent } from 'react';
-import { useStore } from 'zustand';
 import {
 	crosshairById,
 	moveCrosshair,
@@ -9,7 +8,7 @@ import {
 import { ratioInArea } from '#lib/plot-pointer.js';
 import { dataPointAtRatio, ratioAtDataPoint, type PlotPoint } from '#lib/plot-viewport.js';
 import { upsertCrosshair } from '#lib/stores/plot-view.js';
-import { appStore } from '#lib/stores/store.js';
+import { appStore, useAppStore } from '#lib/stores/store.js';
 
 const HANDLES = [
 	{
@@ -34,9 +33,9 @@ export function PlotCrosshairOverlay({
 	id: CrosshairId;
 	onContextMenuPoint: (point: PlotPoint | null, id: CrosshairId) => void;
 }) {
-	const crosshair = useStore(appStore, (state) => crosshairById(state.crosshairs, id));
-	const viewport = useStore(appStore, (state) => state.activeViewport);
-	const grid = useStore(appStore, (state) => state.plotModel.grid);
+	const crosshair = useAppStore((s) => crosshairById(s.crosshairs, id));
+	const viewport = useAppStore((s) => s.activeViewport);
+	const grid = useAppStore((s) => s.plotModel.grid);
 	const track = useRef<HTMLDivElement>(null);
 
 	function pointAt(event: { clientX: number; clientY: number }): PlotPoint | null {

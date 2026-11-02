@@ -11,7 +11,6 @@ import {
 	X,
 	type LucideIcon
 } from 'lucide-react';
-import { useStore } from 'zustand';
 import { PanelHeader } from '#lib/components/panel-header.js';
 import { ShortcutKey } from '#lib/components/shortcut-key.js';
 import { Button, buttonVariants } from '#lib/components/ui/button.js';
@@ -35,7 +34,7 @@ import { panelShadow } from '#lib/panel-shadow.js';
 import { openHelp, setSettingsOpen } from '#lib/stores/app-shell.js';
 import { setPreference } from '#lib/stores/preferences.js';
 import { onResetPersistentData } from '#lib/stores/session.js';
-import { appStore, type ThemePreference, type TimestampMode } from '#lib/stores/store.js';
+import { useAppStore, type ThemePreference, type TimestampMode } from '#lib/stores/store.js';
 import type { LegendOrderMode } from '#lib/plot-signal-order.js';
 
 // lucide-react 1.x dropped brand icons; this is the lucide `github` glyph the app used before.
@@ -82,10 +81,10 @@ const legendOrderOptions: { value: LegendOrderMode; label: string; description: 
 /** Settings popover including its trigger. */
 export function SettingsDialog() {
 	const panel = useRef<HTMLDivElement>(null);
-	const open = useStore(appStore, (s) => s.settingsOpen);
-	const theme = useStore(appStore, (s) => s.theme);
-	const timestampMode = useStore(appStore, (s) => s.timestampMode);
-	const legendOrder = useStore(appStore, (s) => s.legendOrder);
+	const open = useAppStore((s) => s.settingsOpen);
+	const theme = useAppStore((s) => s.theme);
+	const timestampMode = useAppStore((s) => s.timestampMode);
+	const legendOrder = useAppStore((s) => s.legendOrder);
 	const legendOrderOption =
 		legendOrderOptions.find((option) => option.value === legendOrder) ?? legendOrderOptions[0];
 

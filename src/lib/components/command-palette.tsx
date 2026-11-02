@@ -1,4 +1,3 @@
-import { useStore } from 'zustand';
 import {
 	Command,
 	CommandDialog,
@@ -18,7 +17,7 @@ import {
 	type ShortcutState
 } from '#lib/keyboard-shortcuts.js';
 import { setPaletteOpen } from '#lib/stores/app-shell.js';
-import { appStore } from '#lib/stores/store.js';
+import { useAppStore } from '#lib/stores/store.js';
 
 const groups = groupedShortcuts().map(({ group, actions }) => ({
 	group,
@@ -32,7 +31,7 @@ export function CommandPalette({
 	state: ShortcutState;
 	onRun: (action: ShortcutAction) => void;
 }) {
-	const open = useStore(appStore, (s) => s.paletteOpen);
+	const open = useAppStore((s) => s.paletteOpen);
 
 	function run(action: ShortcutAction): void {
 		setPaletteOpen(false);

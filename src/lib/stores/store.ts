@@ -1,7 +1,9 @@
-// The single app store. Read with `useStore(appStore, selector)` or `appStore.getState()`; write
-// with `update(patch)`, which recomputes whatever the patch invalidated before anyone is notified.
+// The single app store. Read with `useAppStore(selector)` in components or `appStore.getState()`
+// elsewhere; write with `update(patch)`, which recomputes whatever the patch invalidated before
+// anyone is notified.
 // Actions live beside it by domain: trace-file, dbc-files, plot-data, plot-axes, plot-view,
 // preferences, app-shell and session.
+import { useStore } from 'zustand';
 import { createStore, type StoreApi } from 'zustand/vanilla';
 import { PRIMARY_Y_AXIS_ID, type YAxisId } from '#lib/plot-axes.js';
 import type { LegendCrosshairMode, PlotCrosshair } from '#lib/plot-crosshair.js';
@@ -208,6 +210,10 @@ function initialState(): AppState {
 const store = createStore<AppState>()(initialState);
 
 export const appStore: Omit<StoreApi<AppState>, 'setState'> = store;
+
+export function useAppStore<T>(selector: (s: AppState) => T): T {
+	return useStore(appStore, selector);
+}
 
 export function update(patch: Partial<SourceState>): void {
 	store.setState(withDerived(store.getState(), patch), true);

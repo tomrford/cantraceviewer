@@ -8,7 +8,6 @@ import {
 	type ReactNode,
 	type RefObject
 } from 'react';
-import { useStore } from 'zustand';
 import { ContextMenuTrigger } from '#lib/components/ui/context-menu.js';
 import { plotWheelAction } from '#lib/plot-interaction-policy.js';
 import { plotAreaRect, ratioInArea, type PlotRatioPoint } from '#lib/plot-pointer.js';
@@ -20,7 +19,7 @@ import {
 	type PlotViewport
 } from '#lib/plot-viewport.js';
 import { panBy, setPointerRatio, setViewport, zoomBy } from '#lib/stores/plot-view.js';
-import { appStore } from '#lib/stores/store.js';
+import { appStore, useAppStore } from '#lib/stores/store.js';
 
 const WHEEL_ZOOM_SPEED = 0.002;
 
@@ -43,8 +42,8 @@ export function PlotInteraction({
 	onContextMenuPoint: (point: PlotPoint | null) => void;
 	children: ReactNode;
 }) {
-	const boxZoomEnabled = useStore(appStore, (state) => state.boxZoomEnabled);
-	const grid = useStore(appStore, (state) => state.plotModel.grid);
+	const boxZoomEnabled = useAppStore((s) => s.boxZoomEnabled);
+	const grid = useAppStore((s) => s.plotModel.grid);
 	const [panning, setPanning] = useState(false);
 	const wrapperRef = useRef<HTMLDivElement>(null);
 	const buttonRef = useRef<HTMLButtonElement>(null);

@@ -1,4 +1,3 @@
-import { useStore } from 'zustand';
 import { Button } from '#lib/components/ui/button.js';
 import {
 	Dialog,
@@ -13,12 +12,12 @@ import { ShortcutKey } from '#lib/components/shortcut-key.js';
 import { groupedShortcuts, shortcutLabel } from '#lib/keyboard-shortcuts.js';
 import { setHelpOpen, startWalkthrough } from '#lib/stores/app-shell.js';
 import { TRACE_FILE_FORMAT_NAMES } from '#lib/trace-file-types.js';
-import { appStore } from '#lib/stores/store.js';
+import { useAppStore } from '#lib/stores/store.js';
 
 const groups = groupedShortcuts();
 
 export function HelpDialog() {
-	const open = useStore(appStore, (s) => s.helpOpen);
+	const open = useAppStore((s) => s.helpOpen);
 
 	function showTour(): void {
 		setHelpOpen(false);
