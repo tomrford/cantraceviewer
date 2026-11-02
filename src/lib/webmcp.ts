@@ -1,3 +1,4 @@
+import { displayDbcName } from '#lib/dbc-file-types.js';
 import { PRIMARY_Y_AXIS_ID } from '#lib/plot-axes.js';
 import type { LegendCrosshairMode } from '#lib/plot-crosshair.js';
 import { addAxis, assignAxis } from '#lib/stores/plot-axes.js';
@@ -143,7 +144,7 @@ export const storeHost = {
 			traceLoading: isLoading,
 			dbcLibrary: { loaded: hasLoadedLibrary, loading: dbcLoading },
 			dbcs: files.map((file) => ({
-				name: file.name.replace(/\.dbc$/i, ''),
+				name: displayDbcName(file.name),
 				origin: file.origin,
 				messageCount: file.catalog.messages.length,
 				signalCount: file.catalog.messages.reduce(

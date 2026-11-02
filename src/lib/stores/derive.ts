@@ -1,5 +1,6 @@
 // How each derived part of the app state is computed from its inputs. `withDerived` in store.ts
 // decides when, and in what order. Nothing here reads the store.
+import { displayDbcName } from '#lib/dbc-file-types.js';
 import { plotGrid, type PlotGrid } from '#lib/plot-axis-layout.js';
 import {
 	groupSignalsByYAxis,
@@ -137,7 +138,7 @@ export function catalogState(files: DbcFileEntry[], trace: TraceFileEntry | null
 	const signalTargetByKey: Record<string, DbcSignalTarget> = {};
 	const selectorFiles = files.map<SelectorDbcFile>((file) => ({
 		id: file.id,
-		name: file.name.replace(/\.dbc$/i, ''),
+		name: displayDbcName(file.name),
 		transient: file.origin === 'mf4',
 		messages: file.catalog.messages.flatMap((message) => {
 			const sources: (RawSource | undefined)[] = rawMessages
