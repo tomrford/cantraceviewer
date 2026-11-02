@@ -1,24 +1,11 @@
-import {
-	useDeferredValue,
-	useRef,
-	useState,
-	type DragEvent,
-	type ReactNode,
-	type RefObject
-} from 'react';
+import { useDeferredValue, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { useStore } from 'zustand';
 import { Check, ListFilter, Plus, Search, X } from 'lucide-react';
 import { Button } from '#lib/components/ui/button.js';
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle
-} from '#lib/components/ui/alert-dialog.js';
+import { DropOverlay } from '#lib/components/drop-overlay.js';
+import { ErrorDialog } from '#lib/components/error-dialog.js';
+import { PanelHeader } from '#lib/components/panel-header.js';
 import { SelectorTree } from '#lib/components/selector-tree.js';
 import { Dialog, DialogClose, DialogPortal, DialogTitle } from '#lib/components/ui/dialog.js';
 import { Input } from '#lib/components/ui/input.js';
@@ -26,12 +13,8 @@ import { Label } from '#lib/components/ui/label.js';
 import { Toggle } from '#lib/components/ui/toggle.js';
 import { ToggleGroup } from '#lib/components/ui/toggle-group.js';
 import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tooltip.js';
-import {
-	dbcFilesFromDrop,
-	dragLeftCurrentTarget,
-	filesFromDrop,
-	hasDraggedFiles
-} from '#lib/file-drop.js';
+import { dbcFilesFromDrop } from '#lib/file-drop.js';
+import { panelShadow } from '#lib/panel-shadow.js';
 import {
 	handleDbcAdded,
 	handleSignalToggle,
@@ -41,6 +24,7 @@ import { addDbcFiles, clearDbcError } from '#lib/stores/dbc-files.js';
 import { toggleSignal } from '#lib/stores/plot-data.js';
 import { onDbcRemoved } from '#lib/stores/session.js';
 import { appStore } from '#lib/stores/store.js';
+import { useFileDrop } from '#lib/use-file-drop.js';
 
 function withKey(keys: ReadonlySet<string>, key: string, present: boolean): ReadonlySet<string> {
 	const next = new Set(keys);
@@ -62,12 +46,12 @@ export function SignalSelectorDialog({
 	children: ReactNode;
 }) {
 	const open = useStore(appStore, (s) => s.signalSelectorOpen);
+	const searchId = useId();
 	const dbcInput = useRef<HTMLInputElement>(null);
 	const scrollTop = useRef(0);
 	const [search, setSearch] = useState('');
 	const [activeOnly, setActiveOnly] = useState(false);
 	const [hideUnavailable, setHideUnavailable] = useState(false);
-	const [dropActive, setDropActive] = useState(false);
 	const [expansion, setExpansion] = useState<ReadonlySet<string>>(() => new Set());
 	const [collapsedWhileFiltering, setCollapsedWhileFiltering] = useState<ReadonlySet<string>>(
 		() => new Set()
@@ -98,21 +82,9 @@ export function SignalSelectorDialog({
 		if (appStore.getState().dbcFiles.length > previousCount) handleDbcAdded();
 	}
 
-	function handleDrag(event: DragEvent<HTMLDivElement>) {
-		if (!hasDraggedFiles(event)) return;
-		event.preventDefault();
-		setDropActive(true);
-	}
-
-	function handleDragLeave(event: DragEvent<HTMLDivElement>) {
-		if (dragLeftCurrentTarget(event)) setDropActive(false);
-	}
-
-	function handleDrop(event: DragEvent<HTMLDivElement>) {
-		event.preventDefault();
-		setDropActive(false);
-		void addFiles(dbcFilesFromDrop(filesFromDrop(event)));
-	}
+	const { dropActive, dropHandlers } = useFileDrop((files) => {
+		void addFiles(dbcFilesFromDrop(files));
+	});
 
 	function setExpanded(key: string, isOpen: boolean) {
 		if (filtering) setCollapsedWhileFiltering((current) => withKey(current, key, !isOpen));
@@ -167,16 +139,11 @@ export function SignalSelectorDialog({
 						initialFocus={(type) => (type === 'touch' ? true : searchInputRef.current)}
 						// Overlays its trigger: the close button lands exactly where the trigger sits.
 						className="fixed top-2 left-2 z-50 grid h-[calc(100vh-1rem)] w-[min(26rem,calc(100vw-1rem))] origin-top-left grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden rounded-lg border border-border/70 bg-popover/90 p-4 pt-14 text-xs text-popover-foreground outline-hidden backdrop-blur-md duration-100 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
-						style={{ boxShadow: '0 1px 2px rgb(0 0 0 / 0.08)' }}
-						onDragEnter={handleDrag}
-						onDragOver={handleDrag}
-						onDragLeave={handleDragLeave}
-						onDrop={handleDrop}
+						style={panelShadow}
+						{...dropHandlers}
 					>
 						{dropActive && (
-							<div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-popover/25 text-sm font-medium text-foreground backdrop-blur-[1px]">
-								Drop DBC files to add
-							</div>
+							<DropOverlay className="rounded-lg bg-popover/25">Drop DBC files to add</DropOverlay>
 						)}
 
 						<input
@@ -192,7 +159,7 @@ export function SignalSelectorDialog({
 							}}
 						/>
 
-						<div className="absolute top-[6.5px] right-[7px] left-[7px] grid h-8 grid-cols-[1fr_auto_1fr] items-center">
+						<PanelHeader>
 							<DialogClose
 								render={<Button variant="ghost" size="icon-lg" />}
 								aria-label="Close signal selector"
@@ -216,27 +183,25 @@ export function SignalSelectorDialog({
 								>
 									<Plus className="size-4" />
 								</TooltipTrigger>
-								<TooltipContent sideOffset={6}>{addDbcLabel}</TooltipContent>
+								<TooltipContent>{addDbcLabel}</TooltipContent>
 							</Tooltip>
-						</div>
+						</PanelHeader>
 
 						<div className="flex items-center gap-2">
-							<form className="min-w-0 flex-1" onSubmit={(event) => event.preventDefault()}>
-								<div className="relative">
-									<Label htmlFor="search" className="sr-only">
-										Search
-									</Label>
-									<Input
-										ref={searchInputRef}
-										id="search"
-										value={search}
-										onChange={(event) => changeSearch(event.currentTarget.value)}
-										placeholder="Filter signals..."
-										className="ps-8"
-									/>
-									<Search className="pointer-events-none absolute inset-s-2 top-1/2 size-4 -translate-y-1/2 opacity-50 select-none" />
-								</div>
-							</form>
+							<div className="relative min-w-0 flex-1">
+								<Label htmlFor={searchId} className="sr-only">
+									Search
+								</Label>
+								<Input
+									ref={searchInputRef}
+									id={searchId}
+									value={search}
+									onChange={(event) => changeSearch(event.currentTarget.value)}
+									placeholder="Filter signals..."
+									className="ps-8"
+								/>
+								<Search className="pointer-events-none absolute inset-s-2 top-1/2 size-4 -translate-y-1/2 opacity-50 select-none" />
+							</div>
 							<ToggleGroup
 								multiple
 								aria-label="Signal filters"
@@ -257,7 +222,7 @@ export function SignalSelectorDialog({
 									>
 										<Check className="size-4" />
 									</TooltipTrigger>
-									<TooltipContent sideOffset={6}>{activeOnlyLabel}</TooltipContent>
+									<TooltipContent>{activeOnlyLabel}</TooltipContent>
 								</Tooltip>
 								<Tooltip>
 									<TooltipTrigger
@@ -273,7 +238,7 @@ export function SignalSelectorDialog({
 									>
 										<ListFilter className="size-4" />
 									</TooltipTrigger>
-									<TooltipContent sideOffset={6}>{unavailableLabel}</TooltipContent>
+									<TooltipContent>{unavailableLabel}</TooltipContent>
 								</Tooltip>
 							</ToggleGroup>
 						</div>
@@ -293,24 +258,7 @@ export function SignalSelectorDialog({
 				</DialogPortal>
 			</Dialog>
 
-			<AlertDialog
-				open={dbcError !== null}
-				onOpenChange={(isOpen) => {
-					if (!isOpen) clearDbcError();
-				}}
-			>
-				{dbcError !== null && (
-					<AlertDialogContent>
-						<AlertDialogHeader>
-							<AlertDialogTitle>DBC failed to open</AlertDialogTitle>
-							<AlertDialogDescription>{dbcError}</AlertDialogDescription>
-						</AlertDialogHeader>
-						<AlertDialogFooter>
-							<AlertDialogAction onClick={clearDbcError}>OK</AlertDialogAction>
-						</AlertDialogFooter>
-					</AlertDialogContent>
-				)}
-			</AlertDialog>
+			<ErrorDialog title="DBC failed to open" message={dbcError} onDismiss={clearDbcError} />
 		</>
 	);
 }

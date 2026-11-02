@@ -37,6 +37,7 @@ import {
 	zoomOut
 } from '#lib/stores/plot-view.js';
 import { cn } from '#lib/utils.js';
+import { DropOverlay } from './drop-overlay.js';
 import { PlotCrosshairOverlay } from './plot-crosshair.js';
 import { PlotInteraction } from './plot-interaction.js';
 import { ShortcutKey } from './shortcut-key.js';
@@ -118,12 +119,9 @@ export function SignalPlot({
 			{...props}
 		>
 			{dropActive && (
-				<div
-					data-export-ignore
-					className="pointer-events-none absolute inset-0 z-60 flex items-center justify-center bg-background/25 text-sm font-medium text-foreground backdrop-blur-[1px]"
-				>
+				<DropOverlay data-export-ignore className="z-60">
 					Drop trace to open
-				</div>
+				</DropOverlay>
 			)}
 			<div ref={surfaceRef} className="absolute inset-0" aria-label="Selected signal plot" />
 

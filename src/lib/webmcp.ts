@@ -12,6 +12,7 @@ import {
 	type WebMcpTool
 } from '#lib/webmcp-tools.js';
 import { appStore } from '#lib/stores/store.js';
+import { countSignals } from '#lib/utils.js';
 
 export type ModelContext = {
 	registerTool: (tool: WebMcpTool, options?: { signal?: AbortSignal }) => Promise<void>;
@@ -122,8 +123,7 @@ export const storeHost = {
 			axisIds: ids,
 			axisAssignment: assignment
 		} = appStore.getState();
-		const nativeCount =
-			trace?.mf4Catalog?.groups.reduce((count, group) => count + group.signals.length, 0) ?? 0;
+		const nativeCount = countSignals(trace?.mf4Catalog?.groups ?? []);
 		return {
 			trace:
 				trace === null
@@ -147,10 +147,7 @@ export const storeHost = {
 				name: displayDbcName(file.name),
 				origin: file.origin,
 				messageCount: file.catalog.messages.length,
-				signalCount: file.catalog.messages.reduce(
-					(count, message) => count + message.signals.length,
-					0
-				)
+				signalCount: countSignals(file.catalog.messages)
 			})),
 			plotted: appStore.getState().signals.map((signal) => {
 				const decode = signalDecodeStatus(signal.key);

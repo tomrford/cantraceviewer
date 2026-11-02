@@ -9,12 +9,10 @@ import {
 	DialogTrigger
 } from '#lib/components/ui/dialog.js';
 import type { DbcFileEntry } from '#lib/stores/derive.js';
+import { countSignals } from '#lib/utils.js';
 
 export function DbcInformation({ file }: { file: DbcFileEntry }) {
-	const signalCount = file.catalog.messages.reduce(
-		(count, message) => count + message.signals.length,
-		0
-	);
+	const signalCount = countSignals(file.catalog.messages);
 	const warnings = file.warnings.filter((warning) => warning.category !== 'unsupported-record');
 	const hasOmissions = warnings.some((warning) => warning.category === 'omitted-feature');
 

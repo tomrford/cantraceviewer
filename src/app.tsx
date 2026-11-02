@@ -1,26 +1,12 @@
 import { AudioWaveform, CircleQuestionMark, Database, LoaderCircle } from 'lucide-react';
-import {
-	useEffect,
-	useRef,
-	useState,
-	type ChangeEvent,
-	type ComponentProps,
-	type DragEvent
-} from 'react';
+import { useEffect, useRef, type ChangeEvent, type ComponentProps } from 'react';
 import { useStore } from 'zustand';
+import { DropOverlay } from '#lib/components/drop-overlay.js';
+import { ErrorDialog } from '#lib/components/error-dialog.js';
 import { PlotToolbar } from '#lib/components/plot-toolbar.js';
 import { SettingsDialog } from '#lib/components/settings-dialog.js';
 import { ShortcutKey } from '#lib/components/shortcut-key.js';
 import { SignalSelectorDialog } from '#lib/components/signal-selector-dialog.js';
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle
-} from '#lib/components/ui/alert-dialog.js';
 import { Button } from '#lib/components/ui/button.js';
 import { DialogTrigger } from '#lib/components/ui/dialog.js';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader } from '#lib/components/ui/empty.js';
@@ -35,18 +21,14 @@ import { Walkthrough } from '#lib/components/walkthrough.js';
 import { CommandPalette } from '#lib/components/command-palette.js';
 import { HelpDialog } from '#lib/components/help-dialog.js';
 import { SignalPlot } from '#lib/components/signal-plot.js';
-import {
-	dragLeftCurrentTarget,
-	filesFromDrop,
-	hasDraggedFiles,
-	traceFileFromDrop
-} from '#lib/file-drop.js';
+import { traceFileFromDrop } from '#lib/file-drop.js';
 import { openDemoTrace, openTrace, startWalkthrough } from '#lib/stores/app-shell.js';
 import { isDark } from '#lib/stores/preferences.js';
 import { clearTraceError } from '#lib/stores/trace-file.js';
 import { TRACE_FILE_ACCEPT, TRACE_FILE_FORMAT_NAMES } from '#lib/trace-file-types.js';
 import { useAppShortcuts } from '#lib/use-app-shortcuts.js';
-import { useBrowserValue } from '#lib/utils.js';
+import { useFileDrop } from '#lib/use-file-drop.js';
+import { countSignals, useBrowserValue } from '#lib/utils.js';
 import { shouldShowWalkthrough } from '#lib/walkthrough.js';
 import { appStore } from '#lib/stores/store.js';
 import type { TraceFileEntry } from '#lib/stores/derive.js';
@@ -104,7 +86,6 @@ function AppShell() {
 	const signalSearchInput = useRef<HTMLInputElement>(null);
 	const openingTrace = useStore(appStore, (s) => s.openingTrace);
 	const hasTrace = useStore(appStore, (s) => s.trace !== null);
-	const [dropActive, setDropActive] = useState(false);
 	const traceError = useStore(appStore, (s) => s.traceError);
 	const hasPlottable = useStore(appStore, (s) => s.hasPlottableSignals);
 	const isFitAll = useStore(appStore, (s) => s.isFitAll);
@@ -127,28 +108,11 @@ function AppShell() {
 		focusSignalSearch: () => signalSearchInput.current?.focus()
 	});
 
-	function handleTraceDrag(event: DragEvent) {
-		if (!hasDraggedFiles(event)) return;
-		event.preventDefault();
-		if (!openingTrace) setDropActive(true);
-	}
-
-	function handleTraceDragLeave(event: DragEvent) {
-		if (dragLeftCurrentTarget(event)) setDropActive(false);
-	}
-
-	function handleTraceDrop(event: DragEvent) {
-		event.preventDefault();
-		setDropActive(false);
-		void openTrace(traceFileFromDrop(filesFromDrop(event)));
-	}
-
-	const traceDragHandlers = {
-		onDragEnter: handleTraceDrag,
-		onDragOver: handleTraceDrag,
-		onDragLeave: handleTraceDragLeave,
-		onDrop: handleTraceDrop
-	};
+	const { dropActive: traceDragged, dropHandlers } = useFileDrop((files) => {
+		void openTrace(traceFileFromDrop(files));
+	});
+	// A drop while a trace opens is still handled, but does not advertise itself.
+	const dropActive = traceDragged && !openingTrace;
 
 	return (
 		<div className="flex min-h-screen flex-col bg-background too-small:hidden">
@@ -170,7 +134,7 @@ function AppShell() {
 							>
 								<Database className="size-4" />
 							</TooltipTrigger>
-							<TooltipContent sideOffset={6}>
+							<TooltipContent>
 								Signal selector
 								<ShortcutKey action="selectSignals" />
 							</TooltipContent>
@@ -200,34 +164,17 @@ function AppShell() {
 			</header>
 
 			{hasTrace ? (
-				<SignalPlot dropActive={dropActive} {...traceDragHandlers} />
+				<SignalPlot dropActive={dropActive} {...dropHandlers} />
 			) : (
 				<Landing
 					openingTrace={openingTrace}
 					dropActive={dropActive}
 					onOpenTrace={chooseTraceFile}
-					{...traceDragHandlers}
+					{...dropHandlers}
 				/>
 			)}
 
-			<AlertDialog
-				open={traceError !== null}
-				onOpenChange={(open) => {
-					if (!open) clearTraceError();
-				}}
-			>
-				{traceError && (
-					<AlertDialogContent>
-						<AlertDialogHeader>
-							<AlertDialogTitle>Trace failed to open</AlertDialogTitle>
-							<AlertDialogDescription>{traceError}</AlertDialogDescription>
-						</AlertDialogHeader>
-						<AlertDialogFooter>
-							<AlertDialogAction onClick={clearTraceError}>OK</AlertDialogAction>
-						</AlertDialogFooter>
-					</AlertDialogContent>
-				)}
-			</AlertDialog>
+			<ErrorDialog title="Trace failed to open" message={traceError} onDismiss={clearTraceError} />
 
 			<Walkthrough />
 
@@ -269,7 +216,7 @@ function TraceButton({
 					<LoaderCircle className="size-4 shrink-0 animate-spin text-muted-foreground" />
 				)}
 			</TooltipTrigger>
-			<TooltipContent sideOffset={6} className="flex-col items-stretch gap-1 pr-3">
+			<TooltipContent className="flex-col items-stretch gap-1 pr-3">
 				<span className="flex items-center gap-3">
 					{openingTrace ? 'Loading trace' : 'Open trace'}
 					{!openingTrace && <ShortcutKey action="openTrace" className="ml-auto" />}
@@ -305,11 +252,7 @@ function Landing({
 			aria-busy={openingTrace}
 			{...props}
 		>
-			{dropActive && (
-				<div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-background/25 text-sm font-medium text-foreground backdrop-blur-[1px]">
-					Drop trace to open
-				</div>
-			)}
+			{dropActive && <DropOverlay>Drop trace to open</DropOverlay>}
 			<Empty className="max-w-md border-0">
 				<EmptyHeader>
 					<h1 className="font-heading text-base font-medium tracking-tight">{LANDING_TITLE}</h1>
@@ -364,8 +307,7 @@ function formatTraceMetadata(trace: TraceFileEntry): string {
 	const duration =
 		metadata.durationNs === null ? 'Not available' : formatDuration(metadata.durationNs);
 
-	const nativeSignalCount =
-		trace.mf4Catalog?.groups.reduce((count, group) => count + group.signals.length, 0) ?? 0;
+	const nativeSignalCount = countSignals(trace.mf4Catalog?.groups ?? []);
 	const details = [`Start: ${start}`];
 	if (trace.hasRawFrames || nativeSignalCount === 0) {
 		details.push(`Valid CAN messages: ${metadata.validMessageCount.toLocaleString()}`);

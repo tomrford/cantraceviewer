@@ -267,7 +267,7 @@ function SignalRow({
 	return (
 		<Tooltip>
 			<TooltipTrigger render={<Label {...labelProps} />}>{content}</TooltipTrigger>
-			<TooltipContent sideOffset={6}>{reason}</TooltipContent>
+			<TooltipContent>{reason}</TooltipContent>
 			<span id={`${toggleId}-reason`} className="sr-only">
 				{reason}
 			</span>

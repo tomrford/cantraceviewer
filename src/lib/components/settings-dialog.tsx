@@ -12,6 +12,7 @@ import {
 	type LucideIcon
 } from 'lucide-react';
 import { useStore } from 'zustand';
+import { PanelHeader } from '#lib/components/panel-header.js';
 import { ShortcutKey } from '#lib/components/shortcut-key.js';
 import { Button, buttonVariants } from '#lib/components/ui/button.js';
 import {
@@ -30,6 +31,7 @@ import {
 import { Toggle } from '#lib/components/ui/toggle.js';
 import { ToggleGroup } from '#lib/components/ui/toggle-group.js';
 import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tooltip.js';
+import { panelShadow } from '#lib/panel-shadow.js';
 import { openHelp, setSettingsOpen } from '#lib/stores/app-shell.js';
 import { setPreference } from '#lib/stores/preferences.js';
 import { onResetPersistentData } from '#lib/stores/session.js';
@@ -95,7 +97,7 @@ export function SettingsDialog() {
 				>
 					<Cog className="size-4" />
 				</TooltipTrigger>
-				<TooltipContent sideOffset={6}>
+				<TooltipContent>
 					Settings
 					<ShortcutKey action="openSettings" />
 				</TooltipContent>
@@ -108,9 +110,9 @@ export function SettingsDialog() {
 				// The panel rather than its first button, whose tooltip would open on focus.
 				initialFocus={panel}
 				className="relative grid w-[min(22rem,calc(100vw-1rem))] translate-x-2 -translate-y-2 gap-4 rounded-lg border border-border/70 bg-popover/90 p-4 pt-14 text-popover-foreground backdrop-blur-md"
-				style={{ boxShadow: '0 1px 2px rgb(0 0 0 / 0.08)' }}
+				style={panelShadow}
 			>
-				<div className="absolute top-[6.5px] right-[7px] left-[7px] grid h-8 grid-cols-[1fr_auto_1fr] items-center">
+				<PanelHeader>
 					<div className="flex items-center gap-1">
 						<Tooltip>
 							<TooltipTrigger
@@ -125,7 +127,7 @@ export function SettingsDialog() {
 							>
 								<CircleQuestionMark className="size-4" />
 							</TooltipTrigger>
-							<TooltipContent sideOffset={6}>
+							<TooltipContent>
 								Help
 								<ShortcutKey action="showHelp" />
 							</TooltipContent>
@@ -145,7 +147,7 @@ export function SettingsDialog() {
 							>
 								<Github className="size-4" />
 							</TooltipTrigger>
-							<TooltipContent sideOffset={6}>Source code</TooltipContent>
+							<TooltipContent>Source code</TooltipContent>
 						</Tooltip>
 					</div>
 					<PopoverTitle className="text-center">Settings</PopoverTitle>
@@ -155,7 +157,7 @@ export function SettingsDialog() {
 					>
 						<X className="size-4" />
 					</PopoverPrimitive.Close>
-				</div>
+				</PanelHeader>
 
 				<div className="grid gap-2">
 					<div className="text-xs font-medium text-muted-foreground">Theme</div>
@@ -212,7 +214,7 @@ export function SettingsDialog() {
 							))}
 						</SelectContent>
 					</Select>
-					<p className="text-xs text-muted-foreground">{legendOrderOption.description}</p>
+					<span className="text-xs text-muted-foreground">{legendOrderOption.description}</span>
 				</label>
 
 				<div className="grid gap-2 border-t pt-4">
