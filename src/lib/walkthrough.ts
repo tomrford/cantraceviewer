@@ -1,4 +1,4 @@
-import { TRACE_FILE_FORMAT_NAMES } from './trace-file-types';
+import { TRACE_FILE_FORMAT_NAMES } from './trace-file-types.js';
 
 export const WALKTHROUGH_VERSION = 1;
 

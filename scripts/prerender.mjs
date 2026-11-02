@@ -2,6 +2,7 @@
 // get real markup; src/main.tsx hydrates it. Loads the server entry through Vite in memory, so no
 // SSR bundle is written next to the static output.
 import { readFile, writeFile } from 'node:fs/promises';
+
 import { createServer } from 'vite';
 
 process.env.NODE_ENV ??= 'production';

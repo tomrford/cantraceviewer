@@ -1,7 +1,7 @@
 // How each derived part of the app state is computed from its inputs. `withDerived` in store.ts
 // decides when, and in what order. Nothing here reads the store.
 import { displayDbcName } from '#lib/dbc-file-types.js';
-import { plotGrid, type PlotGrid } from '#lib/plot-axis-layout.js';
+import { buildMf4SignalTargetIndex, mf4SelectorSearchIndexes } from '#lib/mf4-signals.js';
 import {
 	groupSignalsByYAxis,
 	PRIMARY_Y_AXIS_ID,
@@ -10,6 +10,7 @@ import {
 	type YAxisGroup,
 	type YAxisId
 } from '#lib/plot-axes.js';
+import { plotGrid, type PlotGrid } from '#lib/plot-axis-layout.js';
 import { signalColor } from '#lib/plot-colors.js';
 import {
 	crosshairById,
@@ -23,7 +24,6 @@ import {
 	type PlotViewport,
 	type PlotYWindow
 } from '#lib/plot-viewport.js';
-import { buildMf4SignalTargetIndex, mf4SelectorSearchIndexes } from '#lib/mf4-signals.js';
 import { buildSelectorSearchIndexes, type SelectorDbcFile } from '#lib/selector-list.js';
 import {
 	axisSplitDomain,

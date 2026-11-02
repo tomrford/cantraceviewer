@@ -1,4 +1,5 @@
 import type { LineSeriesConfig, ScatterSeriesConfig } from 'chartgpu';
+
 import type { YAxisId } from './plot-axes.js';
 import type { WindowedSignalView } from './signal-plot-data.js';
 

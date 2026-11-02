@@ -5,11 +5,13 @@
 // preferences, app-shell and session.
 import { useStore } from 'zustand';
 import { createStore, type StoreApi } from 'zustand/vanilla';
+
 import { PRIMARY_Y_AXIS_ID, type YAxisId } from '#lib/plot-axes.js';
 import type { LegendCrosshairMode, PlotCrosshair } from '#lib/plot-crosshair.js';
 import type { LegendOrderMode } from '#lib/plot-signal-order.js';
 import { FULL_Y_WINDOW, type PlotYWindow } from '#lib/plot-viewport.js';
 import type { WalkthroughStep } from '#lib/walkthrough.js';
+
 import {
 	catalogState,
 	modelState,

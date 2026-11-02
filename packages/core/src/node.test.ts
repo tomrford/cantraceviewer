@@ -1,5 +1,7 @@
 import { markAsUntransferable } from 'node:worker_threads';
+
 import { describe, expect, it } from 'vitest';
+
 import { createNodeClientForWorker, type NodeClientWorker } from './node-transport.ts';
 import type { WorkerRequest, WorkerResponse } from './protocol.ts';
 

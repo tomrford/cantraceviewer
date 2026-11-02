@@ -1,4 +1,3 @@
-import { useRef } from 'react';
 import { Popover as PopoverPrimitive } from '@base-ui/react/popover';
 import {
 	CircleQuestionMark,
@@ -11,6 +10,8 @@ import {
 	X,
 	type LucideIcon
 } from 'lucide-react';
+import { useRef } from 'react';
+
 import { PanelHeader } from '#lib/components/panel-header.js';
 import { ShortcutKey } from '#lib/components/shortcut-key.js';
 import { Button, buttonVariants } from '#lib/components/ui/button.js';
@@ -27,15 +28,15 @@ import {
 	SelectTrigger,
 	SelectValue
 } from '#lib/components/ui/select.js';
-import { Toggle } from '#lib/components/ui/toggle.js';
 import { ToggleGroup } from '#lib/components/ui/toggle-group.js';
+import { Toggle } from '#lib/components/ui/toggle.js';
 import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tooltip.js';
 import { panelShadow } from '#lib/panel-shadow.js';
+import type { LegendOrderMode } from '#lib/plot-signal-order.js';
 import { openHelp, setSettingsOpen } from '#lib/stores/app-shell.js';
 import { setPreference } from '#lib/stores/preferences.js';
 import { resetPersistentData } from '#lib/stores/session.js';
 import { useAppStore, type ThemePreference, type TimestampMode } from '#lib/stores/store.js';
-import type { LegendOrderMode } from '#lib/plot-signal-order.js';
 
 // lucide-react 1.x dropped brand icons; this is the lucide `github` glyph the app used before.
 const Github = createLucideIcon('github', [

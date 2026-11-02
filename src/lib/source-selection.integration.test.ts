@@ -1,7 +1,8 @@
-import { afterAll, describe, expect, it, vi } from 'vitest';
-import { deflateSync } from 'node:zlib';
 import { readFile } from 'node:fs/promises';
+import { deflateSync } from 'node:zlib';
+
 import type { CanTraceClient } from 'cantraceviewer';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 
 const transport = vi.hoisted(() => ({ client: null as CanTraceClient | null }));
 // Exercise the app against the published package using its real Node worker transport.
@@ -15,6 +16,7 @@ vi.mock('cantraceviewer', async () => {
 		}
 	};
 });
+import { buildSelectorSearchIndexes } from './selector-list.js';
 import {
 	addDbcFiles,
 	addTransientDbcs,
@@ -23,19 +25,18 @@ import {
 	removeDbcFile,
 	resetDbcLibrary
 } from './stores/dbc-files.js';
-import { openTraceFile } from './stores/trace-file.js';
+import * as library from './stores/dbc-library.js';
 import {
 	clearSelectedSignals,
 	deselectDbcFile,
 	signalDecodeStatus,
 	toggleSignal
 } from './stores/plot-data.js';
-import { buildSelectorSearchIndexes } from './selector-list.js';
 import { startTraceSession } from './stores/session.js';
-import { searchCatalogSignals } from './webmcp-tools.js';
-import { closeTrace } from './wasm.js';
-import * as library from './stores/dbc-library.js';
 import { appStore, update } from './stores/store.js';
+import { openTraceFile } from './stores/trace-file.js';
+import { closeTrace } from './wasm.js';
+import { searchCatalogSignals } from './webmcp-tools.js';
 
 const fixture = async (name: string) =>
 	new File([await readFile(`wasm/tests/fixtures/${name}`)], name);

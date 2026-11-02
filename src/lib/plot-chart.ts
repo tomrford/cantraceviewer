@@ -1,4 +1,5 @@
 import type { ChartGPUInstance, ChartGPUOptions, ThemeConfig } from 'chartgpu';
+
 import { PRIMARY_Y_AXIS_ID } from '#lib/plot-axes.js';
 import { Y_TICK_COUNT, type AxisTickGenerator } from '#lib/plot-axis-layout.js';
 import { SIGNAL_COLORS } from '#lib/plot-colors.js';

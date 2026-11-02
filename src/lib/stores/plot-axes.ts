@@ -1,4 +1,5 @@
 import { MAX_Y_AXES, nextYAxisId, PRIMARY_Y_AXIS_ID, type YAxisId } from '#lib/plot-axes.js';
+
 import { appStore, update, type AppState } from './store.js';
 
 export const canAddAxis = (s: AppState): boolean => s.axisIds.length < MAX_Y_AXES;

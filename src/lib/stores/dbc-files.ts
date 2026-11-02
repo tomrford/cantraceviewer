@@ -1,4 +1,7 @@
+import { isDbcFileName } from '#lib/dbc-file-types.js';
+import { DBC_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '#lib/file-limits.js';
 import { closeDbc, openDbc, type EmbeddedDbc } from '#lib/wasm.js';
+
 import {
 	deleteStoredDbc,
 	listStoredDbcs,
@@ -7,8 +10,6 @@ import {
 	storedDbcId,
 	type StoredDbc
 } from './dbc-library.js';
-import { isDbcFileName } from '#lib/dbc-file-types.js';
-import { DBC_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '#lib/file-limits.js';
 import type { DbcFileEntry } from './derive.js';
 import { appStore, update } from './store.js';
 

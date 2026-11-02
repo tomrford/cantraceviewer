@@ -8,6 +8,7 @@ import {
 	type ReactNode,
 	type RefObject
 } from 'react';
+
 import { ContextMenuTrigger } from '#lib/components/ui/context-menu.js';
 import { plotWheelAction } from '#lib/plot-interaction-policy.js';
 import { plotAreaRect, ratioInArea, type PlotRatioPoint } from '#lib/plot-pointer.js';

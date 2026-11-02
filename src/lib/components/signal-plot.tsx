@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState, useTransition, type ComponentProps } from 'react';
 import {
 	BoxSelect,
 	Copy,
@@ -10,6 +9,8 @@ import {
 	RotateCcw,
 	X
 } from 'lucide-react';
+import { useEffect, useRef, useState, useTransition, type ComponentProps } from 'react';
+
 import {
 	ContextMenu,
 	ContextMenuContent,
@@ -35,14 +36,15 @@ import {
 	zoomIn,
 	zoomOut
 } from '#lib/stores/plot-view.js';
+import { useAppStore } from '#lib/stores/store.js';
 import { cn } from '#lib/utils.js';
+
 import { DropOverlay } from './drop-overlay.js';
 import { PlotCrosshairOverlay } from './plot-crosshair.js';
 import { PlotInteraction } from './plot-interaction.js';
 import { ShortcutKey } from './shortcut-key.js';
 import { SignalPlotAxes } from './signal-plot-axes.js';
 import { SignalPlotLegend } from './signal-plot-legend.js';
-import { useAppStore } from '#lib/stores/store.js';
 
 const EMPTY_MESSAGE = 'Select signals from the signal selector to view them.';
 

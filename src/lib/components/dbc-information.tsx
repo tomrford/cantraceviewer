@@ -1,4 +1,5 @@
 import { Info } from 'lucide-react';
+
 import { Button } from '#lib/components/ui/button.js';
 import {
 	Dialog,

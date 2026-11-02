@@ -1,7 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
+
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import {
 	createDirectClient,
 	DEFAULT_PARSING_LIMITS,

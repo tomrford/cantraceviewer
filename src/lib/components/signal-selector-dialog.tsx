@@ -1,16 +1,17 @@
-import { useDeferredValue, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { Check, ListFilter, Plus, Search, X } from 'lucide-react';
-import { Button } from '#lib/components/ui/button.js';
+import { useDeferredValue, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
+
 import { DropOverlay } from '#lib/components/drop-overlay.js';
 import { ErrorDialog } from '#lib/components/error-dialog.js';
 import { PanelHeader } from '#lib/components/panel-header.js';
 import { SelectorTree } from '#lib/components/selector-tree.js';
+import { Button } from '#lib/components/ui/button.js';
 import { Dialog, DialogClose, DialogPortal, DialogTitle } from '#lib/components/ui/dialog.js';
 import { Input } from '#lib/components/ui/input.js';
 import { Label } from '#lib/components/ui/label.js';
-import { Toggle } from '#lib/components/ui/toggle.js';
 import { ToggleGroup } from '#lib/components/ui/toggle-group.js';
+import { Toggle } from '#lib/components/ui/toggle.js';
 import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tooltip.js';
 import { dbcFilesFromDrop } from '#lib/file-drop.js';
 import { panelShadow } from '#lib/panel-shadow.js';

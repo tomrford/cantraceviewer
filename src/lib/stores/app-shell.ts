@@ -2,6 +2,7 @@
 // walkthrough and which overlay is open.
 // Handlers run outside React render, so they read current state with getState().
 import { toast } from 'sonner';
+
 import {
 	adjacentWalkthroughStep,
 	WALKTHROUGH_VERSION,

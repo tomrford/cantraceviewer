@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+
 import {
 	boxViewport,
 	dataPointAtRatio,
@@ -8,7 +9,7 @@ import {
 	ratioAtDataPoint,
 	viewportCenter,
 	zoomViewport
-} from './plot-viewport';
+} from './plot-viewport.js';
 
 describe('plot viewport math', () => {
 	it('pads equal extents around the shared value', () => {

@@ -1,5 +1,5 @@
-import { cp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
+import { cp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 await rm(new URL('../dist', import.meta.url), { recursive: true, force: true });

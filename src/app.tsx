@@ -1,10 +1,14 @@
 import { AudioWaveform, CircleQuestionMark, Database, LoaderCircle } from 'lucide-react';
 import { useEffect, useRef, type ChangeEvent, type ComponentProps } from 'react';
+
+import { CommandPalette } from '#lib/components/command-palette.js';
 import { DropOverlay } from '#lib/components/drop-overlay.js';
 import { ErrorDialog } from '#lib/components/error-dialog.js';
+import { HelpDialog } from '#lib/components/help-dialog.js';
 import { PlotToolbar } from '#lib/components/plot-toolbar.js';
 import { SettingsDialog } from '#lib/components/settings-dialog.js';
 import { ShortcutKey } from '#lib/components/shortcut-key.js';
+import { SignalPlot } from '#lib/components/signal-plot.js';
 import { SignalSelectorDialog } from '#lib/components/signal-selector-dialog.js';
 import { Button } from '#lib/components/ui/button.js';
 import { DialogTrigger } from '#lib/components/ui/dialog.js';
@@ -17,20 +21,17 @@ import {
 	TooltipTrigger
 } from '#lib/components/ui/tooltip.js';
 import { Walkthrough } from '#lib/components/walkthrough.js';
-import { CommandPalette } from '#lib/components/command-palette.js';
-import { HelpDialog } from '#lib/components/help-dialog.js';
-import { SignalPlot } from '#lib/components/signal-plot.js';
 import { traceFileFromDrop } from '#lib/file-drop.js';
 import { openDemoTrace, openTrace, startWalkthrough } from '#lib/stores/app-shell.js';
+import type { TraceFileEntry } from '#lib/stores/derive.js';
 import { isDark } from '#lib/stores/preferences.js';
+import { useAppStore } from '#lib/stores/store.js';
 import { clearTraceError } from '#lib/stores/trace-file.js';
 import { TRACE_FILE_ACCEPT, TRACE_FILE_FORMAT_NAMES } from '#lib/trace-file-types.js';
 import { useAppShortcuts } from '#lib/use-app-shortcuts.js';
 import { useFileDrop } from '#lib/use-file-drop.js';
 import { countSignals, useBrowserValue } from '#lib/utils.js';
 import { shouldShowWalkthrough } from '#lib/walkthrough.js';
-import { useAppStore } from '#lib/stores/store.js';
-import type { TraceFileEntry } from '#lib/stores/derive.js';
 
 const SITE_TITLE = 'CAN Trace Viewer';
 const LANDING_TITLE = 'Plot CAN bus logs in your browser';

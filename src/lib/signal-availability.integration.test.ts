@@ -1,15 +1,17 @@
 import { readFile } from 'node:fs/promises';
-import { afterAll, afterEach, expect, it, vi } from 'vitest';
-import { addDbcFiles, resetDbcLibrary } from './stores/dbc-files.js';
-import { openTraceFile } from './stores/trace-file.js';
-import { clearSelectedSignals, isSignalSelected, toggleSignal } from './stores/plot-data.js';
-import { buildSelectorSearchIndexes, selectorRows, type SelectorListRow } from './selector-list.js';
-import { startTraceSession } from './stores/session.js';
-import { mountWebMcp } from './webmcp.js';
-import type { WebMcpTool } from './webmcp-tools.js';
+
 import type { CanTraceClient } from 'cantraceviewer';
-import { closeTrace } from './wasm.js';
+import { afterAll, afterEach, expect, it, vi } from 'vitest';
+
+import { buildSelectorSearchIndexes, selectorRows, type SelectorListRow } from './selector-list.js';
+import { addDbcFiles, resetDbcLibrary } from './stores/dbc-files.js';
+import { clearSelectedSignals, isSignalSelected, toggleSignal } from './stores/plot-data.js';
+import { startTraceSession } from './stores/session.js';
 import { appStore, update } from './stores/store.js';
+import { openTraceFile } from './stores/trace-file.js';
+import { closeTrace } from './wasm.js';
+import type { WebMcpTool } from './webmcp-tools.js';
+import { mountWebMcp } from './webmcp.js';
 
 // Replace only the browser Worker transport; exercise the published package and app stores.
 const transport = vi.hoisted(() => ({ client: null as CanTraceClient | null }));

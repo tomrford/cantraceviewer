@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { buildSelectorSearchIndexes, type SelectorDbcFile } from './selector-list.js';
+import type { TraceFileEntry } from './stores/derive.js';
 import { addAxis, removeAxis, resetAxes } from './stores/plot-axes.js';
 import { setViewport } from './stores/plot-view.js';
-import { buildSelectorSearchIndexes, type SelectorDbcFile } from './selector-list.js';
-import { mountWebMcp, storeHost, type ModelContext } from './webmcp.js';
+import { appStore, update } from './stores/store.js';
 import {
 	INSPECTION_SIGNAL_LIMIT,
 	SEARCH_RESULT_LIMIT_MAX,
@@ -13,8 +15,7 @@ import {
 	type WebMcpHost,
 	type WebMcpPlottedSignal
 } from './webmcp-tools.js';
-import type { TraceFileEntry } from './stores/derive.js';
-import { appStore, update } from './stores/store.js';
+import { mountWebMcp, storeHost, type ModelContext } from './webmcp.js';
 
 const engineKey = '["powertrain","standard:207:8","EngineSpeed"]';
 const wheelKey = '["chassis","extended:419361024:8","WheelBasedSpeed"]';

@@ -2,7 +2,6 @@
 
 import { createHandleRegistry } from './handles.ts';
 import { snapshotLimits, dbcBytes, assertByteLimit, type ParsingLimits } from './limits.ts';
-import { initSync, Dbc as WasmDbc, Trace as WasmTrace } from './wasm-bindgen/cantraceviewer.js';
 import type {
 	DbcHandle,
 	DbcDiagnostic,
@@ -19,6 +18,7 @@ import type {
 	TraceMetadata,
 	TraceType
 } from './types.ts';
+import { initSync, Dbc as WasmDbc, Trace as WasmTrace } from './wasm-bindgen/cantraceviewer.js';
 
 export type * from './types.ts';
 export { DEFAULT_PARSING_LIMITS, type ParsingLimits } from './limits.ts';

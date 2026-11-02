@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+
 import { plotWheelAction } from './plot-interaction-policy.js';
 
 describe('plot interaction policy', () => {

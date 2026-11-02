@@ -1,6 +1,7 @@
 import type { YAxisId } from '#lib/plot-axes.js';
 import { nextSignalColorIndex } from '#lib/plot-colors.js';
 import { getMf4SignalValues, getSignalValues } from '#lib/wasm.js';
+
 import type { DbcSignalTarget, SelectedSignalState, TraceFileEntry } from './derive.js';
 import { appStore, update } from './store.js';
 
