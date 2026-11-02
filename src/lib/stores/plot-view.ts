@@ -28,6 +28,14 @@ export function zoomBy(
 	if (viewport !== null) setViewport(zoomViewport(viewport, factor, anchor, axes));
 }
 
+export function zoomIn(): void {
+	zoomBy(0.5);
+}
+
+export function zoomOut(): void {
+	zoomBy(2);
+}
+
 export function panBy(
 	delta: { x: number; y: number },
 	plotSize: { width: number; height: number }

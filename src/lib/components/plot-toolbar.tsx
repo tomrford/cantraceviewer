@@ -15,7 +15,8 @@ import {
 	resetZoom,
 	setBoxZoomEnabled,
 	setLegendVisible,
-	zoomBy
+	zoomIn,
+	zoomOut
 } from '#lib/stores/plot-view.js';
 import { cn } from '#lib/utils.js';
 import { appStore } from '#lib/stores/store.js';
@@ -38,10 +39,10 @@ export function PlotToolbar({ disabled }: { disabled: boolean }) {
 	return (
 		<>
 			<ButtonGroup aria-label="Plot zoom controls">
-				<ZoomButton label="Zoom in" action="zoomIn" disabled={disabled} onClick={() => zoomBy(0.5)}>
+				<ZoomButton label="Zoom in" action="zoomIn" disabled={disabled} onClick={zoomIn}>
 					<Plus className="size-3.5" />
 				</ZoomButton>
-				<ZoomButton label="Zoom out" action="zoomOut" disabled={disabled} onClick={() => zoomBy(2)}>
+				<ZoomButton label="Zoom out" action="zoomOut" disabled={disabled} onClick={zoomOut}>
 					<Minus className="size-3.5" />
 				</ZoomButton>
 				<ZoomButton

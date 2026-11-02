@@ -33,7 +33,8 @@ import {
 	resetZoom,
 	toggleBoxZoom,
 	upsertCrosshair,
-	zoomBy
+	zoomIn,
+	zoomOut
 } from '#lib/stores/plot-view.js';
 import { cn } from '#lib/utils.js';
 import { PlotCrosshairOverlay } from './plot-crosshair.js';
@@ -133,12 +134,12 @@ export function SignalPlot({
 						<PlotCrosshairOverlay id={2} onContextMenuPoint={rememberContextMenuPoint} />
 					</PlotInteraction>
 					<ContextMenuContent className="w-52">
-						<ContextMenuItem onClick={() => zoomBy(0.5)}>
+						<ContextMenuItem onClick={zoomIn}>
 							<Plus />
 							Zoom in
 							<MenuShortcut action="zoomIn" />
 						</ContextMenuItem>
-						<ContextMenuItem onClick={() => zoomBy(2)}>
+						<ContextMenuItem onClick={zoomOut}>
 							<Minus />
 							Zoom out
 							<MenuShortcut action="zoomOut" />

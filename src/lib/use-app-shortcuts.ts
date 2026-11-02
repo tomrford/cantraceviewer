@@ -15,7 +15,8 @@ import {
 	resetZoom,
 	toggleBoxZoom,
 	toggleLegend,
-	zoomBy
+	zoomIn,
+	zoomOut
 } from '#lib/stores/plot-view.js';
 
 /** Binds the global keyboard shortcuts and returns the runner the command palette shares. */
@@ -33,8 +34,8 @@ export function useAppShortcuts(
 		showPalette: openPalette,
 		openSettings,
 		showHelp: openHelp,
-		zoomIn: () => zoomBy(0.5),
-		zoomOut: () => zoomBy(2),
+		zoomIn,
+		zoomOut,
 		resetZoom,
 		toggleBoxZoom,
 		toggleLegend,
