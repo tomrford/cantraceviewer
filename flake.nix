@@ -28,6 +28,7 @@
             pkgs.nodejs_22
             pkgs.pnpm
             rustToolchain
+            pkgs.cargo-audit
             pkgs.wasm-bindgen-cli
             pkgs.binaryen
           ];

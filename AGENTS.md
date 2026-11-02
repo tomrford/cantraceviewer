@@ -13,9 +13,10 @@ CI=true nix develop -c pnpm install --frozen-lockfile
 nix develop -c pnpm run dev
 nix develop -c pnpm run validate
 nix develop -c pnpm run package:validate
+nix develop -c pnpm run audit
 ```
 
-Run `validate` before handoff. Use `package:validate` for package release checks.
+Run `validate` before handoff. Use `package:validate` for package release checks. `audit` checks the pnpm and Cargo lockfiles for known vulnerabilities.
 Keep build-generating commands serial within a checkout because they share output directories.
 
 ## Structure
