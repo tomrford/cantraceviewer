@@ -12,7 +12,7 @@ import {
 	type LucideIcon
 } from 'lucide-react';
 import { useStore } from 'zustand';
-import { panelShadow, PanelHeader } from '#lib/components/panel-chrome.js';
+import { PanelHeader } from '#lib/components/panel-header.js';
 import { ShortcutKey } from '#lib/components/shortcut-key.js';
 import { Button, buttonVariants } from '#lib/components/ui/button.js';
 import {
@@ -31,6 +31,7 @@ import {
 import { Toggle } from '#lib/components/ui/toggle.js';
 import { ToggleGroup } from '#lib/components/ui/toggle-group.js';
 import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tooltip.js';
+import { panelShadow } from '#lib/panel-shadow.js';
 import { openHelp, setSettingsOpen } from '#lib/stores/app-shell.js';
 import { setPreference } from '#lib/stores/preferences.js';
 import { onResetPersistentData } from '#lib/stores/session.js';
