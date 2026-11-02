@@ -1,13 +1,7 @@
 import { AudioWaveform, CircleQuestionMark, Database, LoaderCircle } from 'lucide-react';
-import {
-	useEffect,
-	useRef,
-	useState,
-	type ChangeEvent,
-	type ComponentProps,
-	type DragEvent
-} from 'react';
+import { useEffect, useRef, type ChangeEvent, type ComponentProps } from 'react';
 import { useStore } from 'zustand';
+import { DropOverlay } from '#lib/components/drop-overlay.js';
 import { PlotToolbar } from '#lib/components/plot-toolbar.js';
 import { SettingsDialog } from '#lib/components/settings-dialog.js';
 import { ShortcutKey } from '#lib/components/shortcut-key.js';
@@ -35,17 +29,13 @@ import { Walkthrough } from '#lib/components/walkthrough.js';
 import { CommandPalette } from '#lib/components/command-palette.js';
 import { HelpDialog } from '#lib/components/help-dialog.js';
 import { SignalPlot } from '#lib/components/signal-plot.js';
-import {
-	dragLeftCurrentTarget,
-	filesFromDrop,
-	hasDraggedFiles,
-	traceFileFromDrop
-} from '#lib/file-drop.js';
+import { traceFileFromDrop } from '#lib/file-drop.js';
 import { openDemoTrace, openTrace, startWalkthrough } from '#lib/stores/app-shell.js';
 import { isDark } from '#lib/stores/preferences.js';
 import { clearTraceError } from '#lib/stores/trace-file.js';
 import { TRACE_FILE_ACCEPT, TRACE_FILE_FORMAT_NAMES } from '#lib/trace-file-types.js';
 import { useAppShortcuts } from '#lib/use-app-shortcuts.js';
+import { useFileDrop } from '#lib/use-file-drop.js';
 import { useBrowserValue } from '#lib/utils.js';
 import { shouldShowWalkthrough } from '#lib/walkthrough.js';
 import { appStore } from '#lib/stores/store.js';
@@ -104,7 +94,6 @@ function AppShell() {
 	const signalSearchInput = useRef<HTMLInputElement>(null);
 	const openingTrace = useStore(appStore, (s) => s.openingTrace);
 	const hasTrace = useStore(appStore, (s) => s.trace !== null);
-	const [dropActive, setDropActive] = useState(false);
 	const traceError = useStore(appStore, (s) => s.traceError);
 	const hasPlottable = useStore(appStore, (s) => s.hasPlottableSignals);
 	const isFitAll = useStore(appStore, (s) => s.isFitAll);
@@ -127,28 +116,11 @@ function AppShell() {
 		focusSignalSearch: () => signalSearchInput.current?.focus()
 	});
 
-	function handleTraceDrag(event: DragEvent) {
-		if (!hasDraggedFiles(event)) return;
-		event.preventDefault();
-		if (!openingTrace) setDropActive(true);
-	}
-
-	function handleTraceDragLeave(event: DragEvent) {
-		if (dragLeftCurrentTarget(event)) setDropActive(false);
-	}
-
-	function handleTraceDrop(event: DragEvent) {
-		event.preventDefault();
-		setDropActive(false);
-		void openTrace(traceFileFromDrop(filesFromDrop(event)));
-	}
-
-	const traceDragHandlers = {
-		onDragEnter: handleTraceDrag,
-		onDragOver: handleTraceDrag,
-		onDragLeave: handleTraceDragLeave,
-		onDrop: handleTraceDrop
-	};
+	const { dropActive: traceDragged, dropHandlers } = useFileDrop((files) => {
+		void openTrace(traceFileFromDrop(files));
+	});
+	// A drop while a trace opens is still handled, but does not advertise itself.
+	const dropActive = traceDragged && !openingTrace;
 
 	return (
 		<div className="flex min-h-screen flex-col bg-background too-small:hidden">
@@ -200,13 +172,13 @@ function AppShell() {
 			</header>
 
 			{hasTrace ? (
-				<SignalPlot dropActive={dropActive} {...traceDragHandlers} />
+				<SignalPlot dropActive={dropActive} {...dropHandlers} />
 			) : (
 				<Landing
 					openingTrace={openingTrace}
 					dropActive={dropActive}
 					onOpenTrace={chooseTraceFile}
-					{...traceDragHandlers}
+					{...dropHandlers}
 				/>
 			)}
 
@@ -305,11 +277,7 @@ function Landing({
 			aria-busy={openingTrace}
 			{...props}
 		>
-			{dropActive && (
-				<div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-background/25 text-sm font-medium text-foreground backdrop-blur-[1px]">
-					Drop trace to open
-				</div>
-			)}
+			{dropActive && <DropOverlay>Drop trace to open</DropOverlay>}
 			<Empty className="max-w-md border-0">
 				<EmptyHeader>
 					<h1 className="font-heading text-base font-medium tracking-tight">{LANDING_TITLE}</h1>

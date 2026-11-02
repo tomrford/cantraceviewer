@@ -1,11 +1,4 @@
-import {
-	useDeferredValue,
-	useRef,
-	useState,
-	type DragEvent,
-	type ReactNode,
-	type RefObject
-} from 'react';
+import { useDeferredValue, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { useStore } from 'zustand';
 import { Check, ListFilter, Plus, Search, X } from 'lucide-react';
@@ -19,6 +12,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle
 } from '#lib/components/ui/alert-dialog.js';
+import { DropOverlay } from '#lib/components/drop-overlay.js';
 import { SelectorTree } from '#lib/components/selector-tree.js';
 import { Dialog, DialogClose, DialogPortal, DialogTitle } from '#lib/components/ui/dialog.js';
 import { Input } from '#lib/components/ui/input.js';
@@ -26,12 +20,7 @@ import { Label } from '#lib/components/ui/label.js';
 import { Toggle } from '#lib/components/ui/toggle.js';
 import { ToggleGroup } from '#lib/components/ui/toggle-group.js';
 import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tooltip.js';
-import {
-	dbcFilesFromDrop,
-	dragLeftCurrentTarget,
-	filesFromDrop,
-	hasDraggedFiles
-} from '#lib/file-drop.js';
+import { dbcFilesFromDrop } from '#lib/file-drop.js';
 import {
 	handleDbcAdded,
 	handleSignalToggle,
@@ -41,6 +30,7 @@ import { addDbcFiles, clearDbcError } from '#lib/stores/dbc-files.js';
 import { toggleSignal } from '#lib/stores/plot-data.js';
 import { onDbcRemoved } from '#lib/stores/session.js';
 import { appStore } from '#lib/stores/store.js';
+import { useFileDrop } from '#lib/use-file-drop.js';
 
 function withKey(keys: ReadonlySet<string>, key: string, present: boolean): ReadonlySet<string> {
 	const next = new Set(keys);
@@ -67,7 +57,6 @@ export function SignalSelectorDialog({
 	const [search, setSearch] = useState('');
 	const [activeOnly, setActiveOnly] = useState(false);
 	const [hideUnavailable, setHideUnavailable] = useState(false);
-	const [dropActive, setDropActive] = useState(false);
 	const [expansion, setExpansion] = useState<ReadonlySet<string>>(() => new Set());
 	const [collapsedWhileFiltering, setCollapsedWhileFiltering] = useState<ReadonlySet<string>>(
 		() => new Set()
@@ -98,21 +87,9 @@ export function SignalSelectorDialog({
 		if (appStore.getState().dbcFiles.length > previousCount) handleDbcAdded();
 	}
 
-	function handleDrag(event: DragEvent<HTMLDivElement>) {
-		if (!hasDraggedFiles(event)) return;
-		event.preventDefault();
-		setDropActive(true);
-	}
-
-	function handleDragLeave(event: DragEvent<HTMLDivElement>) {
-		if (dragLeftCurrentTarget(event)) setDropActive(false);
-	}
-
-	function handleDrop(event: DragEvent<HTMLDivElement>) {
-		event.preventDefault();
-		setDropActive(false);
-		void addFiles(dbcFilesFromDrop(filesFromDrop(event)));
-	}
+	const { dropActive, dropHandlers } = useFileDrop((files) => {
+		void addFiles(dbcFilesFromDrop(files));
+	});
 
 	function setExpanded(key: string, isOpen: boolean) {
 		if (filtering) setCollapsedWhileFiltering((current) => withKey(current, key, !isOpen));
@@ -168,15 +145,10 @@ export function SignalSelectorDialog({
 						// Overlays its trigger: the close button lands exactly where the trigger sits.
 						className="fixed top-2 left-2 z-50 grid h-[calc(100vh-1rem)] w-[min(26rem,calc(100vw-1rem))] origin-top-left grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden rounded-lg border border-border/70 bg-popover/90 p-4 pt-14 text-xs text-popover-foreground outline-hidden backdrop-blur-md duration-100 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
 						style={{ boxShadow: '0 1px 2px rgb(0 0 0 / 0.08)' }}
-						onDragEnter={handleDrag}
-						onDragOver={handleDrag}
-						onDragLeave={handleDragLeave}
-						onDrop={handleDrop}
+						{...dropHandlers}
 					>
 						{dropActive && (
-							<div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-popover/25 text-sm font-medium text-foreground backdrop-blur-[1px]">
-								Drop DBC files to add
-							</div>
+							<DropOverlay className="rounded-lg bg-popover/25">Drop DBC files to add</DropOverlay>
 						)}
 
 						<input
