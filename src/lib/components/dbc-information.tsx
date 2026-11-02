@@ -21,7 +21,7 @@ export function DbcInformation({ file }: { file: DbcFileEntry }) {
 	return (
 		<Dialog>
 			<DialogTrigger
-				render={<Button variant="ghost" size="icon" />}
+				render={<Button variant="ghost" size="icon" className="text-muted-foreground" />}
 				aria-label={`Information about ${file.name}`}
 			>
 				<Info />

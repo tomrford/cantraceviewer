@@ -23,6 +23,9 @@ const ROW_GAP_PX = 4;
 const ROW_OVERSCAN = 8;
 const LIST_PADDING_BOTTOM_PX = 16;
 
+const rowButtonClass =
+	'flex min-w-0 items-center gap-2 rounded-md text-left text-xs text-popover-foreground transition-[background-color,color,box-shadow] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden';
+
 type RowHandlers = {
 	onExpandedChange: (key: string, open: boolean) => void;
 	onRemoveDbc: (dbcId: string) => void;
@@ -113,7 +116,8 @@ function VirtualRows({
 									ref={virtualizer.measureElement}
 									className={cn(
 										'absolute top-0 left-0 w-full',
-										row.kind === 'dbc' && 'flex h-8 items-center gap-1',
+										row.kind === 'dbc' &&
+											'group/row flex h-8 items-center gap-1 rounded-md transition-[background-color] hover:bg-accent',
 										row.kind === 'message' && 'h-7 pl-6',
 										row.kind === 'signal' && 'h-7 pl-12'
 									)}
@@ -147,9 +151,9 @@ function DbcRow({
 
 	return (
 		<>
-			<Button
-				variant="ghost"
-				className="h-full min-w-0 flex-1 justify-start overflow-hidden"
+			<button
+				type="button"
+				className={cn(rowButtonClass, 'h-full flex-1 overflow-hidden px-2')}
 				aria-expanded={expanded}
 				aria-label={`${expanded ? 'Collapse' : 'Expand'} ${dbc.name}`}
 				onClick={() => onExpandedChange(dbc.id, !expanded)}
@@ -161,18 +165,21 @@ function DbcRow({
 						MF4
 					</span>
 				)}
-			</Button>
-			{file && <DbcInformation file={file} />}
-			{!dbc.transient && (
-				<Button
-					variant="ghost"
-					size="icon"
-					aria-label={`Delete ${dbc.name}`}
-					onClick={() => onRemoveDbc(dbc.id)}
-				>
-					<Trash2 />
-				</Button>
-			)}
+			</button>
+			{/* Hidden with opacity so keyboard users can still tab to them; always shown on touch. */}
+			<div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-focus-within/row:opacity-100 group-hover/row:opacity-100 pointer-coarse:opacity-100">
+				{file && <DbcInformation file={file} />}
+				{!dbc.transient && (
+					<Button
+						variant="ghost-destructive"
+						size="icon"
+						aria-label={`Delete ${dbc.name}`}
+						onClick={() => onRemoveDbc(dbc.id)}
+					>
+						<Trash2 />
+					</Button>
+				)}
+			</div>
 		</>
 	);
 }
@@ -185,9 +192,9 @@ function MessageRow({
 	const Chevron = expanded ? ChevronDown : ChevronRight;
 
 	return (
-		<Button
-			variant="ghost"
-			className="w-full min-w-0 shrink justify-start"
+		<button
+			type="button"
+			className={cn(rowButtonClass, 'h-7 w-full px-2 hover:bg-accent hover:text-accent-foreground')}
 			aria-expanded={expanded}
 			aria-label={`${expanded ? 'Collapse' : 'Expand'} ${message.name}${message.sourceLabel ?? ''}`}
 			onClick={() => onExpandedChange(message.key, !expanded)}
@@ -199,7 +206,7 @@ function MessageRow({
 			{message.sourceBadges?.map((badge) => (
 				<SourceBadge key={badge}>{badge}</SourceBadge>
 			))}
-		</Button>
+		</button>
 	);
 }
 

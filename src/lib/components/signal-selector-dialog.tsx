@@ -23,6 +23,8 @@ import { SelectorTree } from '#lib/components/selector-tree.js';
 import { Dialog, DialogClose, DialogPortal, DialogTitle } from '#lib/components/ui/dialog.js';
 import { Input } from '#lib/components/ui/input.js';
 import { Label } from '#lib/components/ui/label.js';
+import { Toggle } from '#lib/components/ui/toggle.js';
+import { ToggleGroup } from '#lib/components/ui/toggle-group.js';
 import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tooltip.js';
 import {
 	dbcFilesFromDrop,
@@ -133,6 +135,16 @@ export function SignalSelectorDialog({
 	}
 
 	const addDbcLabel = isLoading ? 'Loading DBC' : 'Add DBC';
+	const filterValues = [
+		...(activeOnly ? ['active'] : []),
+		...(hideUnavailable ? ['available'] : [])
+	];
+
+	function changeFilters(values: string[]) {
+		if (values.includes('active') !== activeOnly) toggleActiveOnly();
+		setHideUnavailable(values.includes('available'));
+	}
+
 	const activeOnlyLabel = activeOnly ? 'Show all DBC signals' : 'Show selected DBC signals only';
 	const unavailableLabel = hideUnavailable
 		? 'Show unavailable signals'
@@ -225,38 +237,45 @@ export function SignalSelectorDialog({
 									<Search className="pointer-events-none absolute inset-s-2 top-1/2 size-4 -translate-y-1/2 opacity-50 select-none" />
 								</div>
 							</form>
-							<Tooltip>
-								<TooltipTrigger
-									render={
-										<Button
-											variant={activeOnly ? 'default' : 'outline'}
-											size="icon-lg"
-											aria-pressed={activeOnly}
-											aria-label={activeOnlyLabel}
-											onClick={toggleActiveOnly}
-										/>
-									}
-								>
-									<Check className="size-4" />
-								</TooltipTrigger>
-								<TooltipContent sideOffset={6}>{activeOnlyLabel}</TooltipContent>
-							</Tooltip>
-							<Tooltip>
-								<TooltipTrigger
-									render={
-										<Button
-											variant={hideUnavailable ? 'default' : 'outline'}
-											size="icon-lg"
-											aria-pressed={hideUnavailable}
-											aria-label={unavailableLabel}
-											onClick={() => setHideUnavailable(!hideUnavailable)}
-										/>
-									}
-								>
-									<ListFilter className="size-4" />
-								</TooltipTrigger>
-								<TooltipContent sideOffset={6}>{unavailableLabel}</TooltipContent>
-							</Tooltip>
+							<ToggleGroup
+								multiple
+								aria-label="Signal filters"
+								value={filterValues}
+								onValueChange={changeFilters}
+							>
+								<Tooltip>
+									<TooltipTrigger
+										render={
+											<Toggle
+												value="active"
+												variant="outline"
+												size="lg"
+												className="size-8 px-0"
+												aria-label={activeOnlyLabel}
+											/>
+										}
+									>
+										<Check className="size-4" />
+									</TooltipTrigger>
+									<TooltipContent sideOffset={6}>{activeOnlyLabel}</TooltipContent>
+								</Tooltip>
+								<Tooltip>
+									<TooltipTrigger
+										render={
+											<Toggle
+												value="available"
+												variant="outline"
+												size="lg"
+												className="size-8 px-0"
+												aria-label={unavailableLabel}
+											/>
+										}
+									>
+										<ListFilter className="size-4" />
+									</TooltipTrigger>
+									<TooltipContent sideOffset={6}>{unavailableLabel}</TooltipContent>
+								</Tooltip>
+							</ToggleGroup>
 						</div>
 
 						<SelectorTree

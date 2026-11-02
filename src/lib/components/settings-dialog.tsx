@@ -27,6 +27,8 @@ import {
 	SelectTrigger,
 	SelectValue
 } from '#lib/components/ui/select.js';
+import { Toggle } from '#lib/components/ui/toggle.js';
+import { ToggleGroup } from '#lib/components/ui/toggle-group.js';
 import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tooltip.js';
 import { openHelp, setSettingsOpen } from '#lib/stores/app-shell.js';
 import { setPreference } from '#lib/stores/preferences.js';
@@ -157,20 +159,19 @@ export function SettingsDialog() {
 
 				<div className="grid gap-2">
 					<div className="text-xs font-medium text-muted-foreground">Theme</div>
-					<div className="grid grid-cols-3 gap-2">
+					<ToggleGroup
+						aria-label="Theme"
+						className="grid grid-cols-3"
+						value={[theme]}
+						onValueChange={([value]) => value && setPreference('theme', value)}
+					>
 						{themeOptions.map(({ value, label, icon: Icon }) => (
-							<Button
-								key={value}
-								variant={theme === value ? 'default' : 'outline'}
-								size="lg"
-								aria-pressed={theme === value}
-								onClick={() => setPreference('theme', value)}
-							>
-								<Icon data-icon="inline-start" className="size-4" />
+							<Toggle key={value} value={value} variant="outline" size="lg">
+								<Icon data-icon="inline-start" />
 								{label}
-							</Button>
+							</Toggle>
 						))}
-					</div>
+					</ToggleGroup>
 				</div>
 
 				<label className="grid gap-2" htmlFor="settings-timestamp-mode">

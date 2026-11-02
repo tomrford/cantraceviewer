@@ -233,9 +233,9 @@ function LegendAxisGroup({
 					)}
 					{axis.index !== 0 && (
 						<Button
-							variant="ghost"
-							size="icon"
-							className="-mr-1 size-5 text-muted-foreground hover:text-destructive"
+							variant="ghost-destructive"
+							size="icon-xs"
+							className="-mr-1"
 							aria-label={`Remove ${axis.label}`}
 							onClick={() => removeAxis(axis.id)}
 						>
