@@ -7,6 +7,7 @@ import {
 	storedDbcId,
 	type StoredDbc
 } from './dbc-library.js';
+import { isDbcFileName } from '#lib/dbc-file-types.js';
 import { DBC_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '#lib/file-limits.js';
 import type { DbcFileEntry } from './derive.js';
 import { appStore, update } from './store.js';
@@ -141,7 +142,7 @@ function runLibraryOperation(action: () => Promise<void>): Promise<void> {
 }
 
 async function storedFile(file: File): Promise<StoredDbc> {
-	if (!/\.dbc$/i.test(file.name)) throw new Error('Unsupported DBC file type. Open .dbc.');
+	if (!isDbcFileName(file.name)) throw new Error('Unsupported DBC file type. Open .dbc.');
 	assertFileSizeWithinLimit(file, DBC_MAX_FILE_BYTES, 'DBC');
 
 	const bytes = new Uint8Array(await file.arrayBuffer());

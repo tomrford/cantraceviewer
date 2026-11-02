@@ -213,7 +213,9 @@ describe('WebMCP shared plot', () => {
 		update({ trace: PLOT_TRACE });
 		const [key] = appStore.getState().mf4SignalTargetByKey.keys();
 		const series = { timesMs: Float64Array.of(0, 20), values: Float64Array.of(400, 8400) };
-		update({ selected: new Map([[key, { isDecoding: false, error: null, series }]]) });
+		update({
+			selected: new Map([[key, { colorIndex: 0, isDecoding: false, error: null, series }]])
+		});
 		const host = fakeHost({
 			view: storeHost.view,
 			setTimeWindow: storeHost.setTimeWindow,

@@ -1,4 +1,5 @@
 import type { DragEvent } from 'react';
+import { isDbcFileName } from './dbc-file-types';
 import { traceTypeForFileName } from './trace-file-types';
 
 export function filesFromDrop(event: DragEvent): File[] {
@@ -18,5 +19,5 @@ export function traceFileFromDrop(files: File[]): File | null {
 }
 
 export function dbcFilesFromDrop(files: File[]): File[] {
-	return files.filter((file) => /\.dbc$/i.test(file.name));
+	return files.filter((file) => isDbcFileName(file.name));
 }

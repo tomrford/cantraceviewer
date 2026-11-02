@@ -109,21 +109,13 @@ function signalView({ series, ...signal }: PlotSignal): SignalView {
 	return { ...signal, x: series?.timesMs ?? EMPTY_SERIES, y: series?.values ?? EMPTY_SERIES };
 }
 
-export function createSignalViewCache(): (signals: PlotSignal[]) => SignalView[] {
-	let cache = new Map<string, SignalView>();
-
-	return (signals) => {
-		const next = new Map<string, SignalView>();
-		const views = signals.map((signal) => {
-			const cached = cache.get(signal.key);
-			const view =
-				cached !== undefined && viewMatchesSignal(cached, signal) ? cached : signalView(signal);
-			next.set(signal.key, view);
-			return view;
-		});
-		cache = next;
-		return views;
-	};
+/** Views for `signals`, reusing each of `previous` that still matches so its identity holds. */
+export function signalViews(signals: PlotSignal[], previous: readonly SignalView[]): SignalView[] {
+	const previousByKey = new Map(previous.map((view) => [view.key, view]));
+	return signals.map((signal) => {
+		const view = previousByKey.get(signal.key);
+		return view !== undefined && viewMatchesSignal(view, signal) ? view : signalView(signal);
+	});
 }
 
 function viewMatchesSignal(view: SignalView, signal: PlotSignal): boolean {

@@ -31,29 +31,13 @@ export const SIGNAL_COLORS = [
 	'#93c5fd'
 ];
 
-export function createSignalColorAssigner(palette: readonly string[] = SIGNAL_COLORS) {
-	const indexBySignalKey = new Map<string, number>();
-
-	return {
-		colorFor(key: string): string {
-			const existing = indexBySignalKey.get(key);
-			if (existing !== undefined) return palette[existing % palette.length];
-
-			const index = lowestAvailableIndex(indexBySignalKey);
-			indexBySignalKey.set(key, index);
-			return palette[index % palette.length];
-		},
-		clear(): void {
-			indexBySignalKey.clear();
-		},
-		release(key: string): void {
-			indexBySignalKey.delete(key);
-		}
-	};
+export function signalColor(colorIndex: number): string {
+	return SIGNAL_COLORS[colorIndex % SIGNAL_COLORS.length];
 }
 
-function lowestAvailableIndex(indexBySignalKey: Map<string, number>): number {
-	const usedIndexes = new Set(indexBySignalKey.values());
+/** The lowest index not already taken, which may lie past the end of the palette. */
+export function nextSignalColorIndex(taken: Iterable<number>): number {
+	const usedIndexes = new Set(taken);
 	for (let index = 0; ; index += 1) {
 		if (!usedIndexes.has(index)) return index;
 	}
