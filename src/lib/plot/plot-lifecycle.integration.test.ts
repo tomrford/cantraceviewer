@@ -3,17 +3,17 @@ import { readFile } from 'node:fs/promises';
 import type { CanTraceClient } from 'cantraceviewer';
 import { afterAll, afterEach, expect, it, vi } from 'vitest';
 
-import { plotSeriesForViews } from './plot-series.js';
-import { PlotWindow } from './plot-window.js';
-import type { WindowedSignalView } from './signal-plot-data.js';
-import { addDbcFiles, clearDbcFiles } from './stores/dbc-files.js';
-import { addAxis, assignAxis, removeAxis } from './stores/plot-axes.js';
-import { clearSelectedSignals, toggleSignal } from './stores/plot-data.js';
-import { panBy, resetZoom, setViewport, zoomBy } from './stores/plot-view.js';
-import { startTraceSession } from './stores/session.js';
-import { appStore, update } from './stores/store.js';
-import { openTraceFile } from './stores/trace-file.js';
-import { closeTrace } from './wasm.js';
+import { plotSeriesForViews } from '@/lib/plot/plot-series';
+import { PlotWindow } from '@/lib/plot/plot-window';
+import type { WindowedSignalView } from '@/lib/plot/signal-plot-data';
+import { closeTrace } from '@/lib/wasm';
+import { addDbcFiles, clearDbcFiles } from '@/stores/dbc-files';
+import { addAxis, assignAxis, removeAxis } from '@/stores/plot-axes';
+import { clearSelectedSignals, toggleSignal } from '@/stores/plot-data';
+import { panBy, resetZoom, setViewport, zoomBy } from '@/stores/plot-view';
+import { startTraceSession } from '@/stores/session';
+import { appStore, update } from '@/stores/store';
+import { openTraceFile } from '@/stores/trace-file';
 
 // Use the same published Worker/WASM boundary as the app, with Node's transport.
 const transport = vi.hoisted(() => ({ client: null as CanTraceClient | null }));

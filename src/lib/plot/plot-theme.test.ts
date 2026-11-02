@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolvePlotTheme, toChartColor } from './plot-theme.js';
+import { resolvePlotTheme, toChartColor } from '@/lib/plot/plot-theme';
 
 function styles(values: Record<string, string>) {
 	return { getPropertyValue: (token: string) => values[token] ?? '' };

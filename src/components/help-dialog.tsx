@@ -1,5 +1,5 @@
-import { ShortcutKey } from '#lib/components/shortcut-key.js';
-import { Button } from '#lib/components/ui/button.js';
+import { ShortcutKey } from '@/components/shortcut-key';
+import { Button } from '@/components/ui/button';
 import {
 	Dialog,
 	DialogClose,
@@ -8,11 +8,11 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle
-} from '#lib/components/ui/dialog.js';
-import { groupedShortcuts, shortcutLabel } from '#lib/keyboard-shortcuts.js';
-import { setHelpOpen, startWalkthrough } from '#lib/stores/app-shell.js';
-import { useAppStore } from '#lib/stores/store.js';
-import { TRACE_FILE_FORMAT_NAMES } from '#lib/trace-file-types.js';
+} from '@/components/ui/dialog';
+import { groupedShortcuts, shortcutLabel } from '@/lib/keyboard-shortcuts';
+import { TRACE_FILE_FORMAT_NAMES } from '@/lib/trace-file-types';
+import { setHelpOpen, startWalkthrough } from '@/stores/app-shell';
+import { useAppStore } from '@/stores/store';
 
 const groups = groupedShortcuts();
 

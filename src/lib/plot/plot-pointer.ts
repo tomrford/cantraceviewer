@@ -1,4 +1,4 @@
-import type { PlotGrid } from './plot-axis-layout.js';
+import type { PlotGrid } from '@/lib/plot/plot-axis-layout';
 
 export type PlotRatioPoint = { xRatio: number; yRatio: number };
 

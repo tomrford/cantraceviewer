@@ -1,13 +1,13 @@
-import { PRIMARY_Y_AXIS_ID } from '#lib/plot-axes.js';
+import { PRIMARY_Y_AXIS_ID } from '@/lib/plot/plot-axes';
 import {
 	axisGutterOffset,
 	axisTicks,
 	axisTicksAtRatios,
 	Y_AXIS_GUTTER,
 	type AxisTickGenerator
-} from '#lib/plot-axis-layout.js';
-import { formatAxisValue } from '#lib/signal-plot-data.js';
-import { useAppStore } from '#lib/stores/store.js';
+} from '@/lib/plot/plot-axis-layout';
+import { formatAxisValue } from '@/lib/plot/signal-plot-data';
+import { useAppStore } from '@/stores/store';
 
 /** Y-axis gutters with tick labels; secondary axes put their ticks at the primary tick ratios. */
 export function SignalPlotAxes({ generateTicks }: { generateTicks: AxisTickGenerator }) {

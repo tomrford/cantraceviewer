@@ -1,10 +1,10 @@
 import { Popover as PopoverPrimitive } from '@base-ui/react/popover';
 import { useRef } from 'react';
 
-import { Button } from '#lib/components/ui/button.js';
-import { advanceWalkthrough } from '#lib/stores/app-shell.js';
-import { useAppStore } from '#lib/stores/store.js';
-import { WALKTHROUGH_STEPS, type WalkthroughStep } from '#lib/walkthrough.js';
+import { Button } from '@/components/ui/button';
+import { WALKTHROUGH_STEPS, type WalkthroughStep } from '@/lib/walkthrough';
+import { advanceWalkthrough } from '@/stores/app-shell';
+import { useAppStore } from '@/stores/store';
 
 export function Walkthrough() {
 	const stepId = useAppStore((s) => s.walkthroughStepId);

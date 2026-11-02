@@ -1,7 +1,7 @@
 import { domToBlob } from 'modern-screenshot';
 import { toast } from 'sonner';
 
-import { appStore } from '#lib/stores/store.js';
+import { appStore } from '@/stores/store';
 
 const EXPORT_BRAND = 'cantraceviewer.com';
 

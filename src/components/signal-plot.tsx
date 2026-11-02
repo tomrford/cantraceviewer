@@ -11,6 +11,12 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState, useTransition, type ComponentProps } from 'react';
 
+import { DropOverlay } from '@/components/drop-overlay';
+import { PlotCrosshairOverlay } from '@/components/plot-crosshair';
+import { PlotInteraction } from '@/components/plot-interaction';
+import { ShortcutKey } from '@/components/shortcut-key';
+import { SignalPlotAxes } from '@/components/signal-plot-axes';
+import { SignalPlotLegend } from '@/components/signal-plot-legend';
 import {
 	ContextMenu,
 	ContextMenuContent,
@@ -20,13 +26,14 @@ import {
 	ContextMenuSub,
 	ContextMenuSubContent,
 	ContextMenuSubTrigger
-} from '#lib/components/ui/context-menu.js';
-import type { ShortcutAction } from '#lib/keyboard-shortcuts.js';
-import { mountChart, type RendererState } from '#lib/plot-chart.js';
-import type { CrosshairId } from '#lib/plot-crosshair.js';
-import { exportPlotImage, type ImageDestination } from '#lib/plot-image-export.js';
-import type { PlotPoint } from '#lib/plot-viewport.js';
-import { clearSelectedSignals } from '#lib/stores/plot-data.js';
+} from '@/components/ui/context-menu';
+import type { ShortcutAction } from '@/lib/keyboard-shortcuts';
+import { mountChart, type RendererState } from '@/lib/plot/plot-chart';
+import type { CrosshairId } from '@/lib/plot/plot-crosshair';
+import { exportPlotImage, type ImageDestination } from '@/lib/plot/plot-image-export';
+import type { PlotPoint } from '@/lib/plot/plot-viewport';
+import { cn } from '@/lib/utils';
+import { clearSelectedSignals } from '@/stores/plot-data';
 import {
 	clearCrosshairs,
 	deleteCrosshair,
@@ -35,16 +42,8 @@ import {
 	upsertCrosshair,
 	zoomIn,
 	zoomOut
-} from '#lib/stores/plot-view.js';
-import { useAppStore } from '#lib/stores/store.js';
-import { cn } from '#lib/utils.js';
-
-import { DropOverlay } from './drop-overlay.js';
-import { PlotCrosshairOverlay } from './plot-crosshair.js';
-import { PlotInteraction } from './plot-interaction.js';
-import { ShortcutKey } from './shortcut-key.js';
-import { SignalPlotAxes } from './signal-plot-axes.js';
-import { SignalPlotLegend } from './signal-plot-legend.js';
+} from '@/stores/plot-view';
+import { useAppStore } from '@/stores/store';
 
 const EMPTY_MESSAGE = 'Select signals from the signal selector to view them.';
 

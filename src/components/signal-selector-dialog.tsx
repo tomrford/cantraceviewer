@@ -2,29 +2,29 @@ import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { Check, ListFilter, Plus, Search, X } from 'lucide-react';
 import { useDeferredValue, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
 
-import { DropOverlay } from '#lib/components/drop-overlay.js';
-import { ErrorDialog } from '#lib/components/error-dialog.js';
-import { PanelHeader } from '#lib/components/panel-header.js';
-import { SelectorTree } from '#lib/components/selector-tree.js';
-import { Button } from '#lib/components/ui/button.js';
-import { Dialog, DialogClose, DialogPortal, DialogTitle } from '#lib/components/ui/dialog.js';
-import { Input } from '#lib/components/ui/input.js';
-import { Label } from '#lib/components/ui/label.js';
-import { ToggleGroup } from '#lib/components/ui/toggle-group.js';
-import { Toggle } from '#lib/components/ui/toggle.js';
-import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tooltip.js';
-import { dbcFilesFromDrop } from '#lib/file-drop.js';
-import { panelShadow } from '#lib/panel-shadow.js';
+import { DropOverlay } from '@/components/drop-overlay';
+import { ErrorDialog } from '@/components/error-dialog';
+import { PanelHeader } from '@/components/panel-header';
+import { SelectorTree } from '@/components/selector-tree';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogClose, DialogPortal, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Toggle } from '@/components/ui/toggle';
+import { ToggleGroup } from '@/components/ui/toggle-group';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useFileDrop } from '@/hooks/use-file-drop';
+import { dbcFilesFromDrop } from '@/lib/file-drop';
+import { panelShadow } from '@/lib/panel-shadow';
 import {
 	advanceWalkthroughAfterDbcAdded,
 	advanceWalkthroughAfterSignalToggle,
 	setSignalSelectorOpen
-} from '#lib/stores/app-shell.js';
-import { addDbcFiles, clearDbcError } from '#lib/stores/dbc-files.js';
-import { toggleSignal } from '#lib/stores/plot-data.js';
-import { deleteDbc } from '#lib/stores/session.js';
-import { appStore, useAppStore } from '#lib/stores/store.js';
-import { useFileDrop } from '#lib/use-file-drop.js';
+} from '@/stores/app-shell';
+import { addDbcFiles, clearDbcError } from '@/stores/dbc-files';
+import { toggleSignal } from '@/stores/plot-data';
+import { deleteDbc } from '@/stores/session';
+import { appStore, useAppStore } from '@/stores/store';
 
 function withKey(keys: ReadonlySet<string>, key: string, present: boolean): ReadonlySet<string> {
 	const next = new Set(keys);

@@ -1,7 +1,7 @@
 import type { LineSeriesConfig, ScatterSeriesConfig } from 'chartgpu';
 
-import type { YAxisId } from './plot-axes.js';
-import type { WindowedSignalView } from './signal-plot-data.js';
+import type { YAxisId } from '@/lib/plot/plot-axes';
+import type { WindowedSignalView } from '@/lib/plot/signal-plot-data';
 
 const EMPTY_SERIES = new Float64Array(0);
 

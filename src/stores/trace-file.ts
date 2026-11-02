@@ -1,9 +1,8 @@
-import { TRACE_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '#lib/file-limits.js';
-import { TRACE_FILE_DESCRIPTION, traceTypeForFileName } from '#lib/trace-file-types.js';
-import { closeTrace, openTrace } from '#lib/wasm.js';
-
-import type { TraceFileEntry } from './derive.js';
-import { appStore, update } from './store.js';
+import { TRACE_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '@/lib/file-limits';
+import { TRACE_FILE_DESCRIPTION, traceTypeForFileName } from '@/lib/trace-file-types';
+import { closeTrace, openTrace } from '@/lib/wasm';
+import type { TraceFileEntry } from '@/stores/derive';
+import { appStore, update } from '@/stores/store';
 
 let nextTraceId = 1;
 

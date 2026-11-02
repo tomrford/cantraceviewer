@@ -1,7 +1,4 @@
-import { isDbcFileName } from '#lib/dbc-file-types.js';
-import { DBC_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '#lib/file-limits.js';
-import { closeDbc, openDbc, type EmbeddedDbc } from '#lib/wasm.js';
-
+import { isDbcFileName } from '@/lib/dbc-file-types';
 import {
 	deleteStoredDbc,
 	listStoredDbcs,
@@ -9,9 +6,11 @@ import {
 	resetStoredDbcs,
 	storedDbcId,
 	type StoredDbc
-} from './dbc-library.js';
-import type { DbcFileEntry } from './derive.js';
-import { appStore, update } from './store.js';
+} from '@/lib/dbc-library';
+import { DBC_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '@/lib/file-limits';
+import { closeDbc, openDbc, type EmbeddedDbc } from '@/lib/wasm';
+import type { DbcFileEntry } from '@/stores/derive';
+import { appStore, update } from '@/stores/store';
 
 let libraryOperation = Promise.resolve();
 

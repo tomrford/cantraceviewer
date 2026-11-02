@@ -12,31 +12,26 @@ import {
 } from 'lucide-react';
 import { useRef } from 'react';
 
-import { PanelHeader } from '#lib/components/panel-header.js';
-import { ShortcutKey } from '#lib/components/shortcut-key.js';
-import { Button, buttonVariants } from '#lib/components/ui/button.js';
-import {
-	Popover,
-	PopoverContent,
-	PopoverTitle,
-	PopoverTrigger
-} from '#lib/components/ui/popover.js';
+import { PanelHeader } from '@/components/panel-header';
+import { ShortcutKey } from '@/components/shortcut-key';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@/components/ui/popover';
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue
-} from '#lib/components/ui/select.js';
-import { ToggleGroup } from '#lib/components/ui/toggle-group.js';
-import { Toggle } from '#lib/components/ui/toggle.js';
-import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tooltip.js';
-import { panelShadow } from '#lib/panel-shadow.js';
-import type { LegendOrderMode } from '#lib/plot-signal-order.js';
-import { openHelp, setSettingsOpen } from '#lib/stores/app-shell.js';
-import { setPreference } from '#lib/stores/preferences.js';
-import { resetPersistentData } from '#lib/stores/session.js';
-import { useAppStore, type ThemePreference, type TimestampMode } from '#lib/stores/store.js';
+} from '@/components/ui/select';
+import { Toggle } from '@/components/ui/toggle';
+import { ToggleGroup } from '@/components/ui/toggle-group';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { panelShadow } from '@/lib/panel-shadow';
+import type { LegendOrderMode } from '@/lib/plot/plot-signal-order';
+import { openHelp, setSettingsOpen } from '@/stores/app-shell';
+import { setPreference } from '@/stores/preferences';
+import { resetPersistentData } from '@/stores/session';
+import { useAppStore, type ThemePreference, type TimestampMode } from '@/stores/store';
 
 // lucide-react 1.x dropped brand icons; this is the lucide `github` glyph the app used before.
 const Github = createLucideIcon('github', [

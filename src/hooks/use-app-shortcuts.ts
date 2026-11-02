@@ -8,8 +8,8 @@ import {
 	shortcutSuppressedBySurface,
 	type ShortcutAction,
 	type ShortcutState
-} from '#lib/keyboard-shortcuts.js';
-import { openHelp, openPalette, openSettings, openSignalSelector } from '#lib/stores/app-shell.js';
+} from '@/lib/keyboard-shortcuts';
+import { openHelp, openPalette, openSettings, openSignalSelector } from '@/stores/app-shell';
 import {
 	clearCrosshairs,
 	placeCrosshair,
@@ -18,7 +18,7 @@ import {
 	toggleLegend,
 	zoomIn,
 	zoomOut
-} from '#lib/stores/plot-view.js';
+} from '@/stores/plot-view';
 
 /** Binds the global keyboard shortcuts and returns the runner the command palette shares. */
 export function useAppShortcuts(

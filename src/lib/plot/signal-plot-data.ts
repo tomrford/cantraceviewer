@@ -3,9 +3,9 @@ import {
 	paddedYRange,
 	type PlotAxisRange,
 	type PlotViewport
-} from './plot-viewport.js';
-import type { PlotSignal } from './stores/derive.js';
-import type { TimestampMode } from './stores/store.js';
+} from '@/lib/plot/plot-viewport';
+import type { PlotSignal } from '@/stores/derive';
+import type { TimestampMode } from '@/stores/store';
 
 type DecodedValueFormatContext = Pick<
 	PlotSignal,

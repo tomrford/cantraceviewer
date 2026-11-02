@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { moveCrosshair, type PlotCrosshair } from './plot-crosshair.js';
+import { moveCrosshair, type PlotCrosshair } from '@/lib/plot/plot-crosshair';
 
 describe('plot crosshair movement', () => {
 	it('moves both coordinates from the handle and one coordinate from each line', () => {

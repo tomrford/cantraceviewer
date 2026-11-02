@@ -1,14 +1,15 @@
 import { Crosshair, Expand, List, Minus, Plus, SquareDashed, X } from 'lucide-react';
 import type { ReactElement } from 'react';
 
-import { ShortcutKey } from '#lib/components/shortcut-key.js';
-import { ButtonGroup } from '#lib/components/ui/button-group.js';
-import { Button, buttonVariants } from '#lib/components/ui/button.js';
-import { Menu, MenuContent, MenuItem, MenuTrigger } from '#lib/components/ui/menu.js';
-import { Toggle } from '#lib/components/ui/toggle.js';
-import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tooltip.js';
-import type { ShortcutAction } from '#lib/keyboard-shortcuts.js';
-import { crosshairById, type CrosshairId } from '#lib/plot-crosshair.js';
+import { ShortcutKey } from '@/components/shortcut-key';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { ButtonGroup } from '@/components/ui/button-group';
+import { Menu, MenuContent, MenuItem, MenuTrigger } from '@/components/ui/menu';
+import { Toggle } from '@/components/ui/toggle';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import type { ShortcutAction } from '@/lib/keyboard-shortcuts';
+import { crosshairById, type CrosshairId } from '@/lib/plot/plot-crosshair';
+import { cn } from '@/lib/utils';
 import {
 	clearCrosshairs,
 	placeCrosshair,
@@ -17,9 +18,8 @@ import {
 	setLegendVisible,
 	zoomIn,
 	zoomOut
-} from '#lib/stores/plot-view.js';
-import { useAppStore } from '#lib/stores/store.js';
-import { cn } from '#lib/utils.js';
+} from '@/stores/plot-view';
+import { useAppStore } from '@/stores/store';
 
 const toolbarIconButtonClass =
 	'border-input bg-transparent hover:bg-muted hover:text-foreground dark:bg-transparent dark:hover:bg-muted/50';

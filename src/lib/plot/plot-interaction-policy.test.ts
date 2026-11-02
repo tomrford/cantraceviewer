@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { plotWheelAction } from './plot-interaction-policy.js';
+import { plotWheelAction } from '@/lib/plot/plot-interaction-policy';
 
 describe('plot interaction policy', () => {
 	it('pans the x axis for dominant unmodified horizontal movement', () => {

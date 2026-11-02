@@ -1,10 +1,10 @@
-import { MAX_Y_AXES } from '#lib/plot-axes.js';
-import type { CrosshairId, LegendCrosshairMode } from '#lib/plot-crosshair.js';
-import { searchIndex } from '#lib/search-index.js';
-import type { SelectorSearchIndex } from '#lib/selector-list.js';
-import { formatDecodedValue, nearestSignalSample } from '#lib/signal-plot-data.js';
-import type { PlotSignal } from '#lib/stores/derive.js';
-import type { storeHost } from '#lib/webmcp.js';
+import { MAX_Y_AXES } from '@/lib/plot/plot-axes';
+import type { CrosshairId, LegendCrosshairMode } from '@/lib/plot/plot-crosshair';
+import { formatDecodedValue, nearestSignalSample } from '@/lib/plot/signal-plot-data';
+import { searchIndex } from '@/lib/search-index';
+import type { SelectorSearchIndex } from '@/lib/selector-list';
+import type { storeHost } from '@/lib/webmcp';
+import type { PlotSignal } from '@/stores/derive';
 
 export const SEARCH_RESULT_LIMIT_MAX = 50;
 const SEARCH_RESULT_LIMIT_DEFAULT = 25;

@@ -16,7 +16,10 @@ vi.mock('cantraceviewer', async () => {
 		}
 	};
 });
-import { buildSelectorSearchIndexes } from './selector-list.js';
+import * as library from '@/lib/dbc-library';
+import { buildSelectorSearchIndexes } from '@/lib/selector-list';
+import { closeTrace } from '@/lib/wasm';
+import { searchCatalogSignals } from '@/lib/webmcp-tools';
 import {
 	addDbcFiles,
 	addTransientDbcs,
@@ -24,19 +27,16 @@ import {
 	loadDbcLibrary,
 	removeDbcFile,
 	resetDbcLibrary
-} from './stores/dbc-files.js';
-import * as library from './stores/dbc-library.js';
+} from '@/stores/dbc-files';
 import {
 	clearSelectedSignals,
 	deselectDbcFile,
 	signalDecodeStatus,
 	toggleSignal
-} from './stores/plot-data.js';
-import { startTraceSession } from './stores/session.js';
-import { appStore, update } from './stores/store.js';
-import { openTraceFile } from './stores/trace-file.js';
-import { closeTrace } from './wasm.js';
-import { searchCatalogSignals } from './webmcp-tools.js';
+} from '@/stores/plot-data';
+import { startTraceSession } from '@/stores/session';
+import { appStore, update } from '@/stores/store';
+import { openTraceFile } from '@/stores/trace-file';
 
 const fixture = async (name: string) =>
 	new File([await readFile(`wasm/tests/fixtures/${name}`)], name);

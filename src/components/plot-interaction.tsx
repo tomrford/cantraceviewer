@@ -9,18 +9,18 @@ import {
 	type RefObject
 } from 'react';
 
-import { ContextMenuTrigger } from '#lib/components/ui/context-menu.js';
-import { plotWheelAction } from '#lib/plot-interaction-policy.js';
-import { plotAreaRect, ratioInArea, type PlotRatioPoint } from '#lib/plot-pointer.js';
+import { ContextMenuTrigger } from '@/components/ui/context-menu';
+import { plotWheelAction } from '@/lib/plot/plot-interaction-policy';
+import { plotAreaRect, ratioInArea, type PlotRatioPoint } from '@/lib/plot/plot-pointer';
 import {
 	boxViewport,
 	dataPointAtRatio,
 	panViewport,
 	type PlotPoint,
 	type PlotViewport
-} from '#lib/plot-viewport.js';
-import { panBy, setPointerRatio, setViewport, zoomBy } from '#lib/stores/plot-view.js';
-import { appStore, useAppStore } from '#lib/stores/store.js';
+} from '@/lib/plot/plot-viewport';
+import { panBy, setPointerRatio, setViewport, zoomBy } from '@/stores/plot-view';
+import { appStore, useAppStore } from '@/stores/store';
 
 const WHEEL_ZOOM_SPEED = 0.002;
 

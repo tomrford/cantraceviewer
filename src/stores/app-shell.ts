@@ -7,14 +7,14 @@ import {
 	adjacentWalkthroughStep,
 	WALKTHROUGH_VERSION,
 	type WalkthroughStep
-} from '../walkthrough.js';
-import type { TraceFileEntry } from './derive.js';
-import { assignToNewAxis } from './plot-axes.js';
-import { isSignalSelected, signalDecodeStatus, toggleSignal } from './plot-data.js';
-import { setPreference } from './preferences.js';
-import { startTraceSession } from './session.js';
-import { appStore, update, type AppState } from './store.js';
-import { openTraceFile } from './trace-file.js';
+} from '@/lib/walkthrough';
+import type { TraceFileEntry } from '@/stores/derive';
+import { assignToNewAxis } from '@/stores/plot-axes';
+import { isSignalSelected, signalDecodeStatus, toggleSignal } from '@/stores/plot-data';
+import { setPreference } from '@/stores/preferences';
+import { startTraceSession } from '@/stores/session';
+import { appStore, update, type AppState } from '@/stores/store';
+import { openTraceFile } from '@/stores/trace-file';
 
 type WalkthroughStepId = WalkthroughStep['id'];
 

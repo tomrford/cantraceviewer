@@ -3,21 +3,21 @@ import { ChevronDown, ChevronRight, CircleAlert, LoaderCircle, Trash2 } from 'lu
 import { useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 
-import { DbcInformation } from '#lib/components/dbc-information.js';
-import { SourceBadge } from '#lib/components/source-badge.js';
-import { Button } from '#lib/components/ui/button.js';
-import { Checkbox } from '#lib/components/ui/checkbox.js';
-import { Label } from '#lib/components/ui/label.js';
-import { Tooltip, TooltipContent, TooltipTrigger } from '#lib/components/ui/tooltip.js';
+import { DbcInformation } from '@/components/dbc-information';
+import { SourceBadge } from '@/components/source-badge';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
 	selectorRows,
 	type SelectorDbcFile,
 	type SelectorDbcMessage,
 	type SelectorListRow,
 	type SelectorListSignal
-} from '#lib/selector-list.js';
-import { useAppStore } from '#lib/stores/store.js';
-import { cn } from '#lib/utils.js';
+} from '@/lib/selector-list';
+import { cn } from '@/lib/utils';
+import { useAppStore } from '@/stores/store';
 
 const ROW_GAP_PX = 4;
 const ROW_OVERSCAN = 8;

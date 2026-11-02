@@ -1,4 +1,4 @@
-import type { PlotAxisRange } from './plot-viewport.js';
+import type { PlotAxisRange } from '@/lib/plot/plot-viewport';
 
 export const Y_AXIS_GUTTER = 64;
 

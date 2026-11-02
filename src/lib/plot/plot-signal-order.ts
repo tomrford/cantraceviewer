@@ -1,4 +1,4 @@
-import type { PlotSignal } from './stores/derive.js';
+import type { PlotSignal } from '@/stores/derive';
 
 export type LegendOrderMode = 'selection' | 'alphabetical' | 'grouped';
 

@@ -5,11 +5,11 @@ import {
 	moveCrosshair,
 	type CrosshairDragAxis,
 	type CrosshairId
-} from '#lib/plot-crosshair.js';
-import { ratioInArea } from '#lib/plot-pointer.js';
-import { dataPointAtRatio, ratioAtDataPoint, type PlotPoint } from '#lib/plot-viewport.js';
-import { upsertCrosshair } from '#lib/stores/plot-view.js';
-import { appStore, useAppStore } from '#lib/stores/store.js';
+} from '@/lib/plot/plot-crosshair';
+import { ratioInArea } from '@/lib/plot/plot-pointer';
+import { dataPointAtRatio, ratioAtDataPoint, type PlotPoint } from '@/lib/plot/plot-viewport';
+import { upsertCrosshair } from '@/stores/plot-view';
+import { appStore, useAppStore } from '@/stores/store';
 
 const HANDLES = [
 	{

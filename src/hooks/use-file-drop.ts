@@ -1,6 +1,6 @@
 import { useState, type DragEvent } from 'react';
 
-import { dragLeftCurrentTarget, filesFromDrop, hasDraggedFiles } from '#lib/file-drop.js';
+import { dragLeftCurrentTarget, filesFromDrop, hasDraggedFiles } from '@/lib/file-drop';
 
 /** Tracks a file drag over an element and hands dropped files to `onFiles`. */
 export function useFileDrop(onFiles: (files: File[]) => void) {

@@ -1,8 +1,8 @@
-import { addTransientDbcs, removeDbcFile, resetDbcLibrary } from './dbc-files.js';
-import { resetAxes } from './plot-axes.js';
-import { clearSelectedSignals, deselectDbcFile } from './plot-data.js';
-import { resetPreferences } from './preferences.js';
-import { appStore } from './store.js';
+import { addTransientDbcs, removeDbcFile, resetDbcLibrary } from '@/stores/dbc-files';
+import { resetAxes } from '@/stores/plot-axes';
+import { clearSelectedSignals, deselectDbcFile } from '@/stores/plot-data';
+import { resetPreferences } from '@/stores/preferences';
+import { appStore } from '@/stores/store';
 
 export async function startTraceSession(): Promise<void> {
 	clearSelectedSignals();

@@ -8,9 +8,9 @@ import {
 	DialogDescription,
 	DialogHeader,
 	DialogTitle
-} from '#lib/components/ui/dialog.js';
-import { InputGroup, InputGroupAddon } from '#lib/components/ui/input-group.js';
-import { cn } from '#lib/utils.js';
+} from '@/components/ui/dialog';
+import { InputGroup, InputGroupAddon } from '@/components/ui/input-group';
+import { cn } from '@/lib/utils';
 
 function Command({ className, ...props }: React.ComponentProps<typeof CommandPrimitive>) {
 	return (

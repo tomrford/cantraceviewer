@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { emptyAxisSeries, lineSeries, plotSeriesForViews } from './plot-series.js';
+import { emptyAxisSeries, lineSeries, plotSeriesForViews } from '@/lib/plot/plot-series';
 import {
 	crosshairDeltaValue,
 	crosshairValue,
@@ -14,7 +14,7 @@ import {
 	signalXRange,
 	signalYRange,
 	type SignalView
-} from './signal-plot-data.js';
+} from '@/lib/plot/signal-plot-data';
 
 function view(x: number[], y: number[] = x): SignalView {
 	return {

@@ -1,4 +1,4 @@
-import { ShortcutKey } from '#lib/components/shortcut-key.js';
+import { ShortcutKey } from '@/components/shortcut-key';
 import {
 	Command,
 	CommandDialog,
@@ -8,16 +8,16 @@ import {
 	CommandItem,
 	CommandList,
 	CommandShortcut
-} from '#lib/components/ui/command.js';
+} from '@/components/ui/command';
 import {
 	groupedShortcuts,
 	shortcutEnabled,
 	shortcutLabel,
 	type ShortcutAction,
 	type ShortcutState
-} from '#lib/keyboard-shortcuts.js';
-import { setPaletteOpen } from '#lib/stores/app-shell.js';
-import { useAppStore } from '#lib/stores/store.js';
+} from '@/lib/keyboard-shortcuts';
+import { setPaletteOpen } from '@/stores/app-shell';
+import { useAppStore } from '@/stores/store';
 
 const groups = groupedShortcuts().map(({ group, actions }) => ({
 	group,

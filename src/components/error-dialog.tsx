@@ -6,7 +6,7 @@ import {
 	AlertDialogFooter,
 	AlertDialogHeader,
 	AlertDialogTitle
-} from '#lib/components/ui/alert-dialog.js';
+} from '@/components/ui/alert-dialog';
 
 /** Alert shown while `message` is set; both dismissal paths call `onDismiss`. */
 export function ErrorDialog({

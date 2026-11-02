@@ -3,8 +3,8 @@ import {
 	shortcutKeys,
 	type ShortcutAction,
 	type ShortcutPlatform
-} from '#lib/keyboard-shortcuts.js';
-import { cn, useBrowserValue } from '#lib/utils.js';
+} from '@/lib/keyboard-shortcuts';
+import { cn, useBrowserValue } from '@/lib/utils';
 
 export function ShortcutKey({ action, className }: { action: ShortcutAction; className?: string }) {
 	const platform = useBrowserValue<ShortcutPlatform>(browserShortcutPlatform, 'other');

@@ -1,6 +1,10 @@
-import { lttbSample } from './lttb.js';
-import type { PlotViewport } from './plot-viewport.js';
-import { renderIndexRange, type SignalView, type WindowedSignalView } from './signal-plot-data.js';
+import { lttbSample } from '@/lib/lttb';
+import type { PlotViewport } from '@/lib/plot/plot-viewport';
+import {
+	renderIndexRange,
+	type SignalView,
+	type WindowedSignalView
+} from '@/lib/plot/signal-plot-data';
 
 const TOTAL_SAMPLING_BUDGET = 50_000;
 const BUFFER_SPANS = 3;

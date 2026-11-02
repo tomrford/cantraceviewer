@@ -1,6 +1,6 @@
-import type { CrosshairId, LegendCrosshairMode, PlotCrosshair } from '#lib/plot-crosshair.js';
-import { removeCrosshair, setCrosshair } from '#lib/plot-crosshair.js';
-import type { PlotRatioPoint } from '#lib/plot-pointer.js';
+import type { CrosshairId, LegendCrosshairMode, PlotCrosshair } from '@/lib/plot/plot-crosshair';
+import { removeCrosshair, setCrosshair } from '@/lib/plot/plot-crosshair';
+import type { PlotRatioPoint } from '@/lib/plot/plot-pointer';
 import {
 	advanceYWindow,
 	dataPointAtRatio,
@@ -10,9 +10,8 @@ import {
 	viewportsAlmostEqual,
 	zoomViewport,
 	type PlotViewport
-} from '#lib/plot-viewport.js';
-
-import { appStore, FIT, update } from './store.js';
+} from '@/lib/plot/plot-viewport';
+import { appStore, FIT, update } from '@/stores/store';
 
 const CENTER: PlotRatioPoint = { xRatio: 0.5, yRatio: 0.5 };
 

@@ -1,6 +1,6 @@
 import { Info } from 'lucide-react';
 
-import { Button } from '#lib/components/ui/button.js';
+import { Button } from '@/components/ui/button';
 import {
 	Dialog,
 	DialogContent,
@@ -8,9 +8,9 @@ import {
 	DialogHeader,
 	DialogTitle,
 	DialogTrigger
-} from '#lib/components/ui/dialog.js';
-import type { DbcFileEntry } from '#lib/stores/derive.js';
-import { countSignals } from '#lib/utils.js';
+} from '@/components/ui/dialog';
+import { countSignals } from '@/lib/utils';
+import type { DbcFileEntry } from '@/stores/derive';
 
 export function DbcInformation({ file }: { file: DbcFileEntry }) {
 	const signalCount = countSignals(file.catalog.messages);

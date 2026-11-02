@@ -1,4 +1,4 @@
-import type { PlotRatioPoint } from './plot-pointer.js';
+import type { PlotRatioPoint } from '@/lib/plot/plot-pointer';
 
 export type PlotViewport = {
 	xMin: number;

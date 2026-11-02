@@ -6,7 +6,7 @@ import {
 	axisTicks,
 	axisTicksAtRatios,
 	Y_AXIS_GUTTER
-} from './plot-axis-layout.js';
+} from '@/lib/plot/plot-axis-layout';
 
 describe('axisGutterOffset', () => {
 	it('places the primary axis innermost and stacks later axes outwards', () => {

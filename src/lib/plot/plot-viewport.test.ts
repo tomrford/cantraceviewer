@@ -9,7 +9,7 @@ import {
 	ratioAtDataPoint,
 	viewportCenter,
 	zoomViewport
-} from './plot-viewport.js';
+} from '@/lib/plot/plot-viewport';
 
 describe('plot viewport math', () => {
 	it('pads equal extents around the shared value', () => {

@@ -1,6 +1,6 @@
 import type { ComponentProps } from 'react';
 
-import { cn } from '#lib/utils.js';
+import { cn } from '@/lib/utils';
 
 /** Covers the nearest positioned ancestor while files are dragged over it. */
 export function DropOverlay({ className, ...props }: ComponentProps<'div'>) {

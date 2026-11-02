@@ -2,28 +2,28 @@ import { GripVertical, Plus, Trash2 } from 'lucide-react';
 import { useState, type DragEvent, type KeyboardEvent } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 
-import { SourceBadge } from '#lib/components/source-badge.js';
-import { Button, buttonVariants } from '#lib/components/ui/button.js';
+import { SourceBadge } from '@/components/source-badge';
+import { Button, buttonVariants } from '@/components/ui/button';
 import {
 	ContextMenu,
 	ContextMenuContent,
 	ContextMenuItem,
 	ContextMenuTrigger
-} from '#lib/components/ui/context-menu.js';
+} from '@/components/ui/context-menu';
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue
-} from '#lib/components/ui/select.js';
-import { PRIMARY_Y_AXIS_ID, type YAxisId } from '#lib/plot-axes.js';
+} from '@/components/ui/select';
+import { PRIMARY_Y_AXIS_ID, type YAxisId } from '@/lib/plot/plot-axes';
 import {
 	crosshairById,
 	type LegendCrosshairMode,
 	type PlotCrosshair
-} from '#lib/plot-crosshair.js';
-import { ratioInRange, valueAtRatio } from '#lib/plot-viewport.js';
+} from '@/lib/plot/plot-crosshair';
+import { ratioInRange, valueAtRatio } from '@/lib/plot/plot-viewport';
 import {
 	crosshairDeltaValue,
 	crosshairValue,
@@ -32,18 +32,12 @@ import {
 	formatTimeDelta,
 	type LegendSignalValue,
 	type SignalView
-} from '#lib/signal-plot-data.js';
-import type { PlotAxisView } from '#lib/stores/derive.js';
-import {
-	addAxis,
-	assignAxis,
-	assignToNewAxis,
-	canAddAxis,
-	removeAxis
-} from '#lib/stores/plot-axes.js';
-import { setLegendCrosshairMode } from '#lib/stores/plot-view.js';
-import { useAppStore, type AppState } from '#lib/stores/store.js';
-import { cn } from '#lib/utils.js';
+} from '@/lib/plot/signal-plot-data';
+import { cn } from '@/lib/utils';
+import type { PlotAxisView } from '@/stores/derive';
+import { addAxis, assignAxis, assignToNewAxis, canAddAxis, removeAxis } from '@/stores/plot-axes';
+import { setLegendCrosshairMode } from '@/stores/plot-view';
+import { useAppStore, type AppState } from '@/stores/store';
 
 /**
  * Plot legend: signals grouped by Y axis with crosshair readouts and axis management. Readouts

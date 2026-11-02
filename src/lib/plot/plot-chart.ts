@@ -1,15 +1,15 @@
 import type { ChartGPUInstance, ChartGPUOptions, ThemeConfig } from 'chartgpu';
 
-import { PRIMARY_Y_AXIS_ID } from '#lib/plot-axes.js';
-import { Y_TICK_COUNT, type AxisTickGenerator } from '#lib/plot-axis-layout.js';
-import { SIGNAL_COLORS } from '#lib/plot-colors.js';
-import { emptyAxisSeries, plotSeriesForViews, type PlotSeriesConfig } from '#lib/plot-series.js';
-import { resolvePlotTheme, type PlotTheme } from '#lib/plot-theme.js';
-import { PlotWindow } from '#lib/plot-window.js';
-import { formatAxisTime, type WindowedSignalView } from '#lib/signal-plot-data.js';
-import type { PlotModelState } from '#lib/stores/derive.js';
-import { isDark } from '#lib/stores/preferences.js';
-import { appStore, type AppState } from '#lib/stores/store.js';
+import { PRIMARY_Y_AXIS_ID } from '@/lib/plot/plot-axes';
+import { Y_TICK_COUNT, type AxisTickGenerator } from '@/lib/plot/plot-axis-layout';
+import { SIGNAL_COLORS } from '@/lib/plot/plot-colors';
+import { emptyAxisSeries, plotSeriesForViews, type PlotSeriesConfig } from '@/lib/plot/plot-series';
+import { resolvePlotTheme, type PlotTheme } from '@/lib/plot/plot-theme';
+import { PlotWindow } from '@/lib/plot/plot-window';
+import { formatAxisTime, type WindowedSignalView } from '@/lib/plot/signal-plot-data';
+import type { PlotModelState } from '@/stores/derive';
+import { isDark } from '@/stores/preferences';
+import { appStore, type AppState } from '@/stores/store';
 
 const AXIS_FONT_SIZE = 12;
 

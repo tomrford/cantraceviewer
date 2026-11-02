@@ -9,7 +9,7 @@ import {
 	shortcutKeys,
 	shortcutSuppressedBySurface,
 	type ShortcutPlatform
-} from './keyboard-shortcuts.js';
+} from '@/lib/keyboard-shortcuts';
 
 function keyEvent(
 	key: string,

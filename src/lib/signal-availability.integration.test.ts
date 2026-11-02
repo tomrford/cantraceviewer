@@ -3,15 +3,19 @@ import { readFile } from 'node:fs/promises';
 import type { CanTraceClient } from 'cantraceviewer';
 import { afterAll, afterEach, expect, it, vi } from 'vitest';
 
-import { buildSelectorSearchIndexes, selectorRows, type SelectorListRow } from './selector-list.js';
-import { addDbcFiles, resetDbcLibrary } from './stores/dbc-files.js';
-import { clearSelectedSignals, isSignalSelected, toggleSignal } from './stores/plot-data.js';
-import { startTraceSession } from './stores/session.js';
-import { appStore, update } from './stores/store.js';
-import { openTraceFile } from './stores/trace-file.js';
-import { closeTrace } from './wasm.js';
-import type { WebMcpTool } from './webmcp-tools.js';
-import { mountWebMcp } from './webmcp.js';
+import {
+	buildSelectorSearchIndexes,
+	selectorRows,
+	type SelectorListRow
+} from '@/lib/selector-list';
+import { closeTrace } from '@/lib/wasm';
+import { mountWebMcp } from '@/lib/webmcp';
+import type { WebMcpTool } from '@/lib/webmcp-tools';
+import { addDbcFiles, resetDbcLibrary } from '@/stores/dbc-files';
+import { clearSelectedSignals, isSignalSelected, toggleSignal } from '@/stores/plot-data';
+import { startTraceSession } from '@/stores/session';
+import { appStore, update } from '@/stores/store';
+import { openTraceFile } from '@/stores/trace-file';
 
 // Replace only the browser Worker transport; exercise the published package and app stores.
 const transport = vi.hoisted(() => ({ client: null as CanTraceClient | null }));
@@ -25,8 +29,8 @@ vi.mock('cantraceviewer', async () => {
 		}
 	};
 });
-vi.mock('./stores/dbc-library.js', async (importOriginal) => ({
-	...(await importOriginal<typeof import('./stores/dbc-library.js')>()),
+vi.mock('@/lib/dbc-library', async (importOriginal) => ({
+	...(await importOriginal<typeof import('@/lib/dbc-library')>()),
 	putStoredDbcs: vi.fn(async () => {}),
 	listStoredDbcs: vi.fn(async () => []),
 	deleteStoredDbc: vi.fn(async () => {}),

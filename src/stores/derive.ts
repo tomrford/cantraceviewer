@@ -1,7 +1,7 @@
 // How each derived part of the app state is computed from its inputs. `withDerived` in store.ts
 // decides when, and in what order. Nothing here reads the store.
-import { displayDbcName } from '#lib/dbc-file-types.js';
-import { buildMf4SignalTargetIndex, mf4SelectorSearchIndexes } from '#lib/mf4-signals.js';
+import { displayDbcName } from '@/lib/dbc-file-types';
+import { buildMf4SignalTargetIndex, mf4SelectorSearchIndexes } from '@/lib/mf4-signals';
 import {
 	groupSignalsByYAxis,
 	PRIMARY_Y_AXIS_ID,
@@ -9,30 +9,30 @@ import {
 	yAxisUnit,
 	type YAxisGroup,
 	type YAxisId
-} from '#lib/plot-axes.js';
-import { plotGrid, type PlotGrid } from '#lib/plot-axis-layout.js';
-import { signalColor } from '#lib/plot-colors.js';
+} from '@/lib/plot/plot-axes';
+import { plotGrid, type PlotGrid } from '@/lib/plot/plot-axis-layout';
+import { signalColor } from '@/lib/plot/plot-colors';
 import {
 	crosshairById,
 	type LegendCrosshairMode,
 	type PlotCrosshair
-} from '#lib/plot-crosshair.js';
-import { orderPlotSignals, type LegendOrderMode } from '#lib/plot-signal-order.js';
+} from '@/lib/plot/plot-crosshair';
+import { orderPlotSignals, type LegendOrderMode } from '@/lib/plot/plot-signal-order';
 import {
 	applyYWindow,
 	type PlotAxisRange,
 	type PlotViewport,
 	type PlotYWindow
-} from '#lib/plot-viewport.js';
-import { buildSelectorSearchIndexes, type SelectorDbcFile } from '#lib/selector-list.js';
+} from '@/lib/plot/plot-viewport';
 import {
 	axisSplitDomain,
 	EMPTY_AXIS_RANGE,
 	signalViews,
 	signalYRange,
 	type SignalView
-} from '#lib/signal-plot-data.js';
-import { displayTraceName } from '#lib/trace-file-types.js';
+} from '@/lib/plot/signal-plot-data';
+import { buildSelectorSearchIndexes, type SelectorDbcFile } from '@/lib/selector-list';
+import { displayTraceName } from '@/lib/trace-file-types';
 import type {
 	DbcDiagnostic,
 	DbcHandle,
@@ -46,7 +46,7 @@ import type {
 	ParsedDbc,
 	RawMessage,
 	RawSource
-} from '#lib/wasm.js';
+} from '@/lib/wasm';
 
 export type TraceFileEntry = OpenTraceResult & { id: number; file: File };
 

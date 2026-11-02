@@ -4,7 +4,7 @@ import {
 	update,
 	type AppState,
 	type PersistedPreferences
-} from './store.js';
+} from '@/stores/store';
 
 // Values are JSON-serialised under these keys; the theme key is also read by the inline
 // script in index.html before first paint.
