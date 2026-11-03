@@ -44,8 +44,5 @@ jobs:
 
       - uses: cachix/install-nix-action@v31
 
-      - name: Install dependencies
-        run: nix develop -c pnpm install --frozen-lockfile
-
       - name: Audit dependencies
         run: nix develop -c pnpm run audit

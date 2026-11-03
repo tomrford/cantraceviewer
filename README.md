@@ -31,12 +31,6 @@ Run the full CI validation serially with one release WASM build:
 nix develop -c pnpm run validate
 ```
 
-Check dependency advisories locally with the command CI runs on pull requests, pushes to main, and every Monday:
-
-```sh
-nix develop -c pnpm run audit
-```
-
 `package:validate` runs the release checks: Rust formatting, lint and tests, package packing, installed-package checks, and app checks, tests and build against the tarball. `validate` also runs repository lint, type checks and tests against the pinned registry dependency. `check` and `test` build the package before running independently; `check:types` and `test:run` reuse existing build outputs.
 
 Set `CI=true` for noninteractive dependency installation. Run build-generating commands serially within a checkout because they share generated WASM and package output directories.
