@@ -8,7 +8,7 @@ const EMPTY_SERIES = new Float64Array(0);
 export function lineSeries(view: WindowedSignalView, yAxis: YAxisId): LineSeriesConfig {
 	return {
 		type: 'line',
-		name: view.label,
+		name: view.signal.label,
 		data: { x: view.x, y: view.y },
 		yAxis,
 		color: view.color,
@@ -20,7 +20,7 @@ export function lineSeries(view: WindowedSignalView, yAxis: YAxisId): LineSeries
 function sampleMarkerSeries(view: WindowedSignalView, yAxis: YAxisId): ScatterSeriesConfig {
 	return {
 		type: 'scatter',
-		name: view.label,
+		name: view.signal.label,
 		data: { x: view.x, y: view.y },
 		yAxis,
 		color: view.color,

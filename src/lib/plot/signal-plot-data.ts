@@ -4,15 +4,9 @@ import {
 	type PlotAxisRange,
 	type PlotViewport
 } from '@/lib/plot/plot-viewport';
-import type { DecodedPlotSignal, PlotSignal } from '@/store/derive';
+import type { DecodedPlotSignal, SignalFormat } from '@/lib/signal';
+import type { DecodedSignalSeries } from '@/lib/wasm';
 import type { TimestampMode } from '@/store/store';
-
-type DecodedValueFormatContext = Pick<
-	PlotSignal,
-	'unit' | 'valueType' | 'factor' | 'offset' | 'minimum' | 'maximum' | 'valueDescriptions'
->;
-
-export type SignalView = Omit<PlotSignal, 'series'> & { x: Float64Array; y: Float64Array };
 
 export type LegendSignalValue = {
 	text: string;
@@ -24,17 +18,17 @@ type SignalSample = {
 	value: number;
 };
 
-export type WindowedSignalView = SignalView & { sampled: boolean };
+export type WindowedSignalView = DecodedPlotSignal & {
+	x: Float64Array;
+	y: Float64Array;
+	sampled: boolean;
+};
 
 const LEGEND_MAX_SIGNIFICANT_DIGITS = 7;
 
-export function isOutsideDbcRange(
-	value: number,
-	minimum: number | null,
-	maximum: number | null
-): boolean {
+export function isOutsideDbcRange(value: number, minimum: number, maximum: number): boolean {
 	if (minimum === 0 && maximum === 0) return false;
-	return (minimum !== null && value < minimum) || (maximum !== null && value > maximum);
+	return value < minimum || value > maximum;
 }
 
 function decimalPlaces(value: number): number {
@@ -75,7 +69,7 @@ function roundToLegendPrecision(value: number): number {
 	return Number(value.toPrecision(LEGEND_MAX_SIGNIFICANT_DIGITS));
 }
 
-export function formatDecodedValue(value: number | null, context: DecodedValueFormatContext) {
+export function formatDecodedValue(value: number | null, context: SignalFormat) {
 	if (value === null || !Number.isFinite(value)) {
 		return { text: '-', outOfRange: false };
 	}
@@ -85,10 +79,8 @@ export function formatDecodedValue(value: number | null, context: DecodedValueFo
 		floating
 			? roundToLegendPrecision(value)
 			: roundToResolution(value, context.factor, context.offset),
-		floating && context.minimum !== null
-			? roundToLegendPrecision(context.minimum)
-			: context.minimum,
-		floating && context.maximum !== null ? roundToLegendPrecision(context.maximum) : context.maximum
+		floating ? roundToLegendPrecision(context.minimum) : context.minimum,
+		floating ? roundToLegendPrecision(context.maximum) : context.maximum
 	);
 	const formatted = formatLegendNumericValue(
 		value,
@@ -108,76 +100,63 @@ export function formatDecodedValue(value: number | null, context: DecodedValueFo
 	};
 }
 
-function signalView({ series, ...signal }: DecodedPlotSignal): SignalView {
-	return { ...signal, x: series.timesMs, y: series.values };
-}
-
-/** Views for `signals`, reusing each of `previous` that still matches so its identity holds. */
+/** `signals`, reusing each of `previous` that still matches so its identity holds. */
 export function signalViews(
 	signals: DecodedPlotSignal[],
-	previous: readonly SignalView[]
-): SignalView[] {
+	previous: readonly DecodedPlotSignal[]
+): DecodedPlotSignal[] {
 	const previousByKey = new Map(previous.map((view) => [view.key, view]));
 	return signals.map((signal) => {
 		const view = previousByKey.get(signal.key);
-		return view !== undefined && viewMatchesSignal(view, signal) ? view : signalView(signal);
+		return view?.signal === signal.signal &&
+			view.color === signal.color &&
+			view.series === signal.series
+			? view
+			: signal;
 	});
 }
 
-function viewMatchesSignal(view: SignalView, signal: DecodedPlotSignal): boolean {
-	return (
-		view.x === signal.series.timesMs &&
-		view.y === signal.series.values &&
-		view.color === signal.color &&
-		view.label === signal.label &&
-		view.sourceBadges === signal.sourceBadges &&
-		view.unit === signal.unit &&
-		view.valueType === signal.valueType &&
-		view.factor === signal.factor &&
-		view.offset === signal.offset &&
-		view.minimum === signal.minimum &&
-		view.maximum === signal.maximum &&
-		view.valueDescriptions === signal.valueDescriptions
-	);
-}
-
-export function crosshairValue(view: SignalView, x: number): LegendSignalValue {
-	return formatDecodedValue(nearestSignalSample(view.x, view.y, x)?.value ?? null, view);
+export function crosshairValue(
+	{ signal, series }: DecodedPlotSignal,
+	x: number
+): LegendSignalValue {
+	const sample = nearestSignalSample(series.timesMs, series.values, x);
+	return formatDecodedValue(sample?.value ?? null, signal.format);
 }
 
 export function crosshairDeltaValue(
-	view: SignalView,
+	{ signal: { format }, series }: DecodedPlotSignal,
 	fromX: number,
 	toX: number
 ): LegendSignalValue {
-	if (view.valueDescriptions.length > 0) {
+	if (format.valueDescriptions.length > 0) {
 		return { text: 'N/A', outOfRange: false };
 	}
 
-	const from = nearestSignalSample(view.x, view.y, fromX)?.value ?? null;
-	const to = nearestSignalSample(view.x, view.y, toX)?.value ?? null;
+	const from = nearestSignalSample(series.timesMs, series.values, fromX)?.value ?? null;
+	const to = nearestSignalSample(series.timesMs, series.values, toX)?.value ?? null;
 	if (from === null || to === null || !Number.isFinite(from) || !Number.isFinite(to)) {
 		return { text: '-', outOfRange: false };
 	}
 
 	const formatted = formatLegendNumericValue(
 		to - from,
-		view.valueType === 'integer' ? view.factor : null
+		format.valueType === 'integer' ? format.factor : null
 	);
 	return {
-		text: view.unit ? `${formatted} ${view.unit}` : formatted,
+		text: format.unit ? `${formatted} ${format.unit}` : formatted,
 		outOfRange: false
 	};
 }
 
-function combinedDomain(views: SignalView[]): ViewDomain | null {
+function combinedDomain(views: DecodedPlotSignal[]): ViewDomain | null {
 	let xMin = Number.POSITIVE_INFINITY;
 	let xMax = Number.NEGATIVE_INFINITY;
 	let yMin = Number.POSITIVE_INFINITY;
 	let yMax = Number.NEGATIVE_INFINITY;
 
 	for (const view of views) {
-		const domain = viewDomain(view);
+		const domain = seriesDomain(view.series);
 		if (domain === null) continue;
 		xMin = Math.min(xMin, domain.xMin);
 		xMax = Math.max(xMax, domain.xMax);
@@ -188,19 +167,19 @@ function combinedDomain(views: SignalView[]): ViewDomain | null {
 	return Number.isFinite(xMin) && Number.isFinite(yMin) ? { xMin, xMax, yMin, yMax } : null;
 }
 
-export function signalXRange(views: SignalView[]): PlotAxisRange | null {
+export function signalXRange(views: DecodedPlotSignal[]): PlotAxisRange | null {
 	const domain = combinedDomain(views);
 	return domain === null ? null : paddedXRange(domain.xMin, domain.xMax);
 }
 
-export function signalYRange(views: SignalView[]): PlotAxisRange | null {
+export function signalYRange(views: DecodedPlotSignal[]): PlotAxisRange | null {
 	const domain = combinedDomain(views);
 	return domain === null ? null : paddedYRange(domain.yMin, domain.yMax);
 }
 
 export function axisSplitDomain(
-	allViews: SignalView[],
-	primaryViews: SignalView[]
+	allViews: DecodedPlotSignal[],
+	primaryViews: DecodedPlotSignal[]
 ): PlotViewport | null {
 	const x = signalXRange(allViews);
 	if (x === null) return null;
@@ -262,13 +241,13 @@ export function formatAxisValue(value: number): string | null {
 
 type ViewDomain = { xMin: number; xMax: number; yMin: number; yMax: number };
 
-const viewDomainCache = new WeakMap<SignalView, ViewDomain | null>();
+const seriesDomainCache = new WeakMap<DecodedSignalSeries, ViewDomain | null>();
 
-function viewDomain(view: SignalView): ViewDomain | null {
-	const cached = viewDomainCache.get(view);
+function seriesDomain(series: DecodedSignalSeries): ViewDomain | null {
+	const cached = seriesDomainCache.get(series);
 	if (cached !== undefined) return cached;
 
-	const { x, y } = view;
+	const { timesMs: x, values: y } = series;
 	let xMin = Number.POSITIVE_INFINITY;
 	let xMax = Number.NEGATIVE_INFINITY;
 	let yMin = Number.POSITIVE_INFINITY;
@@ -285,7 +264,7 @@ function viewDomain(view: SignalView): ViewDomain | null {
 	}
 
 	const domain = xMin === Number.POSITIVE_INFINITY ? null : { xMin, xMax, yMin, yMax };
-	viewDomainCache.set(view, domain);
+	seriesDomainCache.set(series, domain);
 	return domain;
 }
 

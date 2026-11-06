@@ -3,8 +3,8 @@ import { formatDecodedValue, nearestSignalSample } from '@/lib/plot/signal-plot-
 import { MAX_Y_AXES } from '@/lib/plot/y-axis';
 import { searchIndex } from '@/lib/search-index';
 import type { SelectorSearchIndex } from '@/lib/selector-list';
+import type { DecodedPlotSignal } from '@/lib/signal';
 import type { storeHost } from '@/lib/webmcp';
-import type { DecodedPlotSignal } from '@/store/derive';
 
 export const SEARCH_RESULT_LIMIT_MAX = 50;
 const SEARCH_RESULT_LIMIT_DEFAULT = 25;
@@ -19,20 +19,6 @@ export type WebMcpTimeRange = {
 
 export type WebMcpCrosshairInput = { id: CrosshairId; timeMs: number; value?: number };
 
-export type WebMcpPlottedSignal = Pick<
-	DecodedPlotSignal,
-	| 'key'
-	| 'label'
-	| 'unit'
-	| 'valueType'
-	| 'factor'
-	| 'offset'
-	| 'minimum'
-	| 'maximum'
-	| 'valueDescriptions'
-	| 'series'
->;
-
 export type WebMcpHost = typeof storeHost;
 
 export type WebMcpTool = {
@@ -43,8 +29,6 @@ export type WebMcpTool = {
 	annotations?: { readOnlyHint?: boolean; untrustedContentHint?: boolean };
 	execute: (input: object, options?: { signal?: AbortSignal }) => Promise<unknown>;
 };
-
-type SignalReference = { key: string; label: string };
 
 const EMPTY_OBJECT_SCHEMA = {
 	type: 'object',
@@ -109,13 +93,18 @@ export function searchCatalogSignals(
 export function resolveSignalRefs(indexes: SelectorSearchIndex[], refs: string[]) {
 	return resolveRefs(
 		indexes.flatMap((index) => index.signals.items.map(({ signal }) => signal)),
-		refs
+		refs,
+		(signal) => signal.label
 	);
 }
 
-function resolveRefs<T extends SignalReference>(signals: T[], refs: string[]) {
+function resolveRefs<T extends { key: string }>(
+	signals: T[],
+	refs: string[],
+	labelOf: (signal: T) => string
+) {
 	const byKey = new Map(signals.map((signal) => [signal.key, signal]));
-	const byLabel = Map.groupBy(signals, (signal) => signal.label.toLowerCase());
+	const byLabel = Map.groupBy(signals, (signal) => labelOf(signal).toLowerCase());
 	const resolved: T[] = [];
 	const missing: string[] = [];
 	const ambiguous: Array<{ ref: string; matches: Array<{ key: string; label: string }> }> = [];
@@ -131,7 +120,7 @@ function resolveRefs<T extends SignalReference>(signals: T[], refs: string[]) {
 		if (matches.length > 1) {
 			ambiguous.push({
 				ref,
-				matches: matches.map(({ key, label }) => ({ key, label }))
+				matches: matches.map((signal) => ({ key: signal.key, label: labelOf(signal) }))
 			});
 			continue;
 		}
@@ -362,7 +351,7 @@ export function createWebMcpTools(host: WebMcpHost): WebMcpTool[] {
 				const resolution =
 					refs === undefined
 						? { resolved: plotted.slice(0, INSPECTION_SIGNAL_LIMIT), missing: [], ambiguous: [] }
-						: resolveRefs(plotted, refs);
+						: resolveRefs(plotted, refs, ({ signal }) => signal.label);
 				const truncated = refs === undefined && plotted.length > INSPECTION_SIGNAL_LIMIT;
 				const results = resolution.resolved.map((signal) => inspectSignal(signal, timesMs));
 
@@ -497,7 +486,11 @@ export function createWebMcpTools(host: WebMcpHost): WebMcpTool[] {
 				const resolved = assignments.map(({ signal, axis }) => {
 					if (!Number.isInteger(axis) || axis < 1 || axis > MAX_Y_AXES)
 						throw new RangeError(`Axis must be between 1 and ${MAX_Y_AXES}.`);
-					const { resolved, missing, ambiguous } = resolveRefs(selected, [signal]);
+					const { resolved, missing, ambiguous } = resolveRefs(
+						selected,
+						[signal],
+						(plotted) => plotted.label
+					);
 					if (missing.length || ambiguous.length)
 						throw new Error(`Signal must identify exactly one selected signal: ${signal}`);
 					return { key: resolved[0].key, axis };
@@ -511,16 +504,16 @@ export function createWebMcpTools(host: WebMcpHost): WebMcpTool[] {
 	];
 }
 
-function inspectSignal(signal: WebMcpPlottedSignal, timesMs: number[]) {
-	const sourceTimes = signal.series.timesMs;
-	const sourceValues = signal.series.values;
+function inspectSignal({ key, signal, series }: DecodedPlotSignal, timesMs: number[]) {
+	const sourceTimes = series.timesMs;
+	const sourceValues = series.values;
 	const sourcePoints = Math.min(sourceTimes.length, sourceValues.length);
 	const sampleRangeMs =
 		sourcePoints === 0 ? null : { startMs: sourceTimes[0], endMs: sourceTimes[sourcePoints - 1] };
 	return {
-		key: signal.key,
+		key,
 		label: signal.label,
-		unit: signal.unit,
+		unit: signal.format.unit,
 		sourcePoints,
 		sampleRangeMs,
 		samples: timesMs.map((requestedTimeMs, index) => {
@@ -538,9 +531,9 @@ function inspectSignal(signal: WebMcpPlottedSignal, timesMs: number[]) {
 				};
 			}
 
-			const formatted = formatDecodedValue(sample.value, signal);
+			const formatted = formatDecodedValue(sample.value, signal.format);
 			const previous =
-				index === 0 || signal.valueDescriptions.length > 0
+				index === 0 || signal.format.valueDescriptions.length > 0
 					? null
 					: nearestSignalSample(sourceTimes, sourceValues, timesMs[index - 1]);
 			return {

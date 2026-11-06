@@ -189,7 +189,7 @@ it('decodes extended ranges, nested selectors and declared classical/FD formats 
 			.execute({ signals: [`${label} [Channel 1 · Rx]`], selected: true });
 		const plotted = appStore
 			.getState()
-			.signals.find((signal) => signal.label === `${label} [Channel 1 · Rx]`)!;
+			.signals.find(({ signal }) => signal.label === `${label} [Channel 1 · Rx]`)!;
 		expect(plotted).toBeDefined();
 		expect(Array.from(plotted.series!.timesMs)).toEqual(times);
 		expect(Array.from(plotted.series!.values)).toEqual(values);

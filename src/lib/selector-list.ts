@@ -1,20 +1,12 @@
 import { createSearchIndex, searchIndex, type SearchIndex } from '@/lib/search-index';
-
-export type SelectorListSignal = {
-	unavailableReason?: string;
-	key: string;
-	label: string;
-	messageName: string;
-	signalName: string;
-	arbitrationId?: string;
-};
+import type { Signal } from '@/lib/signal';
 
 export type SelectorDbcMessage = {
 	key: string;
 	name: string;
 	sourceLabel?: string;
 	sourceBadges?: string[];
-	signals: SelectorListSignal[];
+	signals: Signal[];
 };
 
 export type SelectorDbcFile = {
@@ -35,7 +27,7 @@ type SelectorFilter = {
 
 type SelectorSearchEntry = {
 	messageKey: string;
-	signal: SelectorListSignal;
+	signal: Signal;
 };
 
 export type SelectorSearchIndex = {
@@ -46,7 +38,7 @@ export type SelectorSearchIndex = {
 export type SelectorListRow =
 	| { kind: 'dbc'; key: string; dbc: SelectorDbcFile; expanded: boolean }
 	| { kind: 'message'; key: string; message: SelectorDbcMessage; expanded: boolean }
-	| { kind: 'signal'; key: string; signal: SelectorListSignal };
+	| { kind: 'signal'; key: string; signal: Signal };
 
 export function buildSelectorSearchIndexes(files: SelectorDbcFile[]): SelectorSearchIndex[] {
 	return files.map((dbc) => {
@@ -108,8 +100,8 @@ function visibleSignalsByMessage(
 	signals: SearchIndex<SelectorSearchEntry>,
 	query: string,
 	filter: SelectorFilter
-): Map<string, SelectorListSignal[]> {
-	const byMessage = new Map<string, SelectorListSignal[]>();
+): Map<string, Signal[]> {
+	const byMessage = new Map<string, Signal[]>();
 	for (const { messageKey, signal } of searchIndex(signals, query)) {
 		if (filter.activeOnly && !filter.isSignalSelected(signal.key)) continue;
 		if (filter.hideUnavailable && signal.unavailableReason) continue;

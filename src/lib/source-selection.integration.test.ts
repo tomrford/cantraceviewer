@@ -85,7 +85,7 @@ describe('published package app integration', () => {
 		for (const [index, hit] of hits.entries()) {
 			await toggleSignal(hit.key);
 			const plotted = appStore.getState().signals.find((s) => s.key === hit.key);
-			expect(plotted?.label).toBe(hit.label);
+			expect(plotted?.signal.label).toBe(hit.label);
 			expect(plotted?.series?.values[0]).toBe(expected[index]);
 			expect(plotted?.series?.timesMs[0]).toBe(0);
 		}
@@ -297,8 +297,8 @@ describe('published package app integration', () => {
 				['EngineSpeed', [800, 2600, 2400, 2300, 1400, 800]]
 			] as const;
 			for (const [name, values] of expected) {
-				const [key] = [...appStore.getState().mf4SignalTargetByKey].find(
-					([, target]) => target.signal.name === name
+				const { key } = [...appStore.getState().signalByKey.values()].find(
+					(signal) => signal.signalName === name
 				)!;
 				await toggleSignal(key);
 				const series = appStore.getState().signals.find((signal) => signal.key === key)!.series!;
@@ -313,7 +313,7 @@ describe('published package app integration', () => {
 			expect(await loadTraceFile(await fixture('source-selection.asc'))).toBe(true);
 			await startTraceSession();
 			expect(appStore.getState().signals).toEqual([]);
-			expect(appStore.getState().mf4SignalTargetByKey.size).toBe(0);
+			expect(appStore.getState().mf4SelectorIndexes).toEqual([]);
 			expect(appStore.getState().dbcFiles).toEqual([saved]);
 			expect(saved.catalog).toEqual(catalog);
 			expect(persist).not.toHaveBeenCalled();

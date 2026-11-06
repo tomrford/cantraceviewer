@@ -1,10 +1,7 @@
 import { lttbSample } from '@/lib/lttb';
 import type { PlotViewport } from '@/lib/plot/plot-viewport';
-import {
-	renderIndexRange,
-	type SignalView,
-	type WindowedSignalView
-} from '@/lib/plot/signal-plot-data';
+import { renderIndexRange, type WindowedSignalView } from '@/lib/plot/signal-plot-data';
+import type { DecodedPlotSignal } from '@/lib/signal';
 
 const TOTAL_SAMPLING_BUDGET = 50_000;
 const BUFFER_SPANS = 3;
@@ -13,7 +10,7 @@ const SETTLE_MS = 150;
 type WindowSlice = { start: number; end: number; xMin: number; xMax: number };
 
 type MaterializedSignal = WindowSlice & {
-	source: SignalView;
+	source: DecodedPlotSignal;
 	budget: number;
 	view: WindowedSignalView;
 };
@@ -33,7 +30,7 @@ export class PlotWindow {
 		this.#onSettle = onSettle;
 	}
 
-	viewsFor(views: SignalView[], viewport: PlotViewport | null): WindowedSignalView[] {
+	viewsFor(views: DecodedPlotSignal[], viewport: PlotViewport | null): WindowedSignalView[] {
 		const budget = perSignalBudget(views);
 		const next = views.map((view) => this.#materialize(view, viewport, budget, false));
 
@@ -48,7 +45,7 @@ export class PlotWindow {
 		return this.#lastViews;
 	}
 
-	settleAfter(views: SignalView[], viewport: PlotViewport | null): void {
+	settleAfter(views: DecodedPlotSignal[], viewport: PlotViewport | null): void {
 		if (this.#settleTimer !== null) clearTimeout(this.#settleTimer);
 		this.#settleTimer = setTimeout(() => {
 			this.#settleTimer = null;
@@ -67,7 +64,7 @@ export class PlotWindow {
 	}
 
 	#materialize(
-		view: SignalView,
+		view: DecodedPlotSignal,
 		viewport: PlotViewport | null,
 		budget: number,
 		exact: boolean
@@ -83,12 +80,13 @@ export class PlotWindow {
 			return cached.view;
 		}
 
+		const { timesMs, values } = view.series;
 		const points = slice.end - slice.start;
 		const target = slice.xMin === -Infinity ? budget : budget * BUFFER_SPANS;
 		const sampled = points > target;
 		const columns = sampled
-			? lttbSample(view.x, view.y, slice.start, slice.end, target)
-			: { x: view.x.subarray(slice.start, slice.end), y: view.y.subarray(slice.start, slice.end) };
+			? lttbSample(timesMs, values, slice.start, slice.end, target)
+			: { x: timesMs.subarray(slice.start, slice.end), y: values.subarray(slice.start, slice.end) };
 		const materialized = { ...view, ...columns, sampled };
 
 		this.#cache.set(view.key, { ...slice, source: view, budget, view: materialized });
@@ -96,8 +94,8 @@ export class PlotWindow {
 	}
 }
 
-function perSignalBudget(views: SignalView[]): number {
-	const active = views.filter((view) => view.x.length > 0).length;
+function perSignalBudget(views: DecodedPlotSignal[]): number {
+	const active = views.filter((view) => view.series.timesMs.length > 0).length;
 	return Math.max(2, Math.floor(TOTAL_SAMPLING_BUDGET / Math.max(1, active)));
 }
 
@@ -106,16 +104,16 @@ function covers(cached: MaterializedSignal, viewport: PlotViewport | null): bool
 	return viewport.xMin >= cached.xMin && viewport.xMax <= cached.xMax;
 }
 
-function windowSlice(view: SignalView, viewport: PlotViewport | null): WindowSlice {
+function windowSlice(view: DecodedPlotSignal, viewport: PlotViewport | null): WindowSlice {
 	if (viewport === null) {
-		return { start: 0, end: view.x.length, xMin: -Infinity, xMax: Infinity };
+		return { start: 0, end: view.series.timesMs.length, xMin: -Infinity, xMax: Infinity };
 	}
 
 	const span = viewport.xMax - viewport.xMin;
 	const bufferedMin = viewport.xMin - span;
 	const bufferedMax = viewport.xMax + span;
-	const { start, end } = renderIndexRange(view.x, bufferedMin, bufferedMax);
-	if (start === 0 && end === view.x.length) {
+	const { start, end } = renderIndexRange(view.series.timesMs, bufferedMin, bufferedMax);
+	if (start === 0 && end === view.series.timesMs.length) {
 		return { start, end, xMin: -Infinity, xMax: Infinity };
 	}
 	return { start, end, xMin: bufferedMin, xMax: bufferedMax };
