@@ -313,7 +313,9 @@ describe('published package app integration', () => {
 			expect(await loadTraceFile(await fixture('source-selection.asc'))).toBe(true);
 			await startTraceSession();
 			expect(appStore.getState().signals).toEqual([]);
-			expect(appStore.getState().mf4SelectorIndexes).toEqual([]);
+			expect([...appStore.getState().signalByKey.values()].some((s) => s.kind === 'mf4')).toBe(
+				false
+			);
 			expect(appStore.getState().dbcFiles).toEqual([saved]);
 			expect(saved.catalog).toEqual(catalog);
 			expect(persist).not.toHaveBeenCalled();

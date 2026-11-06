@@ -158,7 +158,8 @@ export function catalogState(
 				?.map((raw) => raw.source) ?? [undefined];
 			const unavailableReason = messageUnavailableReason(message, rawMessages, trace !== null);
 			return sources.map((source) => {
-				const messageKey: unknown[] = [file.id, isExtended, canId, sizeBytes];
+				const frame = isExtended ? 'extended' : 'standard';
+				const messageKey: unknown[] = [file.id, frame, canId, sizeBytes];
 				if (source) messageKey.push(source.channel, source.direction);
 				const badges = sourceBadges(source, sources);
 				return {

@@ -17,9 +17,9 @@ import { addAxis, removeAxis, resetAxes } from '@/store/plot-axes';
 import { setViewport } from '@/store/plot-view';
 import { appStore, update } from '@/store/store';
 
-const engineKey = '["powertrain","standard:207:8","EngineSpeed"]';
-const wheelKey = '["chassis","extended:419361024:8","WheelBasedSpeed"]';
-const rpmKey = '["engine","standard:256:8","EngineRpm"]';
+const engineKey = '["powertrain","standard",207,8,"EngineSpeed"]';
+const wheelKey = '["chassis","extended",419361024,8,"WheelBasedSpeed"]';
+const rpmKey = '["engine","standard",256,8,"EngineRpm"]';
 
 const PLOT_TRACE = {
 	id: 1,
