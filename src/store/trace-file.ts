@@ -17,12 +17,10 @@ export async function loadTraceFile(file: File): Promise<boolean> {
 		}
 		assertFileSizeWithinLimit(file, TRACE_MAX_FILE_BYTES, 'Trace');
 
-		const opened = await openTrace(traceType, await file.arrayBuffer());
-		next = { ...opened, id: nextTraceId++, file, session: new AbortController() };
+		next = { ...(await openTrace(traceType, await file.arrayBuffer())), id: nextTraceId++, file };
 
 		const previous = appStore.getState().trace;
 		update({ trace: next });
-		previous?.session.abort();
 		next = null;
 
 		if (previous) await closeTrace(previous.handle);

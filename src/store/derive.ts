@@ -50,8 +50,7 @@ import type {
 	RawSource
 } from '@/lib/wasm';
 
-/** `session` aborts when the trace is replaced; async work on this trace checks its signal. */
-export type TraceFileEntry = OpenTraceResult & { id: number; file: File; session: AbortController };
+export type TraceFileEntry = OpenTraceResult & { id: number; file: File };
 
 export type DbcFileEntry = {
 	id: string;

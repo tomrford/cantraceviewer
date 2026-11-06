@@ -75,7 +75,7 @@ async function decodeSignal(signal: Signal, colorIndex: number): Promise<void> {
 	// replaced trace, or a signal gone from the catalogue, only ends the spinner.
 	const state = appStore.getState();
 	if (state.selected.get(key) !== decoding) return;
-	const stale = trace.session.signal.aborted || !state.signalByKey.has(key);
+	const stale = state.trace !== trace || !state.signalByKey.has(key);
 	setSignalState(key, { ...decoding, isDecoding: false, ...(stale ? {} : outcome) });
 }
 

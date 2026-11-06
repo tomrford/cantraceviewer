@@ -9,7 +9,6 @@ import {
 	type WalkthroughStep
 } from '@/lib/walkthrough';
 import { addTransientDbcs, removeDbcFile, resetDbcLibrary } from '@/store/dbc-files';
-import type { TraceFileEntry } from '@/store/derive';
 import { assignToNewAxis, resetAxes } from '@/store/plot-axes';
 import {
 	clearSelectedSignals,
@@ -140,8 +139,7 @@ export async function openTraceFile(file: File | null): Promise<void> {
 
 export function openDemoTrace(): Promise<void> {
 	return withTraceLock(async () => {
-		const opened = await loadTrace(await fetchDemoTrace());
-		if (opened) await plotDemoSignals(opened);
+		if (await loadTrace(await fetchDemoTrace())) await plotDemoSignals();
 	});
 }
 
@@ -160,19 +158,17 @@ async function withTraceLock(open: () => Promise<unknown>): Promise<void> {
 	}
 }
 
-/** Resolves to the opened trace, or null if it failed or has since been replaced. */
-async function loadTrace(file: File): Promise<TraceFileEntry | null> {
-	if (!(await loadTraceFile(file))) return null;
-	const { trace: opened, traceWarning } = appStore.getState();
-	if (!opened) return null;
+/** Resolves to whether the trace opened. */
+async function loadTrace(file: File): Promise<boolean> {
+	if (!(await loadTraceFile(file))) return false;
+	const { traceWarning } = appStore.getState();
 	if (traceWarning) toast.warning(traceWarning);
 	await startTraceSession();
-	if (opened.session.signal.aborted) return null;
 	if (appStore.getState().walkthroughStepId === 'trace') await showWalkthroughStep('library');
-	return opened.session.signal.aborted ? null : opened;
+	return true;
 }
 
-async function plotDemoSignals(opened: TraceFileEntry): Promise<void> {
+async function plotDemoSignals(): Promise<void> {
 	const catalog = [...appStore.getState().signalByKey.values()];
 	const signals = DEMO_PRESET.map((item) => {
 		const matches = catalog.filter(
@@ -187,7 +183,6 @@ async function plotDemoSignals(opened: TraceFileEntry): Promise<void> {
 	});
 	for (const { key, axis } of signals) {
 		if (!isSignalSelected(key)) await toggleSignal(key);
-		if (opened.session.signal.aborted) return;
 		if (!isSignalSelected(key)) continue;
 		const { decodeError } = signalDecodeStatus(key);
 		if (decodeError) throw new Error(decodeError);
