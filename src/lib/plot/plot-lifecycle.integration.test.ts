@@ -100,7 +100,7 @@ it('keeps proportional zoom and selection ownership through axis and signal chan
 	expectRange(secondary, 12.475, 18.525);
 	removeAxis(secondary);
 	expect(
-		appStore.getState().plotModel.axes.map((axis) => axis.signals.map((signal) => signal.key))
+		appStore.getState().plotModel.axes.map((axis) => axis.signals.map(({ signal }) => signal.key))
 	).toEqual([[first, second]]);
 	expectRange('y', 12.475, 18.525);
 	const emptyAxis = addAxis()!;
@@ -120,7 +120,7 @@ it('keeps proportional zoom and selection ownership through axis and signal chan
 	await toggleSignal(third);
 	await toggleSignal(second);
 	expect(
-		appStore.getState().plotModel.axes.map((axis) => axis.signals.map((signal) => signal.key))
+		appStore.getState().plotModel.axes.map((axis) => axis.signals.map(({ signal }) => signal.key))
 	).toEqual([[first, second], []]);
 	expect(appStore.getState().signals.map((signal) => signal.color)).toEqual([
 		firstColor,

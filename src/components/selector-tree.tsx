@@ -13,9 +13,9 @@ import {
 	selectorRows,
 	type SelectorDbcFile,
 	type SelectorDbcMessage,
-	type SelectorListRow,
-	type SelectorListSignal
+	type SelectorListRow
 } from '@/lib/selector-list';
+import type { Signal } from '@/lib/signal';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store/store';
 
@@ -50,13 +50,12 @@ export function SelectorTree({
 	hideUnavailable: boolean;
 	isExpanded: (key: string) => boolean;
 }) {
-	const dbcIndexes = useAppStore((s) => s.selectorSearchIndexes);
-	const mf4Indexes = useAppStore((s) => s.mf4SelectorIndexes);
+	const indexes = useAppStore((s) => s.selectorSearchIndexes);
 	// Decode status only affects individual rows; filtering needs membership in selected-only mode.
 	const selectedKeys = useAppStore(
 		useShallow((s) => (activeOnly ? new Set(s.selected.keys()) : null))
 	);
-	const rows = selectorRows([...dbcIndexes, ...mf4Indexes], {
+	const rows = selectorRows(indexes, {
 		query,
 		activeOnly,
 		hideUnavailable,
@@ -213,7 +212,7 @@ function SignalRow({
 	signal,
 	onToggleSignal
 }: RowHandlers & {
-	signal: SelectorListSignal;
+	signal: Signal;
 }) {
 	const selected = useAppStore((s) => s.selected.get(signal.key));
 	const isSelected = selected !== undefined;

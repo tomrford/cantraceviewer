@@ -29,10 +29,10 @@ import {
 	formatAxisTime,
 	formatAxisValue,
 	formatTimeDelta,
-	type LegendSignalValue,
-	type SignalView
+	type LegendSignalValue
 } from '@/lib/plot/signal-plot-data';
 import { PRIMARY_Y_AXIS_ID, type YAxisId } from '@/lib/plot/y-axis';
+import type { DecodedPlotSignal } from '@/lib/signal';
 import { cn } from '@/lib/utils';
 import type { PlotAxisView } from '@/store/derive';
 import { addAxis, assignAxis, assignToNewAxis, canAddAxis, removeAxis } from '@/store/plot-axes';
@@ -111,7 +111,7 @@ export function SignalPlotLegend() {
 							<ContextMenuItem
 								key={target.id}
 								className="h-6 font-normal [&_svg]:size-3"
-								disabled={target.signals.some((signal) => signal.key === moveSignalKey)}
+								disabled={target.signals.some((view) => view.signal.key === moveSignalKey)}
 								onClick={() => assignAxis(moveSignalKey, target.id)}
 							>
 								{target.label}
@@ -239,7 +239,7 @@ function LegendAxisGroup({
 			) : (
 				<ul className="space-y-2">
 					{axis.signals.map((view) => (
-						<LegendSignalRow key={view.key} view={view} onMoveMenu={onMoveMenu} />
+						<LegendSignalRow key={view.signal.key} view={view} onMoveMenu={onMoveMenu} />
 					))}
 				</ul>
 			)}
@@ -251,9 +251,10 @@ function LegendSignalRow({
 	view,
 	onMoveMenu
 }: {
-	view: SignalView;
+	view: DecodedPlotSignal;
 	onMoveMenu: (key: string) => void;
 }) {
+	const { signal } = view;
 	// Only `value` follows a crosshair drag; `movable` is a boolean, so axis edits elsewhere don't re-render the row.
 	const movable = useAppStore((s) => s.plotModel.axes.length > 1);
 	const value = useAppStore(
@@ -262,7 +263,7 @@ function LegendSignalRow({
 
 	function startDrag(event: DragEvent) {
 		if (!movable) return;
-		event.dataTransfer.setData('text/plain', view.key);
+		event.dataTransfer.setData('text/plain', signal.key);
 		event.dataTransfer.effectAllowed = 'move';
 		// Only the grip starts a drag, but what follows the pointer is the whole row.
 		const row = event.currentTarget.closest('li');
@@ -308,12 +309,12 @@ function LegendSignalRow({
 		>
 			{movable && (
 				<ContextMenuTrigger
-					render={<button type="button" aria-label={`Move ${view.label} to another Y axis`} />}
-					id={moveTriggerId(view.key)}
+					render={<button type="button" aria-label={`Move ${signal.label} to another Y axis`} />}
+					id={moveTriggerId(signal.key)}
 					draggable
 					onDragStart={startDrag}
-					onContextMenu={() => onMoveMenu(view.key)}
-					onTouchStart={() => onMoveMenu(view.key)}
+					onContextMenu={() => onMoveMenu(signal.key)}
+					onTouchStart={() => onMoveMenu(signal.key)}
 					onKeyDown={openMoveMenuFromKey}
 					aria-haspopup="menu"
 					title="Drag to another Y axis; right-click or press Enter for move options"
@@ -327,14 +328,18 @@ function LegendSignalRow({
 			)}
 
 			<span className="size-2 rounded-full" style={{ backgroundColor: view.color }} />
-			<span className="flex min-w-0 items-center gap-1" title={view.label} aria-label={view.label}>
-				<span className="min-w-0 flex-[0_1_max-content] truncate">{view.signalName}</span>
+			<span
+				className="flex min-w-0 items-center gap-1"
+				title={signal.label}
+				aria-label={signal.label}
+			>
+				<span className="min-w-0 flex-[0_1_max-content] truncate">{signal.signalName}</span>
 				<span className="text-muted-foreground">&nbsp;(</span>
 				<span className="min-w-0 flex-[0_9999_auto] truncate text-muted-foreground">
-					{view.messageName}
+					{signal.messageName}
 				</span>
 				<span className="text-muted-foreground">)</span>
-				{view.sourceBadges?.map((badge) => (
+				{signal.sourceBadges?.map((badge) => (
 					<SourceBadge key={badge}>{badge}</SourceBadge>
 				))}
 			</span>
@@ -342,7 +347,9 @@ function LegendSignalRow({
 				<span
 					className={cn('font-mono tabular-nums', value.outOfRange && 'text-destructive')}
 					title={
-						value.outOfRange ? `Outside DBC range [${view.minimum}, ${view.maximum}]` : undefined
+						value.outOfRange
+							? `Outside DBC range [${signal.format.minimum}, ${signal.format.maximum}]`
+							: undefined
 					}
 				>
 					{value.text}
@@ -353,7 +360,7 @@ function LegendSignalRow({
 }
 
 function legendValue(
-	view: SignalView,
+	view: DecodedPlotSignal,
 	crosshairs: PlotCrosshair[],
 	mode: LegendCrosshairMode
 ): LegendSignalValue | null {

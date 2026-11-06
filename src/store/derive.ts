@@ -1,7 +1,6 @@
 // How each derived part of the app state is computed from its inputs. `withDerived` in store.ts
 // decides when, and in what order. Nothing here reads the store.
 import { displayDbcName } from '@/lib/dbc-file-types';
-import { buildMf4SignalTargetIndex, mf4SelectorSearchIndexes } from '@/lib/mf4-signals';
 import { plotGrid, type PlotGrid } from '@/lib/plot/plot-axis-layout';
 import { signalColor } from '@/lib/plot/plot-colors';
 import {
@@ -20,8 +19,7 @@ import {
 	axisSplitDomain,
 	EMPTY_AXIS_RANGE,
 	signalViews,
-	signalYRange,
-	type SignalView
+	signalYRange
 } from '@/lib/plot/signal-plot-data';
 import {
 	groupSignalsByYAxis,
@@ -32,15 +30,19 @@ import {
 	type YAxisId
 } from '@/lib/plot/y-axis';
 import { buildSelectorSearchIndexes, type SelectorDbcFile } from '@/lib/selector-list';
+import {
+	isDecoded,
+	type DecodedPlotSignal,
+	type PlotSignal,
+	type Signal,
+	type SignalFormat
+} from '@/lib/signal';
 import { displayTraceName } from '@/lib/trace-file-types';
 import type {
 	DbcDiagnostic,
 	DbcHandle,
 	DbcMessage,
 	DbcMessageIdentity,
-	DbcSignal,
-	DbcValueDescription,
-	DbcValueType,
 	DecodedSignalSeries,
 	OpenTraceResult,
 	ParsedDbc,
@@ -59,15 +61,6 @@ export type DbcFileEntry = {
 	origin: 'library' | 'mf4';
 };
 
-export type DbcSignalTarget = {
-	unavailableReason?: string;
-	source?: RawSource;
-	sourceBadges?: string[];
-	file: DbcFileEntry;
-	message: DbcMessage;
-	signal: DbcSignal;
-};
-
 export type SelectedSignalState = {
 	/** Held for as long as the signal stays selected, so deselecting releases it. */
 	colorIndex: number;
@@ -76,31 +69,12 @@ export type SelectedSignalState = {
 	error: string | null;
 };
 
-export type PlotSignal = {
-	key: string;
-	color: string;
-	label: string;
-	messageName: string;
-	sourceBadges?: string[];
-	signalName: string;
-	valueType: DbcValueType;
-	factor: number;
-	offset: number;
-	minimum: number | null;
-	maximum: number | null;
-	unit: string;
-	valueDescriptions: DbcValueDescription[];
-	series: DecodedSignalSeries | null;
-};
-
-export type DecodedPlotSignal = PlotSignal & { series: DecodedSignalSeries };
-
-export type PlotAxisView = YAxisGroup<SignalView> & { unit: string | null; label: string };
+export type PlotAxisView = YAxisGroup<DecodedPlotSignal> & { unit: string | null; label: string };
 
 /** Plot geometry derived from the plotted signals, axis layout and open trace. Read-only. */
 export type PlotModelState = {
 	/** Plottable signals (decoded, non-empty) in legend order. Unchanged signals keep identity. */
-	views: SignalView[];
+	views: DecodedPlotSignal[];
 	/** Every axis in layout order, including empty ones; `axes[0]` is the primary axis. */
 	axes: PlotAxisView[];
 	/** Axes that hold at least one signal; these get a gutter. */
@@ -119,8 +93,7 @@ export function traceState(trace: TraceFileEntry | null) {
 	return {
 		traceName: trace ? displayTraceName(trace.file.name) : 'CAN Trace Viewer',
 		traceWarning: traceWarning(trace),
-		mf4SignalTargetByKey: buildMf4SignalTargetIndex(trace),
-		mf4SelectorIndexes: mf4SelectorSearchIndexes(trace)
+		mf4SelectorFiles: mf4SelectorFiles(trace)
 	};
 }
 
@@ -134,54 +107,97 @@ function traceWarning(trace: TraceFileEntry | null): string | null {
 	return warnings.length > 0 ? warnings.join(' ') : null;
 }
 
-export function catalogState(files: DbcFileEntry[], trace: TraceFileEntry | null) {
-	const rawMessages = Map.groupBy(trace?.metadata.rawMessages ?? [], rawMessageIdentityKey);
-	const traceLoaded = trace !== null;
-	const signalTargetByKey: Record<string, DbcSignalTarget> = {};
+/** MF4 channels arrive as physical float64 values: no scaling, no range ([0|0]), no value table. */
+const MF4_FORMAT: Omit<SignalFormat, 'unit'> = {
+	valueType: 'float64',
+	factor: 1,
+	offset: 0,
+	minimum: 0,
+	maximum: 0,
+	valueDescriptions: []
+};
+
+function mf4SelectorFiles(trace: TraceFileEntry | null): SelectorDbcFile[] {
+	if (!trace?.mf4Catalog || trace.mf4Catalog.groups.length === 0) return [];
+	const id = `mf4:${trace.id}:native`;
+	return [
+		{
+			id,
+			name: 'Decoded signals',
+			transient: true,
+			messages: trace.mf4Catalog.groups.map((group, groupIndex) => ({
+				key: JSON.stringify([id, groupIndex]),
+				name: group.name,
+				signals: group.signals.map((signal) => ({
+					kind: 'mf4',
+					signalId: signal.id,
+					key: JSON.stringify([id, groupIndex, signal.id]),
+					label: `${group.name}.${signal.name}`,
+					messageName: group.name,
+					signalName: signal.name,
+					format: { ...MF4_FORMAT, unit: signal.unit }
+				}))
+			}))
+		}
+	];
+}
+
+/** Keys are JSON arrays: a message key, then that plus the signal for each of its signals. */
+export function catalogState(
+	files: DbcFileEntry[],
+	trace: TraceFileEntry | null,
+	mf4Files: SelectorDbcFile[]
+) {
+	const rawMessages = Map.groupBy(trace?.metadata.rawMessages ?? [], rawMessageKey);
 	const selectorFiles = files.map<SelectorDbcFile>((file) => ({
 		id: file.id,
 		name: displayDbcName(file.name),
 		transient: file.origin === 'mf4',
 		messages: file.catalog.messages.flatMap((message) => {
+			const { canId, isExtended, sizeBytes } = message;
 			const sources: (RawSource | undefined)[] = rawMessages
-				.get(rawMessageIdentityKey(message))
+				.get(rawMessageKey(message))
 				?.map((raw) => raw.source) ?? [undefined];
-			const unavailableReason = messageUnavailableReason(message, rawMessages, traceLoaded);
+			const unavailableReason = messageUnavailableReason(message, rawMessages, trace !== null);
 			return sources.map((source) => {
+				const frame = isExtended ? 'extended' : 'standard';
+				const messageKey: unknown[] = [file.id, frame, canId, sizeBytes];
+				if (source) messageKey.push(source.channel, source.direction);
 				const badges = sourceBadges(source, sources);
 				return {
-					key: selectorMessageKey(file.id, message, source),
+					key: JSON.stringify(messageKey),
 					name: message.name,
 					sourceLabel: sourceLabel(source),
 					sourceBadges: badges,
-					signals: message.signals.map((signal) => {
-						const key = signalIdentityKey(file.id, message, signal.name, source);
-						signalTargetByKey[key] = {
-							unavailableReason,
-							file,
-							message,
-							signal,
-							source,
-							sourceBadges: badges
-						};
-						return {
-							key,
-							label: `${message.name}.${signal.name}${sourceLabel(source)}`,
-							messageName: message.name,
-							signalName: signal.name,
-							arbitrationId: message.canId.toString(16),
-							unavailableReason
-						};
-					})
+					signals: message.signals.map((signal) => ({
+						kind: 'dbc',
+						fileId: file.id,
+						handle: file.handle,
+						message: { canId, isExtended, sizeBytes },
+						source,
+						key: JSON.stringify([...messageKey, signal.name]),
+						label: `${message.name}.${signal.name}${sourceLabel(source)}`,
+						messageName: message.name,
+						signalName: signal.name,
+						format: signal,
+						sourceBadges: badges,
+						arbitrationId: canId.toString(16),
+						unavailableReason
+					}))
 				};
 			});
 		})
 	}));
+	const allFiles = [...selectorFiles, ...mf4Files];
 
 	return {
-		signalTargetByKey,
 		selectorFiles,
-		selectorSearchIndexes: buildSelectorSearchIndexes(selectorFiles)
+		selectorSearchIndexes: buildSelectorSearchIndexes(allFiles),
+		signalByKey: new Map(
+			allFiles.flatMap((file) =>
+				file.messages.flatMap((message) => message.signals.map((signal) => [signal.key, signal]))
+			)
+		)
 	};
 }
 
@@ -192,34 +208,8 @@ function sourceLabel(source?: RawSource): string {
 	return ` [${channel} · ${direction}]`;
 }
 
-function signalIdentityKey(
-	dbcFileId: string,
-	message: DbcMessageIdentity,
-	signalName: string,
-	source?: RawSource
-): string {
-	return JSON.stringify([
-		dbcFileId,
-		messageIdentityKey(message),
-		signalName,
-		...(source ? [source.channel, source.direction] : [])
-	]);
-}
-
-function messageIdentityKey(message: DbcMessageIdentity): string {
-	return `${message.isExtended ? 'extended' : 'standard'}:${message.canId}:${message.sizeBytes}`;
-}
-
-function rawMessageIdentityKey(message: Pick<DbcMessageIdentity, 'canId' | 'isExtended'>): string {
-	return `${message.canId}:${message.isExtended}`;
-}
-
-function selectorMessageKey(dbcFileId: string, message: DbcMessage, source?: RawSource): string {
-	return JSON.stringify([
-		dbcFileId,
-		messageIdentityKey(message),
-		...(source ? [source.channel, source.direction] : [])
-	]);
+function rawMessageKey(message: Pick<DbcMessageIdentity, 'canId' | 'isExtended'>): string {
+	return JSON.stringify([message.isExtended, message.canId]);
 }
 
 function messageUnavailableReason(
@@ -228,8 +218,7 @@ function messageUnavailableReason(
 	traceLoaded: boolean
 ): string | undefined {
 	if (message.rawFrameDecodable === false) return 'Plotting not yet supported';
-	if (traceLoaded && !rawMessages.has(rawMessageIdentityKey(message)))
-		return 'Not present in this trace';
+	if (traceLoaded && !rawMessages.has(rawMessageKey(message))) return 'Not present in this trace';
 	return undefined;
 }
 
@@ -245,58 +234,20 @@ function sourceBadges(source: RawSource | undefined, sources: (RawSource | undef
 	return badges;
 }
 
-const NO_VALUE_DESCRIPTIONS: DbcValueDescription[] = [];
-
-function isPlottableSignal(signal: PlotSignal): signal is DecodedPlotSignal {
-	return signal.series !== null && signal.series.timesMs.length > 0;
+function isPlottableSignal(plotted: PlotSignal): plotted is DecodedPlotSignal {
+	return isDecoded(plotted) && plotted.series.timesMs.length > 0;
 }
 
 export function signalsState(
 	selected: ReadonlyMap<string, SelectedSignalState>,
-	dbcTargets: Readonly<Record<string, DbcSignalTarget>>,
-	mf4Targets: ReturnType<typeof buildMf4SignalTargetIndex>,
+	signalByKey: ReadonlyMap<string, Signal>,
 	order: LegendOrderMode
 ) {
 	const signals: PlotSignal[] = [];
 	for (const [key, state] of selected) {
-		const dbc = dbcTargets[key];
-		if (dbc) {
-			signals.push({
-				key,
-				color: signalColor(state.colorIndex),
-				label: `${dbc.message.name}.${dbc.signal.name}${sourceLabel(dbc.source)}`,
-				messageName: dbc.message.name,
-				sourceBadges: dbc.sourceBadges,
-				signalName: dbc.signal.name,
-				unit: dbc.signal.unit,
-				valueType: dbc.signal.valueType,
-				factor: dbc.signal.factor,
-				offset: dbc.signal.offset,
-				minimum: dbc.signal.minimum,
-				maximum: dbc.signal.maximum,
-				valueDescriptions: dbc.signal.valueDescriptions,
-				series: state.series
-			});
-			continue;
-		}
-
-		const mf4 = mf4Targets.get(key);
-		if (!mf4) continue;
-		signals.push({
-			key,
-			color: signalColor(state.colorIndex),
-			label: `${mf4.group.name}.${mf4.signal.name}`,
-			messageName: mf4.group.name,
-			signalName: mf4.signal.name,
-			unit: mf4.signal.unit,
-			valueType: 'float64',
-			factor: 1,
-			offset: 0,
-			minimum: null,
-			maximum: null,
-			valueDescriptions: NO_VALUE_DESCRIPTIONS,
-			series: state.series
-		});
+		const signal = signalByKey.get(key);
+		if (signal)
+			signals.push({ color: signalColor(state.colorIndex), signal, series: state.series });
 	}
 
 	const ordered = orderPlotSignals(signals, order);
@@ -313,7 +264,7 @@ export function modelState(
 	const views = signalViews(signals.filter(isPlottableSignal), previous?.views ?? []);
 	const groups = groupSignalsByYAxis(views, axisIds, axisAssignment);
 	const axes = groups.map((group) => {
-		const unit = yAxisUnit(group.signals);
+		const unit = yAxisUnit(group.signals.map(({ signal }) => signal.format));
 		return { ...group, unit, label: yAxisLabel(group.index, unit) };
 	});
 	const gutterAxes = axes.filter((axis) => axis.signals.length > 0);
@@ -325,7 +276,7 @@ export function modelState(
 		axes,
 		gutterAxes,
 		axisIdByKey: new Map(
-			groups.flatMap((group) => group.signals.map((view) => [view.key, group.id]))
+			groups.flatMap((group) => group.signals.map((view) => [view.signal.key, group.id]))
 		),
 		grid:
 			previous !== null && previous.gutterAxes.length === gutterAxes.length

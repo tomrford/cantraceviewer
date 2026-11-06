@@ -1,7 +1,8 @@
 import { nextSignalColorIndex } from '@/lib/plot/plot-colors';
 import type { YAxisId } from '@/lib/plot/y-axis';
+import type { Signal } from '@/lib/signal';
 import { getMf4SignalValues, getSignalValues } from '@/lib/wasm';
-import type { DbcSignalTarget, SelectedSignalState, TraceFileEntry } from '@/store/derive';
+import type { SelectedSignalState, TraceFileEntry } from '@/store/derive';
 import { appStore, update } from '@/store/store';
 
 export function isSignalSelected(key: string): boolean {
@@ -25,22 +26,23 @@ export async function toggleSignal(key: string): Promise<void> {
 		return;
 	}
 
-	const target = findSignalTarget(key);
-	if (!target || (target.kind === 'dbc' && target.value.unavailableReason)) return;
+	const signal = appStore.getState().signalByKey.get(key);
+	if (!signal || signal.unavailableReason) return;
 
 	const colorIndex = nextSignalColorIndex(
 		Array.from(appStore.getState().selected.values(), (state) => state.colorIndex)
 	);
-	await decodeSignal(key, target, colorIndex);
+	await decodeSignal(signal, colorIndex);
 }
 
 export function deselectDbcFile(dbcFileId: string): void {
 	const state = appStore.getState();
 	const selected = new Map(state.selected);
 	const released: string[] = [];
-	for (const [key, target] of Object.entries(state.signalTargetByKey)) {
-		if (target.file.id !== dbcFileId || !selected.delete(key)) continue;
-		released.push(key);
+	for (const signal of state.signalByKey.values()) {
+		if (signal.kind === 'dbc' && signal.fileId === dbcFileId && selected.delete(signal.key)) {
+			released.push(signal.key);
+		}
 	}
 	if (released.length === 0) return;
 	update({ selected, axisAssignment: withoutSignals(state.axisAssignment, released) });
@@ -50,11 +52,8 @@ export function clearSelectedSignals(): void {
 	update({ selected: new Map(), axisAssignment: new Map() });
 }
 
-async function decodeSignal(
-	key: string,
-	target: NonNullable<ReturnType<typeof findSignalTarget>>,
-	colorIndex: number
-): Promise<void> {
+async function decodeSignal(signal: Signal, colorIndex: number): Promise<void> {
+	const { key } = signal;
 	const { trace } = appStore.getState();
 	const decoding = { colorIndex, isDecoding: trace !== null, series: null, error: null };
 	setSignalState(key, decoding);
@@ -62,13 +61,13 @@ async function decodeSignal(
 	const isCurrent = () =>
 		appStore.getState().selected.get(key) === decoding &&
 		appStore.getState().trace === trace &&
-		findSignalTarget(key) !== null;
+		appStore.getState().signalByKey.has(key);
 
 	try {
 		const series =
-			target.kind === 'mf4'
-				? await getMf4SignalValues(trace.handle, target.value.signal.id)
-				: await decodeDbcSignal(trace, target.value);
+			signal.kind === 'mf4'
+				? await getMf4SignalValues(trace.handle, signal.signalId)
+				: await decodeDbcSignal(trace, signal);
 
 		if (isCurrent()) setSignalState(key, { ...decoding, isDecoding: false, series });
 	} catch (error) {
@@ -86,33 +85,21 @@ async function decodeSignal(
 	}
 }
 
-function decodeDbcSignal(trace: TraceFileEntry, target: DbcSignalTarget) {
+function decodeDbcSignal(trace: TraceFileEntry, signal: Extract<Signal, { kind: 'dbc' }>) {
 	if (!trace.hasRawFrames) {
 		throw new Error('This trace has no raw CAN frames for DBC decoding.');
 	}
 	return getSignalValues(
-		target.file.handle,
+		signal.handle,
 		trace.handle,
-		{
-			canId: target.message.canId,
-			isExtended: target.message.isExtended,
-			sizeBytes: target.message.sizeBytes
-		},
-		target.signal.name,
-		target.source
+		signal.message,
+		signal.signalName,
+		signal.source
 	);
 }
 
 function setSignalState(key: string, state: SelectedSignalState): void {
 	update({ selected: new Map(appStore.getState().selected).set(key, state) });
-}
-
-function findSignalTarget(key: string) {
-	const { signalTargetByKey, mf4SignalTargetByKey } = appStore.getState();
-	const dbc = signalTargetByKey[key];
-	if (dbc) return { kind: 'dbc' as const, value: dbc };
-	const mf4 = mf4SignalTargetByKey.get(key);
-	return mf4 ? { kind: 'mf4' as const, value: mf4 } : null;
 }
 
 function withoutSignals(

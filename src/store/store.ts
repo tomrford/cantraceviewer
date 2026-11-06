@@ -101,25 +101,16 @@ function withDerived(prev: AppState, patch: Partial<SourceState>): AppState {
 
 	// The signal catalogue.
 	if (next.dbcFiles !== prev.dbcFiles || next.trace !== prev.trace) {
-		Object.assign(next, catalogState(next.dbcFiles, next.trace));
+		Object.assign(next, catalogState(next.dbcFiles, next.trace, next.mf4SelectorFiles));
 	}
 
 	// The plotted signals.
 	if (
 		next.selected !== prev.selected ||
-		next.signalTargetByKey !== prev.signalTargetByKey ||
-		next.mf4SignalTargetByKey !== prev.mf4SignalTargetByKey ||
+		next.signalByKey !== prev.signalByKey ||
 		next.legendOrder !== prev.legendOrder
 	) {
-		Object.assign(
-			next,
-			signalsState(
-				next.selected,
-				next.signalTargetByKey,
-				next.mf4SignalTargetByKey,
-				next.legendOrder
-			)
-		);
+		Object.assign(next, signalsState(next.selected, next.signalByKey, next.legendOrder));
 	}
 
 	// Nothing plottable any more: drop crosshairs and box zoom and return to the full extent.
@@ -188,7 +179,7 @@ function initialState(): AppState {
 		dbcLoading: false,
 		dbcError: null,
 		hasLoadedLibrary: false,
-		...catalogState([], null),
+		...catalogState([], null, []),
 
 		selected: new Map(),
 		signals: [],

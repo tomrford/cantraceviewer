@@ -12,26 +12,35 @@ import {
 	nearestSignalSample,
 	renderIndexRange,
 	signalXRange,
-	signalYRange,
-	type SignalView
+	signalYRange
 } from '@/lib/plot/signal-plot-data';
+import type { SignalFormat } from '@/lib/signal';
 
-function view(x: number[], y: number[] = x): SignalView {
+function view(x: number[], y: number[] = x, format: Partial<SignalFormat> = {}) {
+	const series = { timesMs: new Float64Array(x), values: new Float64Array(y) };
 	return {
-		key: 'signal',
-		label: 'Signal',
-		messageName: 'Message',
-		signalName: 'Signal',
-		unit: '',
 		color: '#fff',
-		x: new Float64Array(x),
-		y: new Float64Array(y),
-		valueType: 'integer' as const,
-		factor: 1,
-		offset: 0,
-		minimum: 0,
-		maximum: 0,
-		valueDescriptions: []
+		series,
+		x: series.timesMs,
+		y: series.values,
+		signal: {
+			kind: 'mf4' as const,
+			signalId: 0,
+			key: 'signal',
+			label: 'Signal',
+			messageName: 'Message',
+			signalName: 'Signal',
+			format: {
+				unit: '',
+				valueType: 'integer' as const,
+				factor: 1,
+				offset: 0,
+				minimum: 0,
+				maximum: 0,
+				valueDescriptions: [],
+				...format
+			}
+		}
 	};
 }
 
@@ -100,10 +109,10 @@ describe('signal plot data', () => {
 	});
 
 	it('routes each signal series to its assigned y axis', () => {
-		const first = { ...view([0, 1]), key: 'a', sampled: false };
-		const second = { ...view([0, 1]), key: 'b', sampled: false };
+		const first = { ...view([0, 1]), sampled: false };
+		const second = { ...view([0, 1]), sampled: false };
 		const series = plotSeriesForViews([first, second], (candidate) =>
-			candidate.key === 'b' ? 'y1' : 'y'
+			candidate === second ? 'y1' : 'y'
 		);
 
 		expect(series.map((entry) => entry.yAxis)).toEqual(['y', 'y', 'y1', 'y1']);
@@ -146,10 +155,10 @@ describe('signal plot data', () => {
 	});
 
 	it('recomputes the domain when the value series changes for the same time series', () => {
-		const x = new Float64Array([0, 100]);
+		const timesMs = new Float64Array([0, 100]);
 		const base = view([], []);
-		const first = { ...base, x, y: new Float64Array([0, 10]) };
-		const second = { ...base, x, y: new Float64Array([0, 40]) };
+		const first = { ...base, series: { timesMs, values: new Float64Array([0, 10]) } };
+		const second = { ...base, series: { timesMs, values: new Float64Array([0, 40]) } };
 
 		expect(signalYRange([first])).toEqual({ min: -0.5, max: 10.5 });
 		expect(signalYRange([second])).toEqual({ min: -2, max: 42 });
@@ -169,12 +178,11 @@ describe('signal plot data', () => {
 	});
 
 	it('preserves fractional floating-point values, deltas and range checks', () => {
-		const floating = {
-			...view([0, 10], [12.34, 12.49]),
-			valueType: 'float64' as const,
+		const floating = view([0, 10], [12.34, 12.49], {
+			valueType: 'float64',
 			unit: 'V',
 			maximum: 12.4
-		};
+		});
 		expect(crosshairValue(floating, 0)).toEqual({
 			text: '12.34 V',
 			outOfRange: false
@@ -187,11 +195,13 @@ describe('signal plot data', () => {
 			text: '0.15 V',
 			outOfRange: false
 		});
-		expect(formatDecodedValue(12.34, { ...floating, valueType: 'float32' }).text).toBe('12.34 V');
+		expect(
+			formatDecodedValue(12.34, { ...floating.signal.format, valueType: 'float32' }).text
+		).toBe('12.34 V');
 		expect(formatLegendNumericValue(0.00001234567, null)).toBe('0.00001234567');
 
 		const floatBoundary = {
-			...floating,
+			...floating.signal.format,
 			valueType: 'float32' as const,
 			minimum: -0.1,
 			maximum: 0.1
@@ -208,7 +218,7 @@ describe('signal plot data', () => {
 		expect(formatDecodedValue(Math.fround(-0.100001), floatBoundary).outOfRange).toBe(true);
 
 		const preciseBounds = {
-			...floating,
+			...floating.signal.format,
 			minimum: 0.12345674,
 			maximum: 0.12345676
 		};
@@ -226,8 +236,8 @@ describe('signal plot data', () => {
 		const context = {
 			...formatContext,
 			valueType: 'float64' as const,
-			minimum: null,
-			maximum: null
+			minimum: 0,
+			maximum: 0
 		};
 		expect(formatDecodedValue(-12.34, context)).toEqual({ text: '-12.34 km/h', outOfRange: false });
 		expect(formatDecodedValue(12.34, context)).toEqual({ text: '12.34 km/h', outOfRange: false });
@@ -282,11 +292,7 @@ describe('signal plot data', () => {
 	});
 
 	it('calculates signal deltas from the samples nearest each crosshair', () => {
-		const signal = {
-			...view([0, 10, 20], [5, 10, 25]),
-			unit: 'V',
-			factor: 0.1
-		};
+		const signal = view([0, 10, 20], [5, 10, 25], { unit: 'V', factor: 0.1 });
 
 		expect(crosshairValue(signal, 9)).toEqual({
 			text: '10.0 V',
@@ -308,13 +314,12 @@ describe('signal plot data', () => {
 	});
 
 	it('does not calculate numeric deltas for enumerated signals', () => {
-		const signal = {
-			...view([0, 10], [0, 1]),
+		const signal = view([0, 10], [0, 1], {
 			valueDescriptions: [
 				{ rawValue: 0, label: 'Off' },
 				{ rawValue: 1, label: 'On' }
 			]
-		};
+		});
 
 		expect(crosshairDeltaValue(signal, 0, 10)).toEqual({
 			text: 'N/A',

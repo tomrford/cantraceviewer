@@ -174,16 +174,17 @@ async function loadTrace(file: File): Promise<TraceFileEntry | null> {
 
 async function plotDemoSignals(opened: TraceFileEntry): Promise<void> {
 	const stillOpen = () => appStore.getState().trace === opened;
-	const targets = [...appStore.getState().mf4SignalTargetByKey];
+	const catalog = [...appStore.getState().signalByKey.values()];
 	const signals = DEMO_PRESET.map((item) => {
-		const matches = targets.filter(
-			([, target]) =>
-				target.group.name === item.group &&
-				target.signal.name === item.signal &&
-				target.signal.unit === item.unit
+		const matches = catalog.filter(
+			(signal) =>
+				signal.kind === 'mf4' &&
+				signal.messageName === item.group &&
+				signal.signalName === item.signal &&
+				signal.format.unit === item.unit
 		);
 		if (matches.length !== 1) throw new Error(`Demo signal ${item.signal} is unavailable.`);
-		return { key: matches[0][0], axis: item.axis };
+		return { key: matches[0].key, axis: item.axis };
 	});
 	for (const { key, axis } of signals) {
 		if (!stillOpen()) return;

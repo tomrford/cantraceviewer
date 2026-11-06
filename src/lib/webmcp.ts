@@ -5,7 +5,6 @@ import { countSignals } from '@/lib/utils';
 import {
 	createWebMcpTools,
 	type WebMcpCrosshairInput,
-	type WebMcpPlottedSignal,
 	type WebMcpTimeRange,
 	type WebMcpTool
 } from '@/lib/webmcp-tools';
@@ -99,16 +98,8 @@ export const storeHost = {
 			assignAxis(key, appStore.getState().axisIds[axis - 1]);
 		}
 	},
-	signalCatalog: () => [
-		...appStore.getState().selectorSearchIndexes,
-		...appStore.getState().mf4SelectorIndexes
-	],
-	plottedSignals: (): WebMcpPlottedSignal[] =>
-		appStore
-			.getState()
-			.signals.flatMap((signal) =>
-				signal.series === null ? [] : [{ ...signal, series: signal.series }]
-			),
+	signalCatalog: () => appStore.getState().selectorSearchIndexes,
+	plottedSignals: () => appStore.getState().signals,
 	isSignalSelected,
 	toggleSignal,
 	session: () => {
@@ -149,18 +140,18 @@ export const storeHost = {
 				messageCount: file.catalog.messages.length,
 				signalCount: countSignals(file.catalog.messages)
 			})),
-			plotted: appStore.getState().signals.map((signal) => {
+			plotted: appStore.getState().signals.map(({ signal, series }) => {
 				const decode = signalDecodeStatus(signal.key);
 				return {
 					key: signal.key,
 					label: signal.label,
-					unit: signal.unit,
+					unit: signal.format.unit,
 					axis: ids.indexOf(assignment.get(signal.key) ?? PRIMARY_Y_AXIS_ID) + 1,
 					decodeStatus: decode.isDecoding
 						? ('decoding' as const)
 						: decode.decodeError !== null
 							? ('error' as const)
-							: signal.series !== null
+							: series !== null
 								? ('ready' as const)
 								: ('idle' as const),
 					decodeError: decode.decodeError

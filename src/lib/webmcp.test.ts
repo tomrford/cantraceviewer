@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { buildSelectorSearchIndexes, type SelectorDbcFile } from '@/lib/selector-list';
+import type { DecodedPlotSignal, SignalFormat } from '@/lib/signal';
 import { mountWebMcp, storeHost, type ModelContext } from '@/lib/webmcp';
 import {
 	INSPECTION_SIGNAL_LIMIT,
@@ -9,17 +10,16 @@ import {
 	describeSession,
 	resolveSignalRefs,
 	searchCatalogSignals,
-	type WebMcpHost,
-	type WebMcpPlottedSignal
+	type WebMcpHost
 } from '@/lib/webmcp-tools';
 import type { TraceFileEntry } from '@/store/derive';
 import { addAxis, removeAxis, resetAxes } from '@/store/plot-axes';
 import { setViewport } from '@/store/plot-view';
 import { appStore, update } from '@/store/store';
 
-const engineKey = '["powertrain","standard:207:8","EngineSpeed"]';
-const wheelKey = '["chassis","extended:419361024:8","WheelBasedSpeed"]';
-const rpmKey = '["engine","standard:256:8","EngineRpm"]';
+const engineKey = '["powertrain","standard",207,8,"EngineSpeed"]';
+const wheelKey = '["chassis","extended",419361024,8,"WheelBasedSpeed"]';
+const rpmKey = '["engine","standard",256,8,"EngineRpm"]';
 
 const PLOT_TRACE = {
 	id: 1,
@@ -75,8 +75,10 @@ describe('WebMCP catalogue operations', () => {
 	});
 
 	it('reports missing and ambiguous exact references', () => {
-		expect(resolveSignalRefs(catalog(), [engineKey]).resolved[0]?.label).toBe('EEC1.EngineSpeed');
-		expect(resolveSignalRefs(catalog(), ['Cruise.WheelBasedSpeed']).resolved[0]?.key).toBe(
+		expect(resolveSignalRefs(catalog(), [engineKey]).resolved[0]?.signal.label).toBe(
+			'EEC1.EngineSpeed'
+		);
+		expect(resolveSignalRefs(catalog(), ['Cruise.WheelBasedSpeed']).resolved[0]?.signal.key).toBe(
 			wheelKey
 		);
 
@@ -212,7 +214,7 @@ describe('WebMCP shared plot', () => {
 	function plot() {
 		// One plotted signal gives a full extent of 0-20 ms and, with Y padding, 0-8800.
 		update({ trace: PLOT_TRACE });
-		const [key] = appStore.getState().mf4SignalTargetByKey.keys();
+		const [key] = appStore.getState().signalByKey.keys();
 		const series = { timesMs: Float64Array.of(0, 20), values: Float64Array.of(400, 8400) };
 		update({
 			selected: new Map([[key, { colorIndex: 0, isDecoding: false, error: null, series }]])
@@ -450,23 +452,39 @@ function plottedSignal(
 		values?: number[];
 		valueDescriptions?: Array<{ rawValue: number; label: string }>;
 	} = {}
-): WebMcpPlottedSignal {
+): DecodedPlotSignal {
+	const [messageName, signalName] = label.split('.');
 	return {
-		key,
-		label,
-		unit: overrides.unit ?? 'rpm',
-		valueType: 'integer' as const,
-		factor: 1,
-		offset: 0,
-		minimum: 0,
-		maximum: 8000,
-		valueDescriptions: overrides.valueDescriptions ?? [],
+		color: '#000000',
+		signal: {
+			kind: 'mf4',
+			signalId: 0,
+			key,
+			label,
+			messageName,
+			signalName,
+			format: {
+				...RPM_FORMAT,
+				unit: overrides.unit ?? RPM_FORMAT.unit,
+				valueDescriptions: overrides.valueDescriptions ?? []
+			}
+		},
 		series: {
 			timesMs: new Float64Array([0, 10, 20]),
 			values: new Float64Array(overrides.values ?? [1000, 1200, 1400])
 		}
 	};
 }
+
+const RPM_FORMAT: SignalFormat = {
+	unit: 'rpm',
+	valueType: 'integer',
+	factor: 1,
+	offset: 0,
+	minimum: 0,
+	maximum: 8000,
+	valueDescriptions: []
+};
 
 function viewState(): ReturnType<WebMcpHost['view']> {
 	return {
@@ -534,11 +552,14 @@ function file(
 				name: messageName,
 				signals: [
 					{
+						kind: 'mf4',
+						signalId: 0,
 						key,
 						label: `${messageName}.${signalName}`,
 						messageName,
 						signalName,
-						arbitrationId
+						arbitrationId,
+						format: RPM_FORMAT
 					}
 				]
 			}

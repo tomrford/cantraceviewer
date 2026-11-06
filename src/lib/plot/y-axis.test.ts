@@ -9,7 +9,7 @@ import {
 } from '@/lib/plot/y-axis';
 
 function signal(key: string, unit = '') {
-	return { key, unit };
+	return { signal: { key }, unit };
 }
 
 describe('nextYAxisId', () => {
@@ -27,7 +27,7 @@ describe('groupSignalsByYAxis', () => {
 			new Map()
 		);
 
-		expect(groups.map((group) => group.signals.map((s) => s.key))).toEqual([['a', 'b'], []]);
+		expect(groups.map((group) => group.signals.map((s) => s.signal.key))).toEqual([['a', 'b'], []]);
 		expect(groups.map((group) => group.index)).toEqual([0, 1]);
 	});
 
@@ -41,13 +41,16 @@ describe('groupSignalsByYAxis', () => {
 			])
 		);
 
-		expect(groups.map((group) => group.signals.map((s) => s.key))).toEqual([['a'], ['b', 'c']]);
+		expect(groups.map((group) => group.signals.map((s) => s.signal.key))).toEqual([
+			['a'],
+			['b', 'c']
+		]);
 	});
 
 	it('falls back to the primary axis when an assignment names a removed axis', () => {
 		const groups = groupSignalsByYAxis([signal('a')], [PRIMARY_Y_AXIS_ID], new Map([['a', 'y9']]));
 
-		expect(groups[0].signals.map((s) => s.key)).toEqual(['a']);
+		expect(groups[0].signals.map((s) => s.signal.key)).toEqual(['a']);
 	});
 });
 
