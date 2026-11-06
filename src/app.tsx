@@ -1,37 +1,33 @@
 import { AudioWaveform, CircleQuestionMark, Database, LoaderCircle } from 'lucide-react';
 import { useEffect, useRef, type ChangeEvent, type ComponentProps } from 'react';
 
-import { CommandPalette } from '#lib/components/command-palette.js';
-import { DropOverlay } from '#lib/components/drop-overlay.js';
-import { ErrorDialog } from '#lib/components/error-dialog.js';
-import { HelpDialog } from '#lib/components/help-dialog.js';
-import { PlotToolbar } from '#lib/components/plot-toolbar.js';
-import { SettingsDialog } from '#lib/components/settings-dialog.js';
-import { ShortcutKey } from '#lib/components/shortcut-key.js';
-import { SignalPlot } from '#lib/components/signal-plot.js';
-import { SignalSelectorDialog } from '#lib/components/signal-selector-dialog.js';
-import { Button } from '#lib/components/ui/button.js';
-import { DialogTrigger } from '#lib/components/ui/dialog.js';
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader } from '#lib/components/ui/empty.js';
-import { Toaster } from '#lib/components/ui/sonner.js';
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger
-} from '#lib/components/ui/tooltip.js';
-import { Walkthrough } from '#lib/components/walkthrough.js';
-import { traceFileFromDrop } from '#lib/file-drop.js';
-import { openDemoTrace, openTrace, startWalkthrough } from '#lib/stores/app-shell.js';
-import type { TraceFileEntry } from '#lib/stores/derive.js';
-import { isDark } from '#lib/stores/preferences.js';
-import { useAppStore } from '#lib/stores/store.js';
-import { clearTraceError } from '#lib/stores/trace-file.js';
-import { TRACE_FILE_ACCEPT, TRACE_FILE_FORMAT_NAMES } from '#lib/trace-file-types.js';
-import { useAppShortcuts } from '#lib/use-app-shortcuts.js';
-import { useFileDrop } from '#lib/use-file-drop.js';
-import { countSignals, useBrowserValue } from '#lib/utils.js';
-import { shouldShowWalkthrough } from '#lib/walkthrough.js';
+import { CommandPalette } from '@/components/command-palette';
+import { DropOverlay } from '@/components/drop-overlay';
+import { ErrorDialog } from '@/components/error-dialog';
+import { HelpDialog } from '@/components/help-dialog';
+import { PlotToolbar } from '@/components/plot-toolbar';
+import { SettingsPopover } from '@/components/settings-popover';
+import { ShortcutKey } from '@/components/shortcut-key';
+import { SignalPlot } from '@/components/signal-plot';
+import { SignalSelectorDialog } from '@/components/signal-selector-dialog';
+import { Button } from '@/components/ui/button';
+import { DialogTrigger } from '@/components/ui/dialog';
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader } from '@/components/ui/empty';
+import { Toaster } from '@/components/ui/sonner';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Walkthrough } from '@/components/walkthrough';
+import { useAppShortcuts } from '@/hooks/use-app-shortcuts';
+import { useBrowserValue } from '@/hooks/use-browser-value';
+import { useFileDrop } from '@/hooks/use-file-drop';
+import { traceFileFromDrop } from '@/lib/file-drop';
+import { TRACE_FILE_ACCEPT, TRACE_FILE_FORMAT_NAMES } from '@/lib/trace-file-types';
+import { countSignals } from '@/lib/utils';
+import { shouldShowWalkthrough } from '@/lib/walkthrough';
+import { openDemoTrace, openTraceFile, startWalkthrough } from '@/store/app-shell';
+import type { TraceFileEntry } from '@/store/derive';
+import { isDark } from '@/store/preferences';
+import { useAppStore } from '@/store/store';
+import { clearTraceError } from '@/store/trace-file';
 
 const SITE_TITLE = 'CAN Trace Viewer';
 const LANDING_TITLE = 'Plot CAN bus logs in your browser';
@@ -107,7 +103,7 @@ function AppShell() {
 	});
 
 	const { dropActive: traceDragged, dropHandlers } = useFileDrop((files) => {
-		void openTrace(traceFileFromDrop(files));
+		void openTraceFile(traceFileFromDrop(files));
 	});
 	// A drop while a trace opens is still handled, but does not advertise itself.
 	const dropActive = traceDragged && !openingTrace;
@@ -157,7 +153,7 @@ function AppShell() {
 					<div className="flex items-center">
 						<PlotToolbar disabled={shortcutState.plotControlsDisabled} />
 					</div>
-					<SettingsDialog />
+					<SettingsPopover />
 				</div>
 			</header>
 
@@ -294,7 +290,7 @@ function selectTrace(event: ChangeEvent<HTMLInputElement>): void {
 	const input = event.currentTarget;
 	const file = input.files?.[0] ?? null;
 	input.value = '';
-	void openTrace(file);
+	void openTraceFile(file);
 }
 
 function formatTraceMetadata(trace: TraceFileEntry): string {

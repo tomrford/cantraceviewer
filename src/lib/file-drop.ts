@@ -1,7 +1,7 @@
 import type { DragEvent } from 'react';
 
-import { isDbcFileName } from './dbc-file-types.js';
-import { traceTypeForFileName } from './trace-file-types.js';
+import { isDbcFileName } from '@/lib/dbc-file-types';
+import { traceTypeForFileName } from '@/lib/trace-file-types';
 
 export function filesFromDrop(event: DragEvent): File[] {
 	return Array.from(event.dataTransfer.files);

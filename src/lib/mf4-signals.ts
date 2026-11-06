@@ -1,5 +1,5 @@
-import { buildSelectorSearchIndexes, type SelectorSearchIndex } from '#lib/selector-list.js';
-import type { Mf4Signal, Mf4SignalGroup, OpenTraceResult } from '#lib/wasm.js';
+import { buildSelectorSearchIndexes, type SelectorSearchIndex } from '@/lib/selector-list';
+import type { Mf4Signal, Mf4SignalGroup, OpenTraceResult } from '@/lib/wasm';
 
 type Mf4Trace = OpenTraceResult & { id: number };
 

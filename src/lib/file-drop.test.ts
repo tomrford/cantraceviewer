@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { dbcFilesFromDrop, traceFileFromDrop } from './file-drop.js';
+import { dbcFilesFromDrop, traceFileFromDrop } from '@/lib/file-drop';
 
 describe('file drop helpers', () => {
 	it('selects one supported trace file', () => {

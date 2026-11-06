@@ -14,10 +14,10 @@
 	"menuColor": "default-translucent",
 	"menuAccent": "subtle",
 	"aliases": {
-		"components": "#lib/components",
-		"utils": "#lib/utils",
-		"ui": "#lib/components/ui",
-		"hooks": "#lib",
-		"lib": "#lib"
+		"components": "@/components",
+		"utils": "@/lib/utils",
+		"ui": "@/components/ui",
+		"hooks": "@/hooks",
+		"lib": "@/lib"
 	}
 }

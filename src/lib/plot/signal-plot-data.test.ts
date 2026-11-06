@@ -1,0 +1,329 @@
+import { describe, expect, it } from 'vitest';
+
+import { emptyAxisSeries, lineSeries, plotSeriesForViews } from '@/lib/plot/plot-series';
+import {
+	crosshairDeltaValue,
+	crosshairValue,
+	formatAxisValue,
+	formatDecodedValue,
+	formatLegendNumericValue,
+	formatTimeDelta,
+	isOutsideDbcRange,
+	nearestSignalSample,
+	renderIndexRange,
+	signalXRange,
+	signalYRange,
+	type SignalView
+} from '@/lib/plot/signal-plot-data';
+
+function view(x: number[], y: number[] = x): SignalView {
+	return {
+		key: 'signal',
+		label: 'Signal',
+		messageName: 'Message',
+		signalName: 'Signal',
+		unit: '',
+		color: '#fff',
+		x: new Float64Array(x),
+		y: new Float64Array(y),
+		valueType: 'integer' as const,
+		factor: 1,
+		offset: 0,
+		minimum: 0,
+		maximum: 0,
+		valueDescriptions: []
+	};
+}
+
+const formatContext = {
+	unit: 'km/h',
+	valueType: 'integer' as const,
+	factor: 0.1,
+	offset: 0,
+	minimum: 0,
+	maximum: 250,
+	valueDescriptions: [] as { rawValue: number; label: string }[]
+};
+
+describe('signal plot data', () => {
+	it('includes neighboring indexes at window edges for line continuity', () => {
+		expect(renderIndexRange(new Float64Array([0, 10, 20, 30, 40]), 10, 30)).toEqual({
+			start: 0,
+			end: 5
+		});
+	});
+
+	it('brackets a line segment crossing an empty window', () => {
+		expect(renderIndexRange(new Float64Array([0, 10, 20]), 12, 18)).toEqual({
+			start: 1,
+			end: 3
+		});
+	});
+
+	it('returns an empty range for windows beyond the data', () => {
+		expect(renderIndexRange(new Float64Array([0, 10, 20]), 30, 40)).toEqual({
+			start: 3,
+			end: 3
+		});
+	});
+
+	it('disables chart-side sampling for lines', () => {
+		const full = lineSeries({ ...view([0, 1, 2]), sampled: false }, 'y');
+		expect(full.sampling).toBe('none');
+	});
+
+	it('adds sample markers only to full-resolution views', () => {
+		const fullView = { ...view([0, 1, 2]), sampled: false };
+		const downsampledView = { ...view([0, 1, 2]), sampled: true };
+		const series = plotSeriesForViews([fullView, downsampledView], () => 'y');
+
+		expect(series.map((entry) => entry.type)).toEqual(['line', 'scatter', 'line']);
+		const marker = series[1];
+		expect(marker).toMatchObject({
+			type: 'scatter',
+			data: { x: fullView.x, y: fullView.y },
+			symbolSize: 1.5,
+			sampling: 'none'
+		});
+	});
+
+	it('excludes empty views from the chart series', () => {
+		const series = plotSeriesForViews(
+			[
+				{ ...view([]), sampled: false },
+				{ ...view([0, 1]), sampled: false }
+			],
+			() => 'y'
+		);
+
+		expect(series.map((entry) => entry.type)).toEqual(['line', 'scatter']);
+	});
+
+	it('routes each signal series to its assigned y axis', () => {
+		const first = { ...view([0, 1]), key: 'a', sampled: false };
+		const second = { ...view([0, 1]), key: 'b', sampled: false };
+		const series = plotSeriesForViews([first, second], (candidate) =>
+			candidate.key === 'b' ? 'y1' : 'y'
+		);
+
+		expect(series.map((entry) => entry.yAxis)).toEqual(['y', 'y', 'y1', 'y1']);
+	});
+
+	it('keeps explicit axes alive with an invisible empty line', () => {
+		const series = emptyAxisSeries('y2');
+		expect(series).toMatchObject({
+			type: 'line',
+			yAxis: 'y2',
+			visible: false,
+			sampling: 'none'
+		});
+		const data = series.data as { x: Float64Array; y: Float64Array };
+		expect(data.x).toHaveLength(0);
+		expect(data.y).toHaveLength(0);
+	});
+
+	it('fits the domain across views from min/max scans', () => {
+		const views = [view([0, 50, 100], [10, 15, 20]), view([25, 75], [-10, 0])];
+		expect(signalXRange(views)).toEqual({ min: 0, max: 100 });
+		expect(signalYRange(views)).toEqual({ min: -11.5, max: 21.5 });
+	});
+
+	it('fits x domain from min/max scan when timestamps are non-monotonic', () => {
+		expect(signalXRange([view([5, 1, 9, 3], [10, 20, 30, 40])])).toEqual({ min: 1, max: 9 });
+	});
+
+	it('skips samples with non-finite coordinates', () => {
+		const views = [view([Number.NaN, 10, 20, 30], [5, 10, Number.POSITIVE_INFINITY, 20])];
+		expect(signalXRange(views)).toEqual({ min: 10, max: 30 });
+		expect(signalYRange(views)).toEqual({ min: 9.5, max: 20.5 });
+	});
+
+	it('returns null when no view has finite points', () => {
+		for (const views of [[], [view([])], [view([0, 1], [Number.NaN, Number.NaN])]]) {
+			expect(signalXRange(views)).toBeNull();
+			expect(signalYRange(views)).toBeNull();
+		}
+	});
+
+	it('recomputes the domain when the value series changes for the same time series', () => {
+		const x = new Float64Array([0, 100]);
+		const base = view([], []);
+		const first = { ...base, x, y: new Float64Array([0, 10]) };
+		const second = { ...base, x, y: new Float64Array([0, 40]) };
+
+		expect(signalYRange([first])).toEqual({ min: -0.5, max: 10.5 });
+		expect(signalYRange([second])).toEqual({ min: -2, max: 42 });
+	});
+
+	it('keeps y-axis tick labels compact', () => {
+		expect(formatAxisValue(123.456789)).toBe('123');
+		expect(formatAxisValue(12.3456789)).toBe('12.3');
+		expect(formatAxisValue(1.23456789)).toBe('1.235');
+		expect(formatAxisValue(0.000012345)).toBe('1.23e-5');
+	});
+
+	it('flags values outside specified DBC limits, treating [0|0] as unspecified', () => {
+		expect(isOutsideDbcRange(251, 0, 250)).toBe(true);
+		expect(isOutsideDbcRange(250, 0, 250)).toBe(false);
+		expect(isOutsideDbcRange(999, 0, 0)).toBe(false);
+	});
+
+	it('preserves fractional floating-point values, deltas and range checks', () => {
+		const floating = {
+			...view([0, 10], [12.34, 12.49]),
+			valueType: 'float64' as const,
+			unit: 'V',
+			maximum: 12.4
+		};
+		expect(crosshairValue(floating, 0)).toEqual({
+			text: '12.34 V',
+			outOfRange: false
+		});
+		expect(crosshairValue(floating, 10)).toEqual({
+			text: '12.49 V',
+			outOfRange: true
+		});
+		expect(crosshairDeltaValue(floating, 0, 10)).toEqual({
+			text: '0.15 V',
+			outOfRange: false
+		});
+		expect(formatDecodedValue(12.34, { ...floating, valueType: 'float32' }).text).toBe('12.34 V');
+		expect(formatLegendNumericValue(0.00001234567, null)).toBe('0.00001234567');
+
+		const floatBoundary = {
+			...floating,
+			valueType: 'float32' as const,
+			minimum: -0.1,
+			maximum: 0.1
+		};
+		expect(formatDecodedValue(Math.fround(0.1), floatBoundary)).toEqual({
+			text: '0.1 V',
+			outOfRange: false
+		});
+		expect(formatDecodedValue(Math.fround(-0.1), floatBoundary)).toEqual({
+			text: '-0.1 V',
+			outOfRange: false
+		});
+		expect(formatDecodedValue(Math.fround(0.100001), floatBoundary).outOfRange).toBe(true);
+		expect(formatDecodedValue(Math.fround(-0.100001), floatBoundary).outOfRange).toBe(true);
+
+		const preciseBounds = {
+			...floating,
+			minimum: 0.12345674,
+			maximum: 0.12345676
+		};
+		expect(formatDecodedValue(0.12345674, preciseBounds).outOfRange).toBe(false);
+		expect(formatDecodedValue(0.12345676, preciseBounds).outOfRange).toBe(false);
+		expect(formatDecodedValue(0.12345665, preciseBounds)).toEqual({
+			text: '0.1234567 V',
+			outOfRange: false
+		});
+		expect(formatDecodedValue(0.1234566, preciseBounds).outOfRange).toBe(true);
+		expect(formatDecodedValue(0.1234569, preciseBounds).outOfRange).toBe(true);
+	});
+
+	it('treats absent bounds as unspecified for positive and negative native values', () => {
+		const context = {
+			...formatContext,
+			valueType: 'float64' as const,
+			minimum: null,
+			maximum: null
+		};
+		expect(formatDecodedValue(-12.34, context)).toEqual({ text: '-12.34 km/h', outOfRange: false });
+		expect(formatDecodedValue(12.34, context)).toEqual({ text: '12.34 km/h', outOfRange: false });
+	});
+
+	it('pads legend decimals to the chosen resolution', () => {
+		expect(formatLegendNumericValue(12, 0.01)).toBe('12.00');
+		expect(formatLegendNumericValue(300, 0.1)).toBe('300.0');
+	});
+
+	it('preserves fractional offsets in legend values', () => {
+		expect(formatLegendNumericValue(12.5, 1, 0.5)).toBe('12.5');
+		expect(
+			formatDecodedValue(12.5, {
+				...formatContext,
+				valueType: 'integer' as const,
+				factor: 1,
+				offset: 0.5
+			})
+		).toEqual({
+			text: '12.5 km/h',
+			outOfRange: false
+		});
+	});
+
+	it('preserves nonzero tiny legend values', () => {
+		expect(formatLegendNumericValue(1e-13, 1e-13)).toBe('1.000000e-13');
+		expect(formatLegendNumericValue(0, 1e-13)).toBe('0');
+		expect(formatLegendNumericValue(-0, 1e-13)).toBe('0');
+	});
+
+	it('does not flag float noise at DBC range boundaries', () => {
+		expect(formatDecodedValue(3 * 0.1, { ...formatContext, maximum: 0.3 })).toEqual({
+			text: '0.3 km/h',
+			outOfRange: false
+		});
+	});
+
+	it('formats decoded legend values with units and out-of-range state', () => {
+		expect(formatDecodedValue(42.37, formatContext)).toEqual({
+			text: '42.4 km/h',
+			outOfRange: false
+		});
+		expect(formatDecodedValue(300, formatContext)).toEqual({
+			text: '300.0 km/h',
+			outOfRange: true
+		});
+		expect(formatDecodedValue(42.37, { ...formatContext, minimum: 0, maximum: 0 })).toEqual({
+			text: '42.4 km/h',
+			outOfRange: false
+		});
+	});
+
+	it('calculates signal deltas from the samples nearest each crosshair', () => {
+		const signal = {
+			...view([0, 10, 20], [5, 10, 25]),
+			unit: 'V',
+			factor: 0.1
+		};
+
+		expect(crosshairValue(signal, 9)).toEqual({
+			text: '10.0 V',
+			outOfRange: false
+		});
+		expect(crosshairDeltaValue(signal, 9, 19)).toEqual({
+			text: '15.0 V',
+			outOfRange: false
+		});
+	});
+
+	it('returns the nearest sample with ties resolved towards the earlier sample', () => {
+		const times = new Float64Array([0, 10, 20]);
+		const values = new Float64Array([5, 10, 25]);
+
+		expect(nearestSignalSample(times, values, 15)).toEqual({ timeMs: 10, value: 10 });
+		expect(nearestSignalSample(times, values, 19)).toEqual({ timeMs: 20, value: 25 });
+		expect(nearestSignalSample(times, values, Number.NaN)).toBeNull();
+	});
+
+	it('does not calculate numeric deltas for enumerated signals', () => {
+		const signal = {
+			...view([0, 10], [0, 1]),
+			valueDescriptions: [
+				{ rawValue: 0, label: 'Off' },
+				{ rawValue: 1, label: 'On' }
+			]
+		};
+
+		expect(crosshairDeltaValue(signal, 0, 10)).toEqual({
+			text: 'N/A',
+			outOfRange: false
+		});
+	});
+
+	it('formats signed crosshair time deltas as durations', () => {
+		expect(formatTimeDelta(1234)).toBe('1.234s');
+		expect(formatTimeDelta(-61_250)).toBe('-1m 1.250s');
+	});
+});

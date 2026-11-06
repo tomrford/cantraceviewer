@@ -1,4 +1,4 @@
-import type { TraceType } from './wasm.js';
+import type { TraceType } from '@/lib/wasm';
 
 const TRACE_TYPES = ['asc', 'trc', 'blf', 'mf4'] as const satisfies readonly TraceType[];
 const TRACE_EXTENSIONS = TRACE_TYPES.map((type) => `.${type}`);
