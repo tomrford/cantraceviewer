@@ -13,7 +13,12 @@ import { mountWebMcp } from '@/lib/webmcp';
 import type { WebMcpTool } from '@/lib/webmcp-tools';
 import { startTraceSession } from '@/store/app-shell';
 import { addDbcFiles, resetDbcLibrary } from '@/store/dbc-files';
-import { clearSelectedSignals, isSignalSelected, toggleSignal } from '@/store/plot-data';
+import {
+	clearSelectedSignals,
+	isSignalSelected,
+	signalDecodeStatus,
+	toggleSignal
+} from '@/store/plot-data';
 import { appStore, update } from '@/store/store';
 import { loadTraceFile } from '@/store/trace-file';
 
@@ -84,11 +89,7 @@ it('keeps absent and transported definitions searchable, rejects additions, and 
 	const beforeTrace = (await search()).results.find((hit) => hit.signalName === 'Value')!;
 	await toggleSignal(beforeTrace.key);
 	expect(isSignalSelected(beforeTrace.key)).toBe(true);
-	expect(appStore.getState().selected.get(beforeTrace.key)).toMatchObject({
-		isDecoding: false,
-		series: null,
-		error: null
-	});
+	expect(signalDecodeStatus(beforeTrace.key)).toEqual({ isDecoding: false, decodeError: null });
 	await loadTrace('signal-availability.asc');
 	expect(appStore.getState().signals).toEqual([]);
 	const hits = (await search()).results;

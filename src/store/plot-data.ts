@@ -56,12 +56,7 @@ async function decodeSignal(
 	colorIndex: number
 ): Promise<void> {
 	const { trace } = appStore.getState();
-	const decoding: SelectedSignalState = {
-		colorIndex,
-		isDecoding: trace !== null,
-		series: null,
-		error: null
-	};
+	const decoding = { colorIndex, isDecoding: trace !== null, series: null, error: null };
 	setSignalState(key, decoding);
 	if (!trace) return;
 	const isCurrent = () =>
