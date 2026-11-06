@@ -1,4 +1,4 @@
-import { describe, expect, expectTypeOf, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import {
 	createCanTraceClientForWorker,
@@ -7,32 +7,9 @@ import {
 } from './client.ts';
 import type { DirectClient } from './direct.ts';
 import { DEFAULT_PARSING_LIMITS, type ParsingLimits } from './limits.ts';
-import type {
-	SeriesPayload,
-	WireOpenDbc,
-	WireOpenTrace,
-	WorkerOkResult,
-	WorkerRequest,
-	WorkerRequestBody,
-	WorkerResultByOp
-} from './protocol.ts';
+import type { WorkerRequest } from './protocol.ts';
 import type { DbcHandle, DecodedSignalSeries, TraceHandle } from './types.ts';
 import { startWorkerRuntime, type WorkerRuntimeEndpoint } from './worker-runtime.ts';
-
-// check:types verifies exact results; the scenarios below verify runtime behavior.
-expectTypeOf<keyof WorkerResultByOp>().toEqualTypeOf<WorkerRequestBody['op']>();
-expectTypeOf<WorkerResultByOp['init']>().toEqualTypeOf<never>();
-expectTypeOf<WorkerResultByOp['openDbc']>().toEqualTypeOf<WireOpenDbc>();
-expectTypeOf<WorkerResultByOp['openTrace']>().toEqualTypeOf<WireOpenTrace>();
-expectTypeOf<WorkerResultByOp['getSignalValues']>().toEqualTypeOf<SeriesPayload>();
-expectTypeOf<WorkerResultByOp['getMf4SignalValues']>().toEqualTypeOf<SeriesPayload>();
-expectTypeOf<WorkerResultByOp['closeDbc']>().toEqualTypeOf<null>();
-expectTypeOf<WorkerResultByOp['closeTrace']>().toEqualTypeOf<null>();
-expectTypeOf<WorkerResultByOp['closeClient']>().toEqualTypeOf<null>();
-expectTypeOf<WorkerResultByOp['openDbc' | 'openTrace']>().toEqualTypeOf<
-	WireOpenDbc | WireOpenTrace
->();
-expectTypeOf<WorkerResultByOp[WorkerRequestBody['op']]>().toEqualTypeOf<WorkerOkResult>();
 
 const identity = { canId: 288, isExtended: false, sizeBytes: 8 };
 

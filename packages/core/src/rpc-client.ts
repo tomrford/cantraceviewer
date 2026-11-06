@@ -128,7 +128,6 @@ export async function createRpcClient(
 		const id = nextRequestId++;
 		return new Promise<WorkerResultByOp[T['op']]>((resolve, reject) => {
 			pending.set(id, {
-				// The heterogeneous map erases the operation; the response id pairs it with this request.
 				resolve: (value) => resolve(value as WorkerResultByOp[T['op']]),
 				reject
 			});
@@ -156,9 +155,7 @@ export async function createRpcClient(
 		if (closePromise) throw new Error('client is closed');
 	}
 
-	async function sendClose(
-		body: Extract<WorkerRequestBody, { op: 'closeDbc' | 'closeTrace' }>
-	): Promise<void> {
+	async function sendClose(body: WorkerRequestBody): Promise<void> {
 		if (fatalError || closePromise) return;
 		await send(body, []);
 	}
