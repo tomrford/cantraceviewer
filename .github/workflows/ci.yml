@@ -44,5 +44,6 @@ jobs:
 
       - uses: cachix/install-nix-action@v31
 
+      # Call the runner directly: `pnpm run` installs dependencies first, which the audits do not need.
       - name: Audit dependencies
-        run: nix develop -c pnpm run audit
+        run: nix develop -c node scripts/audit.mjs
