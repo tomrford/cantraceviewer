@@ -20,8 +20,8 @@ Keep build-generating commands serial within a checkout because they share outpu
 
 ## Structure
 
-- `src/` contains the React app. `main.tsx` starts browser services and hydrates the shell; `server.tsx` renders it through `scripts/prerender.mjs` during the build.
-- `src/lib/stores/store.ts` owns the Zustand app store and derived-state update order. Domain actions write source state through `update()`; `derive.ts` computes the derived fields. Keep React subscriptions narrow and avoid duplicating this derivation in effects.
+- `src/` contains the React app. `main.tsx` starts browser services and hydrates the shell; `server.tsx` renders it through `scripts/prerender.mjs` during the build. UI lives in `src/components/`, React hooks in `src/hooks/`, and non-React modules in `src/lib/` (`src/lib/plot/` is the plot domain).
+- `src/store/store.ts` owns the Zustand app store and derived-state update order. Domain actions write source state through `update()`; `derive.ts` computes the derived fields. Keep React subscriptions narrow and avoid duplicating this derivation in effects.
 - `packages/core/` contains the reusable package; its [README](packages/core/README.md) documents the public API and parser contracts. The app consumes the pinned registry version, so local Rust/package edits do not automatically change browser behaviour.
 - `wasm/` contains the Rust parser and decoder.
 

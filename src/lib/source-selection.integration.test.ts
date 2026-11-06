@@ -16,7 +16,11 @@ vi.mock('cantraceviewer', async () => {
 		}
 	};
 });
-import { buildSelectorSearchIndexes } from './selector-list.js';
+import * as library from '@/lib/dbc-library';
+import { buildSelectorSearchIndexes } from '@/lib/selector-list';
+import { closeTrace } from '@/lib/wasm';
+import { searchCatalogSignals } from '@/lib/webmcp-tools';
+import { startTraceSession } from '@/store/app-shell';
 import {
 	addDbcFiles,
 	addTransientDbcs,
@@ -24,19 +28,15 @@ import {
 	loadDbcLibrary,
 	removeDbcFile,
 	resetDbcLibrary
-} from './stores/dbc-files.js';
-import * as library from './stores/dbc-library.js';
+} from '@/store/dbc-files';
 import {
 	clearSelectedSignals,
 	deselectDbcFile,
 	signalDecodeStatus,
 	toggleSignal
-} from './stores/plot-data.js';
-import { startTraceSession } from './stores/session.js';
-import { appStore, update } from './stores/store.js';
-import { openTraceFile } from './stores/trace-file.js';
-import { closeTrace } from './wasm.js';
-import { searchCatalogSignals } from './webmcp-tools.js';
+} from '@/store/plot-data';
+import { appStore, update } from '@/store/store';
+import { loadTraceFile } from '@/store/trace-file';
 
 const fixture = async (name: string) =>
 	new File([await readFile(`wasm/tests/fixtures/${name}`)], name);
@@ -51,7 +51,7 @@ afterAll(async () => {
 
 describe('published package app integration', () => {
 	it('keeps observed sources separate through selector, public search, decode and deletion', async () => {
-		expect(await openTraceFile(await fixture('source-selection.asc'))).toBe(true);
+		expect(await loadTraceFile(await fixture('source-selection.asc'))).toBe(true);
 		await addDbcFiles([await fixture('source-selection.dbc')]);
 		expect(appStore.getState().dbcError).toBeNull();
 		const messages = appStore.getState().selectorFiles[0].messages;
@@ -106,9 +106,9 @@ describe('published package app integration', () => {
 			'End TriggerBlock',
 			'0.200000 1 100 Rx d 2 0a\nEnd TriggerBlock'
 		);
-		expect(await openTraceFile(new File([trace], 'skipped-line.asc'))).toBe(true);
+		expect(await loadTraceFile(new File([trace], 'skipped-line.asc'))).toBe(true);
 		expect(appStore.getState().traceWarning).toBe('Parsed with 1 malformed line skipped.');
-		expect(await openTraceFile(new File(['invalid replacement'], 'trace.txt'))).toBe(false);
+		expect(await loadTraceFile(new File(['invalid replacement'], 'trace.txt'))).toBe(false);
 		expect(appStore.getState().traceError).toContain('Unsupported trace file type');
 		expect(appStore.getState().trace?.file.name).toBe('skipped-line.asc');
 		expect(appStore.getState().traceWarning).toBe('Parsed with 1 malformed line skipped.');
@@ -157,7 +157,7 @@ describe('published package app integration', () => {
 		checkEntry();
 		expect(appStore.getState().dbcFiles[0].warnings).toEqual(uploadedWarnings);
 		await clearDbcFiles();
-		expect(await openTraceFile(new File([await compressedAttachment(bytes)], 'partial.mf4'))).toBe(
+		expect(await loadTraceFile(new File([await compressedAttachment(bytes)], 'partial.mf4'))).toBe(
 			true
 		);
 		await addTransientDbcs(appStore.getState().trace!.id, appStore.getState().trace!.embeddedDbcs);
@@ -173,7 +173,7 @@ describe('published package app integration', () => {
 	it('recovers readable saved DBCs after a storage failure without erasing corrupt records', async () => {
 		clearSelectedSignals();
 		await clearDbcFiles();
-		expect(await openTraceFile(await fixture('source-selection.asc'))).toBe(true);
+		expect(await loadTraceFile(await fixture('source-selection.asc'))).toBe(true);
 		await startTraceSession();
 		const names = ['source-selection.dbc', 'malformed-source.dbc', 'partial-load.dbc'];
 		let stored = await Promise.all(
@@ -250,7 +250,7 @@ describe('published package app integration', () => {
 		for (const accepted of [true, false]) {
 			const input = accepted ? bytes : new Uint8Array(bytes.length + 1).fill(32);
 			if (!accepted) input.set(bytes);
-			expect(await openTraceFile(new File([await compressedAttachment(input)], 'legacy.mf4'))).toBe(
+			expect(await loadTraceFile(new File([await compressedAttachment(input)], 'legacy.mf4'))).toBe(
 				true
 			);
 			const trace = appStore.getState().trace!;
@@ -279,7 +279,7 @@ describe('published package app integration', () => {
 		const persist = vi.spyOn(library, 'putStoredDbcs');
 		try {
 			expect(
-				await openTraceFile(new File([await readFile('public/example.mf4')], 'example.mf4'))
+				await loadTraceFile(new File([await readFile('public/example.mf4')], 'example.mf4'))
 			).toBe(true);
 			await startTraceSession();
 			expect(appStore.getState().trace?.hasRawFrames).toBe(false);
@@ -310,7 +310,7 @@ describe('published package app integration', () => {
 			}
 			expect(appStore.getState().dbcFiles).toEqual([saved]);
 			expect(saved.catalog).toEqual(catalog);
-			expect(await openTraceFile(await fixture('source-selection.asc'))).toBe(true);
+			expect(await loadTraceFile(await fixture('source-selection.asc'))).toBe(true);
 			await startTraceSession();
 			expect(appStore.getState().signals).toEqual([]);
 			expect(appStore.getState().mf4SignalTargetByKey.size).toBe(0);
@@ -330,7 +330,7 @@ describe('published package app integration', () => {
 			for (const outcome of ['success', 'failure']) {
 				clearSelectedSignals();
 				await clearDbcFiles();
-				expect(await openTraceFile(await fixture('source-selection.asc'))).toBe(true);
+				expect(await loadTraceFile(await fixture('source-selection.asc'))).toBe(true);
 				await startTraceSession();
 				await addDbcFiles([await fixture('source-selection.dbc')]);
 				const key = appStore.getState().selectorFiles[0].messages[0].signals[0].key;
@@ -363,7 +363,7 @@ describe('published package app integration', () => {
 						.replace('d 1 0a', 'd 1 63')
 						.replace('d 1 0b', 'd 1 64');
 					if (change === 'replacement') {
-						expect(await openTraceFile(new File([replacement], 'replacement.asc'))).toBe(true);
+						expect(await loadTraceFile(new File([replacement], 'replacement.asc'))).toBe(true);
 						await startTraceSession();
 					} else {
 						await toggleSignal(key);
@@ -393,7 +393,7 @@ describe('published package app integration', () => {
 	it('finishes an import write before a queued reset and can persist and reload a later import', async () => {
 		clearSelectedSignals();
 		await clearDbcFiles();
-		expect(await openTraceFile(await fixture('source-selection.asc'))).toBe(true);
+		expect(await loadTraceFile(await fixture('source-selection.asc'))).toBe(true);
 		await startTraceSession();
 		const writeStarted = Promise.withResolvers<void>();
 		const releaseWrite = Promise.withResolvers<void>();
@@ -443,7 +443,7 @@ describe('published package app integration', () => {
 			await loadDbcLibrary();
 			expect(appStore.getState().dbcError).toBeNull();
 			expect(appStore.getState().dbcFiles.map((file) => file.name)).toEqual([input.name]);
-			expect(await openTraceFile(await fixture('source-selection.asc'))).toBe(true);
+			expect(await loadTraceFile(await fixture('source-selection.asc'))).toBe(true);
 			await startTraceSession();
 			await toggleSignal(appStore.getState().selectorFiles[0].messages[0].signals[0].key);
 			expect(Array.from(appStore.getState().signals[0].series!.values)).toEqual([10, 11]);

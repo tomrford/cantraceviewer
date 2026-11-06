@@ -2,11 +2,10 @@ import './app.css';
 import { StrictMode } from 'react';
 import { createRoot, hydrateRoot } from 'react-dom/client';
 
-import { loadDbcLibrary } from '#lib/stores/dbc-files.js';
-import { connectPreferences } from '#lib/stores/preferences.js';
-import { mountWebMcp } from '#lib/webmcp.js';
-
-import { App } from './app.js';
+import { App } from '@/app';
+import { mountWebMcp } from '@/lib/webmcp';
+import { loadDbcLibrary } from '@/store/dbc-files';
+import { connectPreferences } from '@/store/preferences';
 
 // One-time browser startup. The prerender loads src/server.tsx instead, so none of this runs there.
 connectPreferences();

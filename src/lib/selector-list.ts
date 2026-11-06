@@ -1,4 +1,4 @@
-import { createSearchIndex, searchIndex, type SearchIndex } from './search-index.js';
+import { createSearchIndex, searchIndex, type SearchIndex } from '@/lib/search-index';
 
 export type SelectorListSignal = {
 	unavailableReason?: string;

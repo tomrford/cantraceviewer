@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { adjacentWalkthroughStep, shouldShowWalkthrough } from './walkthrough.js';
+import { adjacentWalkthroughStep, shouldShowWalkthrough } from '@/lib/walkthrough';
 
 describe('walkthrough steps', () => {
 	it('moves through the ordered walkthrough and stops at its bounds', () => {
