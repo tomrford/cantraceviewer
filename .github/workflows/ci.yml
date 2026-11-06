@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    # Advisories land without code changes. Monday 08:17 UTC.
+    - cron: '17 8 * * 1'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
@@ -11,6 +14,7 @@ concurrency:
 
 jobs:
   ci:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -29,3 +33,17 @@ jobs:
           name: cantraceviewer-package
           path: artifacts/*.tgz*
           if-no-files-found: error
+
+  audit:
+    name: Audit dependencies
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: cachix/install-nix-action@v31
+
+      # Call the runner directly: `pnpm run` installs dependencies first, which the audits do not need.
+      - name: Audit dependencies
+        run: nix develop -c node scripts/audit.mjs
