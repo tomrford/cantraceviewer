@@ -31,7 +31,6 @@ export async function toggleSignal(key: string): Promise<void> {
 	const colorIndex = nextSignalColorIndex(
 		Array.from(appStore.getState().selected.values(), (state) => state.colorIndex)
 	);
-	setSignalState(key, { colorIndex, isDecoding: false, series: null, error: null });
 	await decodeSignal(key, target, colorIndex);
 }
 
@@ -57,10 +56,9 @@ async function decodeSignal(
 	colorIndex: number
 ): Promise<void> {
 	const { trace } = appStore.getState();
-	if (!trace) return;
-
-	const decoding: SelectedSignalState = { colorIndex, isDecoding: true, series: null, error: null };
+	const decoding = { colorIndex, isDecoding: trace !== null, series: null, error: null };
 	setSignalState(key, decoding);
+	if (!trace) return;
 	const isCurrent = () =>
 		appStore.getState().selected.get(key) === decoding &&
 		appStore.getState().trace === trace &&

@@ -4,7 +4,7 @@ import { MAX_Y_AXES } from '@/lib/plot/y-axis';
 import { searchIndex } from '@/lib/search-index';
 import type { SelectorSearchIndex } from '@/lib/selector-list';
 import type { storeHost } from '@/lib/webmcp';
-import type { PlotSignal } from '@/store/derive';
+import type { DecodedPlotSignal } from '@/store/derive';
 
 export const SEARCH_RESULT_LIMIT_MAX = 50;
 const SEARCH_RESULT_LIMIT_DEFAULT = 25;
@@ -20,7 +20,7 @@ export type WebMcpTimeRange = {
 export type WebMcpCrosshairInput = { id: CrosshairId; timeMs: number; value?: number };
 
 export type WebMcpPlottedSignal = Pick<
-	PlotSignal,
+	DecodedPlotSignal,
 	| 'key'
 	| 'label'
 	| 'unit'
@@ -30,9 +30,8 @@ export type WebMcpPlottedSignal = Pick<
 	| 'minimum'
 	| 'maximum'
 	| 'valueDescriptions'
-> & {
-	series: NonNullable<PlotSignal['series']>;
-};
+	| 'series'
+>;
 
 export type WebMcpHost = typeof storeHost;
 

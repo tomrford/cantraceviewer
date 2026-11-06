@@ -4,7 +4,7 @@ import {
 	type PlotAxisRange,
 	type PlotViewport
 } from '@/lib/plot/plot-viewport';
-import type { PlotSignal } from '@/store/derive';
+import type { DecodedPlotSignal, PlotSignal } from '@/store/derive';
 import type { TimestampMode } from '@/store/store';
 
 type DecodedValueFormatContext = Pick<
@@ -108,14 +108,15 @@ export function formatDecodedValue(value: number | null, context: DecodedValueFo
 	};
 }
 
-const EMPTY_SERIES = new Float64Array(0);
-
-function signalView({ series, ...signal }: PlotSignal): SignalView {
-	return { ...signal, x: series?.timesMs ?? EMPTY_SERIES, y: series?.values ?? EMPTY_SERIES };
+function signalView({ series, ...signal }: DecodedPlotSignal): SignalView {
+	return { ...signal, x: series.timesMs, y: series.values };
 }
 
 /** Views for `signals`, reusing each of `previous` that still matches so its identity holds. */
-export function signalViews(signals: PlotSignal[], previous: readonly SignalView[]): SignalView[] {
+export function signalViews(
+	signals: DecodedPlotSignal[],
+	previous: readonly SignalView[]
+): SignalView[] {
 	const previousByKey = new Map(previous.map((view) => [view.key, view]));
 	return signals.map((signal) => {
 		const view = previousByKey.get(signal.key);
@@ -123,10 +124,10 @@ export function signalViews(signals: PlotSignal[], previous: readonly SignalView
 	});
 }
 
-function viewMatchesSignal(view: SignalView, signal: PlotSignal): boolean {
+function viewMatchesSignal(view: SignalView, signal: DecodedPlotSignal): boolean {
 	return (
-		view.x === (signal.series?.timesMs ?? EMPTY_SERIES) &&
-		view.y === (signal.series?.values ?? EMPTY_SERIES) &&
+		view.x === signal.series.timesMs &&
+		view.y === signal.series.values &&
 		view.color === signal.color &&
 		view.label === signal.label &&
 		view.sourceBadges === signal.sourceBadges &&
