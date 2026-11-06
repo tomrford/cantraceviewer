@@ -1,10 +1,11 @@
+import { useBrowserValue } from '@/hooks/use-browser-value';
 import {
 	browserShortcutPlatform,
 	shortcutKeys,
 	type ShortcutAction,
 	type ShortcutPlatform
 } from '@/lib/keyboard-shortcuts';
-import { cn, useBrowserValue } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 
 export function ShortcutKey({ action, className }: { action: ShortcutAction; className?: string }) {
 	const platform = useBrowserValue<ShortcutPlatform>(browserShortcutPlatform, 'other');
