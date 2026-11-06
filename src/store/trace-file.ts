@@ -21,8 +21,8 @@ export async function loadTraceFile(file: File): Promise<boolean> {
 		next = { ...opened, id: nextTraceId++, file, session: new AbortController() };
 
 		const previous = appStore.getState().trace;
-		previous?.session.abort();
 		update({ trace: next });
+		previous?.session.abort();
 		next = null;
 
 		if (previous) await closeTrace(previous.handle);
