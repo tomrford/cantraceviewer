@@ -54,7 +54,19 @@ export type SeriesPayload = {
 	valuesLength: number;
 };
 
-export type WorkerOkResult = WireOpenDbc | WireOpenTrace | SeriesPayload | null;
+export type WorkerResultByOp = {
+	/** Startup uses ready/boot-error responses, never an ok result. */
+	init: never;
+	openDbc: WireOpenDbc;
+	closeDbc: null;
+	openTrace: WireOpenTrace;
+	closeTrace: null;
+	getSignalValues: SeriesPayload;
+	getMf4SignalValues: SeriesPayload;
+	closeClient: null;
+};
+
+export type WorkerOkResult = WorkerResultByOp[WorkerRequestBody['op']];
 
 export type WorkerResponse =
 	| { type: 'ready' }
