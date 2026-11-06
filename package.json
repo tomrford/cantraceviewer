@@ -17,7 +17,7 @@
 		"package:test:tarball": "node ./scripts/test-package-tarball.mjs",
 		"package:test:app": "node ./scripts/test-app-tarball.mjs",
 		"package:validate": "pnpm run wasm:check && pnpm run wasm:test && pnpm run package:pack && pnpm run package:test:tarball && pnpm run package:test:app",
-		"audit": "pnpm audit && cargo audit --file wasm/Cargo.lock",
+		"audit": "node scripts/audit.mjs",
 		"validate": "pnpm run lint && pnpm run package:validate && pnpm run check:types && pnpm run test:run",
 		"dev": "vite",
 		"build": "vite build && node scripts/prerender.mjs",
