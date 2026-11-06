@@ -58,31 +58,25 @@ async function decodeSignal(signal: Signal, colorIndex: number): Promise<void> {
 	const decoding = { colorIndex, isDecoding: trace !== null, series: null, error: null };
 	setSignalState(key, decoding);
 	if (!trace) return;
-	const isCurrent = () =>
-		appStore.getState().selected.get(key) === decoding &&
-		appStore.getState().trace === trace &&
-		appStore.getState().signalByKey.has(key);
 
+	let outcome: Partial<SelectedSignalState>;
 	try {
-		const series =
-			signal.kind === 'mf4'
-				? await getMf4SignalValues(trace.handle, signal.signalId)
-				: await decodeDbcSignal(trace, signal);
-
-		if (isCurrent()) setSignalState(key, { ...decoding, isDecoding: false, series });
+		outcome = {
+			series:
+				signal.kind === 'mf4'
+					? await getMf4SignalValues(trace.handle, signal.signalId)
+					: await decodeDbcSignal(trace, signal)
+		};
 	} catch (error) {
-		if (isCurrent()) {
-			setSignalState(key, {
-				...decoding,
-				isDecoding: false,
-				error: error instanceof Error ? error.message : 'Signal decode failed'
-			});
-		}
-	} finally {
-		if (appStore.getState().selected.get(key) === decoding) {
-			setSignalState(key, { ...decoding, isDecoding: false });
-		}
+		outcome = { error: error instanceof Error ? error.message : 'Signal decode failed' };
 	}
+
+	// Deselecting or reselecting the signal replaced its state, and that newer state wins. A
+	// replaced trace, or a signal gone from the catalogue, only ends the spinner.
+	const state = appStore.getState();
+	if (state.selected.get(key) !== decoding) return;
+	const stale = trace.session.signal.aborted || !state.signalByKey.has(key);
+	setSignalState(key, { ...decoding, isDecoding: false, ...(stale ? {} : outcome) });
 }
 
 function decodeDbcSignal(trace: TraceFileEntry, signal: Extract<Signal, { kind: 'dbc' }>) {

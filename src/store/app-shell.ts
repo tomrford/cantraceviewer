@@ -164,16 +164,15 @@ async function withTraceLock(open: () => Promise<unknown>): Promise<void> {
 async function loadTrace(file: File): Promise<TraceFileEntry | null> {
 	if (!(await loadTraceFile(file))) return null;
 	const { trace: opened, traceWarning } = appStore.getState();
-	const stillOpen = () => appStore.getState().trace === opened;
+	if (!opened) return null;
 	if (traceWarning) toast.warning(traceWarning);
 	await startTraceSession();
-	if (!stillOpen()) return null;
+	if (opened.session.signal.aborted) return null;
 	if (appStore.getState().walkthroughStepId === 'trace') await showWalkthroughStep('library');
-	return stillOpen() ? opened : null;
+	return opened.session.signal.aborted ? null : opened;
 }
 
 async function plotDemoSignals(opened: TraceFileEntry): Promise<void> {
-	const stillOpen = () => appStore.getState().trace === opened;
 	const catalog = [...appStore.getState().signalByKey.values()];
 	const signals = DEMO_PRESET.map((item) => {
 		const matches = catalog.filter(
@@ -187,9 +186,8 @@ async function plotDemoSignals(opened: TraceFileEntry): Promise<void> {
 		return { key: matches[0].key, axis: item.axis };
 	});
 	for (const { key, axis } of signals) {
-		if (!stillOpen()) return;
 		if (!isSignalSelected(key)) await toggleSignal(key);
-		if (!stillOpen()) return;
+		if (opened.session.signal.aborted) return;
 		if (!isSignalSelected(key)) continue;
 		const { decodeError } = signalDecodeStatus(key);
 		if (decodeError) throw new Error(decodeError);
