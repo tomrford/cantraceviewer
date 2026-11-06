@@ -3,12 +3,11 @@ import { snapshotLimits, dbcBytes, assertByteLimit, type ParsingLimits } from '.
 import type {
 	SeriesPayload,
 	WireError,
-	WireOpenDbc,
-	WireOpenTrace,
 	WorkerOkResult,
 	WorkerRequest,
 	WorkerRequestBody,
-	WorkerResponse
+	WorkerResponse,
+	WorkerResultByOp
 } from './protocol.ts';
 import type {
 	DbcHandle,
@@ -118,18 +117,19 @@ export async function createRpcClient(
 		return termination;
 	}
 
-	function send<T extends WorkerOkResult>(
-		body: WorkerRequestBody,
+	function send<T extends WorkerRequestBody>(
+		body: T,
 		transfer: ArrayBuffer[]
-	): Promise<T> {
+	): Promise<WorkerResultByOp[T['op']]> {
 		const active = transport;
 		if (fatalError || !active) {
 			return Promise.reject(fatalError ?? new Error('client transport is unavailable'));
 		}
 		const id = nextRequestId++;
-		return new Promise<T>((resolve, reject) => {
+		return new Promise<WorkerResultByOp[T['op']]>((resolve, reject) => {
 			pending.set(id, {
-				resolve: (value) => resolve(value as T),
+				// The heterogeneous map erases the operation; the response id pairs it with this request.
+				resolve: (value) => resolve(value as WorkerResultByOp[T['op']]),
 				reject
 			});
 			try {
@@ -156,9 +156,11 @@ export async function createRpcClient(
 		if (closePromise) throw new Error('client is closed');
 	}
 
-	async function sendClose(body: WorkerRequestBody): Promise<void> {
+	async function sendClose(
+		body: Extract<WorkerRequestBody, { op: 'closeDbc' | 'closeTrace' }>
+	): Promise<void> {
 		if (fatalError || closePromise) return;
-		await send<null>(body, []);
+		await send(body, []);
 	}
 
 	await readyPromise;
@@ -173,10 +175,7 @@ export async function createRpcClient(
 				bytes.byteLength === bytes.buffer.byteLength
 					? bytes
 					: Uint8Array.from(bytes);
-			const { dbcId, catalog, warnings } = await send<WireOpenDbc>(
-				{ op: 'openDbc', input: payload },
-				[]
-			);
+			const { dbcId, catalog, warnings } = await send({ op: 'openDbc', input: payload }, []);
 			return { handle: handles.issue('dbc', dbcId), catalog, warnings };
 		},
 		async closeDbc(handle) {
@@ -192,7 +191,7 @@ export async function createRpcClient(
 				);
 			}
 			assertByteLimit(buffer.byteLength, limits.maxTraceInputBytes, 'Trace input');
-			const opened = await send<WireOpenTrace>({ op: 'openTrace', traceType, buffer }, [buffer]);
+			const opened = await send({ op: 'openTrace', traceType, buffer }, [buffer]);
 			return {
 				handle: handles.issue('trace', opened.traceId),
 				metadata: opened.metadata,
@@ -212,7 +211,7 @@ export async function createRpcClient(
 			const dbcId = handles.payload('dbc', dbcHandle);
 			const traceId = handles.payload('trace', traceHandle);
 			return unpackSeries(
-				await send<SeriesPayload>(
+				await send(
 					{ op: 'getSignalValues', dbcId, traceId, messageIdentity, signalName, source },
 					[]
 				)
@@ -221,16 +220,14 @@ export async function createRpcClient(
 		async getMf4SignalValues(traceHandle, signalId) {
 			assertOpen();
 			const traceId = handles.payload('trace', traceHandle);
-			return unpackSeries(
-				await send<SeriesPayload>({ op: 'getMf4SignalValues', traceId, signalId }, [])
-			);
+			return unpackSeries(await send({ op: 'getMf4SignalValues', traceId, signalId }, []));
 		},
 		close() {
 			closePromise ??= (async () => {
 				let cleanupError: Error | null = null;
 				if (!fatalError) {
 					try {
-						await send<null>({ op: 'closeClient' }, []);
+						await send({ op: 'closeClient' }, []);
 					} catch (error) {
 						if (error !== fatalError) {
 							cleanupError = error instanceof Error ? error : new Error(String(error));
