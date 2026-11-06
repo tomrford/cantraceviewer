@@ -130,7 +130,7 @@ function createHarness(loadClient: (limits: ParsingLimits) => Promise<DirectClie
 	const worker: ClientWorker = {
 		postMessage(message, transfer) {
 			const data = structuredClone(message, { transfer });
-			if (data.op !== 'init') requests.push(data);
+			if (data.method !== 'init') requests.push(data);
 			queueMicrotask(() => {
 				for (const listener of runtimeListeners) listener({ data });
 			});
@@ -224,9 +224,10 @@ describe('createCanTraceClient worker transport', () => {
 			backing.set([1, 2, 3], 50);
 			await client.openDbc(backing.subarray(50, 53));
 			const posted = harness.requests.at(-1);
-			if (posted?.op !== 'openDbc') throw new Error('missing DBC request');
-			expect(posted.input.buffer.byteLength).toBe(3);
-			expect(Array.from(posted.input)).toEqual([1, 2, 3]);
+			if (posted?.method !== 'openDbc') throw new Error('missing DBC request');
+			const input = posted.args[0] as Uint8Array;
+			expect(input.buffer.byteLength).toBe(3);
+			expect(Array.from(input)).toEqual([1, 2, 3]);
 			expect(backing.byteLength).toBe(100);
 		} finally {
 			await client.close();

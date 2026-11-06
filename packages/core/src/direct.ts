@@ -2,56 +2,27 @@
 
 import { createHandleRegistry } from './handles.ts';
 import { snapshotLimits, dbcBytes, assertByteLimit, type ParsingLimits } from './limits.ts';
+import type { DirectClient } from './protocol.ts';
 import type {
-	DbcHandle,
 	DbcDiagnostic,
 	ParsedDbc,
 	Mf4SignalCatalog,
 	RawMessage,
-	DbcMessageIdentity,
 	EmbeddedDbc,
-	RawSource,
 	DecodedSignalSeries,
-	OpenDbcResult,
-	OpenTraceResult,
-	TraceHandle,
 	TraceMetadata,
 	TraceType
 } from './types.ts';
 import { initSync, Dbc as WasmDbc, Trace as WasmTrace } from './wasm-bindgen/cantraceviewer.js';
 
 export type * from './types.ts';
+export type { DirectClient } from './protocol.ts';
 export { DEFAULT_PARSING_LIMITS, type ParsingLimits } from './limits.ts';
 
 /** Compilation of bytes is synchronous. */
 export type DirectWasmInput = BufferSource | WebAssembly.Module;
 
 export const wasmUrl = new URL('./wasm-bindgen/cantraceviewer_bg.wasm', import.meta.url);
-
-/**
- * Synchronous client that blocks the calling thread. Use the asynchronous browser or Node
- * client on UI threads.
- */
-export type DirectClient = {
-	openDbc(input: Uint8Array | string): OpenDbcResult;
-	/** Idempotent for this client's handles. */
-	closeDbc(handle: DbcHandle): void;
-	openTrace(traceType: TraceType, bytes: Uint8Array): OpenTraceResult;
-	/** Idempotent for this client's handles. */
-	closeTrace(handle: TraceHandle): void;
-	/** Returned arrays share one exactly-sized ArrayBuffer. */
-	getSignalValues(
-		dbcHandle: DbcHandle,
-		traceHandle: TraceHandle,
-		messageIdentity: DbcMessageIdentity,
-		signalName: string,
-		source?: RawSource
-	): DecodedSignalSeries;
-	/** Read one signal the trace already carries decoded, identified by its MF4 catalog id. */
-	getMf4SignalValues(traceHandle: TraceHandle, signalId: number): DecodedSignalSeries;
-	/** Idempotent. Frees every handle this client still owns. */
-	close(): void;
-};
 
 /**
  * Initializes WASM once per JavaScript realm; later clients ignore their input and reuse it.

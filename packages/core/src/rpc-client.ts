@@ -1,55 +1,14 @@
 import { createHandleRegistry } from './handles.ts';
 import { snapshotLimits, dbcBytes, assertByteLimit, type ParsingLimits } from './limits.ts';
 import type {
-	SeriesPayload,
+	CanTraceClient,
+	DirectClient,
+	Method,
 	WireError,
-	WorkerOkResult,
 	WorkerRequest,
-	WorkerRequestBody,
-	WorkerResponse,
-	WorkerResultByOp
+	WorkerResponse
 } from './protocol.ts';
-import type {
-	DbcHandle,
-	DbcMessageIdentity,
-	RawSource,
-	DecodedSignalSeries,
-	OpenDbcResult,
-	OpenTraceResult,
-	TraceHandle,
-	TraceType
-} from './types.ts';
-
-/**
- * Dedicated-worker client; requests run serially in call order.
- * Startup failure or a worker crash/exit rejects pending and future operations and invalidates
- * all handles. Create a new client to recover.
- */
-export type CanTraceClient = {
-	openDbc(input: Uint8Array | string): Promise<OpenDbcResult>;
-	/** Idempotent for this client's handles. */
-	closeDbc(handle: DbcHandle): Promise<void>;
-	/**
-	 * After input preflight, transfers and detaches `buffer`, even if parsing fails.
-	 * Pass the exact file ArrayBuffer; typed-array views are rejected.
-	 */
-	openTrace(traceType: TraceType, buffer: ArrayBuffer): Promise<OpenTraceResult>;
-	/** Idempotent for this client's handles. */
-	closeTrace(handle: TraceHandle): Promise<void>;
-	/** Both returned arrays are views over one ArrayBuffer transferred out of the worker. */
-	getSignalValues(
-		dbcHandle: DbcHandle,
-		traceHandle: TraceHandle,
-		messageIdentity: DbcMessageIdentity,
-		signalName: string,
-		source?: RawSource
-	): Promise<DecodedSignalSeries>;
-	getMf4SignalValues(traceHandle: TraceHandle, signalId: number): Promise<DecodedSignalSeries>;
-	/**
-	 * Idempotent. Waits for queued work and cleanup, invalidates handles, and terminates the worker.
-	 */
-	close(): Promise<void>;
-};
+import type { DbcHandle, TraceHandle } from './types.ts';
 
 export type RpcTransportHandlers = {
 	message(data: WorkerResponse): void;
@@ -63,6 +22,13 @@ export type RpcTransport = {
 
 export type RpcTransportFactory = (handlers: RpcTransportHandlers) => RpcTransport;
 
+/** Arguments after the leading handles, which travel separately as ids. */
+type ArgsAfterHandles<P> = P extends [DbcHandle | TraceHandle, ...infer Rest]
+	? ArgsAfterHandles<Rest>
+	: P;
+/** A worker result, with any opened handle replaced by its id. */
+type WireResult<R> = R extends { handle: unknown } ? Omit<R, 'handle'> & { handle: number } : R;
+
 export async function createRpcClient(
 	createTransport: RpcTransportFactory,
 	inputLimits?: ParsingLimits
@@ -71,7 +37,7 @@ export async function createRpcClient(
 	const handles = createHandleRegistry<{ dbc: number; trace: number }>();
 	const pending = new Map<
 		number,
-		{ resolve: (value: WorkerOkResult) => void; reject: (error: Error) => void }
+		{ resolve: (value: unknown) => void; reject: (error: Error) => void }
 	>();
 	let nextRequestId = 1;
 	let fatalError: Error | null = null;
@@ -117,22 +83,21 @@ export async function createRpcClient(
 		return termination;
 	}
 
-	function send<T extends WorkerRequestBody>(
-		body: T,
-		transfer: ArrayBuffer[]
-	): Promise<WorkerResultByOp[T['op']]> {
+	function call<M extends Method>(
+		method: M,
+		handleIds: number[],
+		args: ArgsAfterHandles<Parameters<DirectClient[M]>>,
+		transfer: ArrayBuffer[] = []
+	): Promise<WireResult<ReturnType<DirectClient[M]>>> {
 		const active = transport;
 		if (fatalError || !active) {
 			return Promise.reject(fatalError ?? new Error('client transport is unavailable'));
 		}
 		const id = nextRequestId++;
-		return new Promise<WorkerResultByOp[T['op']]>((resolve, reject) => {
-			pending.set(id, {
-				resolve: (value) => resolve(value as WorkerResultByOp[T['op']]),
-				reject
-			});
+		return new Promise((resolve, reject) => {
+			pending.set(id, { resolve: resolve as (value: unknown) => void, reject });
 			try {
-				active.postMessage({ ...body, id }, transfer);
+				active.postMessage({ id, method, handles: handleIds, args }, transfer);
 			} catch (error) {
 				pending.delete(id);
 				reject(error instanceof Error ? error : new Error(String(error)));
@@ -144,7 +109,7 @@ export async function createRpcClient(
 	if (fatalError) void terminate().catch(() => undefined);
 	else {
 		try {
-			transport.postMessage({ op: 'init', id: 0, limits }, []);
+			transport.postMessage({ id: 0, method: 'init', handles: [], args: [limits] }, []);
 		} catch (error) {
 			fail(error instanceof Error ? error : new Error(String(error)));
 		}
@@ -155,30 +120,24 @@ export async function createRpcClient(
 		if (closePromise) throw new Error('client is closed');
 	}
 
-	async function sendClose(body: WorkerRequestBody): Promise<void> {
-		if (fatalError || closePromise) return;
-		await send(body, []);
-	}
-
 	await readyPromise;
 
 	return {
 		async openDbc(input) {
 			assertOpen();
 			const bytes = dbcBytes(input, limits.maxDbcBytes);
-			const payload =
+			const exact =
 				bytes.buffer instanceof ArrayBuffer &&
 				bytes.byteOffset === 0 &&
 				bytes.byteLength === bytes.buffer.byteLength
 					? bytes
 					: Uint8Array.from(bytes);
-			const { dbcId, catalog, warnings } = await send({ op: 'openDbc', input: payload }, []);
-			return { handle: handles.issue('dbc', dbcId), catalog, warnings };
+			const opened = await call('openDbc', [], [exact]);
+			return { ...opened, handle: handles.issue('dbc', opened.handle) };
 		},
 		async closeDbc(handle) {
-			const dbcId = handles.release('dbc', handle);
-			if (dbcId === null) return;
-			await sendClose({ op: 'closeDbc', dbcId });
+			const handleId = handles.release('dbc', handle);
+			if (handleId !== null && !fatalError && !closePromise) await call('closeDbc', [handleId], []);
 		},
 		async openTrace(traceType, buffer) {
 			assertOpen();
@@ -188,43 +147,29 @@ export async function createRpcClient(
 				);
 			}
 			assertByteLimit(buffer.byteLength, limits.maxTraceInputBytes, 'Trace input');
-			const opened = await send({ op: 'openTrace', traceType, buffer }, [buffer]);
-			return {
-				handle: handles.issue('trace', opened.traceId),
-				metadata: opened.metadata,
-				hasRawFrames: opened.hasRawFrames,
-				mf4Catalog: opened.mf4Catalog,
-				embeddedDbcs: opened.embeddedDbcs,
-				warnings: opened.warnings
-			};
+			const opened = await call('openTrace', [], [traceType, new Uint8Array(buffer)], [buffer]);
+			return { ...opened, handle: handles.issue('trace', opened.handle) };
 		},
 		async closeTrace(handle) {
-			const traceId = handles.release('trace', handle);
-			if (traceId === null) return;
-			await sendClose({ op: 'closeTrace', traceId });
+			const handleId = handles.release('trace', handle);
+			if (handleId !== null && !fatalError && !closePromise)
+				await call('closeTrace', [handleId], []);
 		},
-		async getSignalValues(dbcHandle, traceHandle, messageIdentity, signalName, source) {
+		async getSignalValues(dbcHandle, traceHandle, ...args) {
 			assertOpen();
-			const dbcId = handles.payload('dbc', dbcHandle);
-			const traceId = handles.payload('trace', traceHandle);
-			return unpackSeries(
-				await send(
-					{ op: 'getSignalValues', dbcId, traceId, messageIdentity, signalName, source },
-					[]
-				)
-			);
+			const ids = [handles.payload('dbc', dbcHandle), handles.payload('trace', traceHandle)];
+			return call('getSignalValues', ids, args);
 		},
 		async getMf4SignalValues(traceHandle, signalId) {
 			assertOpen();
-			const traceId = handles.payload('trace', traceHandle);
-			return unpackSeries(await send({ op: 'getMf4SignalValues', traceId, signalId }, []));
+			return call('getMf4SignalValues', [handles.payload('trace', traceHandle)], [signalId]);
 		},
 		close() {
 			closePromise ??= (async () => {
 				let cleanupError: Error | null = null;
 				if (!fatalError) {
 					try {
-						await send({ op: 'closeClient' }, []);
+						await call('close', [], []);
 					} catch (error) {
 						if (error !== fatalError) {
 							cleanupError = error instanceof Error ? error : new Error(String(error));
@@ -237,13 +182,6 @@ export async function createRpcClient(
 			})();
 			return closePromise;
 		}
-	};
-}
-
-function unpackSeries(payload: SeriesPayload): DecodedSignalSeries {
-	return {
-		timesMs: new Float64Array(payload.buffer, payload.timesByteOffset, payload.timesLength),
-		values: new Float64Array(payload.buffer, payload.valuesByteOffset, payload.valuesLength)
 	};
 }
 

@@ -1,35 +1,19 @@
-import type { DirectClient } from './direct.ts';
 import type { ParsingLimits } from './limits.ts';
-import type {
-	SeriesPayload,
-	WireError,
-	WireOpenDbc,
-	WireOpenTrace,
-	WorkerOkResult,
-	WorkerRequest,
-	WorkerResponse
-} from './protocol.ts';
-import type { DbcHandle, DecodedSignalSeries, TraceHandle } from './types.ts';
+import type { DirectClient, WireError, WorkerRequest, WorkerResponse } from './protocol.ts';
+import type { DbcHandle, TraceHandle } from './types.ts';
 
 export type WorkerRuntimeEndpoint = {
 	postMessage(message: WorkerResponse, transfer?: ArrayBuffer[]): void;
 	addEventListener(type: 'message', listener: (event: { data: WorkerRequest }) => void): void;
 };
 
-type Executed = {
-	result: WorkerOkResult;
-	transfer?: ArrayBuffer[];
-	undo?: () => void;
-};
-
 export function startWorkerRuntime(
 	endpoint: WorkerRuntimeEndpoint,
 	loadClient: (limits: ParsingLimits) => Promise<DirectClient>
 ): void {
-	const dbcs = new Map<number, DbcHandle>();
-	const traces = new Map<number, TraceHandle>();
+	const handles = new Map<number, DbcHandle | TraceHandle>();
 	let direct: DirectClient | null = null;
-	let nextWireId = 1;
+	let nextHandleId = 1;
 
 	let initialize: ((limits: ParsingLimits) => void) | null = null;
 	const boot = new Promise<ParsingLimits>((resolve) => {
@@ -49,140 +33,66 @@ export function startWorkerRuntime(
 
 	let queue: Promise<void> = boot;
 	endpoint.addEventListener('message', (event) => {
-		if (event.data.op === 'init' && initialize) {
-			initialize(event.data.limits);
+		if (event.data.method === 'init' && initialize) {
+			initialize(event.data.args[0] as ParsingLimits);
 			initialize = null;
 			return;
 		}
 		queue = queue.then(() => handle(event.data)).catch(() => undefined);
 	});
 
-	function handle(request: WorkerRequest): void {
-		let executed: Executed;
+	function handle({ id, method, handles: handleIds, args }: WorkerRequest): void {
+		let result: unknown;
+		let undo: (() => void) | undefined;
 		try {
 			if (!direct) throw new Error('worker WASM initialization failed');
-			executed = execute(direct, request);
+			const client = direct;
+			if (method === 'init' || !Object.hasOwn(client, method)) {
+				throw new Error(`unknown worker method ${method}`);
+			}
+			const inputs = handleIds.map((handleId) => {
+				const found = handles.get(handleId);
+				if (!found) throw new Error(`unknown handle id ${handleId}`);
+				return found;
+			});
+			if (method === 'close') handles.clear();
+			if (method.startsWith('close')) handleIds.forEach((handleId) => handles.delete(handleId));
+			result = (client[method] as (...params: unknown[]) => unknown).apply(client, [
+				...inputs,
+				...args
+			]);
+			if (result && typeof result === 'object' && 'handle' in result) {
+				const opened = result.handle as DbcHandle & TraceHandle;
+				const handleId = nextHandleId++;
+				handles.set(handleId, opened);
+				undo = () => {
+					handles.delete(handleId);
+					client[method === 'openDbc' ? 'closeDbc' : 'closeTrace'](opened);
+				};
+				result = { ...result, handle: handleId };
+			}
 		} catch (error) {
-			endpoint.postMessage({ type: 'error', id: request.id, error: toWireError(error) });
+			endpoint.postMessage({ type: 'error', id, error: toWireError(error) });
 			return;
 		}
 		try {
-			endpoint.postMessage(
-				{ type: 'ok', id: request.id, result: executed.result },
-				executed.transfer ?? []
-			);
+			endpoint.postMessage({ type: 'ok', id, result }, [...transferables(result)]);
 		} catch (error) {
 			try {
-				executed.undo?.();
+				undo?.();
 			} catch {} // eslint-disable-line no-empty
-			endpoint.postMessage({ type: 'error', id: request.id, error: toWireError(error) });
-		}
-	}
-
-	function execute(client: DirectClient, request: WorkerRequest): Executed {
-		switch (request.op) {
-			case 'init':
-				throw new Error('worker is already initialized');
-			case 'openDbc': {
-				const { handle, catalog, warnings } = client.openDbc(request.input);
-				const dbcId = nextWireId++;
-				dbcs.set(dbcId, handle);
-				const result: WireOpenDbc = { dbcId, catalog, warnings };
-				return {
-					result,
-					undo: () => {
-						dbcs.delete(dbcId);
-						client.closeDbc(handle);
-					}
-				};
-			}
-			case 'closeDbc': {
-				const handle = dbcs.get(request.dbcId);
-				if (handle) {
-					dbcs.delete(request.dbcId);
-					client.closeDbc(handle);
-				}
-				return { result: null };
-			}
-			case 'openTrace': {
-				const opened = client.openTrace(request.traceType, new Uint8Array(request.buffer));
-				const traceId = nextWireId++;
-				traces.set(traceId, opened.handle);
-				const result: WireOpenTrace = {
-					traceId,
-					metadata: opened.metadata,
-					hasRawFrames: opened.hasRawFrames,
-					mf4Catalog: opened.mf4Catalog,
-					embeddedDbcs: opened.embeddedDbcs,
-					warnings: opened.warnings
-				};
-				return {
-					result,
-					transfer: opened.embeddedDbcs.map((dbc) => dbc.bytes.buffer as ArrayBuffer),
-					undo: () => {
-						traces.delete(traceId);
-						client.closeTrace(opened.handle);
-					}
-				};
-			}
-			case 'closeTrace': {
-				const handle = traces.get(request.traceId);
-				if (handle) {
-					traces.delete(request.traceId);
-					client.closeTrace(handle);
-				}
-				return { result: null };
-			}
-			case 'getSignalValues':
-				return packSeries(
-					client.getSignalValues(
-						requireHandle(dbcs, request.dbcId, 'dbc'),
-						requireHandle(traces, request.traceId, 'trace'),
-						request.messageIdentity,
-						request.signalName,
-						request.source
-					)
-				);
-			case 'getMf4SignalValues':
-				return packSeries(
-					client.getMf4SignalValues(
-						requireHandle(traces, request.traceId, 'trace'),
-						request.signalId
-					)
-				);
-			case 'closeClient': {
-				dbcs.clear();
-				traces.clear();
-				client.close();
-				return { result: null };
-			}
+			endpoint.postMessage({ type: 'error', id, error: toWireError(error) });
 		}
 	}
 }
 
-function requireHandle<T>(handles: Map<number, T>, id: number, kind: string): T {
-	const handle = handles.get(id);
-	if (!handle) throw new Error(`unknown ${kind} id ${id}`);
-	return handle;
-}
-
-function packSeries(series: DecodedSignalSeries): Executed {
-	const buffer = series.timesMs.buffer;
-	if (
-		!(buffer instanceof ArrayBuffer) ||
-		series.values.buffer !== buffer ||
-		buffer.byteLength !== series.timesMs.byteLength + series.values.byteLength
-	) {
-		throw new Error('decoded series is not backed by one transferable ArrayBuffer');
+/** Every typed array in a result owns its buffer, so results move out of the worker uncopied. */
+function transferables(value: unknown, found = new Set<ArrayBuffer>()): Set<ArrayBuffer> {
+	if (ArrayBuffer.isView(value)) found.add(value.buffer as ArrayBuffer);
+	else if (value && typeof value === 'object') {
+		for (const nested of Object.values(value)) transferables(nested, found);
 	}
-	const result: SeriesPayload = {
-		buffer,
-		timesByteOffset: series.timesMs.byteOffset,
-		timesLength: series.timesMs.length,
-		valuesByteOffset: series.values.byteOffset,
-		valuesLength: series.values.length
-	};
-	return { result, transfer: [buffer] };
+	return found;
 }
 
 function toWireError(cause: unknown): WireError {

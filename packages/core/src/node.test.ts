@@ -28,7 +28,7 @@ function createFakeWorker(): FakeWorker {
 
 	const worker: NodeClientWorker = {
 		postMessage(message, transfer) {
-			if (message.op !== 'init')
+			if (message.method !== 'init')
 				requests.push(structuredClone(message, { transfer: [...(transfer ?? [])] }));
 		},
 		on(event: WorkerEvent, listener: (payload: never) => void) {
