@@ -15,11 +15,14 @@ const STORAGE_KEYS: Record<keyof PersistedPreferences, string> = {
 	walkthroughVersion: 'cantraceviewer:walkthrough-version'
 };
 
-const ALLOWED: { [K in keyof PersistedPreferences]: (value: unknown) => boolean } = {
+const ALLOWED: {
+	[K in keyof PersistedPreferences]: (value: unknown) => value is PersistedPreferences[K];
+} = {
 	theme: (value) => value === 'system' || value === 'light' || value === 'dark',
 	timestampMode: (value) => value === 'relative' || value === 'absolute',
 	legendOrder: (value) => value === 'selection' || value === 'alphabetical' || value === 'grouped',
-	walkthroughVersion: (value) => typeof value === 'number' && Number.isFinite(value)
+	walkthroughVersion: (value): value is number =>
+		typeof value === 'number' && Number.isFinite(value)
 };
 
 const PREFERENCE_NAMES = Object.keys(DEFAULT_PREFERENCES) as (keyof PersistedPreferences)[];
@@ -86,7 +89,7 @@ function readStored<K extends keyof PersistedPreferences>(
 	if (raw === null) return undefined;
 	try {
 		const value: unknown = JSON.parse(raw);
-		return ALLOWED[name](value) ? (value as PersistedPreferences[K]) : undefined;
+		return ALLOWED[name](value) ? value : undefined;
 	} catch {
 		return undefined;
 	}

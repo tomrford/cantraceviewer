@@ -81,7 +81,16 @@ it('keeps absent and transported definitions searchable, rejects additions, and 
 	expect(
 		(await search()).results.filter((hit) => hit.available).map((hit) => hit.signalName)
 	).toEqual(['Value', 'ExtendedValue', 'MissingValue']);
+	const beforeTrace = (await search()).results.find((hit) => hit.signalName === 'Value')!;
+	await toggleSignal(beforeTrace.key);
+	expect(isSignalSelected(beforeTrace.key)).toBe(true);
+	expect(appStore.getState().selected.get(beforeTrace.key)).toMatchObject({
+		isDecoding: false,
+		series: null,
+		error: null
+	});
 	await loadTrace('signal-availability.asc');
+	expect(appStore.getState().signals).toEqual([]);
 	const hits = (await search()).results;
 	expect(
 		hits.map(({ signalName, available, unavailableReason }) => ({

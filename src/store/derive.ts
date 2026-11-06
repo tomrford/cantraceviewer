@@ -93,6 +93,8 @@ export type PlotSignal = {
 	series: DecodedSignalSeries | null;
 };
 
+export type DecodedPlotSignal = PlotSignal & { series: DecodedSignalSeries };
+
 export type PlotAxisView = YAxisGroup<SignalView> & { unit: string | null; label: string };
 
 /** Plot geometry derived from the plotted signals, axis layout and open trace. Read-only. */
@@ -245,8 +247,8 @@ function sourceBadges(source: RawSource | undefined, sources: (RawSource | undef
 
 const NO_VALUE_DESCRIPTIONS: DbcValueDescription[] = [];
 
-function isPlottableSignal(signal: PlotSignal): boolean {
-	return Boolean(signal.series && signal.series.timesMs.length > 0);
+function isPlottableSignal(signal: PlotSignal): signal is DecodedPlotSignal {
+	return signal.series !== null && signal.series.timesMs.length > 0;
 }
 
 export function signalsState(
