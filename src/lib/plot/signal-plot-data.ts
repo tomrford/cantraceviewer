@@ -105,9 +105,9 @@ export function signalViews(
 	signals: DecodedPlotSignal[],
 	previous: readonly DecodedPlotSignal[]
 ): DecodedPlotSignal[] {
-	const previousByKey = new Map(previous.map((view) => [view.key, view]));
+	const previousByKey = new Map(previous.map((view) => [view.signal.key, view]));
 	return signals.map((signal) => {
-		const view = previousByKey.get(signal.key);
+		const view = previousByKey.get(signal.signal.key);
 		return view?.signal === signal.signal &&
 			view.color === signal.color &&
 			view.series === signal.series

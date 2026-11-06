@@ -111,7 +111,7 @@ export function SignalPlotLegend() {
 							<ContextMenuItem
 								key={target.id}
 								className="h-6 font-normal [&_svg]:size-3"
-								disabled={target.signals.some((signal) => signal.key === moveSignalKey)}
+								disabled={target.signals.some((view) => view.signal.key === moveSignalKey)}
 								onClick={() => assignAxis(moveSignalKey, target.id)}
 							>
 								{target.label}
@@ -239,7 +239,7 @@ function LegendAxisGroup({
 			) : (
 				<ul className="space-y-2">
 					{axis.signals.map((view) => (
-						<LegendSignalRow key={view.key} view={view} onMoveMenu={onMoveMenu} />
+						<LegendSignalRow key={view.signal.key} view={view} onMoveMenu={onMoveMenu} />
 					))}
 				</ul>
 			)}
@@ -263,7 +263,7 @@ function LegendSignalRow({
 
 	function startDrag(event: DragEvent) {
 		if (!movable) return;
-		event.dataTransfer.setData('text/plain', view.key);
+		event.dataTransfer.setData('text/plain', signal.key);
 		event.dataTransfer.effectAllowed = 'move';
 		// Only the grip starts a drag, but what follows the pointer is the whole row.
 		const row = event.currentTarget.closest('li');
@@ -310,11 +310,11 @@ function LegendSignalRow({
 			{movable && (
 				<ContextMenuTrigger
 					render={<button type="button" aria-label={`Move ${signal.label} to another Y axis`} />}
-					id={moveTriggerId(view.key)}
+					id={moveTriggerId(signal.key)}
 					draggable
 					onDragStart={startDrag}
-					onContextMenu={() => onMoveMenu(view.key)}
-					onTouchStart={() => onMoveMenu(view.key)}
+					onContextMenu={() => onMoveMenu(signal.key)}
+					onTouchStart={() => onMoveMenu(signal.key)}
 					onKeyDown={openMoveMenuFromKey}
 					aria-haspopup="menu"
 					title="Drag to another Y axis; right-click or press Enter for move options"

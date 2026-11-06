@@ -7,14 +7,17 @@ describe('orderPlotSignals', () => {
 	it('preserves selection order by default', () => {
 		const signals = [plotSignal('b', 'Msg.B'), plotSignal('a', 'Msg.A')];
 
-		expect(orderPlotSignals(signals, 'selection').map((signal) => signal.key)).toEqual(['b', 'a']);
+		expect(orderPlotSignals(signals, 'selection').map(({ signal }) => signal.key)).toEqual([
+			'b',
+			'a'
+		]);
 	});
 
 	it('falls back to selection order for an unknown persisted mode', () => {
 		const signals = [plotSignal('b', 'Msg.B'), plotSignal('a', 'Msg.A')];
 
 		expect(
-			orderPlotSignals(signals, 'stale-mode' as LegendOrderMode).map((signal) => signal.key)
+			orderPlotSignals(signals, 'stale-mode' as LegendOrderMode).map(({ signal }) => signal.key)
 		).toEqual(['b', 'a']);
 	});
 
@@ -25,7 +28,7 @@ describe('orderPlotSignals', () => {
 			plotSignal('powertrain-speed', 'Powertrain.Speed')
 		];
 
-		expect(orderPlotSignals(signals, 'alphabetical').map((signal) => signal.key)).toEqual([
+		expect(orderPlotSignals(signals, 'alphabetical').map(({ signal }) => signal.key)).toEqual([
 			'body-amps',
 			'engine-speed',
 			'powertrain-speed'
@@ -41,7 +44,7 @@ describe('orderPlotSignals', () => {
 			plotSignal('rpm-a', 'Engine.RpmA', { unit: 'rpm', factor: 1, offset: 0 })
 		];
 
-		expect(orderPlotSignals(signals, 'grouped').map((signal) => signal.key)).toEqual([
+		expect(orderPlotSignals(signals, 'grouped').map(({ signal }) => signal.key)).toEqual([
 			'temp-a',
 			'temp-b',
 			'speed',
@@ -56,7 +59,7 @@ describe('orderPlotSignals', () => {
 			plotSignal('coarse', 'Msg.Coarse', { unit: 'V', factor: 0.1, offset: 0 })
 		];
 
-		expect(orderPlotSignals(signals, 'grouped').map((signal) => signal.key)).toEqual([
+		expect(orderPlotSignals(signals, 'grouped').map(({ signal }) => signal.key)).toEqual([
 			'fine',
 			'coarse'
 		]);
@@ -85,7 +88,7 @@ describe('orderPlotSignals', () => {
 			})
 		];
 
-		expect(orderPlotSignals(signals, 'grouped').map((signal) => signal.key)).toEqual([
+		expect(orderPlotSignals(signals, 'grouped').map(({ signal }) => signal.key)).toEqual([
 			'state-a',
 			'state-c',
 			'state-b'
@@ -96,7 +99,6 @@ describe('orderPlotSignals', () => {
 function plotSignal(key: string, label: string, format: Partial<SignalFormat> = {}): PlotSignal {
 	const [messageName, signalName] = label.split('.');
 	return {
-		key,
 		color: '#000000',
 		series: null,
 		signal: {

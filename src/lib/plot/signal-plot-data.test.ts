@@ -19,7 +19,6 @@ import type { SignalFormat } from '@/lib/signal';
 function view(x: number[], y: number[] = x, format: Partial<SignalFormat> = {}) {
 	const series = { timesMs: new Float64Array(x), values: new Float64Array(y) };
 	return {
-		key: 'signal',
 		color: '#fff',
 		series,
 		x: series.timesMs,
@@ -110,10 +109,10 @@ describe('signal plot data', () => {
 	});
 
 	it('routes each signal series to its assigned y axis', () => {
-		const first = { ...view([0, 1]), key: 'a', sampled: false };
-		const second = { ...view([0, 1]), key: 'b', sampled: false };
+		const first = { ...view([0, 1]), sampled: false };
+		const second = { ...view([0, 1]), sampled: false };
 		const series = plotSeriesForViews([first, second], (candidate) =>
-			candidate.key === 'b' ? 'y1' : 'y'
+			candidate === second ? 'y1' : 'y'
 		);
 
 		expect(series.map((entry) => entry.yAxis)).toEqual(['y', 'y', 'y1', 'y1']);

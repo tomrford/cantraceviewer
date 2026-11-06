@@ -35,7 +35,7 @@ export class PlotWindow {
 		const next = views.map((view) => this.#materialize(view, viewport, budget, false));
 
 		if (this.#cache.size !== views.length) {
-			const keep = new Set(views.map((view) => view.key));
+			const keep = new Set(views.map((view) => view.signal.key));
 			for (const key of this.#cache.keys()) {
 				if (!keep.has(key)) this.#cache.delete(key);
 			}
@@ -52,7 +52,7 @@ export class PlotWindow {
 			const budget = perSignalBudget(views);
 			let changed = false;
 			for (const view of views) {
-				const before = this.#cache.get(view.key)?.view;
+				const before = this.#cache.get(view.signal.key)?.view;
 				if (this.#materialize(view, viewport, budget, true) !== before) changed = true;
 			}
 			if (changed) this.#onSettle();
@@ -69,7 +69,7 @@ export class PlotWindow {
 		budget: number,
 		exact: boolean
 	): WindowedSignalView {
-		const cached = this.#cache.get(view.key);
+		const cached = this.#cache.get(view.signal.key);
 		const reusable = cached !== undefined && cached.source === view && cached.budget === budget;
 		if (reusable && !exact && covers(cached, viewport)) return cached.view;
 
@@ -89,7 +89,7 @@ export class PlotWindow {
 			: { x: timesMs.subarray(slice.start, slice.end), y: values.subarray(slice.start, slice.end) };
 		const materialized = { ...view, ...columns, sampled };
 
-		this.#cache.set(view.key, { ...slice, source: view, budget, view: materialized });
+		this.#cache.set(view.signal.key, { ...slice, source: view, budget, view: materialized });
 		return materialized;
 	}
 }

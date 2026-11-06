@@ -101,7 +101,7 @@ function withDerived(prev: AppState, patch: Partial<SourceState>): AppState {
 
 	// The signal catalogue.
 	if (next.dbcFiles !== prev.dbcFiles || next.trace !== prev.trace) {
-		Object.assign(next, catalogState(next.dbcFiles, next.trace, next.mf4SelectorIndexes));
+		Object.assign(next, catalogState(next.dbcFiles, next.trace, next.mf4SelectorFiles));
 	}
 
 	// The plotted signals.

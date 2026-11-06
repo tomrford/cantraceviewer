@@ -34,10 +34,13 @@ export type Signal = {
 );
 
 export type PlotSignal = {
-	key: string;
 	color: string;
 	signal: Signal;
 	series: DecodedSignalSeries | null;
 };
 
 export type DecodedPlotSignal = PlotSignal & { series: DecodedSignalSeries };
+
+export function isDecoded(plotted: PlotSignal): plotted is DecodedPlotSignal {
+	return plotted.series !== null;
+}

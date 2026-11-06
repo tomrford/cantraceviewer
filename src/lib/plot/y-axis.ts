@@ -20,7 +20,7 @@ export function nextYAxisId(existing: readonly YAxisId[]): YAxisId {
 	return candidate;
 }
 
-export function groupSignalsByYAxis<T extends { key: string }>(
+export function groupSignalsByYAxis<T extends { signal: { key: string } }>(
 	signals: readonly T[],
 	axisIds: readonly YAxisId[],
 	assignment: ReadonlyMap<string, YAxisId>
@@ -29,7 +29,7 @@ export function groupSignalsByYAxis<T extends { key: string }>(
 	const byId = new Map(groups.map((group) => [group.id, group]));
 
 	for (const signal of signals) {
-		const assigned = assignment.get(signal.key);
+		const assigned = assignment.get(signal.signal.key);
 		const group = (assigned === undefined ? undefined : byId.get(assigned)) ?? groups[0];
 		group.signals.push(signal);
 	}

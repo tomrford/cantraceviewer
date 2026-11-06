@@ -29,12 +29,14 @@ import {
 	type YAxisGroup,
 	type YAxisId
 } from '@/lib/plot/y-axis';
+import { buildSelectorSearchIndexes, type SelectorDbcFile } from '@/lib/selector-list';
 import {
-	buildSelectorSearchIndexes,
-	type SelectorDbcFile,
-	type SelectorSearchIndex
-} from '@/lib/selector-list';
-import type { DecodedPlotSignal, PlotSignal, Signal, SignalFormat } from '@/lib/signal';
+	isDecoded,
+	type DecodedPlotSignal,
+	type PlotSignal,
+	type Signal,
+	type SignalFormat
+} from '@/lib/signal';
 import { displayTraceName } from '@/lib/trace-file-types';
 import type {
 	DbcDiagnostic,
@@ -91,7 +93,7 @@ export function traceState(trace: TraceFileEntry | null) {
 	return {
 		traceName: trace ? displayTraceName(trace.file.name) : 'CAN Trace Viewer',
 		traceWarning: traceWarning(trace),
-		mf4SelectorIndexes: buildSelectorSearchIndexes(mf4SelectorFiles(trace))
+		mf4SelectorFiles: mf4SelectorFiles(trace)
 	};
 }
 
@@ -144,7 +146,7 @@ function mf4SelectorFiles(trace: TraceFileEntry | null): SelectorDbcFile[] {
 export function catalogState(
 	files: DbcFileEntry[],
 	trace: TraceFileEntry | null,
-	mf4Indexes: SelectorSearchIndex[]
+	mf4Files: SelectorDbcFile[]
 ) {
 	const rawMessages = Map.groupBy(trace?.metadata.rawMessages ?? [], rawMessageKey);
 	const selectorFiles = files.map<SelectorDbcFile>((file) => ({
@@ -186,14 +188,14 @@ export function catalogState(
 			});
 		})
 	}));
-	const selectorSearchIndexes = [...buildSelectorSearchIndexes(selectorFiles), ...mf4Indexes];
+	const allFiles = [...selectorFiles, ...mf4Files];
 
 	return {
 		selectorFiles,
-		selectorSearchIndexes,
+		selectorSearchIndexes: buildSelectorSearchIndexes(allFiles),
 		signalByKey: new Map(
-			selectorSearchIndexes.flatMap((index) =>
-				index.signals.items.map(({ signal }) => [signal.key, signal])
+			allFiles.flatMap((file) =>
+				file.messages.flatMap((message) => message.signals.map((signal) => [signal.key, signal]))
 			)
 		)
 	};
@@ -232,8 +234,8 @@ function sourceBadges(source: RawSource | undefined, sources: (RawSource | undef
 	return badges;
 }
 
-function isPlottableSignal(signal: PlotSignal): signal is DecodedPlotSignal {
-	return signal.series !== null && signal.series.timesMs.length > 0;
+function isPlottableSignal(plotted: PlotSignal): plotted is DecodedPlotSignal {
+	return isDecoded(plotted) && plotted.series.timesMs.length > 0;
 }
 
 export function signalsState(
@@ -245,7 +247,7 @@ export function signalsState(
 	for (const [key, state] of selected) {
 		const signal = signalByKey.get(key);
 		if (signal)
-			signals.push({ key, color: signalColor(state.colorIndex), signal, series: state.series });
+			signals.push({ color: signalColor(state.colorIndex), signal, series: state.series });
 	}
 
 	const ordered = orderPlotSignals(signals, order);
@@ -274,7 +276,7 @@ export function modelState(
 		axes,
 		gutterAxes,
 		axisIdByKey: new Map(
-			groups.flatMap((group) => group.signals.map((view) => [view.key, group.id]))
+			groups.flatMap((group) => group.signals.map((view) => [view.signal.key, group.id]))
 		),
 		grid:
 			previous !== null && previous.gutterAxes.length === gutterAxes.length

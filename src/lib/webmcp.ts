@@ -1,7 +1,6 @@
 import { displayDbcName } from '@/lib/dbc-file-types';
 import type { LegendCrosshairMode } from '@/lib/plot/plot-crosshair';
 import { PRIMARY_Y_AXIS_ID } from '@/lib/plot/y-axis';
-import type { DecodedPlotSignal } from '@/lib/signal';
 import { countSignals } from '@/lib/utils';
 import {
 	createWebMcpTools,
@@ -100,12 +99,7 @@ export const storeHost = {
 		}
 	},
 	signalCatalog: () => appStore.getState().selectorSearchIndexes,
-	plottedSignals: (): DecodedPlotSignal[] =>
-		appStore
-			.getState()
-			.signals.flatMap((plotted) =>
-				plotted.series === null ? [] : [{ ...plotted, series: plotted.series }]
-			),
+	plottedSignals: () => appStore.getState().signals,
 	isSignalSelected,
 	toggleSignal,
 	session: () => {
@@ -146,13 +140,13 @@ export const storeHost = {
 				messageCount: file.catalog.messages.length,
 				signalCount: countSignals(file.catalog.messages)
 			})),
-			plotted: appStore.getState().signals.map(({ key, signal, series }) => {
-				const decode = signalDecodeStatus(key);
+			plotted: appStore.getState().signals.map(({ signal, series }) => {
+				const decode = signalDecodeStatus(signal.key);
 				return {
-					key,
+					key: signal.key,
 					label: signal.label,
 					unit: signal.format.unit,
-					axis: ids.indexOf(assignment.get(key) ?? PRIMARY_Y_AXIS_ID) + 1,
+					axis: ids.indexOf(assignment.get(signal.key) ?? PRIMARY_Y_AXIS_ID) + 1,
 					decodeStatus: decode.isDecoding
 						? ('decoding' as const)
 						: decode.decodeError !== null

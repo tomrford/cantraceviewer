@@ -75,8 +75,10 @@ describe('WebMCP catalogue operations', () => {
 	});
 
 	it('reports missing and ambiguous exact references', () => {
-		expect(resolveSignalRefs(catalog(), [engineKey]).resolved[0]?.label).toBe('EEC1.EngineSpeed');
-		expect(resolveSignalRefs(catalog(), ['Cruise.WheelBasedSpeed']).resolved[0]?.key).toBe(
+		expect(resolveSignalRefs(catalog(), [engineKey]).resolved[0]?.signal.label).toBe(
+			'EEC1.EngineSpeed'
+		);
+		expect(resolveSignalRefs(catalog(), ['Cruise.WheelBasedSpeed']).resolved[0]?.signal.key).toBe(
 			wheelKey
 		);
 
@@ -453,7 +455,6 @@ function plottedSignal(
 ): DecodedPlotSignal {
 	const [messageName, signalName] = label.split('.');
 	return {
-		key,
 		color: '#000000',
 		signal: {
 			kind: 'mf4',

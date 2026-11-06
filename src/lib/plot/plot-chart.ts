@@ -55,7 +55,7 @@ export function mountChart(
 		if (seriesCache?.views !== views || seriesCache.model !== model) {
 			const series = plotSeriesForViews(
 				views,
-				(signal) => model.axisIdByKey.get(signal.key) ?? PRIMARY_Y_AXIS_ID
+				(view) => model.axisIdByKey.get(view.signal.key) ?? PRIMARY_Y_AXIS_ID
 			);
 			seriesCache = {
 				views,
