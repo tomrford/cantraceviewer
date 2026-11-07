@@ -9,7 +9,6 @@ import {
 	type WalkthroughStep
 } from '@/lib/walkthrough';
 import { addTransientDbcs, removeDbcFile, resetDbcLibrary } from '@/store/dbc-files';
-import type { TraceFileEntry } from '@/store/derive';
 import { assignToNewAxis, resetAxes } from '@/store/plot-axes';
 import {
 	clearSelectedSignals,
@@ -140,8 +139,7 @@ export async function openTraceFile(file: File | null): Promise<void> {
 
 export function openDemoTrace(): Promise<void> {
 	return withTraceLock(async () => {
-		const opened = await loadTrace(await fetchDemoTrace());
-		if (opened) await plotDemoSignals(opened);
+		if (await loadTrace(await fetchDemoTrace())) await plotDemoSignals();
 	});
 }
 
@@ -160,20 +158,17 @@ async function withTraceLock(open: () => Promise<unknown>): Promise<void> {
 	}
 }
 
-/** Resolves to the opened trace, or null if it failed or has since been replaced. */
-async function loadTrace(file: File): Promise<TraceFileEntry | null> {
-	if (!(await loadTraceFile(file))) return null;
-	const { trace: opened, traceWarning } = appStore.getState();
-	const stillOpen = () => appStore.getState().trace === opened;
+/** Resolves to whether the trace opened. */
+async function loadTrace(file: File): Promise<boolean> {
+	if (!(await loadTraceFile(file))) return false;
+	const { traceWarning } = appStore.getState();
 	if (traceWarning) toast.warning(traceWarning);
 	await startTraceSession();
-	if (!stillOpen()) return null;
 	if (appStore.getState().walkthroughStepId === 'trace') await showWalkthroughStep('library');
-	return stillOpen() ? opened : null;
+	return true;
 }
 
-async function plotDemoSignals(opened: TraceFileEntry): Promise<void> {
-	const stillOpen = () => appStore.getState().trace === opened;
+async function plotDemoSignals(): Promise<void> {
 	const catalog = [...appStore.getState().signalByKey.values()];
 	const signals = DEMO_PRESET.map((item) => {
 		const matches = catalog.filter(
@@ -187,9 +182,7 @@ async function plotDemoSignals(opened: TraceFileEntry): Promise<void> {
 		return { key: matches[0].key, axis: item.axis };
 	});
 	for (const { key, axis } of signals) {
-		if (!stillOpen()) return;
 		if (!isSignalSelected(key)) await toggleSignal(key);
-		if (!stillOpen()) return;
 		if (!isSignalSelected(key)) continue;
 		const { decodeError } = signalDecodeStatus(key);
 		if (decodeError) throw new Error(decodeError);
