@@ -577,13 +577,15 @@ fn read_u64(bytes: &[u8], offset: usize) -> Result<u64, Mf4Error> {
 
 fn lookup_table(values: &[f64], raw: f64) -> Option<f64> {
     values
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .min_by(|left, right| (left[0] - raw).abs().total_cmp(&(right[0] - raw).abs()))
         .map(|pair| pair[1])
 }
 
 fn interpolate_table(values: &[f64], raw: f64) -> Option<f64> {
-    let pairs: Vec<_> = values.chunks_exact(2).collect();
+    let pairs = values.as_chunks::<2>().0;
     let first = pairs.first()?;
     if raw <= first[0] {
         return Some(first[1]);

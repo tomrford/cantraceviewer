@@ -22,12 +22,17 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: jdx/mise-action@v5.2.6
+        with:
+          version: 2026.10.17
+          install_args: --locked
+
       - name: Validate release source and version
         id: package
         shell: bash
         run: |
           git merge-base --is-ancestor HEAD origin/main
-          package_version="$(node -p "require('./packages/core/package.json').version")"
+          package_version="$(mise exec -- node -p "require('./packages/core/package.json').version")"
           expected_tag="v${package_version}"
           if [[ "$GITHUB_REF_NAME" != "$expected_tag" ]]; then
             echo "release tag $GITHUB_REF_NAME does not match package version $package_version" >&2
@@ -35,13 +40,11 @@ jobs:
           fi
           echo "version=$package_version" >> "$GITHUB_OUTPUT"
 
-      - uses: cachix/install-nix-action@v31
-
       - name: Install dependencies
-        run: nix develop -c pnpm install --frozen-lockfile
+        run: mise exec -- pnpm install --frozen-lockfile
 
       - name: Validate package
-        run: nix develop -c pnpm run package:validate
+        run: mise exec -- pnpm run package:validate
 
       - name: Verify package checksum
         env:
@@ -72,7 +75,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 26.13.0
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
 
