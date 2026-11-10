@@ -19,16 +19,13 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: jdx/mise-action@v5.2.6
-        with:
-          version: 2026.10.17
-          install_args: --locked
+      - uses: cachix/install-nix-action@v31
 
       - name: Install dependencies
-        run: mise exec -- pnpm install --frozen-lockfile
+        run: nix develop -c pnpm install --frozen-lockfile
 
       - name: Validate
-        run: mise exec -- pnpm run validate
+        run: nix develop -c pnpm run validate
 
       - name: Preserve package tarball and checksum
         uses: actions/upload-artifact@v7
@@ -45,11 +42,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: jdx/mise-action@v5.2.6
-        with:
-          version: 2026.10.17
-          install_args: --locked
+      - uses: cachix/install-nix-action@v31
 
       # Call the runner directly: `pnpm run` installs dependencies first, which the audits do not need.
       - name: Audit dependencies
-        run: mise exec -- node scripts/audit.mjs
+        run: nix develop -c node scripts/audit.mjs

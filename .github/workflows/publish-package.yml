@@ -17,34 +17,33 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.package.outputs.version }}
+      node-version: ${{ steps.package.outputs.node-version }}
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - uses: jdx/mise-action@v5.2.6
-        with:
-          version: 2026.10.17
-          install_args: --locked
+      - uses: cachix/install-nix-action@v31
 
       - name: Validate release source and version
         id: package
         shell: bash
         run: |
           git merge-base --is-ancestor HEAD origin/main
-          package_version="$(mise exec -- node -p "require('./packages/core/package.json').version")"
+          package_version="$(nix develop -c node -p "require('./packages/core/package.json').version")"
           expected_tag="v${package_version}"
           if [[ "$GITHUB_REF_NAME" != "$expected_tag" ]]; then
             echo "release tag $GITHUB_REF_NAME does not match package version $package_version" >&2
             exit 1
           fi
           echo "version=$package_version" >> "$GITHUB_OUTPUT"
+          echo "node-version=$(nix develop -c node -p 'process.versions.node')" >> "$GITHUB_OUTPUT"
 
       - name: Install dependencies
-        run: mise exec -- pnpm install --frozen-lockfile
+        run: nix develop -c pnpm install --frozen-lockfile
 
       - name: Validate package
-        run: mise exec -- pnpm run package:validate
+        run: nix develop -c pnpm run package:validate
 
       - name: Verify package checksum
         env:
@@ -75,7 +74,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 26.13.0
+          node-version: ${{ needs.build.outputs.node-version }}
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
 
