@@ -20,19 +20,17 @@ See the [core package README](packages/core/README.md) for its API, supported fo
 
 Chrome 149+ and Edge 150+ can analyse a loaded trace through WebMCP (`document.modelContext`) when `chrome://flags/#enable-webmcp-testing` is enabled, or when an origin trial is active. HTTPS or localhost is required. Users load trace and DBC files with the visible browser controls. The page tools search and select signals, arrange up to five Y axes, set or reset the time window, place C1/C2 crosshairs and choose their legend readout. Numerical inspection reads a capped set of nearest decoded samples at explicit times or the current crosshairs without moving the plot. Use screenshots for signal shape and tool results for precise values and timestamps. Decoded sample arrays stay in the tab.
 
-Use [mise](https://mise.jdx.dev) for the development toolchain:
+Use [Nix](https://nixos.org/download/) with flakes enabled for the development toolchain:
 
 ```sh
-mise trust
-mise install --locked
-mise exec -- pnpm install --frozen-lockfile
-mise exec -- pnpm run dev
+nix develop -c pnpm install --frozen-lockfile
+nix develop -c pnpm run dev
 ```
 
 Run the full CI validation serially with one release WASM build:
 
 ```sh
-mise exec -- pnpm run validate
+nix develop -c pnpm run validate
 ```
 
 `package:validate` runs the release checks: Rust formatting, lint and tests, package packing, installed-package checks, and app checks, tests and build against the tarball. `validate` also runs repository lint, type checks and tests against the pinned registry dependency. `check` and `test` build the package before running independently; `check:types` and `test:run` reuse existing build outputs.
