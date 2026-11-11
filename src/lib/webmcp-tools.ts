@@ -274,7 +274,7 @@ export function createWebMcpTools(host: WebMcpHost): WebMcpTool[] {
 
 				const domain = host.view().timeDomainMs;
 				if (domain === null) {
-					return { ok: false, error: 'No decoded signal time domain is available.' };
+					return { ok: false, error: 'No plot time domain is available.' };
 				}
 				const clamped = {
 					startMs: Math.max(domain.startMs, requested.startMs),

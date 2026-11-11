@@ -94,7 +94,10 @@ export const storeHost = {
 	},
 	setSignalAxes: (assignments: Array<{ key: string; axis: number }>) => {
 		for (const { key, axis } of assignments) {
-			while (appStore.getState().axisIds.length < axis) addAxis();
+			// addAxis refuses past the axis limit; stop rather than wait for an axis that cannot exist.
+			while (appStore.getState().axisIds.length < axis) {
+				if (addAxis() === null) break;
+			}
 			assignAxis(key, appStore.getState().axisIds[axis - 1]);
 		}
 	},

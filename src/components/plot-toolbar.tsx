@@ -210,7 +210,7 @@ function CrosshairMenuItem({
 	return (
 		<MenuItem disabled={disabled} onClick={onClick}>
 			<Crosshair />
-			{placed ? `Center C${id}` : `Place C${id}`}
+			{placed ? `Centre C${id}` : `Place C${id}`}
 			<ShortcutKey action={id === 1 ? 'placeC1' : 'placeC2'} className="ml-auto" />
 		</MenuItem>
 	);

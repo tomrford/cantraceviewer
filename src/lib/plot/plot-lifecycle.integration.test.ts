@@ -11,7 +11,7 @@ import { startTraceSession } from '@/store/app-shell';
 import { addDbcFiles, clearDbcFiles } from '@/store/dbc-files';
 import { addAxis, assignAxis, removeAxis } from '@/store/plot-axes';
 import { clearSelectedSignals, toggleSignal } from '@/store/plot-data';
-import { panBy, resetZoom, setViewport, zoomBy } from '@/store/plot-view';
+import { panBy, resetZoom, setCrosshairs, setViewport, zoomBy } from '@/store/plot-view';
 import { appStore, update } from '@/store/store';
 import { loadTraceFile } from '@/store/trace-file';
 
@@ -72,6 +72,19 @@ function expectViewport(xMin: number, xMax: number, yMin: number, yMax: number) 
 		yMax: expect.closeTo(yMax)
 	});
 }
+
+it('opens a replacement trace at the full extent without the previous markers', async () => {
+	await load();
+	// Nothing is plotted, so this view sits on the trace-duration domain, as WebMCP can set it.
+	setViewport({ xMin: 10, xMax: 20, yMin: 0, yMax: 1 });
+	setCrosshairs([{ id: 1, x: 15, y: 0.5 }]);
+	expect(appStore.getState().isFitAll).toBe(false);
+	expect(appStore.getState().crosshairs).toHaveLength(1);
+
+	await load();
+	expect(appStore.getState().isFitAll).toBe(true);
+	expect(appStore.getState().crosshairs).toEqual([]);
+});
 
 it('keeps proportional zoom and selection ownership through axis and signal changes', async () => {
 	const [first, second] = await load();

@@ -11,7 +11,7 @@ import {
 import { closeTrace } from '@/lib/wasm';
 import { mountWebMcp } from '@/lib/webmcp';
 import type { WebMcpTool } from '@/lib/webmcp-tools';
-import { startTraceSession } from '@/store/app-shell';
+import { resetPersistentData, startTraceSession } from '@/store/app-shell';
 import { addDbcFiles, resetDbcLibrary } from '@/store/dbc-files';
 import {
 	clearSelectedSignals,
@@ -164,6 +164,22 @@ it('keeps absent and transported definitions searchable, rejects additions, and 
 	expect(appStore.getState().signals[0].series?.values.length).toBeGreaterThan(0);
 	await loadTrace('mf4/hybrid-embedded-dbc.mf4');
 	expect((await search()).results.some((hit) => hit.available)).toBe(true);
+});
+
+it('resets saved DBCs without touching the open trace, its embedded DBCs or their plotted signals', async () => {
+	await loadTrace('mf4/hybrid-embedded-dbc.mf4');
+	await addDbcFiles([
+		new File([await readFile('wasm/tests/fixtures/signal-availability.dbc')], 'saved.dbc')
+	]);
+	expect(appStore.getState().dbcFiles.map((file) => file.origin)).toEqual(['mf4', 'library']);
+	const embedded = (await search()).results.find((hit) => hit.available)!;
+	await toggleSignal(embedded.key);
+	expect(appStore.getState().signals).toHaveLength(1);
+
+	await resetPersistentData();
+	expect(appStore.getState().dbcFiles.map((file) => file.origin)).toEqual(['mf4']);
+	expect(appStore.getState().signals.map(({ signal }) => signal.key)).toEqual([embedded.key]);
+	expect(appStore.getState().signals[0].series?.values.length).toBeGreaterThan(0);
 });
 
 it('decodes extended ranges, nested selectors and declared classical/FD formats through application selection', async () => {

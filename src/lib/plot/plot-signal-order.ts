@@ -9,7 +9,6 @@ export function orderPlotSignals(signals: PlotSignal[], mode: LegendOrderMode): 
 		case 'grouped':
 			return [...signals].sort((a, b) => compareGrouped(a.signal, b.signal));
 		case 'selection':
-		default:
 			return signals;
 	}
 }

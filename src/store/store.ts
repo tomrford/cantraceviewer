@@ -113,8 +113,9 @@ function withDerived(prev: AppState, patch: Partial<SourceState>): AppState {
 		Object.assign(next, signalsState(next.selected, next.signalByKey, next.legendOrder));
 	}
 
-	// Nothing plottable any more: drop crosshairs and box zoom and return to the full extent.
-	if (prev.hasPlottableSignals && !next.hasPlottableSignals) {
+	// Nothing plottable any more, or another trace: drop crosshairs and box zoom and return to the
+	// full extent. The view can be set with nothing plotted (WebMCP), so a new trace resets it too.
+	if ((prev.hasPlottableSignals && !next.hasPlottableSignals) || next.trace !== prev.trace) {
 		next.crosshairs = [];
 		next.boxZoomEnabled = false;
 		next.viewportMode = FIT;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { orderPlotSignals, type LegendOrderMode } from '@/lib/plot/plot-signal-order';
+import { orderPlotSignals } from '@/lib/plot/plot-signal-order';
 import type { PlotSignal, SignalFormat } from '@/lib/signal';
 
 describe('orderPlotSignals', () => {
@@ -11,14 +11,6 @@ describe('orderPlotSignals', () => {
 			'b',
 			'a'
 		]);
-	});
-
-	it('falls back to selection order for an unknown persisted mode', () => {
-		const signals = [plotSignal('b', 'Msg.B'), plotSignal('a', 'Msg.A')];
-
-		expect(
-			orderPlotSignals(signals, 'stale-mode' as LegendOrderMode).map(({ signal }) => signal.key)
-		).toEqual(['b', 'a']);
 	});
 
 	it('sorts alphabetically by visible signal then message', () => {

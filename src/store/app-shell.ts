@@ -121,8 +121,10 @@ export async function deleteDbc(dbcFileId: string): Promise<void> {
 }
 
 export async function resetPersistentData(): Promise<void> {
-	clearSelectedSignals();
-	resetAxes();
+	// Only saved DBCs go; signals from the open trace and its embedded DBCs stay plotted.
+	for (const file of appStore.getState().dbcFiles) {
+		if (file.origin === 'library') deselectDbcFile(file.id);
+	}
 	resetPreferences();
 	await resetDbcLibrary();
 }
