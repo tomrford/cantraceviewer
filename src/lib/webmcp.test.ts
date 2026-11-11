@@ -7,7 +7,6 @@ import {
 	INSPECTION_SIGNAL_LIMIT,
 	SEARCH_RESULT_LIMIT_MAX,
 	createWebMcpTools,
-	describeSession,
 	resolveSignalRefs,
 	searchCatalogSignals,
 	type WebMcpHost
@@ -25,31 +24,18 @@ const PLOT_TRACE = {
 	id: 1,
 	file: new File([], 'drive.mf4'),
 	metadata: { skippedLineCount: 0 },
-	mf4Catalog: { groups: [{ name: 'Engine', signals: [{ id: 1, name: 'Speed', unit: 'rpm' }] }] }
+	mf4Catalog: {
+		groups: [
+			{
+				name: 'Engine',
+				signals: [
+					{ id: 1, name: 'Speed', unit: 'rpm' },
+					{ id: 2, name: 'Load', unit: '%' }
+				]
+			}
+		]
+	}
 } as unknown as TraceFileEntry;
-
-describe('WebMCP tool contract', () => {
-	it('summarises plain session state without decoded arrays', () => {
-		const summary = describeSession(sessionSnapshot(), viewState());
-
-		expect(summary.trace?.name).toBe('drive');
-		expect(summary.plotted[0]).toMatchObject({
-			key: engineKey,
-			label: 'EEC1.EngineSpeed',
-			decodeStatus: 'ready'
-		});
-		expect(summary.view).toEqual({
-			timeDomainMs: { startMs: 0, endMs: 12_000 },
-			timeWindowMs: { startMs: 1000, endMs: 2000 },
-			isFullTimeRange: false,
-			axes: [{ axis: 1, range: { min: 0, max: 8000 } }],
-			crosshairs: [],
-			readout: 'c1'
-		});
-		expect(() => structuredClone(summary)).not.toThrow();
-		expect(JSON.stringify(summary)).not.toMatch(/Float64Array|values|WASM handle/);
-	});
-});
 
 describe('WebMCP catalogue operations', () => {
 	it('uses the selector matcher and caps search results', () => {
@@ -125,23 +111,6 @@ describe('WebMCP catalogue operations', () => {
 });
 
 describe('WebMCP numerical analysis', () => {
-	it('clamps and applies an exact time window', async () => {
-		const setTimeWindow = vi.fn((range) => range);
-		const tool = toolsByName(fakeHost({ setTimeWindow })).set_time_window;
-
-		await expect(tool.execute({ startMs: -50, endMs: 500 })).resolves.toMatchObject({
-			ok: true,
-			requested: { startMs: -50, endMs: 500 },
-			domain: { startMs: 0, endMs: 12_000 },
-			applied: { startMs: 0, endMs: 500 },
-			clamped: true
-		});
-		expect(setTimeWindow).toHaveBeenCalledWith({ startMs: 0, endMs: 500 });
-		await expect(tool.execute({ startMs: 2, endMs: 2 })).rejects.toThrow(
-			'startMs must be less than endMs'
-		);
-	});
-
 	it('returns nearest numerical samples, formatted values, and deltas', async () => {
 		const tool = toolsByName(fakeHost()).inspect_at_times;
 		const result = (await tool.execute({
@@ -210,32 +179,36 @@ describe('WebMCP shared plot', () => {
 		readout: appStore.getState().legendCrosshairMode
 	});
 
+	/** Plots Engine.Speed in the real store and leaves Engine.Load unselected. */
 	function plot() {
 		// One plotted signal gives a full extent of 0-20 ms and, with Y padding, 0-8800.
 		update({ trace: PLOT_TRACE });
-		const [key] = appStore.getState().signalByKey.keys();
+		const [speed, load] = [...appStore.getState().signalByKey.values()];
 		const series = { timesMs: Float64Array.of(0, 20), values: Float64Array.of(400, 8400) };
 		update({
-			selected: new Map([[key, { colorIndex: 0, isDecoding: false, error: null, series }]])
+			selected: new Map([[speed.key, { colorIndex: 0, isDecoding: false, error: null, series }]])
 		});
-		const host = fakeHost({
-			view: storeHost.view,
-			setTimeWindow: storeHost.setTimeWindow,
-			setCrosshairs: storeHost.setCrosshairs,
-			setSignalAxes: storeHost.setSignalAxes,
-			session: () => ({
-				...sessionSnapshot(),
-				plotted: sessionSnapshot().plotted.map((signal) => ({
-					...signal,
-					axis: axes().axisIds.indexOf(axes().axisAssignment.get(signal.key) ?? 'y') + 1
-				}))
-			})
-		});
-		return { tools: toolsByName(host) };
+		return { tools: toolsByName(storeHost), speed, load };
 	}
 
+	it('describes the session as plain data without decoded arrays', async () => {
+		const { tools, speed } = plot();
+		const summary = (await tools.describe_session.execute({})) as { plotted: unknown[] };
+
+		expect(summary.plotted).toEqual([
+			expect.objectContaining({
+				key: speed.key,
+				label: speed.label,
+				axis: 1,
+				decodeStatus: 'ready'
+			})
+		]);
+		expect(structuredClone(summary)).toEqual(summary);
+		expect(JSON.stringify(summary)).not.toContain('8400');
+	});
+
 	it('places exact markers and reads their nearest samples without moving the shared plot', async () => {
-		const { tools } = plot();
+		const { tools, speed } = plot();
 		await tools.set_time_window.execute({ startMs: 2, endMs: 18 });
 		const result = await tools.set_crosshairs.execute({
 			crosshairs: [
@@ -252,14 +225,14 @@ describe('WebMCP shared plot', () => {
 			readout: 'delta'
 		});
 		expect(() => structuredClone(result)).not.toThrow();
-		expect(await tools.inspect_at_times.execute({ signals: [engineKey] })).toMatchObject({
+		expect(await tools.inspect_at_times.execute({ signals: [speed.key] })).toMatchObject({
 			timesMs: [4, 16],
 			deltaTimesMs: [null, 12],
 			results: [
 				{
 					samples: [
-						{ sampleTimeMs: 0, value: 1000, distanceMs: 4 },
-						{ sampleTimeMs: 20, value: 1400, distanceMs: 4, deltaFromPrevious: 400 }
+						{ sampleTimeMs: 0, value: 400, distanceMs: 4 },
+						{ sampleTimeMs: 20, value: 8400, distanceMs: 4, deltaFromPrevious: 8000 }
 					]
 				}
 			]
@@ -320,41 +293,46 @@ describe('WebMCP shared plot', () => {
 			view: { isFullTimeRange: true, axes: [{ axis: 1, range: { min: 2000, max: 6000 } }] }
 		});
 		await expect(tools.set_time_window.execute({ startMs: 10 })).rejects.toThrow();
+		await expect(tools.set_time_window.execute({ startMs: 2, endMs: 2 })).rejects.toThrow(
+			'startMs must be less than endMs'
+		);
 		await tools.set_time_window.execute({});
 		expect(viewport().isFitAll).toBe(true);
 		expect(viewport().activeViewport).toEqual({ xMin: 0, xMax: 20, yMin: 0, yMax: 8800 });
 	});
 
 	it('uses real legend axis assignments, repeats without creating extra axes and preserves empty axes', async () => {
-		const { tools } = plot();
-		const input = { assignments: [{ signal: engineKey, axis: 2 }] };
+		const { tools, speed } = plot();
+		const input = { assignments: [{ signal: speed.key, axis: 2 }] };
 		expect(await tools.set_signal_axes.execute(input)).toMatchObject({
-			plotted: [{ key: engineKey, axis: 2 }]
+			plotted: [{ key: speed.key, axis: 2 }]
 		});
 		await tools.set_signal_axes.execute(input);
 		expect(axes().axisIds).toHaveLength(2);
-		expect(axes().axisAssignment.get(engineKey)).toBe(axes().axisIds[1]);
-		await tools.set_signal_axes.execute({ assignments: [{ signal: 'EEC1.EngineSpeed', axis: 1 }] });
-		expect(axes().axisAssignment.has(engineKey)).toBe(false);
+		expect(axes().axisAssignment.get(speed.key)).toBe(axes().axisIds[1]);
+		await tools.set_signal_axes.execute({ assignments: [{ signal: speed.label, axis: 1 }] });
+		expect(axes().axisAssignment.has(speed.key)).toBe(false);
 		expect(axes().axisIds).toHaveLength(2);
 		addAxis();
 		removeAxis(axes().axisIds[1]);
 		await tools.set_signal_axes.execute(input);
-		expect(axes().axisAssignment.get(engineKey)).toBe(axes().axisIds[1]);
+		expect(axes().axisAssignment.get(speed.key)).toBe(axes().axisIds[1]);
 		expect(axes().axisIds).toHaveLength(2);
 	});
 
 	it('validates the entire axis batch before changing the layout', async () => {
-		const { tools } = plot();
+		const { tools, speed, load } = plot();
 		for (const assignments of [
+			// Engine.Load is in the catalogue but not plotted.
 			[
-				{ signal: engineKey, axis: 2 },
-				{ signal: wheelKey, axis: 3 }
+				{ signal: speed.key, axis: 2 },
+				{ signal: load.key, axis: 3 }
 			],
-			[{ signal: engineKey, axis: 6 }],
+			[{ signal: speed.key, axis: 6 }],
+			// The same signal twice, by key and by label.
 			[
-				{ signal: engineKey, axis: 2 },
-				{ signal: 'EEC1.EngineSpeed', axis: 3 }
+				{ signal: speed.key, axis: 2 },
+				{ signal: speed.label, axis: 3 }
 			]
 		])
 			await expect(tools.set_signal_axes.execute({ assignments })).rejects.toThrow();
@@ -362,20 +340,20 @@ describe('WebMCP shared plot', () => {
 		expect(axes().axisAssignment.size).toBe(0);
 	});
 
-	it('enforces inspection limits for explicitly requested signals as well as defaults', async () => {
-		const { tools } = plot();
+	it('enforces inspection limits for explicitly requested signals and flags times outside the samples', async () => {
+		const { tools, speed } = plot();
 		await expect(
-			tools.inspect_at_times.execute({ timesMs: [0], signals: Array(21).fill(engineKey) })
+			tools.inspect_at_times.execute({ timesMs: [0], signals: Array(21).fill(speed.key) })
 		).rejects.toThrow();
 		await expect(tools.inspect_at_times.execute({ timesMs: Array(21).fill(0) })).rejects.toThrow();
 		expect(
-			await tools.inspect_at_times.execute({ timesMs: [-5, 25], signals: [engineKey] })
+			await tools.inspect_at_times.execute({ timesMs: [-5, 25], signals: [speed.key] })
 		).toMatchObject({
 			results: [
 				{
 					samples: [
-						{ outsideSampleRange: true, sampleTimeMs: 0, distanceMs: 5 },
-						{ outsideSampleRange: true, sampleTimeMs: 20, distanceMs: 5 }
+						{ outsideSampleRange: true, sampleTimeMs: 0, value: 400, distanceMs: 5 },
+						{ outsideSampleRange: true, sampleTimeMs: 20, value: 8400, distanceMs: 5 }
 					]
 				}
 			]
