@@ -4,7 +4,7 @@ use crate::trace::{
     FrameKind, Trace, TraceError, days_from_civil, lossy_utf8_line, unix_ms_from_day_seconds,
 };
 
-pub(crate) use frame::Base;
+use frame::Base;
 #[cfg(test)]
 use frame::parse_decimal_seconds_to_ns;
 
@@ -133,8 +133,10 @@ fn parse_header_line(
         return Ok(true);
     }
     if let Some(triggerblock) = line.strip_prefix(b"Begin Triggerblock ") {
-        state.measurement_start_ms =
-            parse_vector_date_to_unix_ms(lossy_utf8_line(triggerblock, scratch)).ok();
+        // The trigger start supersedes the header date, but only when it can be read.
+        if let Ok(start) = parse_vector_date_to_unix_ms(lossy_utf8_line(triggerblock, scratch)) {
+            state.measurement_start_ms = Some(start);
+        }
         return Ok(true);
     }
     if line.starts_with(b"base ") {
@@ -176,10 +178,20 @@ fn parse_vector_date_to_unix_ms(text: &str) -> Result<i64, TraceError> {
         .ok_or(TraceError::InvalidVectorDate)?
         .parse::<u8>()
         .map_err(|_| TraceError::InvalidVectorDate)?;
-    let time = parse_time_of_day(tokens.next().ok_or(TraceError::InvalidVectorDate)?)?;
-    let year = tokens
-        .next()
-        .ok_or(TraceError::InvalidVectorDate)?
+    let mut time = parse_time_of_day(tokens.next().ok_or(TraceError::InvalidVectorDate)?)?;
+    let mut year_text = tokens.next().ok_or(TraceError::InvalidVectorDate)?;
+    // English-locale writers use a 12-hour clock: `03:13:58.123 pm 2022`.
+    let meridiem = [("am", 0), ("pm", 12 * 3_600)]
+        .into_iter()
+        .find(|(name, _)| year_text.eq_ignore_ascii_case(name));
+    if let Some((_, offset)) = meridiem {
+        let hour = time.seconds / 3_600;
+        if (1..=12).contains(&hour) {
+            time.seconds += offset - if hour == 12 { 12 * 3_600 } else { 0 };
+        }
+        year_text = tokens.next().ok_or(TraceError::InvalidVectorDate)?;
+    }
+    let year = year_text
         .parse::<i32>()
         .map_err(|_| TraceError::InvalidVectorDate)?;
 
@@ -384,6 +396,41 @@ mod tests {
             parse_vector_date_to_unix_ms("Tue Apr 28 10:00:00.123 2026"),
             Ok(1_777_370_400_123)
         );
+    }
+
+    #[test]
+    fn parses_twelve_hour_vector_dates() {
+        let at = |hour: i64| Ok(1_777_334_400_123 + hour * 3_600_000);
+        for (text, hour) in [
+            ("12:00:00.123 am", 0),
+            ("10:00:00.123 am", 10),
+            ("12:00:00.123 pm", 12),
+            ("10:00:00.123 PM", 22),
+            ("22:00:00.123 pm", 22),
+        ] {
+            assert_eq!(
+                parse_vector_date_to_unix_ms(&format!("Tue Apr 28 {text} 2026")),
+                at(hour),
+                "{text}"
+            );
+        }
+        assert_eq!(
+            parse_vector_date_to_unix_ms("Tue Apr 28 10:00:00.123 pm"),
+            Err(TraceError::InvalidVectorDate)
+        );
+    }
+
+    #[test]
+    fn keeps_the_header_date_when_the_trigger_start_is_unreadable() {
+        let parsed = parse(
+            "date Tue Apr 28 09:00:00.000 2026\n\
+             base hex timestamps absolute\n\
+             Begin Triggerblock sometime\n\
+             0.001 1 123 Rx d 1 aa",
+        )
+        .unwrap();
+
+        assert_eq!(parsed.measurement_start_ms, Some(1_777_366_800_000));
     }
 
     #[test]

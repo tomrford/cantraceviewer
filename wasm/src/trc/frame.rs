@@ -36,13 +36,11 @@ impl Version {
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(super) struct ColumnMap {
-    pub(super) number: Option<usize>,
     pub(super) offset: Option<usize>,
     pub(super) record_type: Option<usize>,
     pub(super) bus: Option<usize>,
     pub(super) id: Option<usize>,
     pub(super) direction: Option<usize>,
-    pub(super) reserved: Option<usize>,
     pub(super) data_len: Option<usize>,
     pub(super) dlc: Option<usize>,
     pub(super) data: Option<usize>,
@@ -54,13 +52,13 @@ impl ColumnMap {
         let mut map = Self::default();
         for (index, raw_part) in text.split(',').enumerate() {
             match raw_part.trim_matches([' ', '\t', '\r']) {
-                "N" => map.number = Some(index),
+                // Message numbers and the reserved column are positional only.
+                "N" | "R" => {}
                 "O" => map.offset = Some(index),
                 "T" => map.record_type = Some(index),
                 "B" => map.bus = Some(index),
                 "I" => map.id = Some(index),
                 "d" => map.direction = Some(index),
-                "R" => map.reserved = Some(index),
                 "l" => map.data_len = Some(index),
                 "L" => map.dlc = Some(index),
                 "D" => map.data = Some(index),
@@ -148,6 +146,12 @@ pub(super) fn parse_byte(text: &str) -> Result<u8, TraceError> {
 
 pub(super) fn fd_length(dlc: u8) -> Result<u8, TraceError> {
     fd_payload_length_from_dlc(dlc)
+}
+
+pub(super) fn dlc_for_length(length: u8) -> Result<u8, TraceError> {
+    (0..=15)
+        .find(|&dlc| fd_payload_length_from_dlc(dlc) == Ok(length))
+        .ok_or(TraceError::InvalidPayloadLength)
 }
 
 #[cfg(test)]

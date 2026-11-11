@@ -1,6 +1,7 @@
-use crate::trace::{CanId, Direction, Frame, FrameKind, RawSource, TraceError, parse_channel};
-
-pub(crate) use crate::trace::fd_payload_length_from_dlc;
+use crate::trace::{
+    CanId, Direction, Frame, FrameKind, RawSource, TraceError, fd_payload_length_from_dlc,
+    parse_channel,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Base {
@@ -221,10 +222,13 @@ fn parse_id(base: Base, text: &[u8]) -> Result<CanId, TraceError> {
     }
 }
 
+/// Vector writes the DLC as one hex digit, so 64 bytes is `f`; other writers spell it in decimal.
+/// The two forms never collide: one character is a hex digit and `10` to `15` are decimal.
 fn parse_dlc(text: &[u8]) -> Result<u8, TraceError> {
-    let dlc =
-        parse_unsigned(text, 10, u64::from(u8::MAX)).map_err(|_| TraceError::InvalidDlc)? as u8;
-    (dlc <= 15).then_some(dlc).ok_or(TraceError::InvalidDlc)
+    let radix = if text.len() == 1 { 16 } else { 10 };
+    parse_unsigned(text, radix, 15)
+        .map(|dlc| dlc as u8)
+        .map_err(|_| TraceError::InvalidDlc)
 }
 
 fn parse_payload_length(text: &[u8]) -> Result<u8, TraceError> {
@@ -378,6 +382,47 @@ mod tests {
         .unwrap();
         assert_eq!(no_symbol.id, Some(CanId::standard(0x320).unwrap()));
         assert_eq!(no_symbol.payload_len, 8);
+    }
+
+    #[test]
+    fn reads_the_can_fd_dlc_as_a_hex_digit_or_a_decimal_number() {
+        let mut payload = [0_u8; 64];
+        let bytes = ["ab"; 64].join(" ");
+        for dlc in ["f", "F", "15"] {
+            payload.fill(0);
+            let frame = parse_line(
+                Base::Hex,
+                format!("1.0 CANFD 1 Rx 123 1 0 {dlc} 64 {bytes}"),
+                &mut payload,
+            )
+            .unwrap()
+            .unwrap();
+            assert_eq!((frame.dlc, frame.payload_len), (15, 64), "{dlc}");
+            assert_eq!(payload, [0xab; 64]);
+        }
+
+        let bytes = ["171"; 16].join(" ");
+        let decimal = parse_line(
+            Base::Dec,
+            format!("1.0 CANFD 1 Rx 291 1 0 10 16 {bytes}"),
+            &mut payload,
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!((decimal.dlc, decimal.payload_len), (10, 16));
+        assert_eq!(payload[..16], [0xab; 16]);
+
+        for dlc in ["g", "16", "0f"] {
+            assert_eq!(
+                parse_line(
+                    Base::Hex,
+                    format!("1.0 CANFD 1 Rx 123 1 0 {dlc} 64 {bytes}"),
+                    &mut payload
+                ),
+                Err(TraceError::InvalidDlc),
+                "{dlc}"
+            );
+        }
     }
 
     #[test]

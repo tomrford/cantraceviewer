@@ -16,7 +16,6 @@ pub use message::Message;
 pub(crate) use multiplex::ActivityPlan;
 pub use signal::Signal;
 pub use source::Diagnostic;
-pub(crate) use source::decode as decode_source;
 pub use values::{
     SignalValueDescriptions, SignalValueType, ValueDescription, ValueDescriptionRef, ValueTable,
     ValueType,
@@ -29,15 +28,12 @@ pub struct Dbc {
     pub messages: Vec<Message>,
 
     #[serde(skip)]
-    pub value_tables: Vec<ValueTable>,
-
-    #[serde(skip)]
     pub warnings: Vec<Diagnostic>,
 }
 
 impl Dbc {
     pub fn parse_bytes(bytes: &[u8]) -> Result<Self, DbcError> {
-        Self::parse(&decode_source(bytes))
+        Self::parse(&source::decode(bytes))
     }
 
     pub fn parse(text: &str) -> Result<Self, DbcError> {
@@ -96,6 +92,15 @@ impl Dbc {
                             return Err(DbcError::InvalidValueTableLine);
                         }
                         value_tables.push(table);
+                    }
+                    // Environment variables are not plotted, so their labels are ignored like
+                    // the EV_ records that declare them.
+                    "VAL_" if names_environment_variable(line) => {
+                        warnings.push(record.position.warning(
+                            "unsupported-record",
+                            "VAL_",
+                            "Record is not used by the viewer.",
+                        ));
                     }
                     "VAL_" => pending_values
                         .push((SignalValueDescriptions::parse(line)?, record.position)),
@@ -196,11 +201,7 @@ impl Dbc {
         }
         warnings.sort_by_key(|warning| (warning.line, warning.column));
 
-        Ok(Self {
-            messages,
-            value_tables,
-            warnings,
-        })
+        Ok(Self { messages, warnings })
     }
 
     pub fn find_signal(
@@ -235,6 +236,14 @@ fn finish_message(
         message.signals = std::mem::take(current_signals);
         messages.push(message);
     }
+}
+
+/// `VAL_` labels a signal by numeric message ID, or an environment variable by name.
+fn names_environment_variable(line: &str) -> bool {
+    trim_dbc(line)
+        .strip_prefix("VAL_")
+        .and_then(|rest| trim_dbc(rest).bytes().next())
+        .is_some_and(|byte| byte.is_ascii_alphabetic() || byte == b'_')
 }
 
 fn attach_value_descriptions(
@@ -335,6 +344,36 @@ mod tests {
             .to_string();
         assert!(error.contains("3:1: SIG_TYPE_REF_"));
         assert!(error.contains("named signal types"));
+    }
+
+    #[test]
+    fn environment_variable_value_labels_warn_without_rejecting_the_file() {
+        let dbc = Dbc::parse(
+            "BO_ 1 M: 1 ECU\n SG_ X : 0|8@1+ (1,0) [0|255] \"\" ECU\n\
+             EV_ Ignition: 0 [0|1] \"\" 0 1 DUMMY_NODE_VECTOR0 Vector__XXX;\n\
+             VAL_ Ignition 0 \"Off\" 1 \"On\" ;\n\
+             VAL_ 1 X 0 \"Off\";",
+        )
+        .unwrap();
+        assert_eq!(
+            dbc.warnings
+                .iter()
+                .map(|w| (w.category, w.keyword, w.line))
+                .collect::<Vec<_>>(),
+            vec![
+                ("unsupported-record", "EV_", 3),
+                ("unsupported-record", "VAL_", 4),
+            ]
+        );
+        assert_eq!(
+            dbc.messages[0].signals[0]
+                .value_descriptions
+                .as_deref()
+                .unwrap()[0]
+                .label,
+            "Off"
+        );
+        assert!(Dbc::parse("VAL_ -1 X 0 \"Off\";").is_err());
     }
 
     #[test]
