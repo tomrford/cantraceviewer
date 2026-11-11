@@ -8,13 +8,13 @@ I built this for all those times I wanted to "just see quickly what the 3 or 4 i
 
 The app is free and open source. It is a purely static site on Cloudflare Workers, so it costs me nothing to host. Feature requests are welcome, but I cannot promise to add everything. Keeping it focused is the point.
 
-Trace files and decoded series stay in memory for the current browser session. Saved DBC files stay in IndexedDB and display preferences stay in localStorage on the current device, so you can reuse them between sessions. DBC files embedded in MF4 traces are temporary and disappear with the trace. Trace files can be up to 500 MiB. Each uploaded DBC file can be up to 5 MiB. Embedded DBCs can be up to 1 MiB after decompression.
+Trace files and decoded series stay in memory for the current browser session. Saved DBC files stay in IndexedDB and display preferences stay in localStorage on the current device, so you can reuse them between sessions. DBC files embedded in MF4 traces are temporary and disappear with the trace. Trace files can be up to 500 MiB. Each DBC file can be up to 5 MiB; for a DBC embedded in an MF4 trace, the limit applies after decompression.
 
 [Request a feature or report a file-size problem in GitHub issues](https://github.com/tomrford/cantraceviewer/issues).
 
 ## Development
 
-The UI uses React 19 with the React Compiler, Vite, zustand, Tailwind, and shadcn/ui components on Base UI, built with Node.js and pnpm. `pnpm run build` prerenders the app shell into `dist/index.html`, which the client hydrates. Rust code under `wasm/` compiles through wasm-bindgen for DBC parsing, trace parsing, and signal decoding. The published `cantraceviewer` package exposes asynchronous browser and Node clients plus a synchronous direct entry. This app uses an exact registry version of the browser client, which runs its WASM work in a dedicated Worker.
+`pnpm run build` prerenders the app shell into `dist/index.html`, which the client hydrates. Rust code under `wasm/` compiles through wasm-bindgen into the published `cantraceviewer` package. This app uses an exact registry version of its browser client, which runs WASM work in a dedicated Worker, so local Rust or package edits do not change the app.
 
 See the [core package README](packages/core/README.md) for its API, supported formats, parsing limits and lifecycle contracts.
 
@@ -33,7 +33,7 @@ Run the full CI validation serially with one release WASM build:
 nix develop -c pnpm run validate
 ```
 
-`package:validate` runs the release checks: Rust formatting, lint and tests, package packing, installed-package checks, and app checks, tests and build against the tarball. `validate` also runs repository lint, type checks and tests against the pinned registry dependency. `check` and `test` build the package before running independently; `check:types` and `test:run` reuse existing build outputs.
+`package:validate` runs only the package release checks, including app checks against the packed tarball instead of the pinned registry version.
 
 Set `CI=true` for noninteractive dependency installation. Run build-generating commands serially within a checkout because they share generated WASM and package output directories.
 
