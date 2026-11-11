@@ -6,10 +6,10 @@ import type { SelectorSearchIndex } from '@/lib/selector-list';
 import { isDecoded, type DecodedPlotSignal, type Signal } from '@/lib/signal';
 import type { storeHost } from '@/lib/webmcp';
 
-export const SEARCH_RESULT_LIMIT_MAX = 50;
+const SEARCH_RESULT_LIMIT_MAX = 50;
 const SEARCH_RESULT_LIMIT_DEFAULT = 25;
 const SIGNAL_SELECTION_LIMIT = 50;
-export const INSPECTION_SIGNAL_LIMIT = 20;
+const INSPECTION_SIGNAL_LIMIT = 20;
 const INSPECTION_TIME_LIMIT = 20;
 
 export type WebMcpTimeRange = {
@@ -35,7 +35,7 @@ const EMPTY_OBJECT_SCHEMA = {
 	additionalProperties: false
 } as const;
 
-export function describeSession(
+function describeSession(
 	snapshot: ReturnType<WebMcpHost['session']>,
 	view: ReturnType<WebMcpHost['view']>
 ) {
@@ -53,7 +53,7 @@ export function describeSession(
 	};
 }
 
-export function searchCatalogSignals(
+function searchCatalogSignals(
 	indexes: SelectorSearchIndex[],
 	query: string,
 	isSignalSelected: (key: string) => boolean,
@@ -90,7 +90,7 @@ export function searchCatalogSignals(
 	};
 }
 
-export function resolveSignalRefs(indexes: SelectorSearchIndex[], refs: string[]) {
+function resolveSignalRefs(indexes: SelectorSearchIndex[], refs: string[]) {
 	return resolveRefs(
 		indexes.flatMap((index) => index.signals.items),
 		refs

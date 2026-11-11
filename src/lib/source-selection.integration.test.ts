@@ -17,9 +17,9 @@ vi.mock('cantraceviewer', async () => {
 	};
 });
 import * as library from '@/lib/dbc-library';
-import { buildSelectorSearchIndexes } from '@/lib/selector-list';
 import { closeTrace } from '@/lib/wasm';
-import { searchCatalogSignals } from '@/lib/webmcp-tools';
+import { storeHost } from '@/lib/webmcp';
+import { createWebMcpTools } from '@/lib/webmcp-tools';
 import { startTraceSession } from '@/store/app-shell';
 import {
 	addDbcFiles,
@@ -70,12 +70,10 @@ describe('published package app integration', () => {
 			['2', 'Tx']
 		]);
 		expect(badges('Extended')).toEqual([[]]);
-		const hits = searchCatalogSignals(
-			buildSelectorSearchIndexes(appStore.getState().selectorFiles),
-			'Value',
-			() => false,
-			50
-		).results;
+		const search = createWebMcpTools(storeHost).find((tool) => tool.name === 'search_signals')!;
+		const { results: hits } = (await search.execute({ query: 'Value', limit: 50 })) as {
+			results: Array<{ key: string; label: string }>;
+		};
 		expect(new Set(hits.map((h) => h.key)).size).toBe(13);
 		expect(hits.map((h) => h.label)).toContain(
 			'UnknownDirection.Value [Channel 1 · unknown direction]'

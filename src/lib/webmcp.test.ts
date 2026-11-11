@@ -3,14 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildSelectorSearchIndexes, type SelectorDbcFile } from '@/lib/selector-list';
 import type { DecodedPlotSignal, SignalFormat } from '@/lib/signal';
 import { mountWebMcp, storeHost, type ModelContext } from '@/lib/webmcp';
-import {
-	INSPECTION_SIGNAL_LIMIT,
-	SEARCH_RESULT_LIMIT_MAX,
-	createWebMcpTools,
-	resolveSignalRefs,
-	searchCatalogSignals,
-	type WebMcpHost
-} from '@/lib/webmcp-tools';
+import { createWebMcpTools, type WebMcpHost } from '@/lib/webmcp-tools';
 import type { TraceFileEntry } from '@/store/derive';
 import { addAxis, removeAxis, resetAxes } from '@/store/plot-axes';
 import { setViewport } from '@/store/plot-view';
@@ -38,43 +31,46 @@ const PLOT_TRACE = {
 } as unknown as TraceFileEntry;
 
 describe('WebMCP catalogue operations', () => {
-	it('uses the selector matcher and caps search results', () => {
-		const selected = new Set([engineKey]);
-		const speed = searchCatalogSignals(catalog(), 'engine speed', (key) => selected.has(key), 25);
-		expect(speed.results).toEqual([
-			expect.objectContaining({
-				key: engineKey,
-				label: 'EEC1.EngineSpeed',
-				arbitrationId: 'cf',
-				selected: true,
-				source: 'powertrain'
-			})
-		]);
-		expect(
-			searchCatalogSignals(catalog(), '0x18fef100', () => false, 25).results.map((hit) => hit.label)
-		).toEqual(['Cruise.WheelBasedSpeed']);
-
-		const capped = searchCatalogSignals(catalog(), 'e', () => false, 10_000);
-		expect(capped.limit).toBe(SEARCH_RESULT_LIMIT_MAX);
-		expect(searchCatalogSignals(catalog(), 'engine speed', () => false, 1).truncated).toBe(false);
+	it('uses the selector matcher and caps search results', async () => {
+		const search = toolsByName(fakeHost()).search_signals;
+		expect(await search.execute({ query: 'engine speed', limit: 25 })).toMatchObject({
+			truncated: false,
+			results: [
+				{
+					key: engineKey,
+					label: 'EEC1.EngineSpeed',
+					arbitrationId: 'cf',
+					selected: true,
+					source: 'powertrain'
+				}
+			]
+		});
+		expect(await search.execute({ query: '0x18fef100' })).toMatchObject({
+			results: [{ label: 'Cruise.WheelBasedSpeed', selected: false }]
+		});
+		expect(await search.execute({ query: 'e', limit: 10_000 })).toMatchObject({ limit: 50 });
 	});
 
-	it('reports missing and ambiguous exact references', () => {
-		expect(resolveSignalRefs(catalog(), [engineKey]).resolved[0]?.signal.label).toBe(
-			'EEC1.EngineSpeed'
-		);
-		expect(resolveSignalRefs(catalog(), ['Cruise.WheelBasedSpeed']).resolved[0]?.signal.key).toBe(
-			wheelKey
-		);
+	it('resolves keys and exact labels, and reports missing and ambiguous references', async () => {
+		const select = (host: WebMcpHost, signals: string[]) =>
+			toolsByName(host).set_signal_selection.execute({ signals, selected: true });
+
+		expect(await select(fakeHost(), [wheelKey, 'Status.EngineRpm', 'No.Such'])).toMatchObject({
+			changed: [{ key: wheelKey }, { key: rpmKey }],
+			missing: ['No.Such'],
+			ambiguous: []
+		});
 
 		const duplicate = buildSelectorSearchIndexes([
 			file('a', 'Engine', 'Rpm', '["a"]', '101'),
 			file('b', 'Engine', 'Rpm', '["b"]', '102')
 		]);
-		const ambiguous = resolveSignalRefs(duplicate, ['Engine.Rpm']);
-		expect(ambiguous.resolved).toEqual([]);
-		expect(ambiguous.ambiguous[0]?.matches).toHaveLength(2);
-		expect(resolveSignalRefs(catalog(), ['No.Such']).missing).toEqual(['No.Such']);
+		expect(
+			await select(fakeHost({ signalCatalog: () => duplicate }), ['Engine.Rpm'])
+		).toMatchObject({
+			changed: [],
+			ambiguous: [{ ref: 'Engine.Rpm', matches: [{ key: '["a"]' }, { key: '["b"]' }] }]
+		});
 	});
 
 	it('sets selection explicitly and stops an aborted batch', async () => {
@@ -151,7 +147,7 @@ describe('WebMCP numerical analysis', () => {
 	});
 
 	it('caps the default plotted-signal set', async () => {
-		const signals = Array.from({ length: INSPECTION_SIGNAL_LIMIT + 1 }, (_, index) =>
+		const signals = Array.from({ length: 21 }, (_, index) =>
 			plottedSignal(`key-${index}`, `Signal.${index}`)
 		);
 		const result = (await toolsByName(
@@ -162,7 +158,7 @@ describe('WebMCP numerical analysis', () => {
 		};
 
 		expect(result.truncated).toBe(true);
-		expect(result.results).toHaveLength(INSPECTION_SIGNAL_LIMIT);
+		expect(result.results).toHaveLength(20);
 	});
 });
 

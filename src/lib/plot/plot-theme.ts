@@ -34,7 +34,7 @@ export function resolvePlotTheme(styles: Pick<CSSStyleDeclaration, 'getPropertyV
 	return theme;
 }
 
-export function toChartColor(value: string): string | null {
+function toChartColor(value: string): string | null {
 	const text = value.trim();
 	if (/^#[0-9a-f]{3,8}$/i.test(text)) return text;
 	if (/^rgba?\(\s*[\d.]+\s*,/i.test(text)) return text;

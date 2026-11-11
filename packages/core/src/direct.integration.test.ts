@@ -318,26 +318,10 @@ describe('cantraceviewer/direct', () => {
 		}
 	);
 
-	it('initializes and answers every operation synchronously', () => {
+	it('preserves DBC, ASC, metadata, and decode behavior across the package boundary', () => {
 		expect(() => client.openTrace('asc', new Uint8Array(ascBytes.byteLength + 1))).toThrow(
 			`${ascBytes.byteLength} byte limit`
 		);
-		const openedDbc: OpenDbcResult = client.openDbc(dbcText);
-		const openedTrace: OpenTraceResult = client.openTrace('asc', ascBytes);
-		try {
-			expect(openedDbc.catalog.messages.length).toBeGreaterThan(0);
-			expect(openedTrace.metadata.validMessageCount).toBe(1506);
-			expect(
-				client.getSignalValues(openedDbc.handle, openedTrace.handle, identity, 'vehicle_speed')
-					.timesMs.length
-			).toBe(251);
-		} finally {
-			client.closeTrace(openedTrace.handle);
-			client.closeDbc(openedDbc.handle);
-		}
-	});
-
-	it('preserves DBC, ASC, metadata, and decode behavior across the package boundary', () => {
 		const { handle: dbc, catalog } = openFixtureDbc();
 		const { handle: trace, metadata } = openFixtureTrace();
 		try {

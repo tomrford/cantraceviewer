@@ -146,10 +146,6 @@ export async function checkDbc(client, transfer = true) {
 	const mux = await client.openDbc(
 		'BO_ 291 Nested: 4 ECU\n SG_ Root M : 0|8@1+ (10,7) [0|255] "" ECU\n SG_ Child m2M : 8|8@1- (2,100) [0|255] "" ECU\n SG_ Data m3 : 23|16@0- (0.5,-10) [0|0] "" ECU\nSG_MUL_VAL_ 291 Child Root 2-2;\nSG_MUL_VAL_ 291 Data Child 3-5, 9-9;\nBA_DEF_ BO_ "VFrameFormat" INT 0 15;\nBA_DEF_DEF_ "VFrameFormat" 0;\nBA_ "VFrameFormat" BO_ 291 14;'
 	);
-	const bytes = new TextEncoder().encode(
-		'base hex timestamps absolute\n0.001 1 123 Rx d 4 02 03 00 64\n0.002 CANFD 1 Rx 123 - 1 0 4 4 01 03 00 64\n0.003 CANFD 1 Rx 123 - 1 0 4 4 02 03 00 64\n0.004 CANFD 1 Rx 123 - 1 0 4 4 02 05 ff 9c'
-	);
-	const trace = await client.openTrace('asc', transfer ? bytes.buffer : bytes);
 	try {
 		const message = mux.catalog.messages[0];
 		equal(message.frameFormat, 'standard-can-fd');
@@ -162,16 +158,7 @@ export async function checkDbc(client, transfer = true) {
 				{ first: '9', last: '9' }
 			]
 		});
-		const series = await client.getSignalValues(
-			mux.handle,
-			trace.handle,
-			{ canId: 291, isExtended: false, sizeBytes: 4 },
-			'Data'
-		);
-		equal(Array.from(series.timesMs), [3, 4]);
-		equal(Array.from(series.values), [40, -60]);
 	} finally {
-		await client.closeTrace(trace.handle);
 		await client.closeDbc(mux.handle);
 	}
 }

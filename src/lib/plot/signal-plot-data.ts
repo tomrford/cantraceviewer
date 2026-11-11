@@ -26,7 +26,7 @@ export type WindowedSignalView = DecodedPlotSignal & {
 
 const LEGEND_MAX_SIGNIFICANT_DIGITS = 7;
 
-export function isOutsideDbcRange(value: number, minimum: number, maximum: number): boolean {
+function isOutsideDbcRange(value: number, minimum: number, maximum: number): boolean {
 	if (minimum === 0 && maximum === 0) return false;
 	return value < minimum || value > maximum;
 }
@@ -45,7 +45,7 @@ function roundToResolution(value: number, factor: number, offset: number): numbe
 	return Number(value.toFixed(decimals));
 }
 
-export function formatLegendNumericValue(value: number, factor: number | null, offset = 0): string {
+function formatLegendNumericValue(value: number, factor: number | null, offset = 0): string {
 	if (!Number.isFinite(value)) return '-';
 	if (value === 0) return '0';
 
@@ -167,7 +167,7 @@ function combinedDomain(views: DecodedPlotSignal[]): ViewDomain | null {
 	return Number.isFinite(xMin) && Number.isFinite(yMin) ? { xMin, xMax, yMin, yMax } : null;
 }
 
-export function signalXRange(views: DecodedPlotSignal[]): PlotAxisRange | null {
+function signalXRange(views: DecodedPlotSignal[]): PlotAxisRange | null {
 	const domain = combinedDomain(views);
 	return domain === null ? null : paddedXRange(domain.xMin, domain.xMax);
 }

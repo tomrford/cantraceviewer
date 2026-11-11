@@ -1,8 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
-	detectShortcutPlatform,
-	isEditableShortcutTarget,
+	browserShortcutPlatform,
 	shortcutEnabled,
 	shortcutFromEvent,
 	shortcutSuppressedBySurface
@@ -64,7 +63,6 @@ describe('keyboard shortcuts', () => {
 
 	it.each(['input', 'textarea', 'select'])('suppresses shortcuts on %s targets', (tagName) => {
 		const target = { tagName };
-		expect(isEditableShortcutTarget(target)).toBe(true);
 		expect(shortcutSuppressedBySurface(target)).toBe(true);
 	});
 
@@ -73,7 +71,6 @@ describe('keyboard shortcuts', () => {
 			tagName: 'input',
 			getAttribute: (name: string) => (name === 'type' ? 'checkbox' : null)
 		};
-		expect(isEditableShortcutTarget(checkbox)).toBe(false);
 		expect(shortcutSuppressedBySurface(checkbox)).toBe(false);
 	});
 
@@ -122,8 +119,17 @@ describe('keyboard shortcuts', () => {
 		).toBe(false);
 	});
 
-	it('detects Apple platforms for the primary modifier', () => {
-		expect(detectShortcutPlatform('MacIntel')).toBe('mac');
-		expect(detectShortcutPlatform('Win32')).toBe('other');
+	it.each([
+		['MacIntel', 'mac'],
+		['iPad', 'mac'],
+		['Win32', 'other'],
+		['Linux x86_64', 'other']
+	] as const)('uses the primary modifier of %s', (platform, expected) => {
+		vi.stubGlobal('navigator', { platform, userAgent: '' });
+		try {
+			expect(browserShortcutPlatform()).toBe(expected);
+		} finally {
+			vi.unstubAllGlobals();
+		}
 	});
 });

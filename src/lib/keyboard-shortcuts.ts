@@ -63,7 +63,7 @@ export function groupedShortcuts(): { group: ShortcutGroup; actions: ShortcutAct
 	}));
 }
 
-export function detectShortcutPlatform(platform: string): ShortcutPlatform {
+function detectShortcutPlatform(platform: string): ShortcutPlatform {
 	return /Mac|iPhone|iPad|iPod/i.test(platform) ? 'mac' : 'other';
 }
 
@@ -153,7 +153,7 @@ export function shortcutEnabled(action: ShortcutAction, state: ShortcutState): b
 	}
 }
 
-export function isEditableShortcutTarget(target: ShortcutTarget | null): boolean {
+function isEditableShortcutTarget(target: ShortcutTarget | null): boolean {
 	if (target === null) return false;
 	const tagName = target.tagName?.toLowerCase();
 	if (tagName === 'input') {
