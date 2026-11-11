@@ -244,7 +244,7 @@ describe('createCanTraceClient worker transport', () => {
 		await client.close();
 	});
 
-	it('runs requests serially in post order, holding them behind a slow worker boot', async () => {
+	it('answers requests in post order once the worker has booted', async () => {
 		const boot = deferred();
 		const fake = createFakeDirect();
 		const harness = createHarness(async () => {
@@ -276,7 +276,7 @@ describe('createCanTraceClient worker transport', () => {
 		]);
 	});
 
-	it('settles an open queued before close and invalidates its handle', async () => {
+	it('settles an open queued before close without further worker requests', async () => {
 		const { fake, client } = await createPair();
 		const openPromise = client.openTrace('asc', new Uint8Array([1]).buffer);
 		const closePromise = client.close();

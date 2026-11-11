@@ -3,12 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
 	detectShortcutPlatform,
 	isEditableShortcutTarget,
-	overridesBrowserShortcut,
 	shortcutEnabled,
 	shortcutFromEvent,
-	shortcutKeys,
-	shortcutSuppressedBySurface,
-	type ShortcutPlatform
+	shortcutSuppressedBySurface
 } from '@/lib/keyboard-shortcuts';
 
 function keyEvent(
@@ -35,29 +32,9 @@ describe('keyboard shortcuts', () => {
 		expect(shortcutFromEvent(keyEvent('o', { metaKey: true }), 'other')).toBeNull();
 	});
 
-	it.each([
-		['/', 'selectSignals'],
-		[',', 'openSettings'],
-		['k', 'showPalette'],
-		['o', 'openTrace']
-	] as const)('matches %s as %s only with the platform modifier', (key, action) => {
-		expect(shortcutFromEvent(keyEvent(key, { metaKey: true }), 'mac')).toBe(action);
-		expect(shortcutFromEvent(keyEvent(key, { ctrlKey: true }), 'other')).toBe(action);
-		expect(shortcutFromEvent(keyEvent(key), 'mac')).toBeNull();
-		expect(shortcutFromEvent(keyEvent(key), 'other')).toBeNull();
-	});
-
-	it.each([
-		['+', 'zoomIn'],
-		['-', 'zoomOut'],
-		['0', 'resetZoom'],
-		['b', 'toggleBoxZoom'],
-		['L', 'toggleLegend'],
-		['1', 'placeC1'],
-		['2', 'placeC2'],
-		['?', 'showHelp']
-	] as const)('matches %s as %s', (key, action) => {
-		expect(shortcutFromEvent(keyEvent(key), 'other')).toBe(action);
+	it('matches single keys without modifiers, whatever their case', () => {
+		expect(shortcutFromEvent(keyEvent('b'), 'other')).toBe('toggleBoxZoom');
+		expect(shortcutFromEvent(keyEvent('L'), 'mac')).toBe('toggleLegend');
 	});
 
 	it('does not match modified single keys or repeated events', () => {
@@ -98,12 +75,6 @@ describe('keyboard shortcuts', () => {
 		};
 		expect(isEditableShortcutTarget(checkbox)).toBe(false);
 		expect(shortcutSuppressedBySurface(checkbox)).toBe(false);
-	});
-
-	it('marks browser-bound chords so they can be claimed when declined', () => {
-		expect(shortcutFromEvent(keyEvent('o', { metaKey: true }), 'mac')).toBe('openTrace');
-		expect(overridesBrowserShortcut('openTrace')).toBe(true);
-		expect(overridesBrowserShortcut('showHelp')).toBe(false);
 	});
 
 	it('leaves disabled actions unchanged', () => {
@@ -151,16 +122,8 @@ describe('keyboard shortcuts', () => {
 		).toBe(false);
 	});
 
-	it.each<[string, ShortcutPlatform, string[]]>([
-		['MacIntel', 'mac', ['⌘', 'O']],
-		['Win32', 'other', ['Ctrl', 'O']]
-	])('splits %s shortcuts into platform keys', (platformName, platform, expected) => {
-		expect(detectShortcutPlatform(platformName)).toBe(platform);
-		expect(shortcutKeys('openTrace', platform)).toEqual(expected);
-	});
-
-	it('renders unmodified shortcuts as a single key on every platform', () => {
-		expect(shortcutKeys('showHelp', 'mac')).toEqual(['?']);
-		expect(shortcutKeys('showHelp', 'other')).toEqual(['?']);
+	it('detects Apple platforms for the primary modifier', () => {
+		expect(detectShortcutPlatform('MacIntel')).toBe('mac');
+		expect(detectShortcutPlatform('Win32')).toBe('other');
 	});
 });

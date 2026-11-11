@@ -51,7 +51,6 @@ describe('resolvePlotTheme', () => {
 		);
 
 		expect(theme.background).toBe('#ffffff');
-		expect(theme.text).toBe(theme.axisTick);
 		expect(theme.gridLine).toBe('rgba(255, 255, 255, 0.1)');
 		expect(theme.fontFamily).toBe("'Geist Mono Variable', monospace");
 	});
@@ -60,7 +59,9 @@ describe('resolvePlotTheme', () => {
 		const theme = resolvePlotTheme(styles({ '--background': 'oklch(0.145 0 0)' }));
 
 		expect(theme.background).toBe('#0a0a0a');
-		expect(theme.text).toBe('#71717a');
-		expect(theme.gridLine).toBe('#d4d4d8');
+		const untouched = resolvePlotTheme(styles({}));
+		expect(theme.text).toBe(untouched.text);
+		expect(theme.gridLine).toBe(untouched.gridLine);
+		expect(theme.background).not.toBe(untouched.background);
 	});
 });

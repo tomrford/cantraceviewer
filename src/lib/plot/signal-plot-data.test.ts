@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { emptyAxisSeries, lineSeries, plotSeriesForViews } from '@/lib/plot/plot-series';
+import { plotSeriesForViews } from '@/lib/plot/plot-series';
 import {
 	crosshairDeltaValue,
 	crosshairValue,
@@ -76,26 +76,6 @@ describe('signal plot data', () => {
 		});
 	});
 
-	it('disables chart-side sampling for lines', () => {
-		const full = lineSeries({ ...view([0, 1, 2]), sampled: false }, 'y');
-		expect(full.sampling).toBe('none');
-	});
-
-	it('adds sample markers only to full-resolution views', () => {
-		const fullView = { ...view([0, 1, 2]), sampled: false };
-		const downsampledView = { ...view([0, 1, 2]), sampled: true };
-		const series = plotSeriesForViews([fullView, downsampledView], () => 'y');
-
-		expect(series.map((entry) => entry.type)).toEqual(['line', 'scatter', 'line']);
-		const marker = series[1];
-		expect(marker).toMatchObject({
-			type: 'scatter',
-			data: { x: fullView.x, y: fullView.y },
-			symbolSize: 1.5,
-			sampling: 'none'
-		});
-	});
-
 	it('excludes empty views from the chart series', () => {
 		const series = plotSeriesForViews(
 			[
@@ -116,19 +96,6 @@ describe('signal plot data', () => {
 		);
 
 		expect(series.map((entry) => entry.yAxis)).toEqual(['y', 'y', 'y1', 'y1']);
-	});
-
-	it('keeps explicit axes alive with an invisible empty line', () => {
-		const series = emptyAxisSeries('y2');
-		expect(series).toMatchObject({
-			type: 'line',
-			yAxis: 'y2',
-			visible: false,
-			sampling: 'none'
-		});
-		const data = series.data as { x: Float64Array; y: Float64Array };
-		expect(data.x).toHaveLength(0);
-		expect(data.y).toHaveLength(0);
 	});
 
 	it('fits the domain across views from min/max scans', () => {

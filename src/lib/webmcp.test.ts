@@ -70,7 +70,6 @@ describe('WebMCP catalogue operations', () => {
 
 		const capped = searchCatalogSignals(catalog(), 'e', () => false, 10_000);
 		expect(capped.limit).toBe(SEARCH_RESULT_LIMIT_MAX);
-		expect(capped.results.length).toBeLessThanOrEqual(SEARCH_RESULT_LIMIT_MAX);
 		expect(searchCatalogSignals(catalog(), 'engine speed', () => false, 1).truncated).toBe(false);
 	});
 

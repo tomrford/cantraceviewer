@@ -5,7 +5,7 @@ import type { YAxisId } from '@/lib/plot/y-axis';
 
 const EMPTY_SERIES = new Float64Array(0);
 
-export function lineSeries(view: WindowedSignalView, yAxis: YAxisId): LineSeriesConfig {
+function lineSeries(view: WindowedSignalView, yAxis: YAxisId): LineSeriesConfig {
 	return {
 		type: 'line',
 		name: view.signal.label,
