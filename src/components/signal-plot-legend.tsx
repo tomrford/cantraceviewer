@@ -181,7 +181,9 @@ function LegendAxisGroup({
 	showHeader: boolean;
 	onMoveMenu: (key: string) => void;
 }) {
-	const cursorText = useAppStore((s) => (showHeader ? axisCursorText(s, axis.id) : null));
+	const cursorText = useAppStore((s) =>
+		showHeader && axis.signals.length > 0 ? axisCursorText(s, axis.id) : null
+	);
 	const [dropActive, setDropActive] = useState(false);
 
 	function allowDrop(event: DragEvent) {
