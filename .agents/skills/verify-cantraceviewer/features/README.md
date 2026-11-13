@@ -4,7 +4,7 @@ Read [the skill](../SKILL.md) for target selection, isolation, GPU checks and ev
 
 This map is the maintained verification source. Cover every affected sub-feature/entry point or report blocked/not run. One convenient entry point does not prove the others. Tool and UI paths are separately reportable; GPU-independent checks remain partial when rendering fails.
 
-- [Trace loading](trace-loading.md): chooser, drop, replacement, warnings and MF4.
+- [Trace loading](trace-loading.md): chooser, replacement, warnings and MF4.
 - [DBC library and selection](signal-library.md): persistence, search, expansion and selection.
 - [Plot navigation and axes](plot-navigation.md): zoom/pan, legend and five Y axes.
 - [Crosshairs and inspection](inspection.md): markers, nearest samples and deltas.

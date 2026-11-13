@@ -14,7 +14,7 @@ Save DBC files in this browser, find signals in their message trees and select d
 ## How to get to it (user POV)
 
 - `Open signal selector`, Cmd/Ctrl+/ or palette `Signal selector`.
-- `Add DBC` inside it or DBC drop; filter, group expand controls and `Plot …` checkboxes.
+- `Add DBC` inside it; filter, group expand controls and `Plot …` checkboxes.
 - Public `search_signals` and `set_signal_selection` tools.
 
 ## Driving it with Browser
