@@ -1,6 +1,6 @@
 import {
+	crosshairAt,
 	crosshairById,
-	crosshairFromPoint,
 	moveCrosshair,
 	removeCrosshair,
 	setCrosshair,
@@ -21,6 +21,8 @@ import {
 	type PlotPoint,
 	type PlotViewport
 } from '@/lib/plot/plot-viewport';
+import { PRIMARY_Y_AXIS_ID } from '@/lib/plot/y-axis';
+import { axisFitRange } from '@/store/derive';
 import { appStore, FIT, update } from '@/store/store';
 
 const CENTER: PlotRatioPoint = { xRatio: 0.5, yRatio: 0.5 };
@@ -77,13 +79,10 @@ export function upsertCrosshair(
 	point: PlotPoint & { id: CrosshairId },
 	axis: CrosshairDragAxis = 'both'
 ): void {
-	const { hasPlottableSignals, crosshairs, activeViewport, yWindow } = appStore.getState();
-	if (!hasPlottableSignals || activeViewport === null) return;
-	const crosshair = crosshairFromPoint(
-		point,
-		{ min: activeViewport.yMin, max: activeViewport.yMax },
-		yWindow
-	);
+	const { hasPlottableSignals, crosshairs, plotModel } = appStore.getState();
+	const primaryFit = axisFitRange(plotModel, PRIMARY_Y_AXIS_ID);
+	if (!hasPlottableSignals || primaryFit === null) return;
+	const crosshair = crosshairAt(point, primaryFit);
 	const current = crosshairById(crosshairs, point.id);
 	update({
 		crosshairs: setCrosshair(
@@ -112,7 +111,7 @@ export function clearCrosshairs(): void {
 	update({ crosshairs: [] });
 }
 
-/** Replace normalized crosshairs, optionally with a readout mode; not gated on plottability. */
+/** Replace all crosshairs, optionally with a readout mode (WebMCP); not gated on plottability. */
 export function setCrosshairs(crosshairs: PlotCrosshair[], mode?: LegendCrosshairMode): void {
 	update(mode === undefined ? { crosshairs } : { crosshairs, legendCrosshairMode: mode });
 }

@@ -307,6 +307,15 @@ function sameViewport(a: PlotViewport, b: PlotViewport): boolean {
 	return a.xMin === b.xMin && a.xMax === b.xMax && a.yMin === b.yMin && a.yMax === b.yMax;
 }
 
+/** An axis's unzoomed range, which crosshair heights are fractions of. */
+export function axisFitRange(
+	{ fullDomain, secondaryFitRanges }: PlotModelState,
+	axisId: YAxisId
+): PlotAxisRange | null {
+	if (axisId !== PRIMARY_Y_AXIS_ID) return secondaryFitRanges.get(axisId) ?? null;
+	return fullDomain === null ? null : { min: fullDomain.yMin, max: fullDomain.yMax };
+}
+
 /** `axisRanges` holds the non-primary fit ranges with the Y window applied, plus the primary axis. */
 export function viewportState(
 	viewportMode: ViewportMode,

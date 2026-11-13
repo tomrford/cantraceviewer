@@ -19,7 +19,6 @@ import {
 } from '@/components/ui/select';
 import {
 	crosshairById,
-	crosshairYRatio,
 	type LegendCrosshairMode,
 	type PlotCrosshair
 } from '@/lib/plot/plot-crosshair';
@@ -35,7 +34,7 @@ import {
 import { PRIMARY_Y_AXIS_ID, type YAxisId } from '@/lib/plot/y-axis';
 import type { DecodedPlotSignal } from '@/lib/signal';
 import { cn } from '@/lib/utils';
-import type { PlotAxisView } from '@/store/derive';
+import { axisFitRange, type PlotAxisView } from '@/store/derive';
 import { addAxis, assignAxis, assignToNewAxis, canAddAxis, removeAxis } from '@/store/plot-axes';
 import { setLegendCrosshairMode } from '@/store/plot-view';
 import { useAppStore, type AppState } from '@/store/store';
@@ -380,20 +379,19 @@ function legendValue(
 }
 
 function axisCursorText(state: AppState, axisId: YAxisId) {
-	const range = state.axisRanges.get(axisId);
-	if (range === undefined) return null;
+	const range = axisFitRange(state.plotModel, axisId);
+	if (range === null) return null;
 	const c1 = crosshairById(state.crosshairs, 1);
 	const c2 = crosshairById(state.crosshairs, 2);
 
 	if (state.legendCrosshairMode === 'delta') {
 		if (c1 === null || c2 === null) return null;
-		const rowSpan = crosshairYRatio(c1, state.yWindow) - crosshairYRatio(c2, state.yWindow);
-		return `Δy ${yText(rowSpan * (range.max - range.min))}`;
+		return `Δy ${yText((c1.fitY - c2.fitY) * (range.max - range.min))}`;
 	}
 
 	const active = state.legendCrosshairMode === 'c1' ? c1 : c2;
 	if (active === null) return null;
-	return `y ${yText(valueAtRatio(range, crosshairYRatio(active, state.yWindow)))}`;
+	return `y ${yText(valueAtRatio(range, active.fitY))}`;
 }
 
 function yText(value: number): string {

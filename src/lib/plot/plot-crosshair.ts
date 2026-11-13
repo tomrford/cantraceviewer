@@ -11,27 +11,27 @@ export type PlotCrosshair = {
 	id: CrosshairId;
 	/** Trace-relative timestamp in milliseconds. */
 	x: number;
-	/** Fraction from the top of the unzoomed Y fit; deliberately unbounded. */
-	yRatio: number;
+	/**
+	 * Height as a fraction from the top of the unzoomed Y fit, so it holds through axis changes.
+	 * Unbounded: zoom and pan can leave it off the plot.
+	 */
+	fitY: number;
 };
 
 export type LegendCrosshairMode = 'c1' | 'c2' | 'delta';
 export type CrosshairDragAxis = 'x' | 'y' | 'both';
 
-export function crosshairFromPoint(
+/** A crosshair at a point in primary-axis units. */
+export function crosshairAt(
 	point: PlotPoint & { id: CrosshairId },
-	range: PlotAxisRange,
-	window: PlotYWindow
+	primaryFit: PlotAxisRange
 ): PlotCrosshair {
-	return {
-		id: point.id,
-		x: point.x,
-		yRatio: window.top + ratioInRange(range, point.y) * (window.bottom - window.top)
-	};
+	return { id: point.id, x: point.x, fitY: ratioInRange(primaryFit, point.y) };
 }
 
-export function crosshairYRatio(crosshair: PlotCrosshair, window: PlotYWindow): number {
-	return (crosshair.yRatio - window.top) / (window.bottom - window.top);
+/** The crosshair's height as a fraction of the visible plot, from the top. */
+export function crosshairViewRatio(crosshair: PlotCrosshair, window: PlotYWindow): number {
+	return (crosshair.fitY - window.top) / (window.bottom - window.top);
 }
 
 export function crosshairById(crosshairs: PlotCrosshair[], id: CrosshairId): PlotCrosshair | null {
@@ -53,12 +53,12 @@ export function removeCrosshair(crosshairs: PlotCrosshair[], id: CrosshairId): P
 
 export function moveCrosshair(
 	crosshair: PlotCrosshair,
-	point: Pick<PlotCrosshair, 'x' | 'yRatio'>,
+	point: Pick<PlotCrosshair, 'x' | 'fitY'>,
 	axis: CrosshairDragAxis
 ): PlotCrosshair {
 	return {
 		...crosshair,
 		x: axis === 'y' ? crosshair.x : point.x,
-		yRatio: axis === 'x' ? crosshair.yRatio : point.yRatio
+		fitY: axis === 'x' ? crosshair.fitY : point.fitY
 	};
 }

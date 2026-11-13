@@ -94,13 +94,6 @@ export function dataPointAtRatio(viewport: PlotViewport, point: PlotRatioPoint):
 	};
 }
 
-export function ratioAtDataPoint(viewport: PlotViewport, point: PlotPoint) {
-	return {
-		xRatio: (point.x - viewport.xMin) / (viewport.xMax - viewport.xMin),
-		yRatio: (viewport.yMax - point.y) / (viewport.yMax - viewport.yMin)
-	};
-}
-
 export function viewportsAlmostEqual(a: PlotViewport | null, b: PlotViewport | null): boolean {
 	if (a === null || b === null) return a === b;
 	return (

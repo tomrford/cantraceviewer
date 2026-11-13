@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import type { CanTraceClient } from 'cantraceviewer';
 import { afterAll, afterEach, expect, it, vi } from 'vitest';
 
-import { crosshairYRatio } from '@/lib/plot/plot-crosshair';
+import { crosshairViewRatio } from '@/lib/plot/plot-crosshair';
 import { plotSeriesForViews } from '@/lib/plot/plot-series';
 import { PlotWindow } from '@/lib/plot/plot-window';
 import type { WindowedSignalView } from '@/lib/plot/signal-plot-data';
@@ -89,7 +89,7 @@ it('opens a replacement trace at the full extent without the previous markers', 
 	await load();
 	// Nothing is plotted, so this view sits on the trace-duration domain, as WebMCP can set it.
 	setViewport({ xMin: 10, xMax: 20, yMin: 0, yMax: 1 });
-	setCrosshairs([{ id: 1, x: 15, yRatio: 0.5 }]);
+	setCrosshairs([{ id: 1, x: 15, fitY: 0.5 }]);
 	expect(appStore.getState().isFitAll).toBe(false);
 	expect(appStore.getState().crosshairs).toHaveLength(1);
 
@@ -172,7 +172,7 @@ it('keeps cursor heights through axis moves and recovers off-screen cursors afte
 	placeCrosshair(2);
 	const visibleHeights = () => {
 		const { crosshairs, yWindow } = appStore.getState();
-		return crosshairs.map((marker) => crosshairYRatio(marker, yWindow));
+		return crosshairs.map((marker) => crosshairViewRatio(marker, yWindow));
 	};
 	const times = () => storeHost.view().crosshairs.map((marker) => marker.timeMs);
 	expect(visibleHeights()).toEqual([expect.closeTo(0.25), expect.closeTo(0.75)]);
