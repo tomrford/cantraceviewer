@@ -208,7 +208,7 @@ export function PlotInteraction({
 				ref={buttonRef}
 				type="button"
 				data-export-ignore
-				className={`absolute inset-0 z-30 border-0 bg-transparent p-0 text-left outline-none ${
+				className={`absolute inset-0 z-30 touch-none border-0 bg-transparent p-0 text-left outline-none ${
 					boxZoomEnabled ? 'cursor-crosshair' : panning ? 'cursor-grabbing' : 'cursor-grab'
 				}`}
 				aria-label="Plot viewport interaction"

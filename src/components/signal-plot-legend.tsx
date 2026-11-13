@@ -39,6 +39,9 @@ import { addAxis, assignAxis, assignToNewAxis, canAddAxis, removeAxis } from '@/
 import { setLegendCrosshairMode } from '@/store/plot-view';
 import { useAppStore, type AppState } from '@/store/store';
 
+// A private type, so axis groups ignore files and text dragged in from elsewhere.
+const SIGNAL_DRAG_TYPE = 'application/x-cantraceviewer-signal';
+
 /**
  * Plot legend: signals grouped by Y axis with crosshair readouts and axis management. Readouts
  * are selected per row and per axis header, so a crosshair drag re-renders only changed values.
@@ -182,6 +185,7 @@ function LegendAxisGroup({
 	const [dropActive, setDropActive] = useState(false);
 
 	function allowDrop(event: DragEvent) {
+		if (!event.dataTransfer.types.includes(SIGNAL_DRAG_TYPE)) return;
 		event.preventDefault();
 		event.dataTransfer.dropEffect = 'move';
 		setDropActive(true);
@@ -190,7 +194,7 @@ function LegendAxisGroup({
 	function drop(event: DragEvent) {
 		event.preventDefault();
 		setDropActive(false);
-		const signalKey = event.dataTransfer.getData('text/plain');
+		const signalKey = event.dataTransfer.getData(SIGNAL_DRAG_TYPE);
 		if (signalKey) assignAxis(signalKey, axis.id);
 	}
 
@@ -263,7 +267,7 @@ function LegendSignalRow({
 
 	function startDrag(event: DragEvent) {
 		if (!movable) return;
-		event.dataTransfer.setData('text/plain', signal.key);
+		event.dataTransfer.setData(SIGNAL_DRAG_TYPE, signal.key);
 		event.dataTransfer.effectAllowed = 'move';
 		// Only the grip starts a drag, but what follows the pointer is the whole row.
 		const row = event.currentTarget.closest('li');

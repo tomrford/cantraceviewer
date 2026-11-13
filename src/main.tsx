@@ -3,6 +3,7 @@ import { StrictMode } from 'react';
 import { createRoot, hydrateRoot } from 'react-dom/client';
 
 import { App } from '@/app';
+import { refuseStrayFileDrops } from '@/lib/file-drop';
 import { mountWebMcp } from '@/lib/webmcp';
 import { loadDbcLibrary } from '@/store/dbc-files';
 import { connectPreferences } from '@/store/preferences';
@@ -11,6 +12,7 @@ import { connectPreferences } from '@/store/preferences';
 connectPreferences();
 void loadDbcLibrary();
 mountWebMcp();
+refuseStrayFileDrops();
 
 const container = document.getElementById('app');
 if (!container) throw new Error('missing #app container');

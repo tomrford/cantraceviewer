@@ -10,7 +10,7 @@ Place C1/C2 and compare nearest decoded samples, or inspect explicit times witho
 
 ## How to get to it (user POV)
 
-- `Manage crosshairs` → `Place C1`/`Place C2`, then `Center C1`/`Center C2`, or `Clear all`.
+- `Manage crosshairs` → `Place C1`/`Place C2`, then `Centre C1`/`Centre C2`, or `Clear all`.
 - 1, 2, C; palette; plot context-menu Crosshairs and marker dragging/removal.
 - Legend `Value at C1`, `Value at C2`, `Delta C2 − C1`.
 - Public `inspect_at_times`, `set_crosshairs`, `describe_session`.

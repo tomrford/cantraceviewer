@@ -32,7 +32,6 @@
 	--radius: 0.625rem;
 	--sidebar-primary: oklch(0.596 0.145 163.225);
 	--sidebar-primary-foreground: oklch(0.979 0.021 166.113);
-	--sidebar-ring: oklch(0.708 0 0);
 }
 
 .dark {
@@ -54,14 +53,12 @@
 	--ring: oklch(0.556 0 0);
 	--sidebar-primary: oklch(0.696 0.17 162.48);
 	--sidebar-primary-foreground: oklch(0.262 0.051 172.552);
-	--sidebar-ring: oklch(0.556 0 0);
 }
 
 @theme inline {
 	--font-sans: 'Geist Variable', sans-serif;
 	--font-mono: 'Geist Mono Variable', monospace;
 	--font-heading: 'Geist Variable', sans-serif;
-	--color-sidebar-ring: var(--sidebar-ring);
 	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
 	--color-sidebar-primary: var(--sidebar-primary);
 	--color-ring: var(--ring);

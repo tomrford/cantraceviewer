@@ -31,8 +31,8 @@ export function HelpDialog() {
 					<DialogTitle>CAN Trace Viewer</DialogTitle>
 					<DialogDescription className="space-y-2 text-left text-pretty">
 						<span className="block">
-							All files, preferences and saved settings are processed and stored solely in this
-							browser's local storage. Nothing leaves your machine.
+							Files are processed in this browser and nothing leaves your machine. Saved DBC files
+							and preferences are stored in this browser only.
 						</span>
 						<span className="block">
 							Load one {TRACE_FILE_FORMAT_NAMES} trace, add one or more DBC files, then select

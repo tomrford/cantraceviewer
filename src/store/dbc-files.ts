@@ -15,7 +15,6 @@ import { appStore, update } from '@/store/store';
 let libraryOperation = Promise.resolve();
 
 export function addDbcFiles(files: Iterable<File>): Promise<void> {
-	if (appStore.getState().dbcLoading) return Promise.resolve();
 	return runLibraryOperation(() => importFiles(files));
 }
 
@@ -41,7 +40,10 @@ export async function clearDbcFiles(): Promise<void> {
 export function resetDbcLibrary(): Promise<void> {
 	return runLibraryOperation(async () => {
 		update({ dbcError: null, hasLoadedLibrary: true });
-		await clearDbcFiles();
+		// DBCs embedded in the open trace are not saved, so they stay with it.
+		const { dbcFiles } = appStore.getState();
+		update({ dbcFiles: dbcFiles.filter((file) => file.origin !== 'library') });
+		await closeEntries(dbcFiles.filter((file) => file.origin === 'library'));
 		await resetStoredDbcs();
 	});
 }

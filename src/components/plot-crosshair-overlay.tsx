@@ -35,7 +35,10 @@ export function PlotCrosshairOverlay({
 	onContextMenuPoint: (point: PlotPoint | null, id: CrosshairId) => void;
 }) {
 	const crosshair = useAppStore((s) => crosshairById(s.crosshairs, id));
-	const viewport = useAppStore((s) => s.activeViewport);
+	// Unplaced crosshairs render nothing, so they need not follow the viewport as it pans.
+	const viewport = useAppStore((s) =>
+		crosshairById(s.crosshairs, id) === null ? null : s.activeViewport
+	);
 	const grid = useAppStore((s) => s.plotModel.grid);
 	const track = useRef<HTMLDivElement>(null);
 
@@ -92,7 +95,7 @@ export function PlotCrosshairOverlay({
 					<button
 						key={handle.axis}
 						type="button"
-						className={`pointer-events-auto absolute border-0 bg-transparent p-0 ${handle.className}`}
+						className={`pointer-events-auto absolute touch-none border-0 bg-transparent p-0 ${handle.className}`}
 						style={handle.axis === 'x' ? { left: position } : { top: position }}
 						aria-label={`Crosshair ${id} ${handle.label}`}
 						onContextMenu={rememberContextMenuPoint}
@@ -107,7 +110,7 @@ export function PlotCrosshairOverlay({
 			{percent.x !== null && percent.y !== null && (
 				<button
 					type="button"
-					className="pointer-events-auto absolute z-10 size-6 -translate-1/2 cursor-move border-0 bg-transparent p-0"
+					className="pointer-events-auto absolute z-10 size-6 -translate-1/2 cursor-move touch-none border-0 bg-transparent p-0"
 					style={{ left: percent.x, top: percent.y }}
 					aria-label={`Move crosshair ${id}`}
 					onContextMenu={rememberContextMenuPoint}
