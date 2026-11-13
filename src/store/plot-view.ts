@@ -1,5 +1,14 @@
-import type { CrosshairId, LegendCrosshairMode, PlotCrosshair } from '@/lib/plot/plot-crosshair';
-import { removeCrosshair, setCrosshair } from '@/lib/plot/plot-crosshair';
+import {
+	crosshairAt,
+	crosshairById,
+	moveCrosshair,
+	removeCrosshair,
+	setCrosshair,
+	type CrosshairDragAxis,
+	type CrosshairId,
+	type LegendCrosshairMode,
+	type PlotCrosshair
+} from '@/lib/plot/plot-crosshair';
 import type { PlotRatioPoint } from '@/lib/plot/plot-pointer';
 import {
 	advanceYWindow,
@@ -9,8 +18,11 @@ import {
 	viewportCenter,
 	viewportsAlmostEqual,
 	zoomViewport,
+	type PlotPoint,
 	type PlotViewport
 } from '@/lib/plot/plot-viewport';
+import { PRIMARY_Y_AXIS_ID } from '@/lib/plot/y-axis';
+import { axisFitRange } from '@/store/derive';
 import { appStore, FIT, update } from '@/store/store';
 
 const CENTER: PlotRatioPoint = { xRatio: 0.5, yRatio: 0.5 };
@@ -63,9 +75,21 @@ export function resetZoom(): void {
 }
 
 /** Add or move a crosshair; ignored while nothing is plottable. */
-export function upsertCrosshair(crosshair: PlotCrosshair): void {
-	const { hasPlottableSignals, crosshairs } = appStore.getState();
-	if (hasPlottableSignals) update({ crosshairs: setCrosshair(crosshairs, crosshair) });
+export function upsertCrosshair(
+	point: PlotPoint & { id: CrosshairId },
+	axis: CrosshairDragAxis = 'both'
+): void {
+	const { hasPlottableSignals, crosshairs, plotModel } = appStore.getState();
+	const primaryFit = axisFitRange(plotModel, PRIMARY_Y_AXIS_ID);
+	if (!hasPlottableSignals || primaryFit === null) return;
+	const crosshair = crosshairAt(point, primaryFit);
+	const current = crosshairById(crosshairs, point.id);
+	update({
+		crosshairs: setCrosshair(
+			crosshairs,
+			current === null ? crosshair : moveCrosshair(current, crosshair, axis)
+		)
+	});
 }
 
 /** Place a crosshair at the plot pointer (or the viewport centre when off the plot / `'center'`). */

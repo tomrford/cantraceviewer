@@ -3,15 +3,26 @@ import { readFile } from 'node:fs/promises';
 import type { CanTraceClient } from 'cantraceviewer';
 import { afterAll, afterEach, expect, it, vi } from 'vitest';
 
+import { crosshairViewRatio } from '@/lib/plot/plot-crosshair';
 import { plotSeriesForViews } from '@/lib/plot/plot-series';
 import { PlotWindow } from '@/lib/plot/plot-window';
 import type { WindowedSignalView } from '@/lib/plot/signal-plot-data';
 import { closeTrace } from '@/lib/wasm';
+import { storeHost } from '@/lib/webmcp';
 import { startTraceSession } from '@/store/app-shell';
 import { addDbcFiles, clearDbcFiles } from '@/store/dbc-files';
 import { addAxis, assignAxis, removeAxis } from '@/store/plot-axes';
 import { clearSelectedSignals, toggleSignal } from '@/store/plot-data';
-import { panBy, resetZoom, setCrosshairs, setViewport, zoomBy } from '@/store/plot-view';
+import {
+	panBy,
+	placeCrosshair,
+	resetZoom,
+	setCrosshairs,
+	setPointerRatio,
+	setViewport,
+	upsertCrosshair,
+	zoomBy
+} from '@/store/plot-view';
 import { appStore, update } from '@/store/store';
 import { loadTraceFile } from '@/store/trace-file';
 
@@ -30,6 +41,7 @@ vi.mock('cantraceviewer', async () => {
 
 afterEach(async () => {
 	vi.useRealTimers();
+	setPointerRatio(null);
 	clearSelectedSignals();
 	await clearDbcFiles();
 });
@@ -77,7 +89,7 @@ it('opens a replacement trace at the full extent without the previous markers', 
 	await load();
 	// Nothing is plotted, so this view sits on the trace-duration domain, as WebMCP can set it.
 	setViewport({ xMin: 10, xMax: 20, yMin: 0, yMax: 1 });
-	setCrosshairs([{ id: 1, x: 15, y: 0.5 }]);
+	setCrosshairs([{ id: 1, x: 15, fitY: 0.5 }]);
 	expect(appStore.getState().isFitAll).toBe(false);
 	expect(appStore.getState().crosshairs).toHaveLength(1);
 
@@ -146,6 +158,54 @@ it('keeps proportional zoom and selection ownership through axis and signal chan
 	await toggleSignal(second);
 	expect(appStore.getState().signals[0].color).toBe(firstColor);
 	expect(appStore.getState().axisIds).toEqual(['y', emptyAxis]);
+});
+
+it('keeps cursor heights through axis moves and recovers off-screen cursors after panning back', async () => {
+	const [first, second] = await load();
+	await toggleSignal(first);
+	await toggleSignal(second);
+	const secondary = addAxis()!;
+	assignAxis(second, secondary);
+	setPointerRatio({ xRatio: 0.25, yRatio: 0.25 });
+	placeCrosshair(1);
+	setPointerRatio({ xRatio: 0.75, yRatio: 0.75 });
+	placeCrosshair(2);
+	const visibleHeights = () => {
+		const { crosshairs, yWindow } = appStore.getState();
+		return crosshairs.map((marker) => crosshairViewRatio(marker, yWindow));
+	};
+	const times = () => storeHost.view().crosshairs.map((marker) => marker.timeMs);
+	expect(visibleHeights()).toEqual([expect.closeTo(0.25), expect.closeTo(0.75)]);
+	expect(times()).toEqual([25, 75]);
+	// The first channel fits 9.95..11.05; a quarter down is 10.775.
+	expect(storeHost.view().crosshairs[0].value).toBeCloseTo(10.775);
+	assignAxis(first, secondary);
+	expect(visibleHeights()).toEqual([expect.closeTo(0.25), expect.closeTo(0.75)]);
+	expect(times()).toEqual([25, 75]);
+	assignAxis(second, 'y');
+	expect(visibleHeights()).toEqual([expect.closeTo(0.25), expect.closeTo(0.75)]);
+	// The second channel now fits 19.95..21.05; the same height reads 20.775.
+	expect(storeHost.view().crosshairs[0].value).toBeCloseTo(20.775);
+
+	const markers = structuredClone(appStore.getState().crosshairs);
+	panBy({ x: 0, y: 200 }, { width: 100, height: 100 });
+	expect(visibleHeights()).toEqual([expect.closeTo(2.25), expect.closeTo(2.75)]);
+	expect(appStore.getState().crosshairs).toEqual(markers);
+	assignAxis(second, secondary);
+	expect(visibleHeights()).toEqual([expect.closeTo(2.25), expect.closeTo(2.75)]);
+	panBy({ x: 0, y: -200 }, { width: 100, height: 100 });
+	expect(visibleHeights()).toEqual([expect.closeTo(0.25), expect.closeTo(0.75)]);
+	expect(times()).toEqual([25, 75]);
+
+	// Placing a marker in a panned view can give it a position outside the unzoomed fit.
+	panBy({ x: 0, y: 200 }, { width: 100, height: 100 });
+	upsertCrosshair({ id: 1, x: 25, y: 2.75 });
+	expect(visibleHeights()[0]).toBeCloseTo(0.25);
+	panBy({ x: 0, y: -200 }, { width: 100, height: 100 });
+	expect(visibleHeights()[0]).toBeCloseTo(-1.75);
+	panBy({ x: 0, y: 200 }, { width: 100, height: 100 });
+	expect(visibleHeights()[0]).toBeCloseTo(0.25);
+	expect(times()).toEqual([25, 75]);
 });
 
 it('budgets decoded render data, settles to every visible sample and follows a distant pan', async () => {

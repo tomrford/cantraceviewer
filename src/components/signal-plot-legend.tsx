@@ -22,7 +22,7 @@ import {
 	type LegendCrosshairMode,
 	type PlotCrosshair
 } from '@/lib/plot/plot-crosshair';
-import { ratioInRange, valueAtRatio } from '@/lib/plot/plot-viewport';
+import { valueAtRatio } from '@/lib/plot/plot-viewport';
 import {
 	crosshairDeltaValue,
 	crosshairValue,
@@ -34,7 +34,7 @@ import {
 import { PRIMARY_Y_AXIS_ID, type YAxisId } from '@/lib/plot/y-axis';
 import type { DecodedPlotSignal } from '@/lib/signal';
 import { cn } from '@/lib/utils';
-import type { PlotAxisView } from '@/store/derive';
+import { axisFitRange, type PlotAxisView } from '@/store/derive';
 import { addAxis, assignAxis, assignToNewAxis, canAddAxis, removeAxis } from '@/store/plot-axes';
 import { setLegendCrosshairMode } from '@/store/plot-view';
 import { useAppStore, type AppState } from '@/store/store';
@@ -151,6 +151,7 @@ function LegendReadout({ multiAxis }: { multiAxis: boolean }) {
 	const mode = useAppStore((s) => s.legendCrosshairMode);
 	const timestampMode = useAppStore((s) => s.timestampMode);
 	const measurementStartMs = useAppStore((s) => s.trace?.metadata.measurementStartMs);
+	const cursorText = useAppStore((s) => (multiAxis ? null : axisCursorText(s, PRIMARY_Y_AXIS_ID)));
 	const c1 = crosshairById(crosshairs, 1);
 	const c2 = crosshairById(crosshairs, 2);
 
@@ -158,7 +159,7 @@ function LegendReadout({ multiAxis }: { multiAxis: boolean }) {
 		return (
 			<div className="mt-2 font-mono text-xs text-muted-foreground tabular-nums">
 				C2 − C1 · Δt {formatTimeDelta(c2.x - c1.x)}
-				{multiAxis ? '' : ` · Δy ${yText(c2.y - c1.y)}`}
+				{cursorText === null ? '' : ` · ${cursorText}`}
 			</div>
 		);
 	}
@@ -167,7 +168,7 @@ function LegendReadout({ multiAxis }: { multiAxis: boolean }) {
 	return (
 		<div className="mt-2 font-mono text-xs text-muted-foreground tabular-nums">
 			C{active.id} · {formatAxisTime(active.x, { measurementStartMs, mode: timestampMode })}
-			{multiAxis ? '' : ` · y ${yText(active.y)}`}
+			{cursorText === null ? '' : ` · ${cursorText}`}
 		</div>
 	);
 }
@@ -378,21 +379,19 @@ function legendValue(
 }
 
 function axisCursorText(state: AppState, axisId: YAxisId) {
-	const range = state.axisRanges.get(axisId);
-	const primaryRange = state.axisRanges.get(PRIMARY_Y_AXIS_ID);
-	if (range === undefined || primaryRange === undefined) return null;
+	const range = axisFitRange(state.plotModel, axisId);
+	if (range === null) return null;
 	const c1 = crosshairById(state.crosshairs, 1);
 	const c2 = crosshairById(state.crosshairs, 2);
 
 	if (state.legendCrosshairMode === 'delta') {
 		if (c1 === null || c2 === null) return null;
-		const rowSpan = ratioInRange(primaryRange, c1.y) - ratioInRange(primaryRange, c2.y);
-		return `Δy ${yText(rowSpan * (range.max - range.min))}`;
+		return `Δy ${yText((c1.fitY - c2.fitY) * (range.max - range.min))}`;
 	}
 
 	const active = state.legendCrosshairMode === 'c1' ? c1 : c2;
 	if (active === null) return null;
-	return `y ${yText(valueAtRatio(range, ratioInRange(primaryRange, active.y)))}`;
+	return `y ${yText(valueAtRatio(range, active.fitY))}`;
 }
 
 function yText(value: number): string {

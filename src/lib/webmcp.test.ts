@@ -171,7 +171,7 @@ describe('WebMCP shared plot', () => {
 	const axes = () => appStore.getState();
 	const viewport = () => appStore.getState();
 	const state = () => ({
-		crosshairs: appStore.getState().crosshairs,
+		crosshairs: storeHost.view().crosshairs,
 		readout: appStore.getState().legendCrosshairMode
 	});
 
@@ -215,8 +215,8 @@ describe('WebMCP shared plot', () => {
 		});
 		expect(state()).toEqual({
 			crosshairs: [
-				{ id: 1, x: 4, y: 1000 },
-				{ id: 2, x: 16, y: 4400 }
+				{ id: 1, timeMs: 4, value: expect.closeTo(1000) },
+				{ id: 2, timeMs: 16, value: expect.closeTo(4400) }
 			],
 			readout: 'delta'
 		});
@@ -252,11 +252,11 @@ describe('WebMCP shared plot', () => {
 			await tools.set_crosshairs.execute({ crosshairs: [{ id: 1, timeMs: -10 }] })
 		).toMatchObject({
 			clamped: true,
-			view: { crosshairs: [{ id: 1, timeMs: 0, value: 1200 }], readout: 'c1' }
+			view: { crosshairs: [{ id: 1, timeMs: 0, value: expect.closeTo(1200) }], readout: 'c1' }
 		});
 		await tools.set_crosshairs.execute({ crosshairs: [{ id: 2, timeMs: 50 }] });
 		expect(state().readout).toBe('c2');
-		expect(state().crosshairs[0].x).toBe(20);
+		expect(state().crosshairs[0].timeMs).toBe(20);
 		await tools.set_crosshairs.execute({ crosshairs: [] });
 		expect(state()).toEqual({ crosshairs: [], readout: 'c1' });
 		await expect(tools.inspect_at_times.execute({})).rejects.toThrow('Place crosshairs');
@@ -284,9 +284,14 @@ describe('WebMCP shared plot', () => {
 	it('preserves Y zoom on time changes and resets all ranges on an empty request', async () => {
 		const { tools } = plot();
 		setViewport({ xMin: 5, xMax: 15, yMin: 2000, yMax: 6000 });
+		await tools.set_crosshairs.execute({ crosshairs: [{ id: 1, timeMs: 10, value: 3000 }] });
 		expect(await tools.set_time_window.execute({ startMs: -10, endMs: 40 })).toMatchObject({
 			clamped: true,
-			view: { isFullTimeRange: true, axes: [{ axis: 1, range: { min: 2000, max: 6000 } }] }
+			view: {
+				isFullTimeRange: true,
+				axes: [{ axis: 1, range: { min: 2000, max: 6000 } }],
+				crosshairs: [{ id: 1, timeMs: 10, value: expect.closeTo(3000) }]
+			}
 		});
 		await expect(tools.set_time_window.execute({ startMs: 10 })).rejects.toThrow();
 		await expect(tools.set_time_window.execute({ startMs: 2, endMs: 2 })).rejects.toThrow(
@@ -295,6 +300,9 @@ describe('WebMCP shared plot', () => {
 		await tools.set_time_window.execute({});
 		expect(viewport().isFitAll).toBe(true);
 		expect(viewport().activeViewport).toEqual({ xMin: 0, xMax: 20, yMin: 0, yMax: 8800 });
+		expect(storeHost.view().crosshairs).toEqual([
+			{ id: 1, timeMs: 10, value: expect.closeTo(3000) }
+		]);
 	});
 
 	it('uses real legend axis assignments, repeats without creating extra axes and preserves empty axes', async () => {

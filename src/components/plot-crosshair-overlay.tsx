@@ -2,12 +2,12 @@ import { useRef, type MouseEvent, type PointerEvent } from 'react';
 
 import {
 	crosshairById,
-	moveCrosshair,
+	crosshairViewRatio,
 	type CrosshairDragAxis,
 	type CrosshairId
 } from '@/lib/plot/plot-crosshair';
 import { ratioInArea } from '@/lib/plot/plot-pointer';
-import { dataPointAtRatio, ratioAtDataPoint, type PlotPoint } from '@/lib/plot/plot-viewport';
+import { dataPointAtRatio, type PlotPoint } from '@/lib/plot/plot-viewport';
 import { upsertCrosshair } from '@/store/plot-view';
 import { appStore, useAppStore } from '@/store/store';
 
@@ -36,9 +36,9 @@ export function PlotCrosshairOverlay({
 }) {
 	const crosshair = useAppStore((s) => crosshairById(s.crosshairs, id));
 	// Unplaced crosshairs render nothing, so they need not follow the viewport as it pans.
-	const viewport = useAppStore((s) =>
-		crosshairById(s.crosshairs, id) === null ? null : s.activeViewport
-	);
+	const placed = crosshair !== null;
+	const viewport = useAppStore((s) => (placed ? s.activeViewport : null));
+	const yWindow = useAppStore((s) => (placed ? s.yWindow : null));
 	const grid = useAppStore((s) => s.plotModel.grid);
 	const track = useRef<HTMLDivElement>(null);
 
@@ -68,18 +68,17 @@ export function PlotCrosshairOverlay({
 	function moveTo(axis: CrosshairDragAxis, event: PointerEvent) {
 		const current = crosshairById(appStore.getState().crosshairs, id);
 		const point = pointAt(event);
-		if (current !== null && point !== null) upsertCrosshair(moveCrosshair(current, point, axis));
+		if (current !== null && point !== null) upsertCrosshair({ id, ...point }, axis);
 	}
 
 	function rememberContextMenuPoint(event: MouseEvent) {
 		onContextMenuPoint(pointAt(event), id);
 	}
 
-	if (crosshair === null || viewport === null) return null;
-	const ratio = ratioAtDataPoint(viewport, crosshair);
+	if (crosshair === null || viewport === null || yWindow === null) return null;
 	const percent = {
-		x: ratio.xRatio >= 0 && ratio.xRatio <= 1 ? `${ratio.xRatio * 100}%` : null,
-		y: ratio.yRatio >= 0 && ratio.yRatio <= 1 ? `${ratio.yRatio * 100}%` : null
+		x: visiblePercent((crosshair.x - viewport.xMin) / (viewport.xMax - viewport.xMin)),
+		y: visiblePercent(crosshairViewRatio(crosshair, yWindow))
 	};
 
 	return (
@@ -125,4 +124,8 @@ export function PlotCrosshairOverlay({
 			)}
 		</div>
 	);
+}
+
+function visiblePercent(ratio: number): string | null {
+	return ratio >= 0 && ratio <= 1 ? `${ratio * 100}%` : null;
 }

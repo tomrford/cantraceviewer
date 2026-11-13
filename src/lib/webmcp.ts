@@ -1,5 +1,7 @@
 import { displayDbcName } from '@/lib/dbc-file-types';
-import type { LegendCrosshairMode } from '@/lib/plot/plot-crosshair';
+import { crosshairAt, crosshairById, type LegendCrosshairMode } from '@/lib/plot/plot-crosshair';
+import { valueAtRatio } from '@/lib/plot/plot-viewport';
+import { EMPTY_AXIS_RANGE } from '@/lib/plot/signal-plot-data';
 import { PRIMARY_Y_AXIS_ID } from '@/lib/plot/y-axis';
 import { countSignals } from '@/lib/utils';
 import {
@@ -8,10 +10,16 @@ import {
 	type WebMcpTimeRange,
 	type WebMcpTool
 } from '@/lib/webmcp-tools';
+import { axisFitRange } from '@/store/derive';
 import { addAxis, assignAxis } from '@/store/plot-axes';
 import { isSignalSelected, signalDecodeStatus, toggleSignal } from '@/store/plot-data';
 import { resetZoom, setCrosshairs, setViewport } from '@/store/plot-view';
-import { appStore } from '@/store/store';
+import { appStore, type AppState } from '@/store/store';
+
+/** WebMCP cursor values are in primary-axis units; before anything is plotted that axis is 0-1. */
+function primaryFitRange(state: AppState) {
+	return axisFitRange(state.plotModel, PRIMARY_Y_AXIS_ID) ?? EMPTY_AXIS_RANGE;
+}
 
 export type ModelContext = {
 	registerTool: (tool: WebMcpTool, options?: { signal?: AbortSignal }) => Promise<void>;
@@ -50,13 +58,10 @@ async function registerTools(
 /** WebMCP host backed directly by the app stores, so tools see the same plot as the page. */
 export const storeHost = {
 	view: () => {
-		const domain = appStore.getState().plotModel.fullDomain;
-		const {
-			activeViewport: active,
-			axisRanges,
-			crosshairs,
-			legendCrosshairMode
-		} = appStore.getState();
+		const state = appStore.getState();
+		const domain = state.plotModel.fullDomain;
+		const { activeViewport: active, axisRanges, crosshairs, legendCrosshairMode } = state;
+		const primaryFit = primaryFitRange(state);
 		return {
 			timeDomainMs: domain === null ? null : { startMs: domain.xMin, endMs: domain.xMax },
 			timeWindowMs: active === null ? null : { startMs: active.xMin, endMs: active.xMax },
@@ -66,7 +71,11 @@ export const storeHost = {
 				axis: index + 1,
 				range: axisRanges.get(id) ?? null
 			})),
-			crosshairs: crosshairs.map(({ id, x, y }) => ({ id, timeMs: x, value: y })),
+			crosshairs: crosshairs.map(({ id, x, fitY }) => ({
+				id,
+				timeMs: x,
+				value: valueAtRatio(primaryFit, fitY)
+			})),
 			readout: legendCrosshairMode
 		};
 	},
@@ -79,15 +88,17 @@ export const storeHost = {
 		return applied === null ? null : { startMs: applied.xMin, endMs: applied.xMax };
 	},
 	setCrosshairs: (markers: WebMcpCrosshairInput[], readout?: LegendCrosshairMode) => {
-		const { activeViewport: active, crosshairs } = appStore.getState();
-		const centreY = active === null ? 0 : (active.yMin + active.yMax) / 2;
+		const state = appStore.getState();
+		const primaryFit = primaryFitRange(state);
+		// Without a value, a marker keeps its height or starts at the middle of the view.
+		const centreFitY = (state.yWindow.top + state.yWindow.bottom) / 2;
 		setCrosshairs(
 			markers
-				.map(({ id, timeMs, value }) => ({
-					id,
-					x: timeMs,
-					y: value ?? crosshairs.find((marker) => marker.id === id)?.y ?? centreY
-				}))
+				.map(({ id, timeMs, value }) =>
+					value === undefined
+						? { id, x: timeMs, fitY: crosshairById(state.crosshairs, id)?.fitY ?? centreFitY }
+						: crosshairAt({ id, x: timeMs, y: value }, primaryFit)
+				)
 				.sort((a, b) => a.id - b.id),
 			readout
 		);

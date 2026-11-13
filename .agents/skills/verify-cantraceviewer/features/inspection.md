@@ -21,6 +21,7 @@ Preconditions: demo trace/DBC, selected vehicle_speed, discovered tools for exac
 
 - **Samples:** inspect `timesMs:[10,110]` with discovered vehicle_speed key. Require sample times 10/110 ms and values 100/123.4 km/h within floating-point tolerance; delta 23.4 if returned. Capture distances. Inspect 60 ms to record nearest/tie behaviour without asserting interpolation. Session before/after must retain viewport/markers.
 - **UI:** `Manage crosshairs` → `Place C1`, repeat C2. Capture lines and legend choices; switch readouts, drag a marker and require changed time/value, then `Clear all`. Context menu/keys are distinct paths.
+- **Position through rescaling:** place C1/C2 at distinct heights and record their timestamps and positions as fractions of the plot area. Move signals between Y axes through the move menu, including emptying and repopulating Y1. Both heights and timestamps must stay unchanged; populated-axis cursor values follow their new scales. Pan vertically until the horizontal cursor lines leave the plot, then pan back and require the original positions and timestamps. Repeat an axis move while the cursors are off-screen before panning back. A cursor placed in a panned view must also leave and return without its position being clamped.
 - **Tools:** set `crosshairs:[{id:1,timeMs:10},{id:2,timeMs:110}],readout:"delta"`; require unchanged time window, correct screenshot/session/legend. Inspect without times reads C1/C2 order. Clear with `crosshairs:[]` and confirm absence.
 
 ## Gotchas
