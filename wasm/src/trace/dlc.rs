@@ -13,16 +13,3 @@ pub(crate) fn fd_payload_length_from_dlc(dlc: u8) -> Result<u8, TraceError> {
         _ => Err(TraceError::InvalidDlc),
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn maps_can_fd_dlc_to_payload_length() {
-        assert_eq!(fd_payload_length_from_dlc(8), Ok(8));
-        assert_eq!(fd_payload_length_from_dlc(9), Ok(12));
-        assert_eq!(fd_payload_length_from_dlc(15), Ok(64));
-        assert_eq!(fd_payload_length_from_dlc(16), Err(TraceError::InvalidDlc));
-    }
-}

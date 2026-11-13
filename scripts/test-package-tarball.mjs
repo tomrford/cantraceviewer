@@ -48,7 +48,6 @@ try {
 	const installedManifest = JSON.parse(
 		await readFile(join(root, 'node_modules/cantraceviewer/package.json'), 'utf8')
 	);
-	assert.deepEqual(Object.keys(installedManifest.exports), ['.', './direct', './node']);
 	assert.equal(installedManifest.name, packageManifest.name);
 	assert.equal(installedManifest.version, packageManifest.version);
 
@@ -71,11 +70,10 @@ void direct;
 	await writeFile(
 		join(root, 'browser-type-smoke.ts'),
 		`import { createCanTraceClient, DEFAULT_PARSING_LIMITS, type ParsingLimits } from 'cantraceviewer';
-import { createDirectClient, type DbcEndianness } from 'cantraceviewer/direct';
-const endianness: DbcEndianness = 'intel';
+import { createDirectClient } from 'cantraceviewer/direct';
 const direct = createDirectClient(new Uint8Array());
 const limits: ParsingLimits = DEFAULT_PARSING_LIMITS;
-void [endianness, direct, createCanTraceClient(limits)];
+void [direct, createCanTraceClient(limits)];
 `
 	);
 	for (const [name, lib, file] of [

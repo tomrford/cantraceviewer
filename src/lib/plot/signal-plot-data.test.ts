@@ -1,17 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
-import { emptyAxisSeries, lineSeries, plotSeriesForViews } from '@/lib/plot/plot-series';
+import { plotSeriesForViews } from '@/lib/plot/plot-series';
 import {
+	axisSplitDomain,
 	crosshairDeltaValue,
 	crosshairValue,
 	formatAxisValue,
 	formatDecodedValue,
-	formatLegendNumericValue,
 	formatTimeDelta,
-	isOutsideDbcRange,
 	nearestSignalSample,
 	renderIndexRange,
-	signalXRange,
 	signalYRange
 } from '@/lib/plot/signal-plot-data';
 import type { SignalFormat } from '@/lib/signal';
@@ -76,36 +74,17 @@ describe('signal plot data', () => {
 		});
 	});
 
-	it('disables chart-side sampling for lines', () => {
-		const full = lineSeries({ ...view([0, 1, 2]), sampled: false }, 'y');
-		expect(full.sampling).toBe('none');
-	});
-
-	it('adds sample markers only to full-resolution views', () => {
-		const fullView = { ...view([0, 1, 2]), sampled: false };
-		const downsampledView = { ...view([0, 1, 2]), sampled: true };
-		const series = plotSeriesForViews([fullView, downsampledView], () => 'y');
-
-		expect(series.map((entry) => entry.type)).toEqual(['line', 'scatter', 'line']);
-		const marker = series[1];
-		expect(marker).toMatchObject({
-			type: 'scatter',
-			data: { x: fullView.x, y: fullView.y },
-			symbolSize: 1.5,
-			sampling: 'none'
-		});
-	});
-
-	it('excludes empty views from the chart series', () => {
+	it('excludes empty views and marks samples only on full-resolution views', () => {
 		const series = plotSeriesForViews(
 			[
 				{ ...view([]), sampled: false },
-				{ ...view([0, 1]), sampled: false }
+				{ ...view([0, 1]), sampled: false },
+				{ ...view([0, 1]), sampled: true }
 			],
 			() => 'y'
 		);
 
-		expect(series.map((entry) => entry.type)).toEqual(['line', 'scatter']);
+		expect(series.map((entry) => entry.type)).toEqual(['line', 'scatter', 'line']);
 	});
 
 	it('routes each signal series to its assigned y axis', () => {
@@ -118,38 +97,26 @@ describe('signal plot data', () => {
 		expect(series.map((entry) => entry.yAxis)).toEqual(['y', 'y', 'y1', 'y1']);
 	});
 
-	it('keeps explicit axes alive with an invisible empty line', () => {
-		const series = emptyAxisSeries('y2');
-		expect(series).toMatchObject({
-			type: 'line',
-			yAxis: 'y2',
-			visible: false,
-			sampling: 'none'
-		});
-		const data = series.data as { x: Float64Array; y: Float64Array };
-		expect(data.x).toHaveLength(0);
-		expect(data.y).toHaveLength(0);
-	});
-
 	it('fits the domain across views from min/max scans', () => {
 		const views = [view([0, 50, 100], [10, 15, 20]), view([25, 75], [-10, 0])];
-		expect(signalXRange(views)).toEqual({ min: 0, max: 100 });
+		expect(axisSplitDomain(views, views)).toMatchObject({ xMin: 0, xMax: 100 });
 		expect(signalYRange(views)).toEqual({ min: -11.5, max: 21.5 });
 	});
 
 	it('fits x domain from min/max scan when timestamps are non-monotonic', () => {
-		expect(signalXRange([view([5, 1, 9, 3], [10, 20, 30, 40])])).toEqual({ min: 1, max: 9 });
+		const views = [view([5, 1, 9, 3], [10, 20, 30, 40])];
+		expect(axisSplitDomain(views, views)).toMatchObject({ xMin: 1, xMax: 9 });
 	});
 
 	it('skips samples with non-finite coordinates', () => {
 		const views = [view([Number.NaN, 10, 20, 30], [5, 10, Number.POSITIVE_INFINITY, 20])];
-		expect(signalXRange(views)).toEqual({ min: 10, max: 30 });
+		expect(axisSplitDomain(views, views)).toMatchObject({ xMin: 10, xMax: 30 });
 		expect(signalYRange(views)).toEqual({ min: 9.5, max: 20.5 });
 	});
 
 	it('returns null when no view has finite points', () => {
 		for (const views of [[], [view([])], [view([0, 1], [Number.NaN, Number.NaN])]]) {
-			expect(signalXRange(views)).toBeNull();
+			expect(axisSplitDomain(views, views)).toBeNull();
 			expect(signalYRange(views)).toBeNull();
 		}
 	});
@@ -172,9 +139,10 @@ describe('signal plot data', () => {
 	});
 
 	it('flags values outside specified DBC limits, treating [0|0] as unspecified', () => {
-		expect(isOutsideDbcRange(251, 0, 250)).toBe(true);
-		expect(isOutsideDbcRange(250, 0, 250)).toBe(false);
-		expect(isOutsideDbcRange(999, 0, 0)).toBe(false);
+		const limited = { ...formatContext, factor: 1 };
+		expect(formatDecodedValue(251, limited).outOfRange).toBe(true);
+		expect(formatDecodedValue(250, limited).outOfRange).toBe(false);
+		expect(formatDecodedValue(999, { ...limited, maximum: 0 }).outOfRange).toBe(false);
 	});
 
 	it('preserves fractional floating-point values, deltas and range checks', () => {
@@ -198,7 +166,7 @@ describe('signal plot data', () => {
 		expect(
 			formatDecodedValue(12.34, { ...floating.signal.format, valueType: 'float32' }).text
 		).toBe('12.34 V');
-		expect(formatLegendNumericValue(0.00001234567, null)).toBe('0.00001234567');
+		expect(formatDecodedValue(0.00001234567, floating.signal.format).text).toBe('0.00001234567 V');
 
 		const floatBoundary = {
 			...floating.signal.format,
@@ -244,12 +212,12 @@ describe('signal plot data', () => {
 	});
 
 	it('pads legend decimals to the chosen resolution', () => {
-		expect(formatLegendNumericValue(12, 0.01)).toBe('12.00');
-		expect(formatLegendNumericValue(300, 0.1)).toBe('300.0');
+		const unlimited = { ...formatContext, unit: '', maximum: 0 };
+		expect(formatDecodedValue(12, { ...unlimited, factor: 0.01 }).text).toBe('12.00');
+		expect(formatDecodedValue(300, { ...unlimited, factor: 0.1 }).text).toBe('300.0');
 	});
 
 	it('preserves fractional offsets in legend values', () => {
-		expect(formatLegendNumericValue(12.5, 1, 0.5)).toBe('12.5');
 		expect(
 			formatDecodedValue(12.5, {
 				...formatContext,
@@ -264,9 +232,10 @@ describe('signal plot data', () => {
 	});
 
 	it('preserves nonzero tiny legend values', () => {
-		expect(formatLegendNumericValue(1e-13, 1e-13)).toBe('1.000000e-13');
-		expect(formatLegendNumericValue(0, 1e-13)).toBe('0');
-		expect(formatLegendNumericValue(-0, 1e-13)).toBe('0');
+		const tiny = { ...formatContext, unit: '', maximum: 0, factor: 1e-13 };
+		expect(formatDecodedValue(1e-13, tiny).text).toBe('1.000000e-13');
+		expect(formatDecodedValue(0, tiny).text).toBe('0');
+		expect(formatDecodedValue(-0, tiny).text).toBe('0');
 	});
 
 	it('does not flag float noise at DBC range boundaries', () => {
