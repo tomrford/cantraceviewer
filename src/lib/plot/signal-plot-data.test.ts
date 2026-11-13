@@ -74,16 +74,17 @@ describe('signal plot data', () => {
 		});
 	});
 
-	it('excludes empty views from the chart series', () => {
+	it('excludes empty views and marks samples only on full-resolution views', () => {
 		const series = plotSeriesForViews(
 			[
 				{ ...view([]), sampled: false },
-				{ ...view([0, 1]), sampled: false }
+				{ ...view([0, 1]), sampled: false },
+				{ ...view([0, 1]), sampled: true }
 			],
 			() => 'y'
 		);
 
-		expect(series.map((entry) => entry.type)).toEqual(['line', 'scatter']);
+		expect(series.map((entry) => entry.type)).toEqual(['line', 'scatter', 'line']);
 	});
 
 	it('routes each signal series to its assigned y axis', () => {
