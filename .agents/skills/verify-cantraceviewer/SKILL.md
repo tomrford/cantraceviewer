@@ -61,4 +61,4 @@ After every successful or failed attempt, close only run-created tabs and stop o
 
 ## Helpers
 
-No helper executable or new browser dependency is required. Use your environment's supported file loading, browser controls, screenshots, logs and optional WebMCP access. These recipes do not require a particular agent plugin or browser harness. Maintain the map with `/maintain-verification-skill` as the app changes.
+No helper executable or new browser dependency is required. Use your environment's supported file loading, browser controls, screenshots, logs and optional WebMCP access. These recipes do not require a particular agent plugin or browser harness.
