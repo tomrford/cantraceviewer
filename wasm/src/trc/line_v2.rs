@@ -75,7 +75,7 @@ pub(super) fn parse_line(
             source,
             kind: FrameKind::Remote,
             id: Some(id),
-            dlc: parse_length_or_dlc(columns, tokens, false),
+            dlc: parse_length_or_dlc(columns, tokens),
             ..Frame::default()
         }));
     }
@@ -90,19 +90,26 @@ pub(super) fn parse_line(
         }));
     }
 
-    let dlc = match columns.dlc {
-        Some(index) => frame::parse_dlc(token_at(tokens, index))?,
-        None => frame::parse_dlc(token_at(
-            tokens,
-            columns.data_len.expect("validated length or DLC column"),
-        ))?,
+    // `L` is the DLC and `l` the byte count; a header may declare either or both.
+    let payload_len = columns
+        .data_len
+        .map(|index| frame::parse_payload_length(token_at(tokens, index)))
+        .transpose()?;
+    let (dlc, payload_len) = match (columns.dlc, payload_len) {
+        (Some(index), payload_len) => {
+            let dlc = frame::parse_dlc(token_at(tokens, index))?;
+            let expected = if is_fd { frame::fd_length(dlc)? } else { dlc };
+            if payload_len.is_some_and(|payload_len| payload_len != expected) {
+                return Err(TraceError::InvalidPayloadLength);
+            }
+            (dlc, expected)
+        }
+        (None, payload_len) => {
+            let payload_len = payload_len.expect("validated length or DLC column");
+            (frame::dlc_for_length(payload_len)?, payload_len)
+        }
     };
-    let payload_len = match columns.data_len {
-        Some(index) => frame::parse_payload_length(token_at(tokens, index))?,
-        None => frame::fd_length(dlc)?,
-    };
-    let expected_payload_len = if is_fd { frame::fd_length(dlc)? } else { dlc };
-    if payload_len != expected_payload_len || (!is_fd && payload_len > 8) {
+    if !is_fd && payload_len > 8 {
         return Err(TraceError::InvalidPayloadLength);
     }
 
@@ -134,19 +141,14 @@ fn token_at<'a>(tokens: &'a [&str], index: usize) -> &'a str {
     tokens.get(index).copied().unwrap_or("")
 }
 
-fn parse_length_or_dlc(columns: &ColumnMap, tokens: &[&str], is_fd: bool) -> u8 {
+fn parse_length_or_dlc(columns: &ColumnMap, tokens: &[&str]) -> u8 {
     if let Some(index) = columns.data_len {
         return frame::parse_payload_length(token_at(tokens, index)).unwrap_or(0);
     }
-    let dlc = columns
+    columns
         .dlc
         .and_then(|index| frame::parse_dlc(token_at(tokens, index)).ok())
-        .unwrap_or(0);
-    if is_fd {
-        frame::fd_length(dlc).unwrap_or(0)
-    } else {
-        dlc
-    }
+        .unwrap_or(0)
 }
 
 fn is_fd_record(record_type: &str) -> bool {
@@ -200,5 +202,43 @@ mod tests {
         assert_eq!(fd.source.direction, Direction::Tx);
         assert_eq!(fd.payload_len, 12);
         assert_eq!(payload[11], 0x0c);
+    }
+
+    #[test]
+    fn reads_a_lone_length_column_as_a_byte_count() {
+        let columns = ColumnMap::from_text("N,O,T,I,d,l,D").unwrap();
+        let mut payload = [0_u8; 64];
+
+        let fd = parse_line(
+            &columns,
+            "1 0.200 FD 0123 Rx 12 01 02 03 04 05 06 07 08 09 0A 0B 0C",
+            &mut payload,
+        )
+        .unwrap()
+        .unwrap();
+        assert!(fd.is_fd);
+        assert_eq!((fd.dlc, fd.payload_len), (9, 12));
+        assert_eq!(payload[11], 0x0c);
+
+        let bytes = ["AB"; 64].join(" ");
+        let longest = parse_line(
+            &columns,
+            &format!("2 0.300 FD 0123 Rx 64 {bytes}"),
+            &mut payload,
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!((longest.dlc, longest.payload_len), (15, 64));
+        assert_eq!(payload, [0xab; 64]);
+
+        for line in [
+            "3 0.400 FD 0123 Rx 9 01 02 03 04 05 06 07 08 09",
+            "4 0.500 DT 0123 Rx 12 01 02 03 04 05 06 07 08 09 0A 0B 0C",
+        ] {
+            assert_eq!(
+                parse_line(&columns, line, &mut payload),
+                Err(TraceError::InvalidPayloadLength)
+            );
+        }
     }
 }

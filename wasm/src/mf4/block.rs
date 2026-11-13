@@ -25,6 +25,8 @@ impl Channel {
         self.data_type <= 5
             && self.bit_count > 0
             && u32::from(self.bit_offset) + self.bit_count <= 64
+            // Floats decode as IEEE 754 single or double precision only.
+            && (self.data_type < 4 || matches!(self.bit_count, 32 | 64))
             && self.conversion.is_supported()
     }
 }
@@ -438,7 +440,7 @@ fn collect_data_at(
             let inflated = inflate_zlib(compressed, original_size)?;
             let materialized = match method {
                 0 => inflated,
-                1 if row_size != 0 => untranspose(inflated, row_size)?,
+                1 => untranspose(inflated, row_size)?,
                 method => return Err(Mf4Error::UnsupportedCompression(method)),
             };
             reserve_materialized_data(output, materialized.len(), max_data_bytes)?;
@@ -636,6 +638,36 @@ mod tests {
             checked_materialized_size(1, usize::MAX, 17),
             Err(Mf4Error::DataLimitExceeded(17))
         ));
+    }
+
+    #[test]
+    fn lists_only_numeric_channels_it_can_decode() {
+        let channel = |data_type, bit_count| Channel {
+            address: 0,
+            name: String::new(),
+            channel_type: 0,
+            sync_type: 0,
+            data_type,
+            bit_offset: 0,
+            byte_offset: 0,
+            bit_count,
+            flags: 0,
+            invalidation_bit: 0,
+            conversion: Conversion::default(),
+            unit: String::new(),
+        };
+        for (data_type, bit_count, expected) in [
+            (0, 12, true),
+            (2, 64, true),
+            (4, 32, true),
+            (5, 64, true),
+            (4, 16, false),
+            (5, 48, false),
+            (0, 65, false),
+            (6, 8, false),
+        ] {
+            assert_eq!(channel(data_type, bit_count).is_numeric(), expected);
+        }
     }
 
     #[test]

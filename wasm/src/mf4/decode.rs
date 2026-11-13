@@ -134,22 +134,32 @@ pub(super) fn native_time_range(
 ) -> Result<Option<(f64, f64)>, Mf4Error> {
     let mut range: Option<(f64, f64)> = None;
     for data_group in &index.data_groups {
-        if data_group.groups.iter().all(|group| {
-            raw_plan(group).is_some()
-                || master_channel(group).is_none()
-                || !group
-                    .channels
-                    .iter()
-                    .any(|channel| channel.channel_type == 0 && channel.is_numeric())
-        }) {
+        let is_raw: Vec<bool> = data_group
+            .groups
+            .iter()
+            .map(|group| raw_plan(group).is_some())
+            .collect();
+        if data_group
+            .groups
+            .iter()
+            .zip(&is_raw)
+            .all(|(group, &is_raw)| {
+                is_raw
+                    || master_channel(group).is_none()
+                    || !group
+                        .channels
+                        .iter()
+                        .any(|channel| channel.channel_type == 0 && channel.is_numeric())
+            })
+        {
             continue;
         }
         let data = collect_data(bytes, data_group.data_address, max_data_bytes)?;
         walk_records(data_group, &data, |group_index, record| {
-            let group = &data_group.groups[group_index];
-            if raw_plan(group).is_some() {
+            if is_raw[group_index] {
                 return Ok(());
             }
+            let group = &data_group.groups[group_index];
             let Some(master) = master_channel(group) else {
                 return Ok(());
             };
@@ -315,8 +325,12 @@ fn append_raw_frame(
         CanId::extended(id_value)
     } else {
         CanId::standard(id_value)
-    }
-    .map_err(|_| Mf4Error::InvalidCanId)?;
+    };
+    // Error frames can carry a partly received identifier, which nothing reads.
+    let id = match plan.kind {
+        FrameKind::Error => id.ok(),
+        _ => Some(id.map_err(|_| Mf4Error::InvalidCanId)?),
+    };
     let dlc = decode_raw(record, &plan.dlc)?.min(u64::from(u8::MAX)) as u8;
     let data_length = if matches!(plan.kind, FrameKind::Data | FrameKind::Error) {
         plan.data_length
@@ -353,7 +367,7 @@ fn append_raw_frame(
         source,
         timestamp_ns,
         kind: plan.kind,
-        id: Some(id),
+        id,
         dlc,
         is_fd: frame_is_fd(plan.kind, explicit_edl, dlc, data_length),
         ..Frame::default()
@@ -498,7 +512,12 @@ fn decode_bytes<'a>(
     channel: &Channel,
     length: usize,
 ) -> Result<&'a [u8], Mf4Error> {
-    if channel.data_type != 10 || channel.bit_offset != 0 || length > channel.bit_count as usize / 8
+    // Only fixed-length byte arrays hold the payload in the record; a variable-length channel
+    // holds an offset into separate signal data, which is not read.
+    if channel.channel_type != 0
+        || channel.data_type != 10
+        || channel.bit_offset != 0
+        || length > channel.bit_count as usize / 8
     {
         return Err(Mf4Error::UnsupportedChannel(channel.name.clone()));
     }
@@ -592,6 +611,38 @@ mod tests {
                 !channel.name.ends_with(".BusChannel") && !channel.name.ends_with(".Dir")
             });
             assert_eq!(parse(&group, &record), crate::trace::RawSource::default());
+
+            // A standard identifier above 0x7ff is only tolerated on an error frame.
+            record[10..14].copy_from_slice(&0x800_u32.to_le_bytes());
+            group.channels.push(channel("IDE", 15, 1, 0));
+            record[15] = 0;
+            let mut trace = Trace::default();
+            let appended =
+                append_raw_frame(&mut trace, &group, &raw_plan(&group).unwrap(), &record);
+            if prefix == "CAN_ErrorFrame" {
+                appended.unwrap();
+                assert_eq!(trace.frames[0].id, None);
+            } else {
+                assert!(matches!(appended, Err(Mf4Error::InvalidCanId)));
+            }
+
+            // Variable-length payload channels hold an offset, not the bytes.
+            record[10..14].copy_from_slice(&291_u32.to_le_bytes());
+            for channel in &mut group.channels {
+                if channel.name.ends_with(".DataBytes") {
+                    channel.channel_type = 1;
+                }
+            }
+            let appended = append_raw_frame(
+                &mut Trace::default(),
+                &group,
+                &raw_plan(&group).unwrap(),
+                &record,
+            );
+            assert_eq!(
+                matches!(appended, Err(Mf4Error::UnsupportedChannel(_))),
+                prefix != "CAN_RemoteFrame"
+            );
         }
     }
 

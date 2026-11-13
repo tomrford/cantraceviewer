@@ -29,6 +29,7 @@ const ZLIB_DEFLATE: u16 = 2;
 
 const CAN_MESSAGE_EXTENDED: u32 = 0x8000_0000;
 const REMOTE_FLAG: u8 = 0x80;
+const FD_EDL_FLAG: u8 = 0x01;
 const FD64_REMOTE_FLAG: u32 = 0x0010;
 const FD64_EDL_FLAG: u32 = 0x1000;
 
@@ -437,7 +438,7 @@ impl Parser {
         let mut frame = self.new_frame(
             timestamp_ns,
             kind,
-            id_from_raw(raw_id)?,
+            Some(id_from_raw(raw_id)?),
             false,
             dlc,
             payload_len,
@@ -465,7 +466,8 @@ impl Parser {
         let mut frame = self.new_frame(
             timestamp_ns,
             FrameKind::Error,
-            id_from_raw(raw_id)?,
+            // Error frames can carry a partly received identifier, which nothing reads.
+            id_from_raw(raw_id).ok(),
             false,
             dlc,
             payload_len,
@@ -484,6 +486,9 @@ impl Parser {
         let dlc = body[3];
         let raw_id = read_u32(body, 4).ok_or(BlfError::InvalidBlfCanFdMessage)?;
         let valid_bytes = body[14].min(64);
+        // This object also carries classical frames seen on an FD channel, with EDL clear.
+        // More than eight bytes can only be FD, whatever the flags say.
+        let is_fd = body[13] & FD_EDL_FLAG != 0 || valid_bytes > 8;
         let kind = if flags & REMOTE_FLAG != 0 {
             FrameKind::Remote
         } else {
@@ -492,8 +497,8 @@ impl Parser {
         let mut frame = self.new_frame(
             timestamp_ns,
             kind,
-            id_from_raw(raw_id)?,
-            true,
+            Some(id_from_raw(raw_id)?),
+            is_fd,
             dlc,
             valid_bytes,
         );
@@ -543,7 +548,7 @@ impl Parser {
         let mut frame = self.new_frame(
             timestamp_ns,
             kind,
-            id_from_raw(raw_id)?,
+            Some(id_from_raw(raw_id)?),
             flags & FD64_EDL_FLAG != 0,
             dlc,
             valid_bytes,
@@ -574,7 +579,7 @@ impl Parser {
         &self,
         timestamp_ns: u64,
         kind: FrameKind,
-        id: CanId,
+        id: Option<CanId>,
         is_fd: bool,
         dlc: u8,
         payload_len: u8,
@@ -582,7 +587,7 @@ impl Parser {
         Frame {
             timestamp_ns,
             kind,
-            id: Some(id),
+            id,
             is_fd,
             dlc,
             source: crate::trace::RawSource::default(),
@@ -1001,6 +1006,47 @@ mod tests {
         assert_eq!(fd64_payload[0], 0xaa);
         assert_eq!(fd64_payload[1], 0xbb);
         assert_eq!(fd64_payload[63], 0);
+    }
+
+    #[test]
+    fn keeps_error_frames_whose_identifier_is_out_of_range() {
+        let mut inner = Vec::new();
+        fixture::append_can_error_ext_object(&mut inner, 1_000, 0x800, &[0xcc]);
+        fixture::append_classic_can_object(&mut inner, 2_000, 0x123, &[0xdd]);
+
+        let mut file = Vec::new();
+        fixture::append_file_header(&mut file);
+        fixture::append_outer_container(&mut file, &inner);
+
+        let parsed = from_bytes(&file, 4096).unwrap();
+        assert_eq!(parsed.frames[0].kind, FrameKind::Error);
+        assert_eq!(parsed.frames[0].id, None);
+        assert_eq!(parsed.data_frame_count, 1);
+    }
+
+    #[test]
+    fn reads_classical_frames_from_can_fd_message_objects() {
+        let mut inner = Vec::new();
+        fixture::append_can_fd_message_object(&mut inner, 2_000, 0x123, 8, &[0x5a; 8]);
+        let second = inner.len();
+        fixture::append_can_fd_message_object(&mut inner, 3_000, 0x123, 9, &[0x5a; 12]);
+        // Clear EDL, BRS and ESI in each object's FD flags.
+        inner[32 + 13] = 0;
+        inner[second + 32 + 13] = 0;
+
+        let mut file = Vec::new();
+        fixture::append_file_header(&mut file);
+        fixture::append_outer_container(&mut file, &inner);
+
+        let parsed = from_bytes(&file, 4096).unwrap();
+        assert_eq!(
+            parsed
+                .frames
+                .iter()
+                .map(|frame| (frame.is_fd, frame.payload_len))
+                .collect::<Vec<_>>(),
+            [(false, 8), (true, 12)]
+        );
     }
 
     #[test]
