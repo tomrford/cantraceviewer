@@ -1,5 +1,14 @@
-import type { CrosshairId, LegendCrosshairMode, PlotCrosshair } from '@/lib/plot/plot-crosshair';
-import { removeCrosshair, setCrosshair } from '@/lib/plot/plot-crosshair';
+import {
+	crosshairById,
+	crosshairFromPoint,
+	moveCrosshair,
+	removeCrosshair,
+	setCrosshair,
+	type CrosshairDragAxis,
+	type CrosshairId,
+	type LegendCrosshairMode,
+	type PlotCrosshair
+} from '@/lib/plot/plot-crosshair';
 import type { PlotRatioPoint } from '@/lib/plot/plot-pointer';
 import {
 	advanceYWindow,
@@ -9,6 +18,7 @@ import {
 	viewportCenter,
 	viewportsAlmostEqual,
 	zoomViewport,
+	type PlotPoint,
 	type PlotViewport
 } from '@/lib/plot/plot-viewport';
 import { appStore, FIT, update } from '@/store/store';
@@ -63,9 +73,24 @@ export function resetZoom(): void {
 }
 
 /** Add or move a crosshair; ignored while nothing is plottable. */
-export function upsertCrosshair(crosshair: PlotCrosshair): void {
-	const { hasPlottableSignals, crosshairs } = appStore.getState();
-	if (hasPlottableSignals) update({ crosshairs: setCrosshair(crosshairs, crosshair) });
+export function upsertCrosshair(
+	point: PlotPoint & { id: CrosshairId },
+	axis: CrosshairDragAxis = 'both'
+): void {
+	const { hasPlottableSignals, crosshairs, activeViewport, yWindow } = appStore.getState();
+	if (!hasPlottableSignals || activeViewport === null) return;
+	const crosshair = crosshairFromPoint(
+		point,
+		{ min: activeViewport.yMin, max: activeViewport.yMax },
+		yWindow
+	);
+	const current = crosshairById(crosshairs, point.id);
+	update({
+		crosshairs: setCrosshair(
+			crosshairs,
+			current === null ? crosshair : moveCrosshair(current, crosshair, axis)
+		)
+	});
 }
 
 /** Place a crosshair at the plot pointer (or the viewport centre when off the plot / `'center'`). */
@@ -87,7 +112,7 @@ export function clearCrosshairs(): void {
 	update({ crosshairs: [] });
 }
 
-/** Replace all crosshairs, optionally with a readout mode (WebMCP); not gated on plottability. */
+/** Replace normalized crosshairs, optionally with a readout mode; not gated on plottability. */
 export function setCrosshairs(crosshairs: PlotCrosshair[], mode?: LegendCrosshairMode): void {
 	update(mode === undefined ? { crosshairs } : { crosshairs, legendCrosshairMode: mode });
 }

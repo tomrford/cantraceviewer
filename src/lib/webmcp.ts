@@ -1,5 +1,10 @@
 import { displayDbcName } from '@/lib/dbc-file-types';
-import type { LegendCrosshairMode } from '@/lib/plot/plot-crosshair';
+import {
+	crosshairFromPoint,
+	crosshairYRatio,
+	type LegendCrosshairMode
+} from '@/lib/plot/plot-crosshair';
+import { valueAtRatio } from '@/lib/plot/plot-viewport';
 import { PRIMARY_Y_AXIS_ID } from '@/lib/plot/y-axis';
 import { countSignals } from '@/lib/utils';
 import {
@@ -55,6 +60,7 @@ export const storeHost = {
 			activeViewport: active,
 			axisRanges,
 			crosshairs,
+			yWindow,
 			legendCrosshairMode
 		} = appStore.getState();
 		return {
@@ -66,7 +72,14 @@ export const storeHost = {
 				axis: index + 1,
 				range: axisRanges.get(id) ?? null
 			})),
-			crosshairs: crosshairs.map(({ id, x, y }) => ({ id, timeMs: x, value: y })),
+			crosshairs: crosshairs.map((marker) => ({
+				id: marker.id,
+				timeMs: marker.x,
+				value: valueAtRatio(
+					axisRanges.get(PRIMARY_Y_AXIS_ID) ?? { min: 0, max: 1 },
+					crosshairYRatio(marker, yWindow)
+				)
+			})),
 			readout: legendCrosshairMode
 		};
 	},
@@ -79,15 +92,21 @@ export const storeHost = {
 		return applied === null ? null : { startMs: applied.xMin, endMs: applied.xMax };
 	},
 	setCrosshairs: (markers: WebMcpCrosshairInput[], readout?: LegendCrosshairMode) => {
-		const { activeViewport: active, crosshairs } = appStore.getState();
-		const centreY = active === null ? 0 : (active.yMin + active.yMax) / 2;
+		const { activeViewport: active, crosshairs, yWindow } = appStore.getState();
+		const range = { min: active?.yMin ?? 0, max: active?.yMax ?? 1 };
 		setCrosshairs(
 			markers
-				.map(({ id, timeMs, value }) => ({
-					id,
-					x: timeMs,
-					y: value ?? crosshairs.find((marker) => marker.id === id)?.y ?? centreY
-				}))
+				.map(({ id, timeMs, value }) =>
+					value === undefined
+						? {
+								id,
+								x: timeMs,
+								yRatio:
+									crosshairs.find((marker) => marker.id === id)?.yRatio ??
+									(yWindow.top + yWindow.bottom) / 2
+							}
+						: crosshairFromPoint({ id, x: timeMs, y: value }, range, yWindow)
+				)
 				.sort((a, b) => a.id - b.id),
 			readout
 		);
