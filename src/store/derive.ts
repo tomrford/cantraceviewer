@@ -1,14 +1,14 @@
 // How each derived part of the app state is computed from its inputs. `withDerived` in store.ts
 // decides when, and in what order. Nothing here reads the store.
 import { displayDbcName } from '@/lib/dbc-file-types';
-import { plotGrid, type PlotGrid } from '@/lib/plot/plot-axis-layout';
+import { type PlotGrid, plotGrid } from '@/lib/plot/plot-axis-layout';
 import { signalColor } from '@/lib/plot/plot-colors';
 import {
 	crosshairById,
 	type LegendCrosshairMode,
 	type PlotCrosshair
 } from '@/lib/plot/plot-crosshair';
-import { orderPlotSignals, type LegendOrderMode } from '@/lib/plot/plot-signal-order';
+import { type LegendOrderMode, orderPlotSignals } from '@/lib/plot/plot-signal-order';
 import {
 	applyYWindow,
 	type PlotAxisRange,
@@ -24,15 +24,15 @@ import {
 import {
 	groupSignalsByYAxis,
 	PRIMARY_Y_AXIS_ID,
-	yAxisLabel,
-	yAxisUnit,
 	type YAxisGroup,
-	type YAxisId
+	type YAxisId,
+	yAxisLabel,
+	yAxisUnit
 } from '@/lib/plot/y-axis';
 import { buildSelectorSearchIndexes, type SelectorDbcFile } from '@/lib/selector-list';
 import {
-	isDecoded,
 	type DecodedPlotSignal,
+	isDecoded,
 	type PlotSignal,
 	type Signal,
 	type SignalFormat

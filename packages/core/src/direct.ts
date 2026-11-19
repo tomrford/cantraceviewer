@@ -1,19 +1,19 @@
 /// <reference lib="dom" />
 
 import { createHandleRegistry } from './handles.ts';
-import { snapshotLimits, dbcBytes, assertByteLimit, type ParsingLimits } from './limits.ts';
+import { assertByteLimit, dbcBytes, type ParsingLimits, snapshotLimits } from './limits.ts';
 import type { DirectClient } from './protocol.ts';
 import type {
 	DbcDiagnostic,
-	ParsedDbc,
-	Mf4SignalCatalog,
-	RawMessage,
-	EmbeddedDbc,
 	DecodedSignalSeries,
+	EmbeddedDbc,
+	Mf4SignalCatalog,
+	ParsedDbc,
+	RawMessage,
 	TraceMetadata,
 	TraceType
 } from './types.ts';
-import { initSync, Dbc as WasmDbc, Trace as WasmTrace } from './wasm-bindgen/cantraceviewer.js';
+import { Dbc as WasmDbc, initSync, Trace as WasmTrace } from './wasm-bindgen/cantraceviewer.js';
 
 export type * from './types.ts';
 export type { DirectClient } from './protocol.ts';

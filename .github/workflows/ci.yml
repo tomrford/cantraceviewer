@@ -22,10 +22,10 @@ jobs:
       - uses: cachix/install-nix-action@v31
 
       - name: Install dependencies
-        run: nix develop -c pnpm install --frozen-lockfile
+        run: nix develop -c bun install --frozen-lockfile
 
       - name: Validate
-        run: nix develop -c pnpm run validate
+        run: nix develop -c bun run validate
 
       - name: Preserve package tarball and checksum
         uses: actions/upload-artifact@v7
@@ -44,6 +44,5 @@ jobs:
 
       - uses: cachix/install-nix-action@v31
 
-      # Call the runner directly: `pnpm run` installs dependencies first, which the audits do not need.
       - name: Audit dependencies
         run: nix develop -c node scripts/audit.mjs

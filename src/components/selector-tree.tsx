@@ -10,10 +10,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
-	selectorRows,
 	type SelectorDbcFile,
 	type SelectorDbcMessage,
-	type SelectorListRow
+	type SelectorListRow,
+	selectorRows
 } from '@/lib/selector-list';
 import type { Signal } from '@/lib/signal';
 import { cn } from '@/lib/utils';

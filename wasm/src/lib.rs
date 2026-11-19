@@ -19,7 +19,7 @@ pub struct WasmDbc {
     inner: Dbc,
 }
 
-#[wasm_bindgen]
+#[wasm_bindgen(js_class = Dbc)]
 impl WasmDbc {
     pub fn parse(input: &[u8]) -> Result<WasmDbc, JsError> {
         Ok(Self {
@@ -77,7 +77,7 @@ pub struct WasmTrace {
     mf4: Option<mf4::Document>,
 }
 
-#[wasm_bindgen]
+#[wasm_bindgen(js_class = Trace)]
 impl WasmTrace {
     #[wasm_bindgen(js_name = parseAsc)]
     pub fn parse_asc(input: &[u8]) -> Result<WasmTrace, JsError> {

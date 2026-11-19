@@ -1,9 +1,9 @@
 import {
 	axisGutterOffset,
+	type AxisTickGenerator,
 	axisTicks,
 	axisTicksAtRatios,
-	Y_AXIS_GUTTER,
-	type AxisTickGenerator
+	Y_AXIS_GUTTER
 } from '@/lib/plot/plot-axis-layout';
 import { formatAxisValue } from '@/lib/plot/signal-plot-data';
 import { PRIMARY_Y_AXIS_ID } from '@/lib/plot/y-axis';

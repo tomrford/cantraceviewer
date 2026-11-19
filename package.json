@@ -3,20 +3,27 @@
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
-	"packageManager": "pnpm@11.27.0",
+	"packageManager": "bun@1.4.4",
+	"workspaces": [
+		"packages/*"
+	],
+	"trustedDependencies": [
+		"esbuild",
+		"sharp",
+		"workerd"
+	],
 	"engines": {
 		"node": ">=22.17"
 	},
 	"scripts": {
-		"package:build": "pnpm run wasm:build:release && pnpm --filter cantraceviewer run build",
-		"package:pack": "pnpm run wasm:build:release && pnpm --filter cantraceviewer run pack:artifact",
-		"package:pack:check": "pnpm --filter cantraceviewer run pack:check",
-		"package:test:tarball": "node ./scripts/test-package-tarball.mjs",
+		"package:build": "bun run wasm:build:release && bun --filter cantraceviewer build",
+		"package:pack": "bun run wasm:build:release && bun --filter cantraceviewer pack:artifact",
+		"package:pack:check": "bun --filter cantraceviewer pack:check",
 		"package:test:app": "node ./scripts/test-app-tarball.mjs",
 		"package:test": "vitest run --configLoader runner packages/core",
-		"package:validate": "pnpm run wasm:check && pnpm run wasm:test && pnpm run package:pack && pnpm run package:test && pnpm run package:test:tarball && pnpm run package:test:app",
+		"package:validate": "bun run wasm:check && bun run wasm:test && bun run package:pack && bun run package:test && bun run package:test:app",
 		"audit": "node scripts/audit.mjs",
-		"validate": "pnpm run lint && pnpm run package:validate && pnpm run check:types && pnpm run test:run",
+		"validate": "bun run lint && bun run package:validate && bun run check:types && bun run test:run",
 		"dev": "vite",
 		"build": "vite build && node scripts/prerender.mjs",
 		"wasm:build": "./scripts/build-wasm.sh dev",
@@ -24,11 +31,10 @@
 		"wasm:check": "cargo fmt --manifest-path wasm/Cargo.toml --check && cargo clippy --locked --manifest-path wasm/Cargo.toml --all-targets -- -D warnings",
 		"wasm:test": "cargo test --locked --manifest-path wasm/Cargo.toml",
 		"preview": "vite preview",
-		"check": "pnpm run package:build && pnpm run check:types",
-		"check:types": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p packages/core/tsconfig.json",
-		"lint": "oxfmt --check && oxlint",
-		"format": "oxfmt",
-		"test": "pnpm run package:build && pnpm run test:run",
+		"check:types": "bun check -p tsconfig.json && bun check -p packages/core/tsconfig.json",
+		"lint": "bun fmt --check && oxlint",
+		"format": "bun fmt",
+		"test": "bun run package:build && bun run test:run",
 		"test:run": "vitest run --configLoader runner"
 	},
 	"devDependencies": {
@@ -40,10 +46,8 @@
 		"@types/node": "^22",
 		"@types/react": "^19.3.0",
 		"@types/react-dom": "^19.3.0",
-		"@typescript/native": "npm:typescript@7.0.2",
 		"@vitejs/plugin-react": "^6.1.2",
 		"babel-plugin-react-compiler": "1.0.0",
-		"oxfmt": "0.71.0",
 		"oxlint": "1.90.0",
 		"shadcn": "4.23.0",
 		"tailwindcss": "^4.3.3",

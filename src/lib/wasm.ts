@@ -1,4 +1,4 @@
-import { createCanTraceClient, type CanTraceClient } from 'cantraceviewer';
+import { type CanTraceClient, createCanTraceClient } from 'cantraceviewer';
 
 import { APP_PARSING_LIMITS } from '@/lib/file-limits';
 

@@ -1,6 +1,6 @@
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { Check, ListFilter, Plus, Search, X } from 'lucide-react';
-import { useDeferredValue, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { type ReactNode, type RefObject, useDeferredValue, useId, useRef, useState } from 'react';
 
 import { DropOverlay } from '@/components/drop-overlay';
 import { ErrorDialog } from '@/components/error-dialog';

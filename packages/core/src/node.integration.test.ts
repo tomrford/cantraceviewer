@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { createCanTraceClient, DEFAULT_PARSING_LIMITS, type CanTraceClient } from '../dist/node.js';
+import { type CanTraceClient, createCanTraceClient, DEFAULT_PARSING_LIMITS } from '../dist/node.js';
 
 const fixturesDir = resolve('wasm/tests/fixtures');
 const identity = { canId: 288, isExtended: false, sizeBytes: 8 };

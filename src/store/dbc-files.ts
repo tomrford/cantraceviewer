@@ -4,11 +4,11 @@ import {
 	listStoredDbcs,
 	putStoredDbcs,
 	resetStoredDbcs,
-	storedDbcId,
-	type StoredDbc
+	type StoredDbc,
+	storedDbcId
 } from '@/lib/dbc-library';
-import { DBC_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '@/lib/file-limits';
-import { closeDbc, openDbc, type EmbeddedDbc } from '@/lib/wasm';
+import { assertFileSizeWithinLimit, DBC_MAX_FILE_BYTES } from '@/lib/file-limits';
+import { closeDbc, type EmbeddedDbc, openDbc } from '@/lib/wasm';
 import type { DbcFileEntry } from '@/store/derive';
 import { appStore, update } from '@/store/store';
 

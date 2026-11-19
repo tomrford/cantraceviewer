@@ -5,8 +5,8 @@ import { afterAll, afterEach, expect, it, vi } from 'vitest';
 
 import {
 	buildSelectorSearchIndexes,
-	selectorRows,
-	type SelectorListRow
+	type SelectorListRow,
+	selectorRows
 } from '@/lib/selector-list';
 import { closeTrace } from '@/lib/wasm';
 import { mountWebMcp } from '@/lib/webmcp';

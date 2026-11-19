@@ -1,5 +1,5 @@
 import { GripVertical, Plus, Trash2 } from 'lucide-react';
-import { useState, type DragEvent, type KeyboardEvent } from 'react';
+import { type DragEvent, type KeyboardEvent, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 
 import { SourceBadge } from '@/components/source-badge';
@@ -37,7 +37,7 @@ import { cn } from '@/lib/utils';
 import { axisFitRange, type PlotAxisView } from '@/store/derive';
 import { addAxis, assignAxis, assignToNewAxis, canAddAxis, removeAxis } from '@/store/plot-axes';
 import { setLegendCrosshairMode } from '@/store/plot-view';
-import { useAppStore, type AppState } from '@/store/store';
+import { type AppState, useAppStore } from '@/store/store';
 
 // A private type, so axis groups ignore files and text dragged in from elsewhere.
 const SIGNAL_DRAG_TYPE = 'application/x-cantraceviewer-signal';

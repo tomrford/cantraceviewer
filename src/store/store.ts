@@ -13,16 +13,16 @@ import { PRIMARY_Y_AXIS_ID, type YAxisId } from '@/lib/plot/y-axis';
 import type { WalkthroughStep } from '@/lib/walkthrough';
 import {
 	catalogState,
-	modelState,
-	readoutMode,
-	signalsState,
-	traceState,
-	viewportState,
 	type DbcFileEntry,
+	modelState,
 	type PlotModelState,
+	readoutMode,
 	type SelectedSignalState,
+	signalsState,
 	type TraceFileEntry,
-	type ViewportMode
+	traceState,
+	type ViewportMode,
+	viewportState
 } from '@/store/derive';
 
 export type ThemePreference = 'system' | 'light' | 'dark';

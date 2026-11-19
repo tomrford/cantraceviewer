@@ -10,7 +10,7 @@ const tarball = resolve(destination, `${manifest.name}-${manifest.version}.tgz`)
 
 await mkdir(destination, { recursive: true });
 await rm(tarball, { force: true });
-execFileSync('pnpm', ['pack', '--pack-destination', destination], {
+execFileSync('bun', ['pm', 'pack', '--destination', destination], {
 	cwd: packageDir,
 	stdio: 'inherit'
 });

@@ -14,7 +14,7 @@ import { axisFitRange } from '@/store/derive';
 import { addAxis, assignAxis } from '@/store/plot-axes';
 import { isSignalSelected, signalDecodeStatus, toggleSignal } from '@/store/plot-data';
 import { resetZoom, setCrosshairs, setViewport } from '@/store/plot-view';
-import { appStore, type AppState } from '@/store/store';
+import { type AppState, appStore } from '@/store/store';
 
 /** WebMCP cursor values are in primary-axis units; before anything is plotted that axis is 0-1. */
 function primaryFitRange(state: AppState) {

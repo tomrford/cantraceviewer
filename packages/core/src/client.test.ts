@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-	createCanTraceClientForWorker,
 	type ClientWorker,
-	type ClientWorkerEvent
+	type ClientWorkerEvent,
+	createCanTraceClientForWorker
 } from './client.ts';
 import type { DirectClient } from './direct.ts';
 import { DEFAULT_PARSING_LIMITS, type ParsingLimits } from './limits.ts';

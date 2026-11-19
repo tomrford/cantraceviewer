@@ -14,7 +14,7 @@ Trace files and decoded series stay in memory for the current browser session. S
 
 ## Development
 
-`pnpm run build` prerenders the app shell into `dist/index.html`, which the client hydrates. Rust code under `wasm/` compiles through wasm-bindgen into the published `cantraceviewer` package. This app uses an exact registry version of its browser client, which runs WASM work in a dedicated Worker, so local Rust or package edits do not change the app.
+`bun run build` prerenders the app shell into `dist/index.html`, which the client hydrates. Rust code under `wasm/` compiles through wasm-bindgen into the published `cantraceviewer` package. This app uses an exact registry version of its browser client, which runs WASM work in a dedicated Worker, so local Rust or package edits do not change the app.
 
 See the [core package README](packages/core/README.md) for its API, supported formats, parsing limits and lifecycle contracts.
 
@@ -23,14 +23,14 @@ Chrome 149+ and Edge 150+ can analyse a loaded trace through WebMCP (`document.m
 Use [Nix](https://nixos.org/download/) with flakes enabled for the development toolchain:
 
 ```sh
-nix develop -c pnpm install --frozen-lockfile
-nix develop -c pnpm run dev
+nix develop -c bun install --frozen-lockfile
+nix develop -c bun run dev
 ```
 
 Run the full CI validation serially with one release WASM build:
 
 ```sh
-nix develop -c pnpm run validate
+nix develop -c bun run validate
 ```
 
 `package:validate` runs only the package release checks, including app checks against the packed tarball instead of the pinned registry version.

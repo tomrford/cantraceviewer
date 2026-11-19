@@ -1,10 +1,10 @@
-import { useRef, type MouseEvent, type PointerEvent } from 'react';
+import { type MouseEvent, type PointerEvent, useRef } from 'react';
 
 import {
 	crosshairById,
-	crosshairViewRatio,
 	type CrosshairDragAxis,
-	type CrosshairId
+	type CrosshairId,
+	crosshairViewRatio
 } from '@/lib/plot/plot-crosshair';
 import { ratioInArea } from '@/lib/plot/plot-pointer';
 import { dataPointAtRatio, type PlotPoint } from '@/lib/plot/plot-viewport';

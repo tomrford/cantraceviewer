@@ -3,7 +3,7 @@ import { formatDecodedValue, nearestSignalSample } from '@/lib/plot/signal-plot-
 import { MAX_Y_AXES } from '@/lib/plot/y-axis';
 import { searchIndex } from '@/lib/search-index';
 import type { SelectorSearchIndex } from '@/lib/selector-list';
-import { isDecoded, type DecodedPlotSignal, type Signal } from '@/lib/signal';
+import { type DecodedPlotSignal, isDecoded, type Signal } from '@/lib/signal';
 import type { storeHost } from '@/lib/webmcp';
 
 const SEARCH_RESULT_LIMIT_MAX = 50;

@@ -1,4 +1,4 @@
-import { createCanTraceClient, type CanTraceClient } from 'cantraceviewer';
+import { type CanTraceClient, createCanTraceClient } from 'cantraceviewer';
 import { describe, expect, it, vi } from 'vitest';
 
 import { openDbc } from '@/lib/wasm';

@@ -40,10 +40,10 @@ jobs:
           echo "node-version=$(nix develop -c node -p 'process.versions.node')" >> "$GITHUB_OUTPUT"
 
       - name: Install dependencies
-        run: nix develop -c pnpm install --frozen-lockfile
+        run: nix develop -c bun install --frozen-lockfile
 
       - name: Validate package
-        run: nix develop -c pnpm run package:validate
+        run: nix develop -c bun run package:validate
 
       - name: Verify package checksum
         env:

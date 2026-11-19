@@ -1,4 +1,4 @@
-import { TRACE_MAX_FILE_BYTES, assertFileSizeWithinLimit } from '@/lib/file-limits';
+import { assertFileSizeWithinLimit, TRACE_MAX_FILE_BYTES } from '@/lib/file-limits';
 import { TRACE_FILE_DESCRIPTION, traceTypeForFileName } from '@/lib/trace-file-types';
 import { closeTrace, openTrace } from '@/lib/wasm';
 import type { TraceFileEntry } from '@/store/derive';

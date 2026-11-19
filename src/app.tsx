@@ -1,5 +1,5 @@
 import { AudioWaveform, CircleQuestionMark, Database, LoaderCircle } from 'lucide-react';
-import { useEffect, useRef, type ChangeEvent, type ComponentProps } from 'react';
+import { type ChangeEvent, type ComponentProps, useEffect, useRef } from 'react';
 
 import { CommandPalette } from '@/components/command-palette';
 import { DropOverlay } from '@/components/drop-overlay';

@@ -9,7 +9,7 @@ import {
 	RotateCcw,
 	X
 } from 'lucide-react';
-import { useEffect, useRef, useState, useTransition, type ComponentProps } from 'react';
+import { type ComponentProps, useEffect, useRef, useState, useTransition } from 'react';
 
 import { DropOverlay } from '@/components/drop-overlay';
 import { PlotCrosshairOverlay } from '@/components/plot-crosshair-overlay';
