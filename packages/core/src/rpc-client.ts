@@ -1,5 +1,5 @@
 import { createHandleRegistry } from './handles.ts';
-import { snapshotLimits, dbcBytes, assertByteLimit, type ParsingLimits } from './limits.ts';
+import { assertByteLimit, dbcBytes, type ParsingLimits, snapshotLimits } from './limits.ts';
 import type {
 	CanTraceClient,
 	DirectClient,

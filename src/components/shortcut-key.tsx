@@ -1,8 +1,8 @@
 import { useBrowserValue } from '@/hooks/use-browser-value';
 import {
 	browserShortcutPlatform,
-	shortcutKeys,
 	type ShortcutAction,
+	shortcutKeys,
 	type ShortcutPlatform
 } from '@/lib/keyboard-shortcuts';
 import { cn } from '@/lib/utils';

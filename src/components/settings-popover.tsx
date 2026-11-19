@@ -4,11 +4,11 @@ import {
 	Cog,
 	createLucideIcon,
 	Laptop,
+	type LucideIcon,
 	Moon,
 	RotateCcw,
 	Sun,
-	X,
-	type LucideIcon
+	X
 } from 'lucide-react';
 import { useRef } from 'react';
 
@@ -30,7 +30,7 @@ import { panelShadow } from '@/lib/panel-shadow';
 import type { LegendOrderMode } from '@/lib/plot/plot-signal-order';
 import { openHelp, resetPersistentData, setSettingsOpen } from '@/store/app-shell';
 import { setPreference } from '@/store/preferences';
-import { useAppStore, type ThemePreference, type TimestampMode } from '@/store/store';
+import { type ThemePreference, type TimestampMode, useAppStore } from '@/store/store';
 
 // lucide-react 1.x dropped brand icons; this is the lucide `github` glyph the app used before.
 const Github = createLucideIcon('github', [

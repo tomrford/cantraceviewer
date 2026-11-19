@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { nextSignalColorIndex, signalColor, SIGNAL_COLORS } from '@/lib/plot/plot-colors';
+import { nextSignalColorIndex, SIGNAL_COLORS, signalColor } from '@/lib/plot/plot-colors';
 
 describe('signal colours', () => {
 	it('takes the lowest index that is not already taken', () => {

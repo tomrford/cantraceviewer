@@ -6,8 +6,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
 	createDirectClient,
-	DEFAULT_PARSING_LIMITS,
 	type DbcHandle,
+	DEFAULT_PARSING_LIMITS,
 	type DirectClient,
 	type OpenDbcResult,
 	type OpenTraceResult,

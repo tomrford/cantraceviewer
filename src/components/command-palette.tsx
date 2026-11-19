@@ -11,9 +11,9 @@ import {
 } from '@/components/ui/command';
 import {
 	groupedShortcuts,
+	type ShortcutAction,
 	shortcutEnabled,
 	shortcutLabel,
-	type ShortcutAction,
 	type ShortcutState
 } from '@/lib/keyboard-shortcuts';
 import { setPaletteOpen } from '@/store/app-shell';

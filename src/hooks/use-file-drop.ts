@@ -1,4 +1,4 @@
-import { useState, type DragEvent } from 'react';
+import { type DragEvent, useState } from 'react';
 
 import { dragLeftCurrentTarget, filesFromDrop, hasDraggedFiles } from '@/lib/file-drop';
 

@@ -1,9 +1,9 @@
 import {
+	type AppState,
 	appStore,
 	DEFAULT_PREFERENCES,
-	update,
-	type AppState,
-	type PersistedPreferences
+	type PersistedPreferences,
+	update
 } from '@/store/store';
 
 // Values are JSON-serialised under these keys; the theme key is also read by the inline

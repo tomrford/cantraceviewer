@@ -1,13 +1,13 @@
 import {
 	crosshairAt,
 	crosshairById,
-	moveCrosshair,
-	removeCrosshair,
-	setCrosshair,
 	type CrosshairDragAxis,
 	type CrosshairId,
 	type LegendCrosshairMode,
-	type PlotCrosshair
+	moveCrosshair,
+	type PlotCrosshair,
+	removeCrosshair,
+	setCrosshair
 } from '@/lib/plot/plot-crosshair';
 import type { PlotRatioPoint } from '@/lib/plot/plot-pointer';
 import {
@@ -15,11 +15,11 @@ import {
 	dataPointAtRatio,
 	FULL_Y_WINDOW,
 	panViewport,
+	type PlotPoint,
+	type PlotViewport,
 	viewportCenter,
 	viewportsAlmostEqual,
-	zoomViewport,
-	type PlotPoint,
-	type PlotViewport
+	zoomViewport
 } from '@/lib/plot/plot-viewport';
 import { PRIMARY_Y_AXIS_ID } from '@/lib/plot/y-axis';
 import { axisFitRange } from '@/store/derive';

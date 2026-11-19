@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { buildSelectorSearchIndexes, type SelectorDbcFile } from '@/lib/selector-list';
 import type { DecodedPlotSignal, SignalFormat } from '@/lib/signal';
-import { mountWebMcp, storeHost, type ModelContext } from '@/lib/webmcp';
+import { type ModelContext, mountWebMcp, storeHost } from '@/lib/webmcp';
 import { createWebMcpTools, type WebMcpHost } from '@/lib/webmcp-tools';
 import type { TraceFileEntry } from '@/store/derive';
 import { addAxis, removeAxis, resetAxes } from '@/store/plot-axes';

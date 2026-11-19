@@ -43,6 +43,7 @@ The direct client is fully synchronous. The caller must read, fetch, or asynchro
 
 ```ts
 import { readFile } from 'node:fs/promises';
+
 import { createDirectClient, wasmUrl } from 'cantraceviewer/direct';
 
 const wasm = await readFile(wasmUrl);
@@ -76,6 +77,7 @@ The Node entry has the same asynchronous API as the browser entry.
 
 ```ts
 import { readFile } from 'node:fs/promises';
+
 import { createCanTraceClient } from 'cantraceviewer/node';
 
 const client = await createCanTraceClient();
@@ -192,7 +194,7 @@ The direct client accepts a `Uint8Array` and does not detach it.
 ## Supported environments
 
 - Node.js 22.12 or newer for `cantraceviewer/node`
-- Browsers with ESM, module Workers, WebAssembly, and transferable `ArrayBuffer` support for `cantraceviewer`
+- Browsers with ESM, module Workers, WebAssembly (including reference types and multi-value returns), and transferable `ArrayBuffer` support for `cantraceviewer`
 - ESM-aware bundlers that preserve the standard `new Worker(new URL(..., import.meta.url))` asset pattern
 
 The package does not support CommonJS or browsers without module Workers.

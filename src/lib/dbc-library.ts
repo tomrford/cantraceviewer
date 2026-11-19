@@ -1,4 +1,4 @@
-import { deleteDB, openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import { type DBSchema, deleteDB, type IDBPDatabase, openDB } from 'idb';
 
 export type StoredDbc = {
 	id: string;

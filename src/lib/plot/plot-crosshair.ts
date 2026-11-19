@@ -1,8 +1,8 @@
 import {
-	ratioInRange,
 	type PlotAxisRange,
 	type PlotPoint,
-	type PlotYWindow
+	type PlotYWindow,
+	ratioInRange
 } from '@/lib/plot/plot-viewport';
 
 export type CrosshairId = 1 | 2;

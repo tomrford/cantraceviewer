@@ -1,4 +1,4 @@
-import { createSearchIndex, searchIndex, type SearchIndex } from '@/lib/search-index';
+import { createSearchIndex, type SearchIndex, searchIndex } from '@/lib/search-index';
 import type { Signal } from '@/lib/signal';
 
 export type SelectorDbcMessage = {

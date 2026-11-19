@@ -3,11 +3,11 @@ import { useEffect, useEffectEvent } from 'react';
 import {
 	browserShortcutPlatform,
 	overridesBrowserShortcut,
+	type ShortcutAction,
 	shortcutEnabled,
 	shortcutFromEvent,
-	shortcutSuppressedBySurface,
-	type ShortcutAction,
-	type ShortcutState
+	type ShortcutState,
+	shortcutSuppressedBySurface
 } from '@/lib/keyboard-shortcuts';
 import { openHelp, openPalette, openSettings, openSignalSelector } from '@/store/app-shell';
 import {

@@ -18,7 +18,7 @@ import {
 	toggleSignal
 } from '@/store/plot-data';
 import { resetPreferences, setPreference } from '@/store/preferences';
-import { appStore, update, type AppState } from '@/store/store';
+import { type AppState, appStore, update } from '@/store/store';
 import { loadTraceFile } from '@/store/trace-file';
 
 type WalkthroughStepId = WalkthroughStep['id'];

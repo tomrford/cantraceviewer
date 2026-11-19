@@ -10,14 +10,13 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 fdeflate = "=0.3.7"
 serde = { version = "=1.0.229", features = ["derive"] }
-wasm-bindgen = "=0.2.121"
+wasm-bindgen = "=0.2.130"
 
 [profile.release]
 opt-level = 2
 lto = true
 codegen-units = 1
 panic = "abort"
-strip = true
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 serde-wasm-bindgen = "=0.6.5"

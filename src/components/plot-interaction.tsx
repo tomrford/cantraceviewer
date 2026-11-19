@@ -1,17 +1,17 @@
 import {
-	useEffect,
-	useEffectEvent,
-	useRef,
-	useState,
 	type MouseEvent,
 	type PointerEvent,
 	type ReactNode,
-	type RefObject
+	type RefObject,
+	useEffect,
+	useEffectEvent,
+	useRef,
+	useState
 } from 'react';
 
 import { ContextMenuTrigger } from '@/components/ui/context-menu';
 import { plotWheelAction } from '@/lib/plot/plot-interaction-policy';
-import { plotAreaRect, ratioInArea, type PlotRatioPoint } from '@/lib/plot/plot-pointer';
+import { plotAreaRect, type PlotRatioPoint, ratioInArea } from '@/lib/plot/plot-pointer';
 import {
 	boxViewport,
 	dataPointAtRatio,
