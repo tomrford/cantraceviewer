@@ -19,7 +19,6 @@
           overlays = [(import rust-overlay)];
         };
         nodejs = pkgs.nodejs-slim_latest;
-        pnpm = pkgs.pnpm.override {nodejs-slim = nodejs;};
         rustToolchain = pkgs.rust-bin.stable.latest.default.override {
           targets = ["wasm32-unknown-unknown"];
           extensions = ["rust-src" "rustfmt" "clippy" "rust-analyzer"];
@@ -28,7 +27,7 @@
         devShells.default = pkgs.mkShell {
           packages = [
             nodejs
-            pnpm
+            pkgs.bun
             rustToolchain
             pkgs.cargo-audit
             pkgs.wasm-bindgen-cli

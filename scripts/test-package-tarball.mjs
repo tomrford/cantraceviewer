@@ -40,7 +40,7 @@ try {
 			2
 		)
 	);
-	execFileSync('pnpm', ['install', '--ignore-workspace', '--no-frozen-lockfile'], {
+	execFileSync('bun', ['install'], {
 		cwd: root,
 		stdio: 'inherit'
 	});

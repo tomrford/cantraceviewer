@@ -9,10 +9,10 @@ Live instance: https://cantraceviewer.com.
 Use the Nix development environment.
 
 ```sh
-CI=true nix develop -c pnpm install --frozen-lockfile
-nix develop -c pnpm run dev
-nix develop -c pnpm run validate
-nix develop -c pnpm run package:validate
+nix develop -c bun install --frozen-lockfile
+nix develop -c bun run dev
+nix develop -c bun run validate
+nix develop -c bun run package:validate
 ```
 
 Run `validate` before handoff. Use `package:validate` for package release checks.

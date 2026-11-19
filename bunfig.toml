@@ -1,0 +1,5 @@
+[install]
+exact = true
+linkWorkspacePackages = false
+minimumReleaseAge = 259200
+minimumReleaseAgeExcludes = ["cantraceviewer"]

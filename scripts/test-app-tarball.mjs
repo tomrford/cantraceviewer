@@ -28,27 +28,24 @@ try {
 	}
 
 	const manifest = JSON.parse(await readFile(join(repo, 'package.json'), 'utf8'));
+	delete manifest.workspaces;
 	manifest.dependencies.cantraceviewer = `file:${tarball}`;
 	await writeFile(join(root, 'package.json'), `${JSON.stringify(manifest, null, '\t')}\n`);
 
-	const workspaceSource = await readFile(join(repo, 'pnpm-workspace.yaml'), 'utf8');
-	assert(workspaceSource.includes('  - packages/*\n'));
-	const workspace = workspaceSource.replace('  - packages/*\n', '');
-	await writeFile(join(root, 'pnpm-workspace.yaml'), workspace);
-	await cp(join(repo, 'pnpm-lock.yaml'), join(root, 'pnpm-lock.yaml'));
+	await cp(join(repo, 'bunfig.toml'), join(root, 'bunfig.toml'));
 
-	execFileSync('pnpm', ['install', '--no-frozen-lockfile'], { cwd: root, stdio: 'inherit' });
-	execFileSync('pnpm', ['exec', 'tsc', '--noEmit', '-p', 'tsconfig.json'], {
+	execFileSync('bun', ['install'], { cwd: root, stdio: 'inherit' });
+	execFileSync('bun', ['run', 'tsc', '--noEmit', '-p', 'tsconfig.json'], {
 		cwd: root,
 		stdio: 'inherit'
 	});
-	execFileSync('pnpm', ['run', 'test:run'], { cwd: root, stdio: 'inherit' });
+	execFileSync('bun', ['run', 'test:run'], { cwd: root, stdio: 'inherit' });
 	const installed = JSON.parse(
 		await readFile(join(root, 'node_modules/cantraceviewer/package.json'), 'utf8')
 	);
 	assert.equal(installed.name, packageManifest.name);
 	assert.equal(installed.version, packageManifest.version);
-	execFileSync('pnpm', ['run', 'build'], { cwd: root, stdio: 'inherit' });
+	execFileSync('bun', ['run', 'build'], { cwd: root, stdio: 'inherit' });
 	assert.equal(await readFile(join(root, 'dist/index.html'), 'utf8').then(Boolean), true);
 	const output = await readdir(join(root, 'dist'), { recursive: true });
 	assert(

@@ -9,5 +9,5 @@
 	},
 	"sortPackageJson": false,
 	"sortImports": true,
-	"ignorePatterns": ["pnpm-lock.yaml", "/public/", "/wasm/", "/packages/core/src/wasm-bindgen/"]
+	"ignorePatterns": ["bun.lock", "/public/", "/wasm/", "/packages/core/src/wasm-bindgen/"]
 }

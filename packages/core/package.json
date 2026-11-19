@@ -49,7 +49,7 @@
 	"scripts": {
 		"build": "node ./scripts/build.mjs",
 		"pack:artifact": "node ./scripts/pack.mjs",
-		"pack:check": "pnpm pack --dry-run",
+		"pack:check": "bun pm pack --dry-run",
 		"prepack": "node ./scripts/build.mjs"
 	},
 	"devDependencies": {
