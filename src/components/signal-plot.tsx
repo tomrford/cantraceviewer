@@ -205,9 +205,7 @@ export function SignalPlot({
 				</ContextMenu>
 			)}
 
-			{hasData && renderer.status === 'ready' && (
-				<SignalPlotAxes generateTicks={renderer.generateTicks} />
-			)}
+			{hasData && renderer.status === 'ready' && <SignalPlotAxes />}
 
 			{hasPlottableSignals && legendVisible && <SignalPlotLegend />}
 

@@ -4,12 +4,14 @@ import { createRoot, hydrateRoot } from 'react-dom/client';
 
 import { App } from '@/app';
 import { refuseStrayFileDrops } from '@/lib/file-drop';
+import { detectPlotRenderer } from '@/lib/plot/plot-chart';
 import { mountWebMcp } from '@/lib/webmcp';
 import { loadDbcLibrary } from '@/store/dbc-files';
 import { connectPreferences } from '@/store/preferences';
 
 // One-time browser startup. The prerender loads src/server.tsx instead, so none of this runs there.
 connectPreferences();
+void detectPlotRenderer();
 void loadDbcLibrary();
 mountWebMcp();
 refuseStrayFileDrops();

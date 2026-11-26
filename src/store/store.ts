@@ -6,6 +6,7 @@
 import { useStore } from 'zustand';
 import { createStore, type StoreApi } from 'zustand/vanilla';
 
+import type { PlotRendererInfo } from '@/lib/plot/plot-backend';
 import type { LegendCrosshairMode, PlotCrosshair } from '@/lib/plot/plot-crosshair';
 import type { LegendOrderMode } from '@/lib/plot/plot-signal-order';
 import { FULL_Y_WINDOW, type PlotYWindow } from '@/lib/plot/plot-viewport';
@@ -39,6 +40,7 @@ export type PersistedPreferences = {
 type SourceState = PersistedPreferences & {
 	// Page UI
 	systemDark: boolean;
+	plotRenderer: PlotRendererInfo | null;
 	openingTrace: boolean;
 	signalSelectorOpen: boolean;
 	settingsOpen: boolean;
@@ -165,6 +167,7 @@ function initialState(): AppState {
 	return {
 		...DEFAULT_PREFERENCES,
 		systemDark: false,
+		plotRenderer: null,
 		openingTrace: false,
 		signalSelectorOpen: false,
 		settingsOpen: false,

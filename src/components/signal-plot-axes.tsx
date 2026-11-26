@@ -1,6 +1,5 @@
 import {
 	axisGutterOffset,
-	type AxisTickGenerator,
 	axisTicks,
 	axisTicksAtRatios,
 	Y_AXIS_GUTTER
@@ -10,13 +9,13 @@ import { PRIMARY_Y_AXIS_ID } from '@/lib/plot/y-axis';
 import { useAppStore } from '@/store/store';
 
 /** Y-axis gutters with tick labels; secondary axes put their ticks at the primary tick ratios. */
-export function SignalPlotAxes({ generateTicks }: { generateTicks: AxisTickGenerator }) {
+export function SignalPlotAxes() {
 	const axes = useAppStore((s) => s.plotModel.gutterAxes);
 	const numbered = useAppStore((s) => s.plotModel.axes.length > 1);
 	const grid = useAppStore((s) => s.plotModel.grid);
 	const ranges = useAppStore((s) => s.axisRanges);
 
-	const primaryTicks = axisTicks(ranges.get(PRIMARY_Y_AXIS_ID) ?? null, generateTicks);
+	const primaryTicks = axisTicks(ranges.get(PRIMARY_Y_AXIS_ID) ?? null);
 	const ratios = primaryTicks.map((tick) => tick.ratio);
 
 	return (

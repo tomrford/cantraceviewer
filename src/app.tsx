@@ -1,4 +1,10 @@
-import { AudioWaveform, CircleQuestionMark, Database, LoaderCircle } from 'lucide-react';
+import {
+	AudioWaveform,
+	CircleQuestionMark,
+	Database,
+	LoaderCircle,
+	TriangleAlert
+} from 'lucide-react';
 import { type ChangeEvent, type ComponentProps, useEffect, useRef } from 'react';
 
 import { CommandPalette } from '@/components/command-palette';
@@ -17,7 +23,6 @@ import { Toaster } from '@/components/ui/sonner';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Walkthrough } from '@/components/walkthrough';
 import { useAppShortcuts } from '@/hooks/use-app-shortcuts';
-import { useBrowserValue } from '@/hooks/use-browser-value';
 import { useFileDrop } from '@/hooks/use-file-drop';
 import { traceFileFromDrop } from '@/lib/file-drop';
 import { TRACE_FILE_ACCEPT, TRACE_FILE_FORMAT_NAMES } from '@/lib/trace-file-types';
@@ -35,8 +40,6 @@ const LANDING_DESCRIPTION = `Open an ${TRACE_FILE_FORMAT_NAMES} trace. Decode ra
 
 export function App() {
 	const dark = useAppStore(isDark);
-	// The prerender assumes support, so browsers with WebGPU never see the required screen.
-	const webgpuSupported = useBrowserValue(() => 'gpu' in navigator, true);
 	const title = useAppStore((s) => (s.trace ? `${s.traceName} | ${SITE_TITLE}` : SITE_TITLE));
 
 	useEffect(() => {
@@ -56,19 +59,7 @@ export function App() {
 						</p>
 					</div>
 				</main>
-				{webgpuSupported ? (
-					<AppShell />
-				) : (
-					<main className="flex min-h-screen items-center justify-center bg-background px-6 text-center too-small:hidden">
-						<div className="max-w-sm space-y-2">
-							<h1 className="text-base font-medium text-foreground">WebGPU required</h1>
-							<p className="text-sm text-muted-foreground">
-								This browser does not support WebGPU, so CAN Trace Viewer cannot render plots. Try a
-								recent desktop browser with WebGPU enabled.
-							</p>
-						</div>
-					</main>
-				)}
+				<AppShell />
 			</TooltipProvider>
 			<Toaster position="bottom-center" theme={dark ? 'dark' : 'light'} />
 		</>
@@ -85,6 +76,9 @@ function AppShell() {
 	const isFitAll = useAppStore((s) => s.isFitAll);
 	const canPlaceCrosshair = useAppStore((s) => s.activeViewport !== null);
 	const hasCrosshairs = useAppStore((s) => s.crosshairs.length > 0);
+	const plotFallbackReason = useAppStore((s) =>
+		s.plotRenderer?.kind === 'canvas' ? s.plotRenderer.fallbackReason : null
+	);
 	const shortcutState = {
 		openingTrace,
 		plotControlsDisabled: !hasPlottable || openingTrace,
@@ -114,7 +108,7 @@ function AppShell() {
 				className="relative flex h-16 shrink-0 items-center justify-between gap-2 border-b px-4"
 				aria-busy={openingTrace}
 			>
-				<div className="flex items-center">
+				<div className="flex items-center gap-2">
 					<SignalSelectorDialog searchInputRef={signalSearchInput}>
 						<Tooltip>
 							<TooltipTrigger
@@ -134,6 +128,7 @@ function AppShell() {
 							</TooltipContent>
 						</Tooltip>
 					</SignalSelectorDialog>
+					{plotFallbackReason !== null && <RendererFallbackBadge reason={plotFallbackReason} />}
 				</div>
 
 				<div className="pointer-events-none flex min-w-0 flex-1 items-center justify-center lg:absolute lg:inset-0 lg:px-20">
@@ -175,6 +170,26 @@ function AppShell() {
 			<HelpDialog />
 			<CommandPalette state={shortcutState} onRun={runShortcut} />
 		</div>
+	);
+}
+
+function RendererFallbackBadge({ reason }: { reason: string }) {
+	return (
+		<Tooltip>
+			<TooltipTrigger
+				render={
+					<button
+						type="button"
+						className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-amber-500/35 bg-amber-500/10 px-2.5 text-xs font-medium text-amber-700 dark:text-amber-400"
+						aria-label={`2D fallback: ${reason}`}
+					/>
+				}
+			>
+				<TriangleAlert className="size-3.5 shrink-0" />
+				<span>2D fallback</span>
+			</TooltipTrigger>
+			<TooltipContent className="max-w-xs">Reduced plot performance. {reason}</TooltipContent>
+		</Tooltip>
 	);
 }
 

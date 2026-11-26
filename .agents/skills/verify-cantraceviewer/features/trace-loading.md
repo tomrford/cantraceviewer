@@ -30,6 +30,6 @@ Preconditions: doctor passed; record existing library/selection before replaceme
 ## Gotchas
 
 - Input accept filters can prevent unsupported-file selection; report the limitation rather than inject inputs.
-- Parsed metadata is GPU-independent evidence only; rendered series require ChartGPU.
+- Parsed metadata does not prove plot rendering; capture the rendered plot and record its active renderer (`data-renderer`).
 - Capture transient warnings immediately and inspect session before classifying import failure.
 - Format-specific regressions need their own fixtures; demo ASC cannot prove BLF/TRC support.

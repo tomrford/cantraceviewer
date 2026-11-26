@@ -1,26 +1,39 @@
-import type { ChartGPUInstance, ChartGPUOptions, ThemeConfig } from 'chartgpu';
-
-import { type AxisTickGenerator, Y_TICK_COUNT } from '@/lib/plot/plot-axis-layout';
-import { SIGNAL_COLORS } from '@/lib/plot/plot-colors';
-import { emptyAxisSeries, type PlotSeriesConfig, plotSeriesForViews } from '@/lib/plot/plot-series';
-import { type PlotTheme, resolvePlotTheme } from '@/lib/plot/plot-theme';
+import {
+	checkWebGpuSupport,
+	type PlotBackend,
+	type PlotFrame,
+	type PlotRendererKind
+} from '@/lib/plot/plot-backend';
+import { createCanvasBackend } from '@/lib/plot/plot-backend-canvas';
+import { createWebGpuBackend } from '@/lib/plot/plot-backend-webgpu';
+import { resolvePlotTheme } from '@/lib/plot/plot-theme';
 import { PlotWindow } from '@/lib/plot/plot-window';
-import { formatAxisTime, type WindowedSignalView } from '@/lib/plot/signal-plot-data';
-import { PRIMARY_Y_AXIS_ID } from '@/lib/plot/y-axis';
-import type { PlotModelState } from '@/store/derive';
 import { isDark } from '@/store/preferences';
-import { type AppState, appStore } from '@/store/store';
-
-const AXIS_FONT_SIZE = 12;
+import { type AppState, appStore, update } from '@/store/store';
 
 export type RendererState =
 	| { status: 'loading' }
-	| { status: 'ready'; generateTicks: AxisTickGenerator }
+	| { status: 'ready'; kind: PlotRendererKind }
 	| { status: 'error'; message: string };
 
 /**
- * Starts ChartGPU on `surface` and pushes options from store subscriptions, coalesced to one
- * `setOption` per animation frame. Returns the teardown.
+ * Probes WebGPU availability at browser startup so the fallback badge can appear before a trace
+ * is opened, without touching or fetching the ChartGPU bundle.
+ */
+export async function detectPlotRenderer(): Promise<void> {
+	const support = await checkWebGpuSupport();
+	if (appStore.getState().plotRenderer !== null) return;
+	update({
+		plotRenderer: support.ok
+			? { kind: 'webgpu', fallbackReason: null }
+			: { kind: 'canvas', fallbackReason: support.reason }
+	});
+}
+
+/**
+ * Starts the plot backend on `surface` (WebGPU via ChartGPU, falling back automatically to Canvas
+ * 2D when WebGPU is unavailable or fails) and pushes frames from store subscriptions, coalesced to
+ * one render per animation frame. Returns the teardown.
  */
 export function mountChart(
 	root: HTMLElement,
@@ -28,50 +41,32 @@ export function mountChart(
 	onStatus: (state: RendererState) => void
 ): () => void {
 	let disposed = false;
-	let chart: ChartGPUInstance | null = null;
+	let backend: PlotBackend | null = null;
 	let resizeObserver: ResizeObserver | null = null;
 	let frame: number | null = null;
 	let themeDark = isDark(appStore.getState());
-	let theme = chartTheme(resolvePlotTheme(getComputedStyle(root)));
-	// ChartGPU reuses per-series state only for identical series objects, so rebuild them only
-	// when the windowed views or the axis assignment change.
-	let seriesCache: {
-		views: WindowedSignalView[];
-		model: PlotModelState;
-		series: PlotSeriesConfig[];
-	} | null = null;
+	let theme = resolvePlotTheme(getComputedStyle(root));
 	const plotWindow = new PlotWindow(schedule);
 
-	function currentOptions(): ChartGPUOptions {
+	function currentFrame(): PlotFrame {
 		// connectPreferences toggles the dark class in the same store update that scheduled this frame.
 		const state = appStore.getState();
 		const dark = isDark(state);
 		if (dark !== themeDark) {
 			themeDark = dark;
-			theme = chartTheme(resolvePlotTheme(getComputedStyle(root)));
+			theme = resolvePlotTheme(getComputedStyle(root));
 		}
 		const model = state.plotModel;
 		const views = plotWindow.viewsFor(model.views, state.activeViewport);
-		if (seriesCache?.views !== views || seriesCache.model !== model) {
-			const series = plotSeriesForViews(
-				views,
-				(view) => model.axisIdByKey.get(view.signal.key) ?? PRIMARY_Y_AXIS_ID
-			);
-			seriesCache = {
-				views,
-				model,
-				series: series.length > 0 ? series : [emptyAxisSeries(PRIMARY_Y_AXIS_ID)]
-			};
-		}
-		return chartOptions(theme, state, seriesCache.series);
+		return buildPlotFrame(theme, state, views);
 	}
 
-	function schedule() {
+	function schedule(): void {
 		if (frame !== null) return;
 		frame = requestAnimationFrame(() => {
 			frame = null;
-			if (chart === null) return;
-			chart.setOption(currentOptions());
+			if (backend === null) return;
+			backend.render(currentFrame());
 			plotWindow.settleAfter(
 				appStore.getState().plotModel.views,
 				appStore.getState().activeViewport
@@ -79,28 +74,64 @@ export function mountChart(
 		});
 	}
 
-	async function start() {
+	function activate(next: PlotBackend, fallbackReason: string | null): void {
+		backend = next;
+		surface.dataset.renderer = next.kind;
+		update({
+			plotRenderer:
+				next.kind === 'webgpu'
+					? { kind: 'webgpu', fallbackReason: null }
+					: { kind: 'canvas', fallbackReason: fallbackReason ?? 'WebGPU is unavailable.' }
+		});
+		if (resizeObserver === null) {
+			resizeObserver = new ResizeObserver(() => backend?.resize());
+			resizeObserver.observe(surface);
+		}
+		// Store/theme updates may have consumed their frames while startup was pending.
+		schedule();
+		onStatus({ status: 'ready', kind: next.kind });
+	}
+
+	function mountCanvasFallback(reason: string): void {
+		backend?.dispose();
+		backend = null;
+		surface.replaceChildren();
 		try {
-			const mod = await import('chartgpu').catch(() => null);
-			if (disposed) return;
-			if (mod === null) {
+			activate(createCanvasBackend(surface, currentFrame()), reason);
+		} catch (error) {
+			if (!disposed) {
 				onStatus({
 					status: 'error',
-					message: 'The plot renderer could not be downloaded. Reload the page to try again.'
+					message: `Could not start the plot renderer: ${error instanceof Error ? error.message : 'unknown error'}`
 				});
+			}
+		}
+	}
+
+	async function start(): Promise<void> {
+		try {
+			const support = await checkWebGpuSupport();
+			if (disposed) return;
+
+			if (!support.ok) {
+				mountCanvasFallback(support.reason);
 				return;
 			}
-			const created = await mod.ChartGPU.create(surface, currentOptions());
-			if (disposed) {
-				created.dispose();
-				return;
+
+			try {
+				const webgpu = await createWebGpuBackend(surface, currentFrame(), support.adapter, () => {
+					if (!disposed) mountCanvasFallback('WebGPU device was lost.');
+				});
+				if (disposed) {
+					webgpu.dispose();
+					return;
+				}
+				activate(webgpu, null);
+			} catch (error) {
+				if (disposed) return;
+				console.warn('WebGPU renderer failed; falling back to Canvas 2D.', error);
+				mountCanvasFallback('WebGPU failed to start.');
 			}
-			chart = created;
-			// Store/theme updates may have consumed their frames while create was pending.
-			schedule();
-			resizeObserver = new ResizeObserver(() => chart?.resize());
-			resizeObserver.observe(surface);
-			onStatus({ status: 'ready', generateTicks: mod.generateValueAxisTicks });
 		} catch (error) {
 			if (!disposed) {
 				onStatus({
@@ -130,65 +161,31 @@ export function mountChart(
 		unsubscribe();
 		plotWindow.dispose();
 		resizeObserver?.disconnect();
-		chart?.dispose();
+		backend?.dispose();
+		delete surface.dataset.renderer;
 	};
 }
 
-type ChartTheme = { gridLine: string; config: ThemeConfig };
-
-function chartTheme(theme: PlotTheme): ChartTheme {
-	return {
-		gridLine: theme.gridLine,
-		config: {
-			backgroundColor: theme.background,
-			textColor: theme.text,
-			axisLineColor: theme.axisLine,
-			axisTickColor: theme.axisTick,
-			gridLineColor: theme.gridLine,
-			colorPalette: SIGNAL_COLORS,
-			fontFamily: theme.fontFamily,
-			fontSize: AXIS_FONT_SIZE
-		}
-	};
-}
-
-function chartOptions(
-	theme: ChartTheme,
+function buildPlotFrame(
+	theme: PlotFrame['theme'],
 	state: AppState,
-	series: PlotSeriesConfig[]
-): ChartGPUOptions {
+	views: PlotFrame['views']
+): PlotFrame {
 	const model = state.plotModel;
-	const time = {
-		measurementStartMs: state.trace?.metadata.measurementStartMs,
-		mode: state.timestampMode
-	};
 	return {
-		performance: { lod: 'strict' },
-		theme: theme.config,
+		theme,
 		grid: model.grid,
-		gridLines: { color: theme.gridLine, opacity: 1 },
-		xAxis: {
-			type: 'time',
-			min: state.activeViewport?.xMin,
-			max: state.activeViewport?.xMax,
-			tickFormatter: (value) => formatAxisTime(value, time)
+		xRange:
+			state.activeViewport === null
+				? null
+				: { min: state.activeViewport.xMin, max: state.activeViewport.xMax },
+		timeFormat: {
+			measurementStartMs: state.trace?.metadata.measurementStartMs,
+			mode: state.timestampMode
 		},
-		axes: {
-			y: model.axes.map((axis) => ({
-				id: axis.id,
-				type: 'value' as const,
-				position: 'left' as const,
-				min: state.axisRanges.get(axis.id)?.min,
-				max: state.axisRanges.get(axis.id)?.max,
-				tickCount: Y_TICK_COUNT,
-				tickFormatter: () => null
-			}))
-		},
-		legend: { show: false },
-		tooltip: { show: false },
-		animation: false,
-		palette: SIGNAL_COLORS,
-		annotations: [],
-		series
+		axes: model.axes,
+		axisRanges: state.axisRanges,
+		views,
+		axisIdByKey: model.axisIdByKey
 	};
 }

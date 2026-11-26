@@ -480,6 +480,7 @@ function viewState(): ReturnType<WebMcpHost['view']> {
 
 function sessionSnapshot(): ReturnType<WebMcpHost['session']> {
 	return {
+		renderer: { kind: 'webgpu', fallbackReason: null },
 		trace: {
 			name: 'drive',
 			fileName: 'drive.asc',
