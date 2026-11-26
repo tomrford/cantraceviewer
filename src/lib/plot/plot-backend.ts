@@ -29,19 +29,10 @@ export type PlotBackend = {
 	dispose(): void;
 };
 
-export type WebGpuDevice = {
-	readonly lost: Promise<{ readonly reason: string; readonly message?: string }>;
-	destroy(): void;
-};
-
-export type WebGpuAdapter = {
-	requestDevice(): Promise<WebGpuDevice>;
-};
-
-export type WebGpuSupport = { ok: true; adapter: WebGpuAdapter } | { ok: false; reason: string };
+export type WebGpuSupport = { ok: true } | { ok: false; reason: string };
 
 type WebGpuNavigator = Navigator & {
-	gpu?: { requestAdapter?: () => Promise<WebGpuAdapter | null> };
+	gpu?: { requestAdapter?: () => Promise<unknown> };
 };
 
 /** Dev/build override to exercise the Canvas 2D fallback on a GPU-capable browser. */
@@ -74,11 +65,9 @@ export async function checkWebGpuSupport(): Promise<WebGpuSupport> {
 	}
 
 	try {
-		const adapter = await gpu.requestAdapter();
-		if (!adapter) {
-			return { ok: false, reason: 'No WebGPU adapter is available.' };
-		}
-		return { ok: true, adapter };
+		return (await gpu.requestAdapter())
+			? { ok: true }
+			: { ok: false, reason: 'No WebGPU adapter is available.' };
 	} catch {
 		return { ok: false, reason: 'WebGPU adapter check failed.' };
 	}

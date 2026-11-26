@@ -131,7 +131,11 @@ function AppShell() {
 					{plotFallbackReason !== null && <RendererFallbackBadge reason={plotFallbackReason} />}
 				</div>
 
-				<div className="pointer-events-none flex min-w-0 flex-1 items-center justify-center lg:absolute lg:inset-0 lg:px-20">
+				<div
+					className={`pointer-events-none flex min-w-0 flex-1 items-center justify-center lg:absolute lg:inset-0 ${
+						plotFallbackReason !== null ? 'lg:px-48' : 'lg:px-20'
+					}`}
+				>
 					<TraceButton openingTrace={openingTrace} onOpenTrace={chooseTraceFile} />
 				</div>
 

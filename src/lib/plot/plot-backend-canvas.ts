@@ -1,5 +1,6 @@
 import { AXIS_FONT_SIZE, generateValueAxisTicks, Y_TICK_COUNT } from '@/lib/plot/plot-axis-layout';
 import type { PlotBackend, PlotFrame } from '@/lib/plot/plot-backend';
+import type { PlotAxisRange } from '@/lib/plot/plot-viewport';
 import { formatAxisTime, type WindowedSignalView } from '@/lib/plot/signal-plot-data';
 import { PRIMARY_Y_AXIS_ID } from '@/lib/plot/y-axis';
 
@@ -11,6 +12,15 @@ const X_LABEL_OFFSET = 10;
 const X_LABEL_MIN_GAP = 10;
 const X_TICK_SPACING_PX = 140;
 const EDGE_ANCHOR_PX = 24;
+
+type PlotBox = {
+	left: number;
+	right: number;
+	top: number;
+	bottom: number;
+	width: number;
+	height: number;
+};
 
 /**
  * Software-safe Canvas 2D fallback backend used automatically when WebGPU is unavailable.
@@ -35,106 +45,80 @@ export function createCanvasBackend(surface: HTMLElement, initialFrame: PlotFram
 	let cssHeight = 0;
 	let dpr = 1;
 	let disposed = false;
-	let stopDprWatch: (() => void) | null = null;
 
-	function watchDpr(): void {
-		stopDprWatch?.();
-		stopDprWatch = null;
-		if (disposed || typeof window.matchMedia !== 'function') return;
-		const media = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
-		const handleChange = () => {
-			if (disposed) return;
-			watchDpr();
-			paint(lastFrame);
-		};
-		media.addEventListener('change', handleChange, { once: true });
-		stopDprWatch = () => media.removeEventListener('change', handleChange);
-	}
-
-	function syncSize(): boolean {
+	function syncSize(): { ready: boolean; changed: boolean } {
 		const width = Math.max(0, Math.floor(surface.clientWidth));
 		const height = Math.max(0, Math.floor(surface.clientHeight));
 		const nextDpr = window.devicePixelRatio || 1;
-		if (width === cssWidth && height === cssHeight && nextDpr === dpr) {
-			return width > 0 && height > 0;
+		const changed = width !== cssWidth || height !== cssHeight || nextDpr !== dpr;
+		if (changed) {
+			cssWidth = width;
+			cssHeight = height;
+			dpr = nextDpr;
+			canvas.width = Math.max(1, Math.round(width * dpr));
+			canvas.height = Math.max(1, Math.round(height * dpr));
 		}
-
-		cssWidth = width;
-		cssHeight = height;
-		dpr = nextDpr;
-		canvas.width = Math.max(1, Math.round(width * dpr));
-		canvas.height = Math.max(1, Math.round(height * dpr));
-		return width > 0 && height > 0;
+		return { ready: width > 0 && height > 0, changed };
 	}
 
 	function paint(frame: PlotFrame): void {
 		if (disposed) return;
 		lastFrame = frame;
-		if (!syncSize()) return;
+		if (!syncSize().ready) return;
 
 		ctx.save();
 		ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-		const { theme, grid, xRange, axisRanges } = frame;
+		const { theme, grid, axisRanges } = frame;
 		ctx.fillStyle = theme.background;
 		ctx.fillRect(0, 0, cssWidth, cssHeight);
 
-		const plotLeft = grid.left;
-		const plotRight = cssWidth - grid.right;
-		const plotTop = grid.top;
-		const plotBottom = cssHeight - grid.bottom;
-		const plotWidth = plotRight - plotLeft;
-		const plotHeight = plotBottom - plotTop;
-		if (plotWidth <= 0 || plotHeight <= 0) {
+		const box: PlotBox = {
+			left: grid.left,
+			right: cssWidth - grid.right,
+			top: grid.top,
+			bottom: cssHeight - grid.bottom,
+			width: cssWidth - grid.left - grid.right,
+			height: cssHeight - grid.top - grid.bottom
+		};
+		if (box.width <= 0 || box.height <= 0) {
 			ctx.restore();
 			return;
 		}
 
-		const primaryY = axisRanges.get(PRIMARY_Y_AXIS_ID) ?? null;
-		const yTicks =
-			primaryY !== null && primaryY.max > primaryY.min
-				? generateValueAxisTicks(primaryY.min, primaryY.max, Y_TICK_COUNT)
-				: [];
-		const xTickCount = Math.max(2, Math.min(8, Math.floor(plotWidth / X_TICK_SPACING_PX)));
-		const xTicks =
-			xRange !== null && xRange.max > xRange.min
-				? generateValueAxisTicks(xRange.min, xRange.max, xTickCount)
-				: [];
+		const validX =
+			frame.xRange !== null && frame.xRange.max > frame.xRange.min ? frame.xRange : null;
+		const primaryY = axisRanges.get(PRIMARY_Y_AXIS_ID);
+		const validPrimaryY = primaryY !== undefined && primaryY.max > primaryY.min ? primaryY : null;
+		const yTicks = validPrimaryY
+			? generateValueAxisTicks(validPrimaryY.min, validPrimaryY.max, Y_TICK_COUNT)
+			: [];
+		const xTickCount = Math.max(2, Math.min(8, Math.floor(box.width / X_TICK_SPACING_PX)));
+		const xTicks = validX ? generateValueAxisTicks(validX.min, validX.max, xTickCount) : [];
 
-		drawGridLines(
-			ctx,
-			theme.gridLine,
-			plotLeft,
-			plotRight,
-			plotTop,
-			plotBottom,
-			xRange,
-			xTicks,
-			primaryY,
-			yTicks
-		);
+		drawGridLines(ctx, box, theme.gridLine, validX, xTicks, validPrimaryY, yTicks);
 
-		if (xRange !== null && xRange.max > xRange.min) {
+		if (validX !== null) {
 			ctx.save();
 			ctx.beginPath();
-			ctx.rect(plotLeft, plotTop, plotWidth, plotHeight);
+			ctx.rect(box.left, box.top, box.width, box.height);
 			ctx.clip();
 
 			for (const view of frame.views) {
 				const axisId = frame.axisIdByKey.get(view.signal.key) ?? PRIMARY_Y_AXIS_ID;
 				const yRange = axisRanges.get(axisId);
-				if (yRange === undefined || !(yRange.max > yRange.min)) continue;
-				drawSeries(ctx, view, plotLeft, plotTop, plotWidth, plotHeight, xRange, yRange);
+				if (yRange !== undefined && yRange.max > yRange.min) {
+					drawSeries(ctx, box, view, validX, yRange);
+				}
 			}
 
 			ctx.restore();
+			drawXAxis(ctx, box, frame, validX, xTicks);
 		}
 
-		drawXAxis(ctx, frame, plotLeft, plotRight, plotBottom, xRange, xTicks);
 		ctx.restore();
 	}
 
-	watchDpr();
 	paint(initialFrame);
 
 	return {
@@ -143,13 +127,11 @@ export function createCanvasBackend(surface: HTMLElement, initialFrame: PlotFram
 			paint(frame);
 		},
 		resize() {
-			paint(lastFrame);
+			if (!disposed && syncSize().changed) paint(lastFrame);
 		},
 		dispose() {
 			if (disposed) return;
 			disposed = true;
-			stopDprWatch?.();
-			stopDprWatch = null;
 			canvas.remove();
 		}
 	};
@@ -157,37 +139,32 @@ export function createCanvasBackend(surface: HTMLElement, initialFrame: PlotFram
 
 function drawGridLines(
 	ctx: CanvasRenderingContext2D,
+	box: PlotBox,
 	color: string,
-	plotLeft: number,
-	plotRight: number,
-	plotTop: number,
-	plotBottom: number,
-	xRange: PlotFrame['xRange'],
+	xRange: PlotAxisRange | null,
 	xTicks: readonly number[],
-	yRange: PlotFrame['xRange'],
+	yRange: PlotAxisRange | null,
 	yTicks: readonly number[]
 ): void {
-	const plotWidth = plotRight - plotLeft;
-	const plotHeight = plotBottom - plotTop;
 	ctx.strokeStyle = color;
 	ctx.lineWidth = 1;
 	ctx.beginPath();
 
-	if (yRange !== null && yRange.max > yRange.min) {
+	if (yRange !== null) {
 		const ySpan = yRange.max - yRange.min;
 		for (const tick of yTicks) {
-			const y = Math.round(plotTop + ((yRange.max - tick) / ySpan) * plotHeight) + 0.5;
-			ctx.moveTo(plotLeft, y);
-			ctx.lineTo(plotRight, y);
+			const y = Math.round(box.top + ((yRange.max - tick) / ySpan) * box.height) + 0.5;
+			ctx.moveTo(box.left, y);
+			ctx.lineTo(box.right, y);
 		}
 	}
 
-	if (xRange !== null && xRange.max > xRange.min) {
+	if (xRange !== null) {
 		const xSpan = xRange.max - xRange.min;
 		for (const tick of xTicks) {
-			const x = Math.round(plotLeft + ((tick - xRange.min) / xSpan) * plotWidth) + 0.5;
-			ctx.moveTo(x, plotTop);
-			ctx.lineTo(x, plotBottom);
+			const x = Math.round(box.left + ((tick - xRange.min) / xSpan) * box.width) + 0.5;
+			ctx.moveTo(x, box.top);
+			ctx.lineTo(x, box.bottom);
 		}
 	}
 
@@ -196,13 +173,10 @@ function drawGridLines(
 
 function drawSeries(
 	ctx: CanvasRenderingContext2D,
+	box: PlotBox,
 	view: WindowedSignalView,
-	plotLeft: number,
-	plotTop: number,
-	plotWidth: number,
-	plotHeight: number,
-	xRange: NonNullable<PlotFrame['xRange']>,
-	yRange: NonNullable<PlotFrame['xRange']>
+	xRange: PlotAxisRange,
+	yRange: PlotAxisRange
 ): void {
 	const { x, y } = view;
 	const count = Math.min(x.length, y.length);
@@ -211,8 +185,8 @@ function drawSeries(
 	const xMin = xRange.min;
 	const xMax = xRange.max;
 	const yMax = yRange.max;
-	const xScale = plotWidth / (xMax - xMin);
-	const yScale = plotHeight / (yMax - yRange.min);
+	const xScale = box.width / (xMax - xMin);
+	const yScale = box.height / (yMax - yRange.min);
 
 	ctx.strokeStyle = view.color;
 	ctx.lineWidth = LINE_WIDTH;
@@ -234,12 +208,10 @@ function drawSeries(
 			penDown = false;
 			continue;
 		}
-		if (xv > xMax && i > 0 && x[i - 1] > xMax) {
-			break;
-		}
+		if (xv > xMax && i > 0 && x[i - 1] > xMax) break;
 
-		const px = plotLeft + (xv - xMin) * xScale;
-		const py = plotTop + (yMax - yv) * yScale;
+		const px = box.left + (xv - xMin) * xScale;
+		const py = box.top + (yMax - yv) * yScale;
 		if (!penDown) {
 			ctx.moveTo(px, py);
 			penDown = true;
@@ -250,21 +222,17 @@ function drawSeries(
 	ctx.stroke();
 
 	if (!view.sampled) {
-		const plotRight = plotLeft + plotWidth;
-		const plotBottom = plotTop + plotHeight;
 		ctx.fillStyle = view.color;
 		ctx.globalAlpha = 1;
 		ctx.beginPath();
 		for (let i = 0; i < count; i += 1) {
 			const xv = x[i];
 			const yv = y[i];
-			if (!Number.isFinite(xv) || !Number.isFinite(yv)) continue;
-			if (xv < xMin) continue;
+			if (!Number.isFinite(xv) || !Number.isFinite(yv) || xv < xMin) continue;
 			if (xv > xMax) break;
-			const px = plotLeft + (xv - xMin) * xScale;
-			const py = plotTop + (yMax - yv) * yScale;
-			if (px < plotLeft - MARKER_RADIUS || px > plotRight + MARKER_RADIUS) continue;
-			if (py < plotTop - MARKER_RADIUS || py > plotBottom + MARKER_RADIUS) continue;
+			const py = box.top + (yMax - yv) * yScale;
+			if (py < box.top - MARKER_RADIUS || py > box.bottom + MARKER_RADIUS) continue;
+			const px = box.left + (xv - xMin) * xScale;
 			ctx.moveTo(px + MARKER_RADIUS, py);
 			ctx.arc(px, py, MARKER_RADIUS, 0, Math.PI * 2);
 		}
@@ -276,32 +244,29 @@ function drawSeries(
 
 function drawXAxis(
 	ctx: CanvasRenderingContext2D,
+	box: PlotBox,
 	frame: PlotFrame,
-	plotLeft: number,
-	plotRight: number,
-	plotBottom: number,
-	xRange: PlotFrame['xRange'],
+	xRange: PlotAxisRange,
 	xTicks: readonly number[]
 ): void {
 	const { theme, timeFormat } = frame;
-	const baselineY = Math.round(plotBottom) + 0.5;
+	const baselineY = Math.round(box.bottom) + 0.5;
 
 	ctx.strokeStyle = theme.axisLine;
 	ctx.lineWidth = 1;
 	ctx.beginPath();
-	ctx.moveTo(plotLeft, baselineY);
-	ctx.lineTo(plotRight, baselineY);
+	ctx.moveTo(box.left, baselineY);
+	ctx.lineTo(box.right, baselineY);
 	ctx.stroke();
 
-	if (xRange === null || !(xRange.max > xRange.min) || xTicks.length === 0) return;
+	if (xTicks.length === 0) return;
 
-	const plotWidth = plotRight - plotLeft;
 	const xSpan = xRange.max - xRange.min;
 
 	ctx.strokeStyle = theme.axisTick;
 	ctx.beginPath();
 	for (const tick of xTicks) {
-		const x = Math.round(plotLeft + ((tick - xRange.min) / xSpan) * plotWidth) + 0.5;
+		const x = Math.round(box.left + ((tick - xRange.min) / xSpan) * box.width) + 0.5;
 		ctx.moveTo(x, baselineY);
 		ctx.lineTo(x, baselineY + X_TICK_LENGTH);
 	}
@@ -310,21 +275,22 @@ function drawXAxis(
 	ctx.font = `${AXIS_FONT_SIZE}px ${theme.fontFamily}`;
 	ctx.fillStyle = theme.text;
 	ctx.textBaseline = 'top';
-	const labelY = plotBottom + X_LABEL_OFFSET;
+	const labelY = box.bottom + X_LABEL_OFFSET;
 
 	let lastRight = -Infinity;
+	let lastLabel = '';
 	for (const tick of xTicks) {
 		const label = formatAxisTime(tick, timeFormat);
-		if (label.length === 0) continue;
-		const x = plotLeft + ((tick - xRange.min) / xSpan) * plotWidth;
+		if (label.length === 0 || label === lastLabel) continue;
+		const x = box.left + ((tick - xRange.min) / xSpan) * box.width;
 		const width = ctx.measureText(label).width;
 
 		let align: CanvasTextAlign = 'center';
 		let left = x - width / 2;
-		if (x - plotLeft < EDGE_ANCHOR_PX || left < plotLeft) {
+		if (x - box.left < EDGE_ANCHOR_PX || left < box.left) {
 			align = 'left';
 			left = x;
-		} else if (plotRight - x < EDGE_ANCHOR_PX || left + width > plotRight) {
+		} else if (box.right - x < EDGE_ANCHOR_PX || left + width > box.right) {
 			align = 'right';
 			left = x - width;
 		}
@@ -333,5 +299,6 @@ function drawXAxis(
 		ctx.textAlign = align;
 		ctx.fillText(label, x, labelY);
 		lastRight = left + width;
+		lastLabel = label;
 	}
 }

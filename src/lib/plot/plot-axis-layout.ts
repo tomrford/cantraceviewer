@@ -20,7 +20,6 @@ export function axisGutterOffset(index: number, axisCount: number): number {
 }
 
 type AxisTick = { ratio: number; value: number };
-export type AxisTickGenerator = (min: number, max: number, count: number) => number[];
 
 /**
  * 1–2–5 × 10ⁿ nice-tick ladder clamped to `[domainMin, domainMax]`, matching ChartGPU's
@@ -31,45 +30,8 @@ export function generateValueAxisTicks(
 	domainMax: number,
 	tickCountHint = Y_TICK_COUNT
 ): number[] {
-	const target = Math.max(2, Math.min(20, Math.floor(tickCountHint) || Y_TICK_COUNT));
-	const nice = niceTicksClamped(domainMin, domainMax, target);
-	return nice.length >= 2 ? nice : linearTicks(domainMin, domainMax, target);
-}
-
-export function axisTicks(
-	range: PlotAxisRange | null,
-	generateTicks: AxisTickGenerator = generateValueAxisTicks,
-	count = Y_TICK_COUNT
-): AxisTick[] {
-	if (range === null || count < 1) return [];
-	const span = range.max - range.min;
-	if (!(span > 0) || count === 1) return [{ ratio: 0.5, value: (range.min + range.max) / 2 }];
-
-	return generateTicks(range.min, range.max, count)
-		.map((value) => ({ ratio: (range.max - value) / span, value }))
-		.reverse();
-}
-
-export function axisTicksAtRatios(
-	range: PlotAxisRange | null,
-	ratios: readonly number[]
-): AxisTick[] {
-	if (range === null) return [];
-	const span = range.max - range.min;
-	return ratios.map((ratio) => ({ ratio, value: range.max - ratio * span }));
-}
-
-function niceStep(range: number): number {
-	if (!(range > 0) || !Number.isFinite(range)) return 1;
-	const exponent = Math.floor(Math.log10(range));
-	const scale = 10 ** exponent;
-	const fraction = range / scale;
-	const niceFraction = fraction < 1.5 ? 1 : fraction < 3 ? 2 : fraction < 7 ? 5 : 10;
-	return niceFraction * scale;
-}
-
-function niceTicksClamped(domainMin: number, domainMax: number, count: number): number[] {
 	if (!Number.isFinite(domainMin) || !Number.isFinite(domainMax)) return [0, 1];
+	const count = Math.max(2, Math.min(20, Math.floor(tickCountHint) || Y_TICK_COUNT));
 	let min = domainMin;
 	let max = domainMax;
 	const degenerate = min === max;
@@ -107,10 +69,30 @@ function niceTicksClamped(domainMin: number, domainMax: number, count: number): 
 	return clampMin !== clampMax ? [clampMin, clampMax] : [min, max];
 }
 
-function linearTicks(domainMin: number, domainMax: number, count: number): number[] {
-	const safeCount = Math.max(1, Math.floor(count));
-	return Array.from({ length: safeCount }, (_, i) => {
-		const ratio = safeCount === 1 ? 0.5 : i / (safeCount - 1);
-		return domainMin + ratio * (domainMax - domainMin);
-	});
+export function axisTicks(range: PlotAxisRange | null, count = Y_TICK_COUNT): AxisTick[] {
+	if (range === null || count < 1) return [];
+	const span = range.max - range.min;
+	if (!(span > 0) || count === 1) return [{ ratio: 0.5, value: (range.min + range.max) / 2 }];
+
+	return generateValueAxisTicks(range.min, range.max, count)
+		.map((value) => ({ ratio: (range.max - value) / span, value }))
+		.reverse();
+}
+
+export function axisTicksAtRatios(
+	range: PlotAxisRange | null,
+	ratios: readonly number[]
+): AxisTick[] {
+	if (range === null) return [];
+	const span = range.max - range.min;
+	return ratios.map((ratio) => ({ ratio, value: range.max - ratio * span }));
+}
+
+function niceStep(range: number): number {
+	if (!(range > 0) || !Number.isFinite(range)) return 1;
+	const exponent = Math.floor(Math.log10(range));
+	const scale = 10 ** exponent;
+	const fraction = range / scale;
+	const niceFraction = fraction < 1.5 ? 1 : fraction < 3 ? 2 : fraction < 7 ? 5 : 10;
+	return niceFraction * scale;
 }

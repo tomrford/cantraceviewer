@@ -20,7 +20,7 @@ describe('axisGutterOffset', () => {
 
 describe('axisTicks', () => {
 	it('matches ChartGPU nice ticks and walks them top-down', () => {
-		const ticks = axisTicks({ min: 11.3, max: 38.8 }, generateValueAxisTicks, 5);
+		const ticks = axisTicks({ min: 11.3, max: 38.8 }, 5);
 		expect(ticks.map((tick) => tick.value)).toEqual([35, 30, 25, 20, 15]);
 		ticks.forEach((tick) => {
 			expect(tick.ratio).toBeCloseTo((38.8 - tick.value) / 27.5);
@@ -32,10 +32,8 @@ describe('axisTicks', () => {
 		expect(ticks).toHaveLength(6);
 		ticks.forEach((tick, index) => expect(tick.value).toBeCloseTo(1 - index * 0.2));
 		expect(axisTicks(null)).toEqual([]);
-		expect(axisTicks({ min: 0, max: 1 }, generateValueAxisTicks, 0)).toEqual([]);
-		expect(axisTicks({ min: 5, max: 5 }, generateValueAxisTicks, 1)).toEqual([
-			{ ratio: 0.5, value: 5 }
-		]);
+		expect(axisTicks({ min: 0, max: 1 }, 0)).toEqual([]);
+		expect(axisTicks({ min: 5, max: 5 }, 1)).toEqual([{ ratio: 0.5, value: 5 }]);
 	});
 
 	it('produces the same clamped tick ladder as ChartGPU across scales and edge ranges', () => {

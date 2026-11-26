@@ -2,6 +2,7 @@ import {
 	checkWebGpuSupport,
 	type PlotBackend,
 	type PlotFrame,
+	type PlotRendererInfo,
 	type PlotRendererKind
 } from '@/lib/plot/plot-backend';
 import { createCanvasBackend } from '@/lib/plot/plot-backend-canvas';
@@ -32,8 +33,8 @@ export async function detectPlotRenderer(): Promise<void> {
 
 /**
  * Starts the plot backend on `surface` (WebGPU via ChartGPU, falling back automatically to Canvas
- * 2D when WebGPU is unavailable or fails) and pushes frames from store subscriptions, coalesced to
- * one render per animation frame. Returns the teardown.
+ * 2D when WebGPU is unavailable or fails to start) and pushes frames from store subscriptions,
+ * coalesced to one render per animation frame. Returns the teardown.
  */
 export function mountChart(
 	root: HTMLElement,
@@ -74,32 +75,28 @@ export function mountChart(
 		});
 	}
 
-	function activate(next: PlotBackend, fallbackReason: string | null): void {
+	function activate(next: PlotBackend, info: PlotRendererInfo, catchUp: boolean): void {
 		backend = next;
 		surface.dataset.renderer = next.kind;
-		update({
-			plotRenderer:
-				next.kind === 'webgpu'
-					? { kind: 'webgpu', fallbackReason: null }
-					: { kind: 'canvas', fallbackReason: fallbackReason ?? 'WebGPU is unavailable.' }
-		});
-		if (resizeObserver === null) {
-			resizeObserver = new ResizeObserver(() => backend?.resize());
-			resizeObserver.observe(surface);
+		const current = appStore.getState().plotRenderer;
+		if (current?.kind !== info.kind || current.fallbackReason !== info.fallbackReason) {
+			update({ plotRenderer: info });
 		}
-		// Store/theme updates may have consumed their frames while startup was pending.
-		schedule();
+		resizeObserver = new ResizeObserver(() => backend?.resize());
+		resizeObserver.observe(surface);
+		// Store/theme updates may have arrived while async WebGPU startup was pending.
+		if (catchUp) schedule();
 		onStatus({ status: 'ready', kind: next.kind });
 	}
 
 	function mountCanvasFallback(reason: string): void {
-		backend?.dispose();
-		backend = null;
 		surface.replaceChildren();
 		try {
-			activate(createCanvasBackend(surface, currentFrame()), reason);
+			const canvas = createCanvasBackend(surface, currentFrame());
+			activate(canvas, { kind: 'canvas', fallbackReason: reason }, false);
 		} catch (error) {
 			if (!disposed) {
+				if (appStore.getState().plotRenderer !== null) update({ plotRenderer: null });
 				onStatus({
 					status: 'error',
 					message: `Could not start the plot renderer: ${error instanceof Error ? error.message : 'unknown error'}`
@@ -109,36 +106,22 @@ export function mountChart(
 	}
 
 	async function start(): Promise<void> {
+		const support = await checkWebGpuSupport();
+		if (disposed) return;
+
+		if (!support.ok) {
+			mountCanvasFallback(support.reason);
+			return;
+		}
+
 		try {
-			const support = await checkWebGpuSupport();
-			if (disposed) return;
-
-			if (!support.ok) {
-				mountCanvasFallback(support.reason);
-				return;
-			}
-
-			try {
-				const webgpu = await createWebGpuBackend(surface, currentFrame(), support.adapter, () => {
-					if (!disposed) mountCanvasFallback('WebGPU device was lost.');
-				});
-				if (disposed) {
-					webgpu.dispose();
-					return;
-				}
-				activate(webgpu, null);
-			} catch (error) {
-				if (disposed) return;
-				console.warn('WebGPU renderer failed; falling back to Canvas 2D.', error);
-				mountCanvasFallback('WebGPU failed to start.');
-			}
+			const webgpu = await createWebGpuBackend(surface, currentFrame(), () => disposed);
+			if (webgpu === null) return;
+			activate(webgpu, { kind: 'webgpu', fallbackReason: null }, true);
 		} catch (error) {
-			if (!disposed) {
-				onStatus({
-					status: 'error',
-					message: `Could not start the plot renderer: ${error instanceof Error ? error.message : 'unknown error'}`
-				});
-			}
+			if (disposed) return;
+			console.warn('WebGPU renderer failed; falling back to Canvas 2D.', error);
+			mountCanvasFallback('WebGPU failed to start.');
 		}
 	}
 
