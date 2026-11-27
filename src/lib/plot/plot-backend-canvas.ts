@@ -1,17 +1,18 @@
 import { AXIS_FONT_SIZE, generateValueAxisTicks, Y_TICK_COUNT } from '@/lib/plot/plot-axis-layout';
 import type { PlotBackend, PlotFrame } from '@/lib/plot/plot-backend';
+import { TIME_LABEL_GAP_PX, timeAxisTicks } from '@/lib/plot/plot-time-axis';
 import type { PlotAxisRange } from '@/lib/plot/plot-viewport';
 import { formatAxisTime, type WindowedSignalView } from '@/lib/plot/signal-plot-data';
 import { PRIMARY_Y_AXIS_ID } from '@/lib/plot/y-axis';
 
 const LINE_WIDTH = 2.5;
+// ChartGPU fades inward at each edge. Approximate its visible width with one Canvas stroke.
+const LINE_EDGE_FADE_DEVICE_PX = 1.25;
 const LINE_OPACITY = 0.95;
 const MARKER_RADIUS = 1.5;
 const X_TICK_LENGTH = 6;
 const X_LABEL_OFFSET = 10;
-const X_LABEL_MIN_GAP = 10;
-const X_TICK_SPACING_PX = 140;
-const EDGE_ANCHOR_PX = 24;
+const EDGE_ANCHOR_PX = 12;
 
 type PlotBox = {
 	left: number;
@@ -93,8 +94,16 @@ export function createCanvasBackend(surface: HTMLElement, initialFrame: PlotFram
 		const yTicks = validPrimaryY
 			? generateValueAxisTicks(validPrimaryY.min, validPrimaryY.max, Y_TICK_COUNT)
 			: [];
-		const xTickCount = Math.max(2, Math.min(8, Math.floor(box.width / X_TICK_SPACING_PX)));
-		const xTicks = validX ? generateValueAxisTicks(validX.min, validX.max, xTickCount) : [];
+		ctx.font = `${AXIS_FONT_SIZE}px ${theme.fontFamily}`;
+		const xLabels = new Map<number, { text: string; width: number }>();
+		const xTicks = validX
+			? timeAxisTicks(validX, box.width, (tick) => {
+					const text = formatAxisTime(tick, frame.timeFormat);
+					const width = ctx.measureText(text).width;
+					xLabels.set(tick, { text, width });
+					return width;
+				})
+			: [];
 
 		drawGridLines(ctx, box, theme.gridLine, validX, xTicks, validPrimaryY, yTicks);
 
@@ -104,16 +113,17 @@ export function createCanvasBackend(surface: HTMLElement, initialFrame: PlotFram
 			ctx.rect(box.left, box.top, box.width, box.height);
 			ctx.clip();
 
+			const strokeWidth = Math.max(1, LINE_WIDTH - LINE_EDGE_FADE_DEVICE_PX / dpr);
 			for (const view of frame.views) {
 				const axisId = frame.axisIdByKey.get(view.signal.key) ?? PRIMARY_Y_AXIS_ID;
 				const yRange = axisRanges.get(axisId);
 				if (yRange !== undefined && yRange.max > yRange.min) {
-					drawSeries(ctx, box, view, validX, yRange);
+					drawSeries(ctx, box, view, validX, yRange, strokeWidth);
 				}
 			}
 
 			ctx.restore();
-			drawXAxis(ctx, box, frame, validX, xTicks);
+			drawXAxis(ctx, box, frame, validX, xTicks, xLabels);
 		}
 
 		ctx.restore();
@@ -176,7 +186,8 @@ function drawSeries(
 	box: PlotBox,
 	view: WindowedSignalView,
 	xRange: PlotAxisRange,
-	yRange: PlotAxisRange
+	yRange: PlotAxisRange,
+	strokeWidth: number
 ): void {
 	const { x, y } = view;
 	const count = Math.min(x.length, y.length);
@@ -189,7 +200,7 @@ function drawSeries(
 	const yScale = box.height / (yMax - yRange.min);
 
 	ctx.strokeStyle = view.color;
-	ctx.lineWidth = LINE_WIDTH;
+	ctx.lineWidth = strokeWidth;
 	ctx.lineJoin = 'round';
 	ctx.lineCap = 'round';
 	ctx.globalAlpha = LINE_OPACITY;
@@ -247,7 +258,8 @@ function drawXAxis(
 	box: PlotBox,
 	frame: PlotFrame,
 	xRange: PlotAxisRange,
-	xTicks: readonly number[]
+	xTicks: readonly number[],
+	xLabels: ReadonlyMap<number, { text: string; width: number }>
 ): void {
 	const { theme, timeFormat } = frame;
 	const baselineY = Math.round(box.bottom) + 0.5;
@@ -272,33 +284,32 @@ function drawXAxis(
 	}
 	ctx.stroke();
 
-	ctx.font = `${AXIS_FONT_SIZE}px ${theme.fontFamily}`;
 	ctx.fillStyle = theme.text;
 	ctx.textBaseline = 'top';
 	const labelY = box.bottom + X_LABEL_OFFSET;
+	const anchorEdges = xTicks.length > 1;
+	const canvasRight = box.right + frame.grid.right;
 
-	let lastRight = -Infinity;
-	let lastLabel = '';
+	let previousRight = -Infinity;
+	let previousLabel = '';
 	for (const tick of xTicks) {
-		const label = formatAxisTime(tick, timeFormat);
-		if (label.length === 0 || label === lastLabel) continue;
+		const measured = xLabels.get(tick);
+		const label = measured?.text ?? formatAxisTime(tick, timeFormat);
+		if (!label || label === previousLabel) continue;
 		const x = box.left + ((tick - xRange.min) / xSpan) * box.width;
-		const width = ctx.measureText(label).width;
-
-		let align: CanvasTextAlign = 'center';
-		let left = x - width / 2;
-		if (x - box.left < EDGE_ANCHOR_PX || left < box.left) {
-			align = 'left';
+		const halfWidth = (measured?.width ?? ctx.measureText(label).width) / 2;
+		let left = x - halfWidth;
+		ctx.textAlign = 'center';
+		if (x < halfWidth || (anchorEdges && x - box.left <= EDGE_ANCHOR_PX)) {
+			ctx.textAlign = 'left';
 			left = x;
-		} else if (box.right - x < EDGE_ANCHOR_PX || left + width > box.right) {
-			align = 'right';
-			left = x - width;
+		} else if (x + halfWidth > canvasRight || (anchorEdges && box.right - x <= EDGE_ANCHOR_PX)) {
+			ctx.textAlign = 'right';
+			left = x - 2 * halfWidth;
 		}
-
-		if (left < lastRight + X_LABEL_MIN_GAP) continue;
-		ctx.textAlign = align;
+		if (left < previousRight + TIME_LABEL_GAP_PX) continue;
 		ctx.fillText(label, x, labelY);
-		lastRight = left + width;
-		lastLabel = label;
+		previousRight = left + 2 * halfWidth;
+		previousLabel = label;
 	}
 }
