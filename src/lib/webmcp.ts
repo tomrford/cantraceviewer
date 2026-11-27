@@ -118,6 +118,7 @@ export const storeHost = {
 	toggleSignal,
 	session: () => {
 		const {
+			plotRenderer,
 			trace,
 			traceName: displayName,
 			traceWarning: warning,
@@ -130,6 +131,7 @@ export const storeHost = {
 		} = appStore.getState();
 		const nativeCount = countSignals(trace?.mf4Catalog?.groups ?? []);
 		return {
+			renderer: plotRenderer,
 			trace:
 				trace === null
 					? null

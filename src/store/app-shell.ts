@@ -3,6 +3,7 @@
 // Handlers run outside React render, so they read current state with getState().
 import { toast } from 'sonner';
 
+import { preloadWebGpuBackend } from '@/lib/plot/plot-backend-webgpu';
 import {
 	adjacentWalkthroughStep,
 	WALKTHROUGH_VERSION,
@@ -149,8 +150,8 @@ export function openDemoTrace(): Promise<void> {
 async function withTraceLock(open: () => Promise<unknown>): Promise<void> {
 	if (appStore.getState().openingTrace) return;
 	update({ openingTrace: true });
-	// ChartGPU is the one lazy chunk: fetch it as a trace opens rather than once the plot mounts.
-	void import('chartgpu').catch(() => undefined);
+	// ChartGPU is the one lazy chunk: fetch it as a trace opens only if WebGPU is available.
+	preloadWebGpuBackend();
 	try {
 		await open();
 	} catch (error) {

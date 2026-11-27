@@ -18,7 +18,7 @@ Explore decoded series sharing one time axis and organise scales across up to fi
 
 ## Driving it with Browser
 
-Preconditions: GPU doctor passed; demo vehicle_speed and engine_rpm selected/decoded.
+Preconditions: doctor passed; record active renderer (`data-renderer`); demo vehicle_speed and engine_rpm selected/decoded.
 
 - **Zoom:** capture fit, click `Zoom in`, require narrower time range/changed image; zoom out/reset and confirm fit. Tool path: set window `startMs:10,endMs:110`, inspect session and screenshot; reset with no bounds.
 - **Gestures:** locate interior from current screenshot, scroll, pan by drag, activate box zoom and drag a rectangle. Record endpoints and before/after ranges. Y gestures move every axis by the same proportion of its own fit range. Test keys/context menu/palette separately when affected.
@@ -29,7 +29,7 @@ Preconditions: GPU doctor passed; demo vehicle_speed and engine_rpm selected/dec
 
 ## Gotchas
 
-- Canvas/tool ranges cannot prove pixels or gestures; visual checks blocked without ChartGPU.
+- Canvas/tool ranges cannot prove pixels or gestures; record whether `webgpu` or `canvas` (`data-renderer`) rendered the captured screenshots.
 - Coordinates come from current screenshots and must be recorded.
 - Assignments are session state, released on deselection and cleared on reload.
 - Explicit time bounds preserve Y zoom; no bounds resets all axes.

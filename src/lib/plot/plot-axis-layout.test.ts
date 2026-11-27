@@ -1,10 +1,11 @@
-import { generateValueAxisTicks } from 'chartgpu';
+import { generateValueAxisTicks as chartGpuValueAxisTicks } from 'chartgpu';
 import { describe, expect, it } from 'vitest';
 
 import {
 	axisGutterOffset,
 	axisTicks,
 	axisTicksAtRatios,
+	generateValueAxisTicks,
 	Y_AXIS_GUTTER
 } from '@/lib/plot/plot-axis-layout';
 
@@ -19,7 +20,7 @@ describe('axisGutterOffset', () => {
 
 describe('axisTicks', () => {
 	it('matches ChartGPU nice ticks and walks them top-down', () => {
-		const ticks = axisTicks({ min: 11.3, max: 38.8 }, generateValueAxisTicks, 5);
+		const ticks = axisTicks({ min: 11.3, max: 38.8 }, 5);
 		expect(ticks.map((tick) => tick.value)).toEqual([35, 30, 25, 20, 15]);
 		ticks.forEach((tick) => {
 			expect(tick.ratio).toBeCloseTo((38.8 - tick.value) / 27.5);
@@ -27,14 +28,29 @@ describe('axisTicks', () => {
 	});
 
 	it('uses the default tick hint and handles degenerate input', () => {
-		const ticks = axisTicks({ min: 0, max: 1 }, generateValueAxisTicks);
+		const ticks = axisTicks({ min: 0, max: 1 });
 		expect(ticks).toHaveLength(6);
 		ticks.forEach((tick, index) => expect(tick.value).toBeCloseTo(1 - index * 0.2));
-		expect(axisTicks(null, generateValueAxisTicks)).toEqual([]);
-		expect(axisTicks({ min: 0, max: 1 }, generateValueAxisTicks, 0)).toEqual([]);
-		expect(axisTicks({ min: 5, max: 5 }, generateValueAxisTicks, 1)).toEqual([
-			{ ratio: 0.5, value: 5 }
-		]);
+		expect(axisTicks(null)).toEqual([]);
+		expect(axisTicks({ min: 0, max: 1 }, 0)).toEqual([]);
+		expect(axisTicks({ min: 5, max: 5 }, 1)).toEqual([{ ratio: 0.5, value: 5 }]);
+	});
+
+	it('produces the same clamped tick ladder as ChartGPU across scales and edge ranges', () => {
+		for (const [min, max, count] of [
+			[0, 100, 5],
+			[-42.7, 18.3, 5],
+			[11.3, 38.8, 5],
+			[0.0012, 0.0087, 5],
+			[100_000, 950_000, 6],
+			[42, 42, 5],
+			[0, 0, 5]
+		] as const) {
+			const actual = generateValueAxisTicks(min, max, count);
+			const expected = chartGpuValueAxisTicks(min, max, count);
+			expect(actual).toHaveLength(expected.length);
+			actual.forEach((value, index) => expect(value).toBeCloseTo(expected[index], 10));
+		}
 	});
 });
 

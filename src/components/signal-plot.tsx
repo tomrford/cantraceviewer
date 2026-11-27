@@ -50,8 +50,8 @@ const EMPTY_MESSAGE = 'Select signals from the signal selector to view them.';
 type ContextTarget = { point: PlotPoint | null; crosshairId: CrosshairId | null };
 
 /**
- * The ChartGPU plot with its overlays. Chart options are pushed from store subscriptions on one
- * animation frame, outside React rendering; React renders only discrete plot state.
+ * The signal plot with its overlays. Frames are pushed from store subscriptions on one animation
+ * frame, outside React rendering; React renders only discrete plot state.
  */
 export function SignalPlot({
 	dropActive = false,
@@ -205,9 +205,7 @@ export function SignalPlot({
 				</ContextMenu>
 			)}
 
-			{hasData && renderer.status === 'ready' && (
-				<SignalPlotAxes generateTicks={renderer.generateTicks} />
-			)}
+			{hasData && renderer.status === 'ready' && <SignalPlotAxes />}
 
 			{hasPlottableSignals && legendVisible && <SignalPlotLegend />}
 

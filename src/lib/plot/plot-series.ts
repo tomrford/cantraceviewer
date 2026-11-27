@@ -32,7 +32,7 @@ function sampleMarkerSeries(view: WindowedSignalView, yAxis: YAxisId): ScatterSe
 export type PlotSeriesConfig = LineSeriesConfig | ScatterSeriesConfig;
 
 export function plotSeriesForViews(
-	views: WindowedSignalView[],
+	views: readonly WindowedSignalView[],
 	yAxisFor: (view: WindowedSignalView) => YAxisId
 ): PlotSeriesConfig[] {
 	return views.flatMap((view) => {
