@@ -35,15 +35,16 @@ type WebGpuNavigator = Navigator & {
 	gpu?: { requestAdapter?: () => Promise<unknown> };
 };
 
-/** Dev/build override to exercise the Canvas 2D fallback on a GPU-capable browser. */
+/** Undocumented debug/build override to exercise the Canvas 2D fallback on a GPU-capable browser. */
 function forcedCanvasReason(): string | null {
 	if (import.meta.env.VITE_PLOT_RENDERER === 'canvas') {
 		return 'Canvas fallback forced via VITE_PLOT_RENDERER.';
 	}
-	if (import.meta.env.DEV && typeof location !== 'undefined') {
-		if (new URLSearchParams(location.search).get('renderer') === 'canvas') {
-			return 'Canvas fallback forced via ?renderer=canvas.';
-		}
+	if (
+		typeof location !== 'undefined' &&
+		new URLSearchParams(location.search).get('renderer') === 'canvas'
+	) {
+		return 'Canvas fallback forced via ?renderer=canvas.';
 	}
 	return null;
 }
